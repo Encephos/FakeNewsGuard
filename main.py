@@ -200,7 +200,7 @@ def main() -> None:
         defaults = {
             "anthropic": "claude-sonnet-4-20250514",
             "openai": "gpt-4o",
-            "openrouter": "qwen/qwen3.5-35b-a3b",
+            "openrouter": "qwen/qwen3.5-397b-a17b",
             "ollama": "llama3.1",
         }
         args.model = defaults[args.llm_provider]

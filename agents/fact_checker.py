@@ -56,16 +56,12 @@ def _build_search_queries(claim: Claim) -> list[str]:
     text = claim.text
     queries = [text]  # Direktsuche
 
-    keywords = []
-    stat_terms = ["destatis", "statistisches bundesamt"]
-    factcheck_terms = ["correctiv faktencheck", "dpa faktencheck"]
+    # Faktencheck-Suffix ist themenunabhängig und immer sinnvoll
+    queries.append(f"{text} faktencheck")
 
-    if claim.type.value in ("STATISTICAL", "FACTUAL"):
-        keywords.extend(stat_terms)
-    keywords.extend(factcheck_terms)
-
-    for kw in keywords[:2]:  # Max 2 Zusatzsuchen
-        queries.append(f"{text} {kw}")
+    # Für statistische Claims: fachspezifisches Suffix statt generischem "destatis"
+    if claim.type.value == "STATISTICAL":
+        queries.append(f"{text} statistik daten")
 
     return queries
 
