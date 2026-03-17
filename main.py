@@ -57,7 +57,7 @@ def format_result(result: SynthesisResult) -> str:
     lines.append("")
     lines.append("╔══════════════════════════════════════════════════════════╗")
     lines.append(f"║  {emoji}  GESAMTBEWERTUNG: {label:<38} ║")
-    lines.append(f"║     Confidence: {result.confidence:.0%:<42} ║")
+    lines.append(f"║     Confidence: {result.confidence:<42.0%} ║")
     lines.append("╚══════════════════════════════════════════════════════════╝")
     lines.append("")
 
@@ -200,7 +200,7 @@ def main() -> None:
         defaults = {
             "anthropic": "claude-sonnet-4-20250514",
             "openai": "gpt-4o",
-            "openrouter": "anthropic/claude-sonnet-4-5",
+            "openrouter": "qwen/qwen3.5-35b-a3b",
             "ollama": "llama3.1",
         }
         args.model = defaults[args.llm_provider]
