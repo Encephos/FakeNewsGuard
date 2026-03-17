@@ -175,9 +175,9 @@ def main() -> None:
 
     # LLM
     parser.add_argument(
-        "--llm-provider", default="anthropic",
-        choices=["anthropic", "openai", "ollama"],
-        help="LLM Provider (default: anthropic)",
+        "--llm-provider", default="openrouter",
+        choices=["anthropic", "openai", "openrouter", "ollama"],
+        help="LLM Provider (default: openrouter)",
     )
     parser.add_argument("--model", default=None, help="Modellname überschreiben")
     parser.add_argument("--llm-base-url", default=None, help="Base URL für Ollama/lokale Modelle")
@@ -200,6 +200,7 @@ def main() -> None:
         defaults = {
             "anthropic": "claude-sonnet-4-20250514",
             "openai": "gpt-4o",
+            "openrouter": "anthropic/claude-sonnet-4-5",
             "ollama": "llama3.1",
         }
         args.model = defaults[args.llm_provider]
