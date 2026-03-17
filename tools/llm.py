@@ -33,6 +33,18 @@ class LLMClient:
                 kwargs["base_url"] = self.config.base_url
             self._client = openai.OpenAI(**kwargs)
 
+        elif self.config.provider == "openrouter":
+            import openai
+
+            self._client = openai.OpenAI(
+                base_url=self.config.base_url or "https://openrouter.ai/api/v1",
+                api_key=self.config.api_key,
+                default_headers={
+                    "HTTP-Referer": "https://github.com/Encephos/FakeNewsGuard",
+                    "X-Title": "FakeNewsGuard",
+                },
+            )
+
         elif self.config.provider == "ollama":
             import openai
 
@@ -101,7 +113,7 @@ class LLMClient:
             ],
         }
         # OpenAI supports structured JSON mode
-        if response_format == "json" and self.config.provider == "openai":
+        if response_format == "json" and self.config.provider in ("openai", "openrouter"):
             kwargs["response_format"] = {"type": "json_object"}
 
         def _call():
@@ -148,7 +160,7 @@ class LLMClient:
                 return self._complete_structured_anthropic(
                     system_prompt, user_message, schema, tool_name, tool_description
                 )
-            elif self.config.provider == "openai":
+            elif self.config.provider in ("openai", "openrouter"):
                 return self._complete_structured_openai(
                     system_prompt, user_message, schema, tool_name, tool_description
                 )

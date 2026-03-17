@@ -34,8 +34,8 @@ class CacheConfig:
 class LLMConfig:
     """Konfiguration für den LLM-Provider."""
 
-    provider: str = "anthropic"  # "anthropic" | "openai" | "ollama"
-    model: str = "claude-sonnet-4-20250514"
+    provider: str = "openrouter"  # "anthropic" | "openai" | "openrouter" | "ollama"
+    model: str = "qwen/qwen3.5-35b-a3b"
     api_key: str = ""
     base_url: str | None = None  # Für Ollama / lokale Modelle
     temperature: float = 0.2  # Niedrig für Faktenprüfung
@@ -47,6 +47,8 @@ class LLMConfig:
                 self.api_key = os.getenv("ANTHROPIC_API_KEY", "")
             elif self.provider == "openai":
                 self.api_key = os.getenv("OPENAI_API_KEY", "")
+            elif self.provider == "openrouter":
+                self.api_key = os.getenv("OPENROUTER_API_KEY", "")
 
 
 @dataclass
@@ -83,9 +85,9 @@ class AppConfig:
         """Prüft, ob alle nötigen API Keys vorhanden sind. Beendet mit Fehlermeldung wenn nicht."""
         errors: list[str] = []
 
-        if self.llm.provider in ("anthropic", "openai") and not self.llm.api_key:
-            env_var = "ANTHROPIC_API_KEY" if self.llm.provider == "anthropic" else "OPENAI_API_KEY"
-            errors.append(f"Fehlender LLM API Key: {env_var} nicht gesetzt")
+        key_env = {"anthropic": "ANTHROPIC_API_KEY", "openai": "OPENAI_API_KEY", "openrouter": "OPENROUTER_API_KEY"}
+        if self.llm.provider in key_env and not self.llm.api_key:
+            errors.append(f"Fehlender LLM API Key: {key_env[self.llm.provider]} nicht gesetzt")
 
         if not self.search.api_key:
             key_map = {"tavily": "TAVILY_API_KEY", "serper": "SERPER_API_KEY", "brave": "BRAVE_API_KEY"}
