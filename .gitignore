@@ -1,0 +1,18 @@
+# Environments
+env/
+venv/
+.env
+.venv/
+
+# Python caching
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Project specific
+PLAN.md
+.DS_Store
+
+# IDEs
+.vscode/
+.idea/
