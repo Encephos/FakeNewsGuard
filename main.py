@@ -17,8 +17,10 @@ Umgebungsvariablen (in .env):
 from __future__ import annotations
 
 import argparse
+import asyncio
 import json
 import sys
+import textwrap
 from pathlib import Path
 
 from config import AppConfig, LLMConfig, SearchConfig
@@ -47,6 +49,11 @@ FACT_RATING_EMOJI = {
 }
 
 
+def _wrap(text: str, indent: str = "     ", width: int = 80) -> str:
+    """Wrap text with hanging indent so nothing gets cut off."""
+    return textwrap.fill(text, width=width, initial_indent=indent, subsequent_indent=indent)
+
+
 def format_result(result: SynthesisResult) -> str:
     """Formatiere das Ergebnis als lesbaren Text."""
     emoji, label = RATING_DISPLAY.get(
@@ -64,7 +71,7 @@ def format_result(result: SynthesisResult) -> str:
     # Zusammenfassung
     lines.append("📝 ZUSAMMENFASSUNG")
     lines.append("─" * 58)
-    lines.append(result.summary)
+    lines.append(textwrap.fill(result.summary, width=80))
     lines.append("")
 
     # Einzelne Claims
@@ -75,11 +82,11 @@ def format_result(result: SynthesisResult) -> str:
             e = FACT_RATING_EMOJI.get(fc.rating.value, "❓")
             lines.append(f"  {e} [{fc.claim_id}] {fc.rating.value}")
             if fc.evidence:
-                lines.append(f"     Evidenz: {fc.evidence[:200]}")
+                lines.append(_wrap(f"Evidenz: {fc.evidence}"))
             if fc.correction:
-                lines.append(f"     Korrektur: {fc.correction[:200]}")
+                lines.append(_wrap(f"Korrektur: {fc.correction}"))
             if fc.missing_context:
-                lines.append(f"     Fehlender Kontext: {fc.missing_context[:200]}")
+                lines.append(_wrap(f"Fehlender Kontext: {fc.missing_context}"))
             lines.append("")
 
     # Number Audits
@@ -89,9 +96,9 @@ def format_result(result: SynthesisResult) -> str:
         for na in result.number_audits:
             lines.append(f"  [{na.claim_id}] Manipulation: {na.manipulation_type.value}")
             if na.calculation_check:
-                lines.append(f"     Rechnung: {na.calculation_check[:200]}")
+                lines.append(_wrap(f"Rechnung: {na.calculation_check}"))
             if na.correct_interpretation:
-                lines.append(f"     Korrekt: {na.correct_interpretation[:200]}")
+                lines.append(_wrap(f"Korrekt: {na.correct_interpretation}"))
             lines.append("")
 
     # Korrekturen
@@ -239,7 +246,7 @@ def main() -> None:
         )
         text = text[: config.max_input_chars]
 
-    result = orchestrator.analyze(text)
+    result = asyncio.run(orchestrator.analyze_async(text))
 
     if args.json:
         print(result.model_dump_json(indent=2))
@@ -281,7 +288,7 @@ def _interactive_mode(orchestrator: Orchestrator, args: argparse.Namespace) -> N
             text = text[:max_chars]
 
         print()
-        result = orchestrator.analyze(text)
+        result = asyncio.run(orchestrator.analyze_async(text))
 
         if args.json:
             print(result.model_dump_json(indent=2))
