@@ -31,7 +31,7 @@ load_dotenv()
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
 POLL_INTERVAL = 2.0  # seconds between polling backend
-MAX_POLL_ATTEMPTS = 360  # 12 min timeout
+MAX_POLL_ATTEMPTS = 960  # 32 min timeout (backend hard cap at 30 min)
 
 logging.basicConfig(
     level=logging.INFO,

@@ -91,13 +91,13 @@ class TelegramConfig:
     """Konfiguration für den Telegram Bot."""
 
     bot_token: str = ""
-    backend_url: str = "http://localhost:8000"
+    backend_url: str = "http://backend:8000"
 
     def __post_init__(self) -> None:
         if not self.bot_token:
             self.bot_token = os.getenv("TELEGRAM_BOT_TOKEN", "")
-        if not self.backend_url or self.backend_url == "http://localhost:8000":
-            self.backend_url = os.getenv("BACKEND_URL", "http://localhost:8000")
+        if not self.backend_url or self.backend_url == "http://backend:8000":
+            self.backend_url = os.getenv("BACKEND_URL", "http://backend:8000")
 
 
 @dataclass
