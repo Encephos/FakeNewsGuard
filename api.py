@@ -436,6 +436,37 @@ async def analyze(req: AnalyzeRequest) -> dict:
 
     config = AppConfig()
 
+    # ── Archiv-Duplikat-Prüfung ────────────────────────────────────
+    # Wenn derselbe URL oder Text schon mal analysiert wurde, sofort
+    # das gecachte Ergebnis zurückgeben – ohne alle Agenten neu zu starten.
+    archive = _get_archive()
+    cached = archive.find_duplicate(text=text, url=url)
+    if cached is not None:
+        job_id = str(uuid.uuid4())
+        now = time.time()
+        _jobs[job_id] = {
+            "status": "done",
+            "steps": [
+                {
+                    "id": "step-cache-1",
+                    "phase": "Archiv",
+                    "agent": "Archiv",
+                    "emoji": "",
+                    "message": "Identischer Input bereits analysiert – Ergebnis aus Archiv geladen.",
+                    "status": "done",
+                    "timestamp": int(now * 1000),
+                }
+            ],
+            "result": cached["result"],
+            "error": None,
+            "created_at": now,
+            "last_activity": now,
+            "source_url": url or None,
+            "archive_id": cached["id"],
+            "from_cache": True,
+        }
+        return {"job_id": job_id}
+
     job_id = str(uuid.uuid4())
     now = time.time()
     _jobs[job_id] = {
@@ -511,6 +542,7 @@ async def get_job(job_id: str) -> dict:
         "error": job["error"],
         "extracted_content": job.get("extracted_content"),
         "archive_id": job.get("archive_id"),
+        "from_cache": job.get("from_cache", False),
     }
 
 
