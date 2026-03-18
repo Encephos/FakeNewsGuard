@@ -35,7 +35,7 @@ class LLMConfig:
     """Konfiguration für den LLM-Provider."""
 
     provider: str = "openrouter"  # "anthropic" | "openai" | "openrouter" | "ollama"
-    model: str = "qwen/qwen3.5-397b-a17b"
+    model: str = "qwen/qwen3-235b-a22b-thinking-2507" # "qwen/qwen3.5-397b-a17b"
     api_key: str = ""
     base_url: str | None = None  # Für Ollama / lokale Modelle
     temperature: float = 0.2  # Niedrig für Faktenprüfung
