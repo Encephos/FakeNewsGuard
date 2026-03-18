@@ -105,6 +105,19 @@ class TelegramConfig:
 
 
 @dataclass
+class GraphConfig:
+    """Konfiguration für den Cross-Reference Graph."""
+
+    enabled: bool = True
+    db_path: str = ".fakeguard_graph.db"
+
+    def __post_init__(self) -> None:
+        env_path = os.getenv("GRAPH_DB_PATH", "")
+        if env_path:
+            self.db_path = env_path
+
+
+@dataclass
 class RateLimitConfig:
     """Konfiguration für API Rate-Limiting (Token-Bucket)."""
 
@@ -130,6 +143,7 @@ class AppConfig:
     archive: ArchiveConfig = field(default_factory=ArchiveConfig)
     telegram: TelegramConfig = field(default_factory=TelegramConfig)
     rate_limit: RateLimitConfig = field(default_factory=RateLimitConfig)
+    graph: GraphConfig = field(default_factory=GraphConfig)
     verbose: bool = True  # Zeige Agent-Wechsel und Zwischenergebnisse
     language: str = "de"  # Primärsprache der Analyse
     max_input_chars: int = 10_000  # Schutz vor übermäßig langen Inputs

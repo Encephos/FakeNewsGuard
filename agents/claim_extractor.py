@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from agents.base import BaseAgent
+from i18n import t
 from models.schemas import Claim, ClaimExtractionResult, ClaimType
 
 SYSTEM_PROMPT = """\
@@ -78,7 +79,9 @@ class ClaimExtractorAgent(BaseAgent):
     emoji = "🔍"
 
     def execute(self, input_data: Any, context: str = "") -> ClaimExtractionResult:
-        raw = self._llm_json(SYSTEM_PROMPT, f"Analysiere folgenden Text:\n\n{input_data}")
+        prompt = t("agents.claim_extractor.system_prompt")
+        prefix = t("agents.claim_extractor.analyze_prefix")
+        raw = self._llm_json(prompt, f"{prefix}{input_data}")
 
         claims = []
         for c in raw.get("claims", []):
@@ -93,7 +96,7 @@ class ClaimExtractorAgent(BaseAgent):
                     )
                 )
             except (KeyError, ValueError) as e:
-                self._log(f"Überspringe ungültigen Claim: {e}")
+                self._log(f"{t('agents.claim_extractor.skip_invalid_claim')}: {e}")
 
         result = ClaimExtractionResult(
             claims=claims,

@@ -24,12 +24,17 @@ from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel
 
 from config import AppConfig
+from i18n import set_default_locale, t
 from orchestrator import InputValidationError, Orchestrator
 from tools.archive import AnalysisArchive
 from tools.content_extractor import ContentExtractor, ExtractedContent, detect_platform, extract_urls, is_url
+from tools.cross_reference import CrossReferenceGraph
 from tools.rate_limiter import RateLimiter
 
 app = FastAPI(title="FakeNewsGuard API")
+
+# i18n auf konfigurierte Sprache setzen
+set_default_locale(AppConfig().language)
 
 # CORS – allow all origins so the deployed server works regardless of domain
 app.add_middleware(
@@ -66,6 +71,18 @@ def _get_archive() -> AnalysisArchive:
         _archive = AnalysisArchive(config.archive)
     return _archive
 
+# ── Cross-Reference Graph (singleton) ────────────────────────────
+_graph: CrossReferenceGraph | None = None
+
+
+def _get_graph() -> CrossReferenceGraph:
+    global _graph
+    if _graph is None:
+        config = AppConfig()
+        _graph = CrossReferenceGraph(config.graph.db_path)
+    return _graph
+
+
 # Clean up jobs older than 1 hour to avoid memory leaks
 _JOB_TTL_SECONDS = 3600
 # Maximum time a single analysis job may run before being killed (total hard cap)
@@ -84,14 +101,13 @@ def _cleanup_old_jobs() -> None:
 
 # ── Rating mappings ────────────────────────────────────────────────
 
-OVERALL_RATING_MAP: dict[str, str] = {
-    "RELIABLE": "Wahr",
-    "MOSTLY_RELIABLE": "Größtenteils wahr",
-    "MIXED": "Irreführend",
-    "MISLEADING": "Irreführend",
-    "HIGHLY_MISLEADING": "Größtenteils falsch",
-    "FABRICATED": "Falsch",
-}
+def _get_rating_map() -> dict[str, str]:
+    """Rating-Map dynamisch aus i18n laden."""
+    return {
+        k: t(f"api.ratings.{k}")
+        for k in ("RELIABLE", "MOSTLY_RELIABLE", "MIXED", "MISLEADING",
+                   "HIGHLY_MISLEADING", "FABRICATED")
+    }
 
 MANIPULATION_TYPE_MAP: dict[str, str] = {
     "BASE_EFFECT": "CHERRY_PICKING",
@@ -135,8 +151,8 @@ def _transform_result(result: Any, claims_map: dict[str, Any]) -> dict:
         frontend_claims.append(claim_dict)
 
     return {
-        "overall_rating": OVERALL_RATING_MAP.get(
-            result.overall_rating.value, "Irreführend"
+        "overall_rating": _get_rating_map().get(
+            result.overall_rating.value, t("api.ratings.MIXED")
         ),
         "confidence": round(result.confidence * 100),
         "summary": result.summary,
@@ -189,7 +205,7 @@ async def _run_job(job_id: str, text: str, url: str = "") -> None:
         # ── Phase 0: URL Content Extraction (if URL provided) ──────
         if url:
             platform = detect_platform(url)
-            push_step("Phase 0", "Content Extractor", f"Extrahiere Inhalt von {platform.capitalize()}…", "running")
+            push_step("Phase 0", "Content Extractor", t("api.steps.extracting_content").format(platform=platform.capitalize()), "running")
             try:
                 extractor = ContentExtractor()
                 content = await extractor.extract_async(url)
@@ -222,7 +238,7 @@ async def _run_job(job_id: str, text: str, url: str = "") -> None:
         # Input-Validierung und -Kürzung wird zentral im Orchestrator erledigt
 
         # ── Phase 1: Claim Extraction ──────────────────────────────
-        push_step("Phase 1", "Claim Extractor", "Claims werden extrahiert…", "running")
+        push_step("Phase 1", "Claim Extractor", t("api.steps.extracting_claims"), "running")
         extraction = await asyncio.get_event_loop().run_in_executor(
             None, orchestrator.claim_extractor.run, text
         )
@@ -241,7 +257,7 @@ async def _run_job(job_id: str, text: str, url: str = "") -> None:
             result = SynthesisResult(
                 overall_rating=OverallRating.RELIABLE,
                 confidence=0.3,
-                summary="Es wurden keine überprüfbaren Tatsachenbehauptungen gefunden.",
+                summary=t("api.steps.no_claims_found"),
                 sources=[],
             )
             job["result"] = _transform_result(result, claims_map)
@@ -271,7 +287,7 @@ async def _run_job(job_id: str, text: str, url: str = "") -> None:
 
         async def _check_claim(claim):
             """Fact-check a single claim, then optionally number-audit it."""
-            push_step("Phase 2", "Fact Checker", f"Prüfe: {claim.text[:80]}…", "running")
+            push_step("Phase 2", "Fact Checker", t("api.steps.checking_claim").format(text=claim.text[:80]), "running")
 
             fc_result, fc_error = await asyncio.get_event_loop().run_in_executor(
                 None, lambda c=claim: orchestrator.fact_checker.run_safe(c, context=text)
@@ -284,7 +300,7 @@ async def _run_job(job_id: str, text: str, url: str = "") -> None:
                 push_step("Phase 2", "Fact Checker", f"Claim {claim.id}: {fc_result.rating.value}")
 
             if "number_auditor" in claim.requires_agents or claim.type == ClaimType.STATISTICAL:
-                push_step("Phase 2", "Number Auditor", f"Zahlenprüfung {claim.id}…", "running")
+                push_step("Phase 2", "Number Auditor", t("api.steps.number_audit").format(id=claim.id), "running")
                 fc_context = (
                     f"Fact-Check Ergebnis: {fc_result.rating.value}\nEvidenz: {fc_result.evidence}"
                     if fc_result is not None
@@ -305,7 +321,7 @@ async def _run_job(job_id: str, text: str, url: str = "") -> None:
 
         # Run rhetoric analysis in parallel with claim batches
         async def _run_rhetoric():
-            push_step("Phase 3", "Rhetoric Analyzer", "Rhetorische Analyse gestartet…", "running")
+            push_step("Phase 3", "Rhetoric Analyzer", t("api.steps.rhetoric_started"), "running")
             rhet_result, rhet_error = await asyncio.get_event_loop().run_in_executor(
                 None, lambda: orchestrator.rhetoric_analyzer.run_safe(text)
             )
@@ -350,7 +366,7 @@ async def _run_job(job_id: str, text: str, url: str = "") -> None:
                 )
 
         # ── Phase 4: Synthesis ────────────────────────────────────
-        push_step("Phase 4", "Synthesizer", "Erstelle Gesamtbewertung…", "running")
+        push_step("Phase 4", "Synthesizer", t("api.steps.synthesizing"), "running")
         synthesis_input = {
             "original_text": text,
             "fact_checks": fact_checks,
@@ -363,7 +379,7 @@ async def _run_job(job_id: str, text: str, url: str = "") -> None:
         if analysis_errors:
             final_result.analysis_errors.extend(analysis_errors)
 
-        push_step("Phase 4", "Synthesizer", "Analyse abgeschlossen ✓")
+        push_step("Phase 4", "Synthesizer", t("api.steps.analysis_done"))
 
         job["result"] = _transform_result(final_result, claims_map)
         job["status"] = "done"
@@ -380,6 +396,18 @@ async def _run_job(job_id: str, text: str, url: str = "") -> None:
                 title=extracted.get("title"),
             )
             job["archive_id"] = archive_id
+
+            # ── Cross-Reference Graph: Beziehungen erfassen ────────
+            try:
+                graph = _get_graph()
+                graph.populate_from_result(
+                    analysis_id=archive_id,
+                    claims_analysis=job["result"].get("claims", []),
+                    original_text=text,
+                )
+            except Exception:
+                pass  # Graph-Fehler darf Analyse nicht brechen
+
         except Exception:
             pass  # Archivierung darf Analyse nicht brechen
 
@@ -408,7 +436,7 @@ def _check_rate_limit(request: Request) -> None:
     if not allowed:
         raise HTTPException(
             status_code=429,
-            detail=f"Zu viele Anfragen. Bitte warte {retry_after:.0f} Sekunden.",
+            detail=t("api.errors.rate_limit").format(seconds=f"{retry_after:.0f}"),
             headers={"Retry-After": str(int(retry_after) + 1)},
         )
 
@@ -419,7 +447,7 @@ async def extract_content(req: ExtractRequest, request: Request) -> dict:
     _check_rate_limit(request)
     url = req.url.strip()
     if not url:
-        raise HTTPException(status_code=400, detail="Keine URL angegeben.")
+        raise HTTPException(status_code=400, detail=t("api.errors.no_url"))
 
     try:
         extractor = ContentExtractor()
@@ -435,7 +463,7 @@ async def extract_content(req: ExtractRequest, request: Request) -> dict:
             "metadata": content.metadata,
         }
     except Exception as e:
-        raise HTTPException(status_code=422, detail=f"Inhalt konnte nicht extrahiert werden: {e}")
+        raise HTTPException(status_code=422, detail=t("api.errors.extraction_failed").format(error=e))
 
 
 @app.post("/api/analyze")
@@ -460,7 +488,7 @@ async def analyze(req: AnalyzeRequest, request: Request) -> dict:
             text = ""
 
     if not text and not url:
-        raise HTTPException(status_code=400, detail="Kein Text oder URL angegeben.")
+        raise HTTPException(status_code=400, detail=t("api.errors.no_text"))
 
     config = AppConfig()
 
@@ -480,7 +508,7 @@ async def analyze(req: AnalyzeRequest, request: Request) -> dict:
                     "phase": "Archiv",
                     "agent": "Archiv",
                     "emoji": "",
-                    "message": "Identischer Input bereits analysiert – Ergebnis aus Archiv geladen.",
+                    "message": t("api.steps.from_archive"),
                     "status": "done",
                     "timestamp": int(now * 1000),
                 }
@@ -521,14 +549,11 @@ async def analyze(req: AnalyzeRequest, request: Request) -> dict:
             total = now - job["created_at"]
             inactivity_limit = job.get("inactivity_timeout", _JOB_INACTIVITY_TIMEOUT)
             if idle > inactivity_limit:
-                job["error"] = (
-                    f"Zeitüberschreitung: Kein Fortschritt seit {int(idle)}s. "
-                    "Möglicherweise hängt ein externer API-Aufruf."
-                )
+                job["error"] = t("api.errors.timeout_inactivity").format(seconds=int(idle))
                 job["status"] = "error"
                 return
             if total > _JOB_TIMEOUT_SECONDS:
-                job["error"] = "Zeitüberschreitung: Gesamtlimit von 30 Minuten überschritten."
+                job["error"] = t("api.errors.timeout_hard")
                 job["status"] = "error"
                 return
 
@@ -548,7 +573,7 @@ async def analyze(req: AnalyzeRequest, request: Request) -> dict:
 async def get_job(job_id: str) -> dict:
     """Poll job status. Frontend calls this every ~1.5 s."""
     if job_id not in _jobs:
-        raise HTTPException(status_code=404, detail="Job nicht gefunden.")
+        raise HTTPException(status_code=404, detail=t("api.errors.job_not_found"))
     job = _jobs[job_id]
 
     # Detect stale jobs: no activity for too long OR total time exceeded
@@ -558,10 +583,10 @@ async def get_job(job_id: str) -> dict:
         total = now - job["created_at"]
         if idle > _JOB_INACTIVITY_TIMEOUT + 30:
             job["status"] = "error"
-            job["error"] = "Zeitüberschreitung: Kein Fortschritt – Job hängt."
+            job["error"] = t("api.errors.timeout_stale")
         elif total > _JOB_TIMEOUT_SECONDS + 30:
             job["status"] = "error"
-            job["error"] = "Zeitüberschreitung: Gesamtlimit überschritten."
+            job["error"] = t("api.errors.timeout_total")
 
     return {
         "status": job["status"],
@@ -607,7 +632,7 @@ async def get_archive_entry(archive_id: str) -> dict:
     archive = _get_archive()
     entry = archive.get(archive_id)
     if entry is None:
-        raise HTTPException(status_code=404, detail="Archiv-Eintrag nicht gefunden.")
+        raise HTTPException(status_code=404, detail=t("api.errors.archive_not_found"))
     return entry
 
 
@@ -617,7 +642,7 @@ async def delete_archive_entry(archive_id: str) -> dict:
     archive = _get_archive()
     deleted = archive.delete(archive_id)
     if not deleted:
-        raise HTTPException(status_code=404, detail="Archiv-Eintrag nicht gefunden.")
+        raise HTTPException(status_code=404, detail=t("api.errors.archive_not_found"))
     return {"deleted": True}
 
 
@@ -640,7 +665,7 @@ async def export_pdf(archive_id: str) -> Response:
     archive = _get_archive()
     entry = archive.get(archive_id)
     if entry is None:
-        raise HTTPException(status_code=404, detail="Archiv-Eintrag nicht gefunden.")
+        raise HTTPException(status_code=404, detail=t("api.errors.archive_not_found"))
 
     from tools.pdf_export import generate_pdf
 
@@ -673,7 +698,7 @@ async def export_pdf_from_result(req: dict) -> Response:
     """
     result = req.get("result")
     if not result:
-        raise HTTPException(status_code=400, detail="Kein Analyse-Ergebnis angegeben.")
+        raise HTTPException(status_code=400, detail=t("api.errors.no_result"))
 
     from tools.pdf_export import generate_pdf
 
@@ -689,6 +714,86 @@ async def export_pdf_from_result(req: dict) -> Response:
             "Content-Disposition": 'attachment; filename="faktencheck_report.pdf"',
         },
     )
+
+
+# ── Cross-Reference Graph endpoints ───────────────────────────────
+
+
+@app.get("/api/graph/stats")
+async def graph_stats() -> dict:
+    """Statistiken des Cross-Reference Graphen."""
+    graph = _get_graph()
+    return graph.stats()
+
+
+@app.get("/api/graph/actor/{actor_name}")
+async def graph_actor(actor_name: str) -> dict:
+    """Alle Claims, in denen ein Akteur erwähnt wird."""
+    graph = _get_graph()
+    claims = graph.get_actor_claims(actor_name)
+    return {
+        "actor": actor_name,
+        "claims": [
+            {"id": c.id, "text": c.label, "rating": c.properties.get("rating", "")}
+            for c in claims
+        ],
+    }
+
+
+@app.get("/api/graph/source/{domain}")
+async def graph_source(domain: str) -> dict:
+    """Wie oft und in welchem Kontext wurde eine Quelle verwendet?"""
+    graph = _get_graph()
+    return graph.get_source_history(domain)
+
+
+@app.get("/api/graph/search")
+async def graph_search(
+    type: str | None = None,
+    q: str | None = None,
+    limit: int = 50,
+) -> dict:
+    """Suche im Graphen nach Knoten."""
+    graph = _get_graph()
+    nodes = graph.find_nodes(node_type=type, label_search=q, limit=limit)
+    return {
+        "nodes": [
+            {"id": n.id, "type": n.type, "label": n.label, "properties": n.properties}
+            for n in nodes
+        ],
+    }
+
+
+@app.get("/api/graph/node/{node_id:path}")
+async def graph_node(node_id: str) -> dict:
+    """Knoten mit allen Kanten."""
+    graph = _get_graph()
+    node = graph.get_node(node_id)
+    if node is None:
+        raise HTTPException(status_code=404, detail="Node not found.")
+    edges = graph.get_edges(node_id)
+    neighbors = graph.get_neighbors(node_id)
+    return {
+        "node": {"id": node.id, "type": node.type, "label": node.label, "properties": node.properties},
+        "edges": [
+            {"source": e.source_id, "target": e.target_id, "relation": e.relation}
+            for e in edges
+        ],
+        "neighbors": [
+            {"id": n.id, "type": n.type, "label": n.label}
+            for n in neighbors
+        ],
+    }
+
+
+@app.get("/api/locales")
+async def list_locales() -> dict:
+    """Verfügbare Sprachen und aktuelle Einstellung."""
+    from i18n import available_locales, get_default_locale
+    return {
+        "current": get_default_locale(),
+        "available": available_locales(),
+    }
 
 
 @app.get("/api/health")

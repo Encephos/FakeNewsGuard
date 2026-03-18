@@ -23,6 +23,7 @@ from typing import Any
 import httpx
 
 from config import RetryConfig
+from i18n import t
 from tools.retry import retry_call, retry_call_async
 
 
@@ -163,25 +164,19 @@ class FactCheckDatabaseClient:
             return ""
 
         parts: list[str] = [
-            "## Bestehende professionelle Faktenchecks\n",
-            "Die folgenden Behauptungen wurden bereits von professionellen "
-            "Faktencheck-Organisationen geprüft:\n",
+            t("factcheck_db.section_header") + "\n",
+            t("factcheck_db.section_intro") + "\n",
         ]
 
         for i, fc in enumerate(results, 1):
             parts.append(
-                f"[Faktencheck {i}] {fc.publisher}\n"
-                f"Geprüfter Claim: {fc.claim_reviewed}\n"
-                f"Bewertung: {fc.rating}\n"
-                f"URL: {fc.url}\n"
+                t("factcheck_db.entry").format(
+                    i=i, publisher=fc.publisher,
+                    claim=fc.claim_reviewed, rating=fc.rating, url=fc.url,
+                ) + "\n"
             )
 
-        parts.append(
-            "WICHTIG: Berücksichtige diese professionellen Einschätzungen "
-            "in deiner Bewertung. Wenn eine anerkannte Faktencheck-Organisation "
-            "den Claim bereits geprüft hat, sollte deren Einschätzung stark "
-            "gewichtet werden.\n"
-        )
+        parts.append(t("factcheck_db.importance_note") + "\n")
 
         return "\n".join(parts)
 
