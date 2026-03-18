@@ -73,8 +73,16 @@ export interface AnalysisResult {
   sources: string[];
 }
 
+export interface ExtractedContent {
+  platform: string;
+  title: string;
+  author: string;
+  images: string[];
+  url: string;
+}
+
 export type AnalysisState =
   | { status: "idle" }
-  | { status: "analyzing"; steps: Step[]; currentPhase: string }
-  | { status: "done"; steps: Step[]; result: AnalysisResult }
+  | { status: "analyzing"; steps: Step[]; currentPhase: string; extractedContent?: ExtractedContent }
+  | { status: "done"; steps: Step[]; result: AnalysisResult; extractedContent?: ExtractedContent }
   | { status: "error"; message: string };

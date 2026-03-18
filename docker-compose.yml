@@ -28,5 +28,19 @@ services:
       - backend
     restart: unless-stopped
 
+  telegram-bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: fakenewsguard-telegram
+    command: python telegram_bot.py
+    env_file:
+      - .env
+    environment:
+      - BACKEND_URL=http://backend:8000
+    depends_on:
+      - backend
+    restart: unless-stopped
+
 volumes:
   fng_data:

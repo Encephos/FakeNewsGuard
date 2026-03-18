@@ -64,7 +64,7 @@ export default function RightPanel({ steps, result, isAnalyzing }: RightPanelPro
         </p>
       </section>
 
-      <div className="border-t border-border" />
+      <div className="border-t border-[var(--glass-inner-border)]" />
 
       {/* Stats */}
       <section>
@@ -79,7 +79,7 @@ export default function RightPanel({ steps, result, isAnalyzing }: RightPanelPro
         </div>
       </section>
 
-      <div className="border-t border-border" />
+      <div className="border-t border-[var(--glass-inner-border)]" />
 
       {/* Distribution */}
       <section>

@@ -11,12 +11,12 @@ const OVERALL_STYLE: Record<string, { color: string; label: string }> = {
 };
 
 const CLAIM_STYLE: Record<FactRating, { color: string; border: string; label: string }> = {
-  TRUE:         { color: "text-success", border: "border-success", label: "Wahr" },
-  MOSTLY_TRUE:  { color: "text-success", border: "border-success", label: "Größtenteils wahr" },
-  MISLEADING:   { color: "text-warning", border: "border-warning", label: "Irreführend" },
-  MOSTLY_FALSE: { color: "text-error",   border: "border-error",   label: "Größtenteils falsch" },
-  FALSE:        { color: "text-error",   border: "border-error",   label: "Falsch" },
-  UNVERIFIABLE: { color: "text-text-tertiary", border: "border-border", label: "Unverif." },
+  TRUE:         { color: "text-success", border: "border-success/30", label: "Wahr" },
+  MOSTLY_TRUE:  { color: "text-success", border: "border-success/30", label: "Größtenteils wahr" },
+  MISLEADING:   { color: "text-warning", border: "border-warning/30", label: "Irreführend" },
+  MOSTLY_FALSE: { color: "text-error",   border: "border-error/30",   label: "Größtenteils falsch" },
+  FALSE:        { color: "text-error",   border: "border-error/30",   label: "Falsch" },
+  UNVERIFIABLE: { color: "text-text-tertiary", border: "border-[var(--glass-inner-border)]", label: "Unverif." },
 };
 
 const SEVERITY_STYLE: Record<string, { text: string; bg: string }> = {
@@ -37,7 +37,7 @@ export default function ResultDisplay({ result }: { result: AnalysisResult }) {
           <span className={`font-mono text-xl font-bold leading-tight ${rs.color}`}>
             {rs.label}
           </span>
-          <span className="font-mono text-xs text-text-tertiary shrink-0 mt-1">
+          <span className="glass-badge px-2.5 py-0.5 font-mono text-[11px] text-text-tertiary shrink-0">
             {result.confidence}% Konfidenz
           </span>
         </div>
@@ -113,10 +113,7 @@ export default function ResultDisplay({ result }: { result: AnalysisResult }) {
 
 function Card({ title, children }: { title?: string; children: React.ReactNode }) {
   return (
-    <div
-      className="rounded-xl border border-border bg-surface px-5 py-4"
-      style={{ boxShadow: "var(--shadow)" }}
-    >
+    <div className="glass-card px-5 py-4">
       {title && (
         <h3 className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3.5">
           {title}
@@ -130,13 +127,13 @@ function Card({ title, children }: { title?: string; children: React.ReactNode }
 function ClaimCard({ claim }: { claim: ClaimResult }) {
   const s = CLAIM_STYLE[claim.rating];
   return (
-    <div className={`rounded-lg border-l-2 ${s.border} bg-bg-tertiary pl-3.5 pr-3 py-3`}>
+    <div className={`glass-inner border-l-2 ${s.border} pl-3.5 pr-3 py-3`}>
       <div className="flex items-start justify-between gap-3 mb-1.5">
         <div className="flex items-start gap-2 min-w-0">
           <span className="font-mono text-[11px] text-text-tertiary shrink-0 mt-0.5">{claim.id}</span>
           <p className="text-sm text-text-primary leading-snug">{claim.text}</p>
         </div>
-        <span className={`font-mono text-[11px] font-semibold shrink-0 ${s.color}`}>
+        <span className={`glass-badge px-2 py-0.5 font-mono text-[10px] font-semibold shrink-0 ${s.color}`}>
           {s.label}
         </span>
       </div>
@@ -148,7 +145,7 @@ function ClaimCard({ claim }: { claim: ClaimResult }) {
       </div>
 
       {claim.number_audit && claim.number_audit.manipulation !== "NONE" && (
-        <div className="mt-2 ml-5 rounded-md bg-warning/8 border border-warning/20 px-3 py-2">
+        <div className="mt-2 ml-5 glass-inner border-warning/20 px-3 py-2">
           <p className="text-xs font-semibold text-warning mb-0.5">
             Zahlenmanipulation: {claim.number_audit.manipulation.replace(/_/g, " ")}
           </p>
@@ -163,9 +160,8 @@ function RhetoricCard({ technique }: { technique: RhetoricTechnique }) {
   const s = SEVERITY_STYLE[technique.severity] ?? SEVERITY_STYLE.MEDIUM;
   return (
     <div className="flex gap-3">
-      {/* Fixed-width wrapper so content column always aligns regardless of label length */}
       <div className="shrink-0 w-[58px] mt-0.5">
-        <span className={`h-5 px-1.5 rounded text-[10px] font-bold inline-flex items-center ${s.text} ${s.bg}`}>
+        <span className={`glass-badge h-5 px-2 text-[10px] font-bold inline-flex items-center ${s.text} ${s.bg}`}>
           {technique.severity}
         </span>
       </div>

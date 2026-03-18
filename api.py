@@ -24,6 +24,8 @@ from pydantic import BaseModel
 
 from config import AppConfig
 from orchestrator import Orchestrator
+from tools.archive import AnalysisArchive
+from tools.content_extractor import ContentExtractor, ExtractedContent, detect_platform, extract_urls, is_url
 
 app = FastAPI(title="FakeNewsGuard API")
 
@@ -39,8 +41,21 @@ app.add_middleware(
 # { job_id: { status, steps, result, error, created_at } }
 _jobs: dict[str, dict[str, Any]] = {}
 
+# ── Archive (singleton, erstellt bei erstem Zugriff) ──────────────
+_archive: AnalysisArchive | None = None
+
+
+def _get_archive() -> AnalysisArchive:
+    global _archive
+    if _archive is None:
+        config = AppConfig()
+        _archive = AnalysisArchive(config.archive)
+    return _archive
+
 # Clean up jobs older than 1 hour to avoid memory leaks
 _JOB_TTL_SECONDS = 3600
+# Maximum time a single analysis job may run before being killed
+_JOB_TIMEOUT_SECONDS = 600  # 10 minutes
 
 
 def _cleanup_old_jobs() -> None:
@@ -126,7 +141,7 @@ def _transform_result(result: Any, claims_map: dict[str, Any]) -> dict:
 
 # ── Background worker ──────────────────────────────────────────────
 
-async def _run_job(job_id: str, text: str) -> None:
+async def _run_job(job_id: str, text: str, url: str = "") -> None:
     """Run the full analysis pipeline, updating _jobs[job_id] in-place."""
     job = _jobs[job_id]
     step_counter = 0
@@ -151,6 +166,42 @@ async def _run_job(job_id: str, text: str) -> None:
         config = AppConfig(verbose=True)
         orchestrator = Orchestrator(config)
         claims_map: dict[str, Any] = {}
+
+        # ── Phase 0: URL Content Extraction (if URL provided) ──────
+        if url:
+            platform = detect_platform(url)
+            push_step("Phase 0", "Content Extractor", f"Extrahiere Inhalt von {platform.capitalize()}…", "running")
+            try:
+                extractor = ContentExtractor()
+                content = await extractor.extract_async(url)
+                extracted_text = extractor.format_for_analysis(content)
+                push_step(
+                    "Phase 0", "Content Extractor",
+                    f"Inhalt extrahiert: {content.title[:80] or content.text[:80]}…"
+                    + (f" ({len(content.images)} Bilder)" if content.images else ""),
+                )
+                # Store extraction info in job for frontend
+                job["extracted_content"] = {
+                    "platform": content.platform,
+                    "title": content.title,
+                    "author": content.author,
+                    "images": content.images[:5],
+                    "url": content.url,
+                }
+                # Combine: user text + extracted content
+                if text:
+                    text = f"{text}\n\n--- Extrahierter Inhalt von {url} ---\n\n{extracted_text}"
+                else:
+                    text = extracted_text
+            except Exception as e:
+                push_step("Phase 0", "Content Extractor", f"Extraktion fehlgeschlagen: {e}", "error")
+                if not text:
+                    job["error"] = f"Inhalt konnte nicht extrahiert werden: {e}"
+                    job["status"] = "error"
+                    return
+
+        if len(text) > config.max_input_chars:
+            text = text[: config.max_input_chars]
 
         # ── Phase 1: Claim Extraction ──────────────────────────────
         push_step("Phase 1", "Claim Extractor", "Claims werden extrahiert…", "running")
@@ -198,7 +249,7 @@ async def _run_job(job_id: str, text: str) -> None:
             push_step("Phase 2", "Fact Checker", f"Prüfe: {claim.text[:80]}…", "running")
 
             fc_result, fc_error = await asyncio.get_event_loop().run_in_executor(
-                None, lambda c=claim: orchestrator.fact_checker.run_safe(c)
+                None, lambda c=claim: orchestrator.fact_checker.run_safe(c, context=text)
             )
             if fc_error:
                 analysis_errors.append(fc_error)
@@ -260,6 +311,21 @@ async def _run_job(job_id: str, text: str) -> None:
         job["result"] = _transform_result(final_result, claims_map)
         job["status"] = "done"
 
+        # ── Auto-Archive: Ergebnis persistent speichern ────────
+        try:
+            archive = _get_archive()
+            extracted = job.get("extracted_content", {})
+            archive_id = archive.save(
+                result=job["result"],
+                input_text=text[:500],
+                source_url=url or extracted.get("url"),
+                platform=extracted.get("platform"),
+                title=extracted.get("title"),
+            )
+            job["archive_id"] = archive_id
+        except Exception:
+            pass  # Archivierung darf Analyse nicht brechen
+
     except Exception as exc:
         traceback.print_exc()
         job["error"] = f"{type(exc).__name__}: {exc}"
@@ -270,20 +336,61 @@ async def _run_job(job_id: str, text: str) -> None:
 
 class AnalyzeRequest(BaseModel):
     text: str
+    url: str | None = None
+
+
+class ExtractRequest(BaseModel):
+    url: str
+
+
+@app.post("/api/extract")
+async def extract_content(req: ExtractRequest) -> dict:
+    """Extract content from a URL without running analysis. Returns extracted text and metadata."""
+    url = req.url.strip()
+    if not url:
+        raise HTTPException(status_code=400, detail="Keine URL angegeben.")
+
+    try:
+        extractor = ContentExtractor()
+        content = await extractor.extract_async(url)
+        return {
+            "url": content.url,
+            "platform": content.platform,
+            "title": content.title,
+            "text": content.text,
+            "author": content.author,
+            "images": content.images,
+            "timestamp": content.timestamp,
+            "metadata": content.metadata,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=422, detail=f"Inhalt konnte nicht extrahiert werden: {e}")
 
 
 @app.post("/api/analyze")
 async def analyze(req: AnalyzeRequest) -> dict:
-    """Submit an analysis job. Returns a job_id for polling."""
+    """Submit an analysis job. Returns a job_id for polling.
+
+    Accepts either plain text or a URL (or both). If a URL is provided,
+    content is first extracted and then analyzed.
+    """
     _cleanup_old_jobs()
 
     text = req.text.strip()
-    if not text:
-        raise HTTPException(status_code=400, detail="Kein Text angegeben.")
+    url = (req.url or "").strip()
+
+    # If no explicit URL field but the text itself is a URL, treat it as URL
+    if not url and text and is_url(text):
+        urls = extract_urls(text)
+        if urls and len(text) - len(urls[0]) < 20:
+            # Text is essentially just a URL (maybe some whitespace)
+            url = urls[0]
+            text = ""
+
+    if not text and not url:
+        raise HTTPException(status_code=400, detail="Kein Text oder URL angegeben.")
 
     config = AppConfig()
-    if len(text) > config.max_input_chars:
-        text = text[: config.max_input_chars]
 
     job_id = str(uuid.uuid4())
     _jobs[job_id] = {
@@ -292,10 +399,20 @@ async def analyze(req: AnalyzeRequest) -> dict:
         "result": None,
         "error": None,
         "created_at": time.time(),
+        "source_url": url or None,
     }
 
-    # Fire-and-forget background task
-    asyncio.create_task(_run_job(job_id, text))
+    # Fire-and-forget background task with timeout
+    async def _run_job_with_timeout(jid: str, txt: str, link: str) -> None:
+        try:
+            await asyncio.wait_for(_run_job(jid, txt, link), timeout=_JOB_TIMEOUT_SECONDS)
+        except asyncio.TimeoutError:
+            job = _jobs.get(jid)
+            if job and job["status"] not in ("done", "error"):
+                job["error"] = "Zeitüberschreitung: Die Analyse hat das Zeitlimit überschritten."
+                job["status"] = "error"
+
+    asyncio.create_task(_run_job_with_timeout(job_id, text, url))
 
     return {"job_id": job_id}
 
@@ -306,12 +423,76 @@ async def get_job(job_id: str) -> dict:
     if job_id not in _jobs:
         raise HTTPException(status_code=404, detail="Job nicht gefunden.")
     job = _jobs[job_id]
+
+    # Detect stale jobs that are still "running" past the timeout
+    if job["status"] in ("pending", "running"):
+        age = time.time() - job["created_at"]
+        if age > _JOB_TIMEOUT_SECONDS + 30:  # grace period
+            job["status"] = "error"
+            job["error"] = "Zeitüberschreitung: Die Analyse hat das Zeitlimit überschritten."
+
     return {
         "status": job["status"],
         "steps": job["steps"],
         "result": job["result"],
         "error": job["error"],
+        "extracted_content": job.get("extracted_content"),
+        "archive_id": job.get("archive_id"),
     }
+
+
+# ── Archive endpoints ──────────────────────────────────────────────
+
+
+@app.get("/api/archive")
+async def list_archive(
+    limit: int = 50,
+    offset: int = 0,
+    rating: str | None = None,
+    search: str | None = None,
+) -> dict:
+    """Liste vergangene Analysen auf (neueste zuerst).
+
+    Query-Parameter:
+        limit:  Max. Einträge pro Seite (1-100, default 50)
+        offset: Überspringe N Einträge (Pagination)
+        rating: Filter nach Bewertung ("Wahr", "Irreführend", etc.)
+        search: Volltextsuche in Titel, Zusammenfassung, URL
+    """
+    archive = _get_archive()
+    return archive.list(
+        limit=limit,
+        offset=offset,
+        rating_filter=rating,
+        search=search,
+    )
+
+
+@app.get("/api/archive/{archive_id}")
+async def get_archive_entry(archive_id: str) -> dict:
+    """Hole einen vollständigen Archiv-Eintrag mit allen Details."""
+    archive = _get_archive()
+    entry = archive.get(archive_id)
+    if entry is None:
+        raise HTTPException(status_code=404, detail="Archiv-Eintrag nicht gefunden.")
+    return entry
+
+
+@app.delete("/api/archive/{archive_id}")
+async def delete_archive_entry(archive_id: str) -> dict:
+    """Lösche einen einzelnen Archiv-Eintrag."""
+    archive = _get_archive()
+    deleted = archive.delete(archive_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Archiv-Eintrag nicht gefunden.")
+    return {"deleted": True}
+
+
+@app.get("/api/archive-stats")
+async def archive_stats() -> dict:
+    """Statistiken über das Archiv (Anzahl, Verteilung, etc.)."""
+    archive = _get_archive()
+    return archive.stats()
 
 
 @app.get("/api/health")

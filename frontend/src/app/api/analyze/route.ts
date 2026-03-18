@@ -5,11 +5,20 @@ const BACKEND = process.env.BACKEND_URL?.replace("/api/analyze", "") || "http://
 export async function POST(req: NextRequest) {
   const body = await req.json();
 
-  const backendRes = await fetch(`${BACKEND}/api/analyze`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
+  let backendRes: Response;
+  try {
+    backendRes = await fetch(`${BACKEND}/api/analyze`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(30_000),
+    });
+  } catch {
+    return new Response(
+      JSON.stringify({ error: "Backend nicht erreichbar. Bitte sicherstellen, dass der Backend-Server läuft." }),
+      { status: 502, headers: { "Content-Type": "application/json" } },
+    );
+  }
 
   const data = await backendRes.json();
 
