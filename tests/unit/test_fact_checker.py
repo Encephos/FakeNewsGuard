@@ -18,14 +18,16 @@ def test_build_queries_includes_direct_search(sample_factual_claim):
 
 def test_build_queries_adds_factcheck_terms(sample_factual_claim):
     queries = _build_search_queries(sample_factual_claim)
-    assert len(queries) > 1
-    combined = " ".join(queries)
-    assert "faktencheck" in combined.lower() or "destatis" in combined.lower()
+    # Adaptive: FACTUAL mit >60 Zeichen bekommt faktencheck, kürzere nicht
+    assert len(queries) >= 1
+    if len(sample_factual_claim.text) > 60:
+        combined = " ".join(queries)
+        assert "faktencheck" in combined.lower()
 
 
-def test_build_queries_max_length(sample_statistical_claim):
+def test_build_queries_statistical_has_multiple(sample_statistical_claim):
     queries = _build_search_queries(sample_statistical_claim)
-    assert len(queries) <= 3  # Direktsuche + max 2 Ergänzungen
+    assert len(queries) >= 3  # Direktsuche + faktencheck + statistik + destatis
 
 
 # ── FactCheckerAgent ──────────────────────────────────────────────

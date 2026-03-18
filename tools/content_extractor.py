@@ -6,7 +6,7 @@ Supports:
   - Instagram (via meta tags / oembed)
   - Facebook (via meta tags scraping)
   - YouTube (via oembed + transcript extraction)
-  - News articles (via readability-style extraction)
+  - News articles (via trafilatura + BeautifulSoup)
 """
 
 from __future__ import annotations
@@ -18,7 +18,14 @@ from typing import Any
 from urllib.parse import urlparse
 
 import httpx
+from bs4 import BeautifulSoup
 from pydantic import BaseModel, Field
+
+try:
+    import trafilatura
+    _HAS_TRAFILATURA = True
+except ImportError:
+    _HAS_TRAFILATURA = False
 
 
 # ── Data Models ──────────────────────────────────────────────────
@@ -98,42 +105,34 @@ async def _get_async_client() -> httpx.AsyncClient:
     )
 
 
-# ── HTML Helpers ─────────────────────────────────────────────────
+# ── HTML Helpers (BeautifulSoup-basiert) ──────────────────────────
+
+def _parse_soup(html: str) -> BeautifulSoup:
+    """Parse HTML einmal und wiederverwendbar."""
+    return BeautifulSoup(html, "html.parser")
+
 
 def _extract_meta(html: str, properties: list[str]) -> dict[str, str]:
-    """Extract OpenGraph / meta tag values from HTML without BeautifulSoup."""
+    """Extract OpenGraph / meta tag values from HTML via BeautifulSoup."""
+    soup = _parse_soup(html)
     result: dict[str, str] = {}
     for prop in properties:
-        # Try property="..." and name="..."
-        for attr in ("property", "name"):
-            pattern = re.compile(
-                rf'<meta\s+[^>]*{attr}=["\']?{re.escape(prop)}["\']?\s+content=["\']([^"\']*)["\']',
-                re.I | re.S,
-            )
-            m = pattern.search(html)
-            if not m:
-                # Reversed attribute order
-                pattern2 = re.compile(
-                    rf'<meta\s+[^>]*content=["\']([^"\']*)["\']?\s+{attr}=["\']?{re.escape(prop)}["\']?',
-                    re.I | re.S,
-                )
-                m = pattern2.search(html)
-            if m:
-                result[prop] = _html_unescape(m.group(1).strip())
-                break
+        tag = (
+            soup.find("meta", attrs={"property": prop})
+            or soup.find("meta", attrs={"name": prop})
+        )
+        if tag and tag.get("content"):
+            result[prop] = tag["content"].strip()
     return result
 
 
 def _extract_json_ld(html: str) -> list[dict[str, Any]]:
-    """Extract JSON-LD blocks from HTML."""
+    """Extract JSON-LD blocks from HTML via BeautifulSoup."""
+    soup = _parse_soup(html)
     results: list[dict[str, Any]] = []
-    pattern = re.compile(
-        r'<script[^>]*type=["\']application/ld\+json["\'][^>]*>(.*?)</script>',
-        re.I | re.S,
-    )
-    for m in pattern.finditer(html):
+    for script in soup.find_all("script", attrs={"type": "application/ld+json"}):
         try:
-            data = json.loads(m.group(1))
+            data = json.loads(script.string or "")
             if isinstance(data, list):
                 results.extend(data)
             else:
@@ -143,29 +142,13 @@ def _extract_json_ld(html: str) -> list[dict[str, Any]]:
     return results
 
 
-def _html_unescape(text: str) -> str:
-    """Unescape common HTML entities."""
-    replacements = {
-        "&amp;": "&", "&lt;": "<", "&gt;": ">",
-        "&quot;": '"', "&#39;": "'", "&apos;": "'",
-        "&#x27;": "'", "&#x2F;": "/", "&nbsp;": " ",
-    }
-    for entity, char in replacements.items():
-        text = text.replace(entity, char)
-    # Numeric entities
-    text = re.sub(r"&#(\d+);", lambda m: chr(int(m.group(1))), text)
-    text = re.sub(r"&#x([0-9a-fA-F]+);", lambda m: chr(int(m.group(1), 16)), text)
-    return text
-
-
 def _strip_html_tags(html: str) -> str:
-    """Remove all HTML tags and return plain text."""
-    text = re.sub(r"<script[^>]*>.*?</script>", " ", html, flags=re.S | re.I)
-    text = re.sub(r"<style[^>]*>.*?</style>", " ", text, flags=re.S | re.I)
-    text = re.sub(r"<br\s*/?>", "\n", text, flags=re.I)
-    text = re.sub(r"</p>", "\n\n", text, flags=re.I)
-    text = re.sub(r"<[^>]+>", " ", text)
-    text = _html_unescape(text)
+    """Remove all HTML tags and return plain text via BeautifulSoup."""
+    soup = _parse_soup(html)
+    # Entferne script und style Elemente
+    for tag in soup(["script", "style"]):
+        tag.decompose()
+    text = soup.get_text(separator="\n")
     # Collapse whitespace
     text = re.sub(r"[ \t]+", " ", text)
     text = re.sub(r"\n{3,}", "\n\n", text)
@@ -173,52 +156,87 @@ def _strip_html_tags(html: str) -> str:
 
 
 def _extract_article_text(html: str) -> str:
-    """Simple readability-style extraction: find the largest text block."""
-    # Try <article> tag first
-    article_match = re.search(r"<article[^>]*>(.*?)</article>", html, re.S | re.I)
-    if article_match:
-        return _strip_html_tags(article_match.group(1))
+    """Artikel-Text extrahieren: trafilatura → BeautifulSoup Fallback.
 
-    # Try common content containers
-    for selector in [
-        r'<div[^>]*class="[^"]*(?:article|post|entry|content|story)[^"]*"[^>]*>(.*?)</div>',
-        r'<main[^>]*>(.*?)</main>',
-        r'<div[^>]*role="main"[^>]*>(.*?)</div>',
-    ]:
-        m = re.search(selector, html, re.S | re.I)
-        if m:
-            text = _strip_html_tags(m.group(1))
+    trafilatura nutzt ML-basierte Heuristiken für saubere Extraktion.
+    Bei Fehler/fehlender Installation: BeautifulSoup-Fallback.
+    """
+    # ── Strategie 1: trafilatura (beste Qualität) ──────────────────
+    if _HAS_TRAFILATURA:
+        try:
+            text = trafilatura.extract(
+                html,
+                include_comments=False,
+                include_tables=True,
+                favor_precision=True,
+            )
+            if text and len(text) > 100:
+                return text
+        except Exception:
+            pass
+
+    # ── Strategie 2: BeautifulSoup strukturierte Extraktion ────────
+    soup = _parse_soup(html)
+
+    # Entferne Noise-Elemente
+    for tag in soup(["script", "style", "nav", "header", "footer", "aside", "iframe"]):
+        tag.decompose()
+
+    # Versuch <article> Tag
+    article = soup.find("article")
+    if article:
+        text = article.get_text(separator="\n", strip=True)
+        if len(text) > 200:
+            return text
+
+    # Versuch typische Content-Container
+    for selector in ["main", "[role='main']"]:
+        container = soup.select_one(selector)
+        if container:
+            text = container.get_text(separator="\n", strip=True)
             if len(text) > 200:
                 return text
 
-    # Fallback: find all <p> tags and join
-    paragraphs = re.findall(r"<p[^>]*>(.*?)</p>", html, re.S | re.I)
+    for class_pattern in ("article", "post", "entry", "content", "story"):
+        container = soup.find(class_=re.compile(class_pattern, re.I))
+        if container:
+            text = container.get_text(separator="\n", strip=True)
+            if len(text) > 200:
+                return text
+
+    # Fallback: Alle <p>-Tags zusammenfassen
+    paragraphs = soup.find_all("p")
     if paragraphs:
-        texts = [_strip_html_tags(p) for p in paragraphs]
+        texts = [p.get_text(strip=True) for p in paragraphs]
         joined = "\n\n".join(t for t in texts if len(t) > 30)
         if joined:
             return joined
 
-    # Last resort: strip everything
-    return _strip_html_tags(html)[:5000]
+    # Letzter Fallback: gesamter Text
+    return soup.get_text(separator="\n", strip=True)[:5000]
 
 
 def _extract_images_from_html(html: str) -> list[str]:
-    """Extract image URLs from og:image and <img> tags."""
+    """Extract image URLs from og:image and <img> tags via BeautifulSoup."""
+    soup = _parse_soup(html)
     images: list[str] = []
-    # OG image
-    meta = _extract_meta(html, ["og:image", "twitter:image"])
-    for key in ["og:image", "twitter:image"]:
-        if key in meta and meta[key]:
-            images.append(meta[key])
-    # Large images from <img> tags
-    for m in re.finditer(r'<img[^>]+src=["\']([^"\']+)["\']', html, re.I):
-        src = m.group(1)
-        if any(skip in src.lower() for skip in ["logo", "icon", "avatar", "pixel", "tracking", ".svg", "1x1"]):
+
+    # OG/Twitter images aus Meta-Tags
+    for attr_name in ("og:image", "twitter:image"):
+        tag = soup.find("meta", attrs={"property": attr_name}) or soup.find("meta", attrs={"name": attr_name})
+        if tag and tag.get("content"):
+            images.append(tag["content"])
+
+    # Bilder aus <img> Tags (Noise filtern)
+    _SKIP_PATTERNS = {"logo", "icon", "avatar", "pixel", "tracking", ".svg", "1x1"}
+    for img in soup.find_all("img", src=True):
+        src = img["src"]
+        if any(skip in src.lower() for skip in _SKIP_PATTERNS):
             continue
         if src not in images:
             images.append(src)
-    return images[:10]  # Cap at 10
+
+    return images[:10]
 
 
 # ── Platform-Specific Extractors ─────────────────────────────────
@@ -675,7 +693,11 @@ def _extract_youtube_captions(html: str, client: httpx.Client, video_id: str) ->
 
 
 def _extract_article(url: str, client: httpx.Client) -> ExtractedContent:
-    """Extract content from a generic news article / web page."""
+    """Extract content from a generic news article / web page.
+
+    Nutzt trafilatura für hochwertige Text-Extraktion und BeautifulSoup
+    für Metadaten (Titel, Autor, Bilder).
+    """
     resp = client.get(url)
     html = resp.text
 
@@ -684,20 +706,20 @@ def _extract_article(url: str, client: httpx.Client) -> ExtractedContent:
         "article:author", "author", "twitter:title", "twitter:description",
     ])
 
+    # Titel: Meta-Tags → <title> Tag
     title = meta.get("og:title") or meta.get("twitter:title", "")
     if not title:
-        # Try <title> tag
-        title_match = re.search(r"<title[^>]*>(.*?)</title>", html, re.S | re.I)
-        if title_match:
-            title = _html_unescape(_strip_html_tags(title_match.group(1)))
+        soup = _parse_soup(html)
+        title_tag = soup.find("title")
+        if title_tag:
+            title = title_tag.get_text(strip=True)
 
-    # Extract article text
+    # Artikel-Text: trafilatura → BeautifulSoup Fallback
     text = _extract_article_text(html)
 
-    # Get author
+    # Autor: Meta-Tags → JSON-LD
     author = meta.get("article:author") or meta.get("author", "")
     if not author:
-        # Try JSON-LD
         for item in _extract_json_ld(html):
             auth = item.get("author")
             if isinstance(auth, dict):
