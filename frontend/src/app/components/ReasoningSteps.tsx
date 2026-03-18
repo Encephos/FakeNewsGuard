@@ -25,7 +25,7 @@ export default function ReasoningSteps({ steps, isActive }: ReasoningStepsProps)
         {steps.map((step, i) => (
           <div key={step.id + i} className="animate-fade-in flex gap-2.5 text-text-secondary leading-5">
             <span className="shrink-0 text-text-tertiary select-none w-5 text-right">
-              {step.phase.replace("Phase ", "")}
+              {i + 1}
             </span>
             <span>
               <span className="text-text-primary">{step.agent}</span>
