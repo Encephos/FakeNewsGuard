@@ -1,6 +1,15 @@
 version: '3.8'
 
 services:
+  searxng:
+    image: searxng/searxng:latest
+    container_name: fakenewsguard-searxng
+    ports:
+      - "8888:8080"
+    volumes:
+      - ./searxng:/etc/searxng
+    restart: unless-stopped
+
   backend:
     build:
       context: .
@@ -10,9 +19,13 @@ services:
       - "8080:8000"
     env_file:
       - .env
+    environment:
+      - SEARXNG_URL=http://searxng:8080
     # Gemountetes Volume, damit der SQLite-Cache Neustarts überlebt
     volumes:
       - fng_data:/app/data
+    depends_on:
+      - searxng
     restart: unless-stopped
 
   frontend:
@@ -38,6 +51,7 @@ services:
       - .env
     environment:
       - BACKEND_URL=http://backend:8000
+      - SEARXNG_URL=http://searxng:8080
     depends_on:
       - backend
     restart: unless-stopped

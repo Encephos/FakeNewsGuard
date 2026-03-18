@@ -1,4 +1,4 @@
-"""Web-Search-Abstraktionsschicht – unterstützt Tavily, Serper und Brave."""
+"""Web-Search-Abstraktionsschicht – unterstützt SearXNG, Tavily, Serper und Brave."""
 
 from __future__ import annotations
 
@@ -40,7 +40,9 @@ class WebSearchClient:
         """
         n = max_results or self.config.max_results
 
-        if self.config.provider == "tavily":
+        if self.config.provider == "searxng":
+            return self._search_searxng(query, n)
+        elif self.config.provider == "tavily":
             return self._search_tavily(query, n)
         elif self.config.provider == "serper":
             return self._search_serper(query, n)
@@ -48,6 +50,40 @@ class WebSearchClient:
             return self._search_brave(query, n)
         else:
             raise ValueError(f"Unbekannter Search-Provider: {self.config.provider}")
+
+    # ── SearXNG (self-hosted) ────────────────────────────────────
+
+    def _search_searxng(self, query: str, max_results: int) -> list[SearchResult]:
+        def _call():
+            resp = httpx.get(
+                f"{self.config.base_url}/search",
+                params={
+                    "q": query,
+                    "format": "json",
+                    "pageno": 1,
+                    "language": "de",
+                    "categories": "general",
+                },
+                timeout=30.0,
+            )
+            resp.raise_for_status()
+            return resp.json()
+
+        data = retry_call(
+            _call,
+            max_attempts=self._retry.max_attempts,
+            base_delay=self._retry.base_delay_s,
+            max_delay=self._retry.max_delay_s,
+            backoff_factor=self._retry.backoff_factor,
+        )
+        return [
+            SearchResult(
+                title=r.get("title", ""),
+                url=r.get("url", ""),
+                snippet=r.get("content", ""),
+            )
+            for r in data.get("results", [])[:max_results]
+        ]
 
     # ── Tavily ───────────────────────────────────────────────────
 
@@ -188,7 +224,9 @@ class AsyncWebSearchClient:
         n = max_results or self.config.max_results
 
         async with httpx.AsyncClient(timeout=30.0) as client:
-            if self.config.provider == "tavily":
+            if self.config.provider == "searxng":
+                return await self._search_searxng_async(client, query, n)
+            elif self.config.provider == "tavily":
                 return await self._search_tavily_async(client, query, n)
             elif self.config.provider == "serper":
                 return await self._search_serper_async(client, query, n)
@@ -217,6 +255,39 @@ class AsyncWebSearchClient:
 
         pairs = await asyncio.gather(*[_bounded(q) for q in queries])
         return dict(pairs)
+
+    async def _search_searxng_async(
+        self, client: httpx.AsyncClient, query: str, max_results: int
+    ) -> list[SearchResult]:
+        async def _call():
+            resp = await client.get(
+                f"{self.config.base_url}/search",
+                params={
+                    "q": query,
+                    "format": "json",
+                    "pageno": 1,
+                    "language": "de",
+                    "categories": "general",
+                },
+            )
+            resp.raise_for_status()
+            return resp.json()
+
+        data = await retry_call_async(
+            _call,
+            max_attempts=self._retry.max_attempts,
+            base_delay=self._retry.base_delay_s,
+            max_delay=self._retry.max_delay_s,
+            backoff_factor=self._retry.backoff_factor,
+        )
+        return [
+            SearchResult(
+                title=r.get("title", ""),
+                url=r.get("url", ""),
+                snippet=r.get("content", ""),
+            )
+            for r in data.get("results", [])[:max_results]
+        ]
 
     async def _search_tavily_async(
         self, client: httpx.AsyncClient, query: str, max_results: int
