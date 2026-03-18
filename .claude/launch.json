@@ -1,13 +1,1 @@
-{
-  "version": "0.0.1",
-  "configurations": [
-    {
-      "name": "frontend",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
-      "cwd": "frontend",
-      "port": 3000,
-      "autoPort": true
-    }
-  ]
-}
+{"version":"0.0.1","configurations":[{"name":"frontend","runtimeExecutable":"npm","runtimeArgs":["run","dev"],"port":3000,"cwd":"frontend"}]}
