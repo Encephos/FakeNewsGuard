@@ -42,19 +42,26 @@ class Orchestrator:
         # API Keys beim Start prüfen
         config.validate()
 
-        # Geteilte Clients – ein Connection Pool für alle Agenten
-        llm = LLMClient(config.llm, config.retry)
+        # Zwei LLM-Clients: schnelles Modell für Extraktion/Fact-Check,
+        # mächtiges Modell für Zahlen/Rhetorik/Synthese
+        from dataclasses import replace
+        llm_fast = LLMClient(
+            replace(config.llm, model="google/gemma-3-27b-it"),
+            config.retry,
+        )
+        llm_powerful = LLMClient(config.llm, config.retry)
+
         search = WebSearchClient(config.search, config.retry)
 
         # Claim-Cache (optional, deaktivierbar über config.cache.enabled)
         cache = ClaimCache(config.cache)
 
-        # Agenten initialisieren
-        self.claim_extractor = ClaimExtractorAgent(config, llm, search)
-        self.fact_checker = FactCheckerAgent(config, llm, search, cache)
-        self.number_auditor = NumberAuditorAgent(config, llm, search, cache)
-        self.rhetoric_analyzer = RhetoricAnalyzerAgent(config, llm, search)
-        self.synthesizer = SynthesizerAgent(config, llm, search)
+        # Agenten initialisieren – gezielt verschiedene Modelle zuweisen
+        self.claim_extractor = ClaimExtractorAgent(config, llm_fast, search)
+        self.fact_checker = FactCheckerAgent(config, llm_fast, search, cache)
+        self.number_auditor = NumberAuditorAgent(config, llm_powerful, search, cache)
+        self.rhetoric_analyzer = RhetoricAnalyzerAgent(config, llm_powerful, search)
+        self.synthesizer = SynthesizerAgent(config, llm_powerful, search)
 
     def analyze(self, text: str) -> SynthesisResult:
         """Analysiere einen Text vollständig.
