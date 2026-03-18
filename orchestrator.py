@@ -26,6 +26,11 @@ from tools.llm import LLMClient
 from tools.web_search import WebSearchClient
 
 
+class InputValidationError(ValueError):
+    """Wird geworfen wenn der Input die Validierung nicht besteht."""
+    pass
+
+
 class Orchestrator:
     """Steuert den gesamten Analyse-Workflow.
 
@@ -63,6 +68,27 @@ class Orchestrator:
         self.rhetoric_analyzer = RhetoricAnalyzerAgent(config, llm_powerful, search)
         self.synthesizer = SynthesizerAgent(config, llm_powerful, search)
 
+    def _validate_input(self, text: str) -> str:
+        """Validiere und bereinige den Input-Text zentral.
+
+        Returns:
+            Der bereinigte (ggf. gekürzte) Text.
+
+        Raises:
+            InputValidationError: Bei leerem Input.
+        """
+        text = text.strip()
+        if not text:
+            raise InputValidationError("Kein Text zur Analyse angegeben.")
+
+        if len(text) > self.config.max_input_chars:
+            self._log(
+                f"Input gekürzt: {len(text)} → {self.config.max_input_chars} Zeichen"
+            )
+            text = text[: self.config.max_input_chars]
+
+        return text
+
     def analyze(self, text: str) -> SynthesisResult:
         """Analysiere einen Text vollständig.
 
@@ -71,7 +97,12 @@ class Orchestrator:
 
         Returns:
             SynthesisResult mit Gesamtbewertung.
+
+        Raises:
+            InputValidationError: Bei leerem Input.
         """
+        text = self._validate_input(text)
+
         self._log("=" * 60)
         self._log("FAKTENCHECK GESTARTET")
         self._log("=" * 60)
@@ -164,7 +195,12 @@ class Orchestrator:
         sequenziell, da sie keine Web-I/O auf Claim-Ebene benötigen.
         Phase 2 (Fact-Check + Number-Audit) und Phase 3 (Rhetoric) laufen
         gleichzeitig mit asyncio.gather.
+
+        Raises:
+            InputValidationError: Bei leerem Input.
         """
+        text = self._validate_input(text)
+
         self._log("=" * 60)
         self._log("FAKTENCHECK GESTARTET (async)")
         self._log("=" * 60)

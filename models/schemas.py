@@ -50,6 +50,13 @@ class FactRating(str, Enum):
     UNVERIFIABLE = "UNVERIFIABLE"
 
 
+class SourceInfo(BaseModel):
+    """Einzelne Quelle mit Glaubwürdigkeitsklassifikation."""
+    url: str
+    tier: str = Field(default="Unbekannt", description="Offizielle Quelle | Faktencheck-Organisation | Qualitätsjournalismus | Nachrichtenmedium | Nutzergeneriert | Unbekannt")
+    domain: str = ""
+
+
 class FactCheckResult(BaseModel):
     claim_id: str
     rating: FactRating
@@ -57,6 +64,14 @@ class FactCheckResult(BaseModel):
     correction: str = Field(default="", description="Was falsch oder irreführend ist")
     missing_context: str = Field(default="", description="Absichtlich weggelassener Kontext")
     sources: list[str] = Field(default_factory=list, description="URLs der Quellen")
+    classified_sources: list[SourceInfo] = Field(
+        default_factory=list,
+        description="Quellen mit Glaubwürdigkeitsklassifikation",
+    )
+    source_consensus: str = Field(
+        default="",
+        description="Zusammenfassung des Quellen-Konsens (übereinstimmend/widersprüchlich/einseitig)",
+    )
 
 
 # ── Number Auditor ───────────────────────────────────────────────

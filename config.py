@@ -105,6 +105,23 @@ class TelegramConfig:
 
 
 @dataclass
+class RateLimitConfig:
+    """Konfiguration für API Rate-Limiting (Token-Bucket)."""
+
+    enabled: bool = True
+    requests_per_minute: int = 10  # Max. Analyse-Anfragen pro IP pro Minute
+    burst: int = 3  # Max. gleichzeitige Burst-Anfragen
+
+    def __post_init__(self) -> None:
+        env_rpm = os.getenv("RATE_LIMIT_RPM", "")
+        if env_rpm:
+            self.requests_per_minute = int(env_rpm)
+        env_burst = os.getenv("RATE_LIMIT_BURST", "")
+        if env_burst:
+            self.burst = int(env_burst)
+
+
+@dataclass
 class AppConfig:
     llm: LLMConfig = field(default_factory=LLMConfig)
     search: SearchConfig = field(default_factory=SearchConfig)
@@ -112,6 +129,7 @@ class AppConfig:
     cache: CacheConfig = field(default_factory=CacheConfig)
     archive: ArchiveConfig = field(default_factory=ArchiveConfig)
     telegram: TelegramConfig = field(default_factory=TelegramConfig)
+    rate_limit: RateLimitConfig = field(default_factory=RateLimitConfig)
     verbose: bool = True  # Zeige Agent-Wechsel und Zwischenergebnisse
     language: str = "de"  # Primärsprache der Analyse
     max_input_chars: int = 10_000  # Schutz vor übermäßig langen Inputs

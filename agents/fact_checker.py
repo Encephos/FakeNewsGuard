@@ -1,4 +1,4 @@
-"""Fact Checker – Verifiziert faktische Behauptungen via Websuche."""
+"""Fact Checker – Verifiziert faktische Behauptungen via Websuche + externe Faktencheck-DBs."""
 
 from __future__ import annotations
 
@@ -6,6 +6,7 @@ from typing import Any
 
 from agents.base import BaseAgent
 from models.schemas import FACT_CHECK_SCHEMA, Claim, FactCheckResult, FactRating
+from tools.factcheck_databases import FactCheckDatabaseClient, FactCheckDatabaseConfig
 from tools.web_search import WebSearchClient
 
 SYSTEM_PROMPT = """\
@@ -37,6 +38,9 @@ NIEMALS Blogs, Telegram, X/Twitter oder Parteiseiten als Primärquelle verwenden
 - Wenn ein Claim teilweise stimmt, erkläre EXAKT was stimmt und was nicht.
 - Prüfe auch den KONTEXT: Stimmt der Zeitraum? Die Bezugsgröße? Die Kategorie?
 - Gib die URLs der verwendeten Quellen an.
+- Wenn professionelle Faktenchecks (z.B. von Correctiv, dpa, Snopes, AFP) vorliegen,
+  beziehe deren Einschätzung STARK in deine Bewertung ein. Diese Organisationen haben
+  oft tiefere Recherche betrieben als aus Suchergebnissen ersichtlich.
 
 ## Output-Format (JSON)
 
@@ -52,31 +56,55 @@ NIEMALS Blogs, Telegram, X/Twitter oder Parteiseiten als Primärquelle verwenden
 
 
 def _build_search_queries(claim: Claim, original_text: str = "") -> list[str]:
-    """Generiere Suchbegriffe basierend auf Claim-Text UND Originalkontext.
+    """Generiere Suchbegriffe adaptiv basierend auf Claim-Typ und Kontext.
 
-    Der Originaltext liefert thematischen Kontext, der in isolierten Claims
-    oft fehlt.  Beispiel: Claim "Studie mit 50.000 Probanden" ist allein
-    nicht suchbar — mit Kontext wird daraus "Studie 50.000 Probanden
-    Light-Getränke BMI".
+    Die Anzahl und Art der Queries passt sich an die Komplexität an:
+      - OPINION:      0 Queries (wird nie aufgerufen)
+      - FACTUAL:      1-2 Queries (einfache Faktenlage)
+      - CONTEXTUAL:   2-3 Queries (Kontext-Suche wichtig)
+      - CAUSAL:       2-3 Queries (Kausalität + Faktencheck)
+      - STATISTICAL:  3-5 Queries (Daten + Faktencheck + Quellen + Kontext)
     """
     text = claim.text
-    queries = [text]  # Direktsuche mit vollem Claim-Text
+    claim_type = claim.type.value
 
-    # Faktencheck-Suffix
-    queries.append(f"{text} faktencheck")
+    queries = [text]  # Direktsuche mit vollem Claim-Text – immer dabei
 
-    # Für statistische Claims: fachspezifisches Suffix
-    if claim.type.value == "STATISTICAL":
+    # ── Adaptive Strategie nach Claim-Typ ──────────────────────────
+
+    if claim_type == "FACTUAL":
+        # Einfache Fakten: Direktsuche reicht oft, Faktencheck als Ergänzung
+        if len(text) > 60:
+            # Längere Claims profitieren von einer Faktencheck-Suche
+            queries.append(f"{text} faktencheck")
+
+    elif claim_type == "STATISTICAL":
+        # Statistische Claims: Aggressive Suche nach Primärdaten
+        queries.append(f"{text} faktencheck")
         queries.append(f"{text} statistik daten")
+        queries.append(f"{text} destatis eurostat studie")
+        # Kontext-Suche ist hier besonders wichtig
+        if original_text and len(original_text) > len(text) + 30:
+            context_query = _build_context_query(claim, original_text)
+            if context_query and context_query not in queries:
+                queries.append(context_query)
 
-    # Kontext-angereicherte Suche: Wenn der Originaltext vorhanden ist und
-    # der Claim-Text das Kernthema möglicherweise nicht vollständig abdeckt,
-    # extrahiere Schlüsselbegriffe aus dem Originaltext für eine zusätzliche
-    # kontextualisierte Suche.
-    if original_text and len(original_text) > len(text) + 30:
-        context_query = _build_context_query(claim, original_text)
-        if context_query and context_query not in queries:
-            queries.append(context_query)
+    elif claim_type == "CAUSAL":
+        # Kausalbehauptungen: Faktencheck + Korrelation vs. Kausalität
+        queries.append(f"{text} faktencheck")
+        queries.append(f"{text} ursache wirkung zusammenhang")
+
+    elif claim_type == "CONTEXTUAL":
+        # Kontextuelle Claims: Faktencheck + Kontext-Suche
+        queries.append(f"{text} faktencheck")
+        if original_text and len(original_text) > len(text) + 30:
+            context_query = _build_context_query(claim, original_text)
+            if context_query and context_query not in queries:
+                queries.append(context_query)
+
+    else:
+        # Fallback für unbekannte Typen
+        queries.append(f"{text} faktencheck")
 
     return queries
 
@@ -125,9 +153,29 @@ def _build_context_query(claim: Claim, original_text: str) -> str:
     return f"{claim_short} {extras}"
 
 
+def _adaptive_max_results(claim: Claim) -> int:
+    """Bestimme die Anzahl der Suchergebnisse pro Query adaptiv.
+
+    Einfache Claims brauchen weniger Ergebnisse, komplexe mehr.
+    """
+    if claim.type.value == "STATISTICAL":
+        return 5  # Brauche mehr Quellen für Zahlenverifikation
+    if claim.type.value in ("CAUSAL", "CONTEXTUAL"):
+        return 4  # Kontext-Suche braucht etwas mehr
+    return 3  # FACTUAL: weniger Ergebnisse reichen meist
+
+
 class FactCheckerAgent(BaseAgent):
     name = "Fact Checker"
     emoji = "✅"
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        # Externe Faktencheck-Datenbanken (Google Fact Check Tools, ClaimBuster)
+        self._factcheck_db = FactCheckDatabaseClient(
+            config=FactCheckDatabaseConfig(),
+            retry=self.config.retry,
+        )
 
     def execute(self, input_data: Any, context: str = "") -> FactCheckResult:
         claim: Claim = input_data
@@ -140,13 +188,24 @@ class FactCheckerAgent(BaseAgent):
             except Exception:
                 pass  # Ungültiger Cache – neu berechnen
 
+        # Websuche
         queries = _build_search_queries(claim, original_text=context)
-        self._log(f"Suche nach: {queries}")
-        search_context = self._web_multi_search(queries, max_results=4)
-        return self._fact_check_with_context(claim, search_context, original_text=context)
+        max_results = _adaptive_max_results(claim)
+        self._log(f"Suche nach: {queries} (max_results={max_results})")
+        search_context = self._web_multi_search(queries, max_results=max_results)
+
+        # Externe Faktencheck-DBs abfragen
+        external_context = self._query_factcheck_databases(claim)
+
+        return self._fact_check_with_context(
+            claim, search_context,
+            original_text=context,
+            external_factchecks=external_context,
+        )
 
     async def execute_async(self, input_data: Any, context: str = "") -> FactCheckResult:
-        """Async-Version – Suchen laufen parallel."""
+        """Async-Version – Websuche und Faktencheck-DB-Abfrage laufen parallel."""
+        import asyncio
         claim: Claim = input_data
 
         # Cache-Lookup (sync, schnell)
@@ -158,9 +217,16 @@ class FactCheckerAgent(BaseAgent):
                 pass
 
         queries = _build_search_queries(claim, original_text=context)
-        self._log(f"Suche (async) nach: {queries}")
+        max_results = _adaptive_max_results(claim)
+        self._log(f"Suche (async) nach: {queries} (max_results={max_results})")
 
-        results_by_query = await self.async_search.multi_search_async(queries, max_results=4)
+        # Websuche + Faktencheck-DB parallel
+        web_task = self.async_search.multi_search_async(queries, max_results=max_results)
+        db_task = self._query_factcheck_databases_async(claim)
+
+        results_by_query, external_context = await asyncio.gather(
+            web_task, db_task, return_exceptions=False
+        )
 
         parts: list[str] = []
         for query, results in results_by_query.items():
@@ -168,10 +234,40 @@ class FactCheckerAgent(BaseAgent):
             parts.append(WebSearchClient.format_results_for_llm(results))
         search_context = "\n\n".join(parts)
 
-        return self._fact_check_with_context(claim, search_context, original_text=context)
+        return self._fact_check_with_context(
+            claim, search_context,
+            original_text=context,
+            external_factchecks=external_context,
+        )
+
+    def _query_factcheck_databases(self, claim: Claim) -> str:
+        """Frage externe Faktencheck-Datenbanken synchron ab."""
+        try:
+            results = self._factcheck_db.search(claim.text)
+            if results:
+                self._log(f"{len(results)} externe Faktenchecks gefunden")
+            return FactCheckDatabaseClient.format_for_llm(results)
+        except Exception as e:
+            self._log(f"Faktencheck-DB Fehler: {type(e).__name__}: {e}")
+            return ""
+
+    async def _query_factcheck_databases_async(self, claim: Claim) -> str:
+        """Frage externe Faktencheck-Datenbanken async ab."""
+        try:
+            results = await self._factcheck_db.search_async(claim.text)
+            if results:
+                self._log(f"{len(results)} externe Faktenchecks gefunden")
+            return FactCheckDatabaseClient.format_for_llm(results)
+        except Exception as e:
+            self._log(f"Faktencheck-DB Fehler: {type(e).__name__}: {e}")
+            return ""
 
     def _fact_check_with_context(
-        self, claim: Claim, search_context: str, original_text: str = ""
+        self,
+        claim: Claim,
+        search_context: str,
+        original_text: str = "",
+        external_factchecks: str = "",
     ) -> FactCheckResult:
         user_msg = (
             f"## Zu prüfende Behauptung\n\n"
@@ -180,6 +276,10 @@ class FactCheckerAgent(BaseAgent):
             f"Typ: {claim.type.value}\n"
             f"Kontext-Hinweis: {claim.context}\n"
         )
+
+        # Externe Faktenchecks VOR den Suchergebnissen – höchste Priorität
+        if external_factchecks:
+            user_msg += f"\n{external_factchecks}\n"
 
         # Originaltext als Kontext mitliefern (gekürzt), damit der Fact-Checker
         # das Gesamtthema versteht und Claims nicht isoliert betrachtet

@@ -18,14 +18,16 @@ import traceback
 import uuid
 from typing import Any
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel
 
 from config import AppConfig
-from orchestrator import Orchestrator
+from orchestrator import InputValidationError, Orchestrator
 from tools.archive import AnalysisArchive
 from tools.content_extractor import ContentExtractor, ExtractedContent, detect_platform, extract_urls, is_url
+from tools.rate_limiter import RateLimiter
 
 app = FastAPI(title="FakeNewsGuard API")
 
@@ -40,6 +42,18 @@ app.add_middleware(
 # ── In-memory job store ────────────────────────────────────────────
 # { job_id: { status, steps, result, error, created_at } }
 _jobs: dict[str, dict[str, Any]] = {}
+
+# ── Rate-Limiter (singleton) ─────────────────────────────────────
+_rate_limiter: RateLimiter | None = None
+
+
+def _get_rate_limiter() -> RateLimiter:
+    global _rate_limiter
+    if _rate_limiter is None:
+        config = AppConfig()
+        _rate_limiter = RateLimiter(config.rate_limit)
+    return _rate_limiter
+
 
 # ── Archive (singleton, erstellt bei erstem Zugriff) ──────────────
 _archive: AnalysisArchive | None = None
@@ -205,8 +219,7 @@ async def _run_job(job_id: str, text: str, url: str = "") -> None:
                     job["status"] = "error"
                     return
 
-        if len(text) > config.max_input_chars:
-            text = text[: config.max_input_chars]
+        # Input-Validierung und -Kürzung wird zentral im Orchestrator erledigt
 
         # ── Phase 1: Claim Extraction ──────────────────────────────
         push_step("Phase 1", "Claim Extractor", "Claims werden extrahiert…", "running")
@@ -387,9 +400,23 @@ class ExtractRequest(BaseModel):
     url: str
 
 
+def _check_rate_limit(request: Request) -> None:
+    """Prüfe Rate-Limit für den aktuellen Request. Wirft HTTPException bei Überschreitung."""
+    limiter = _get_rate_limiter()
+    client_ip = request.client.host if request.client else "unknown"
+    allowed, retry_after = limiter.check(client_ip)
+    if not allowed:
+        raise HTTPException(
+            status_code=429,
+            detail=f"Zu viele Anfragen. Bitte warte {retry_after:.0f} Sekunden.",
+            headers={"Retry-After": str(int(retry_after) + 1)},
+        )
+
+
 @app.post("/api/extract")
-async def extract_content(req: ExtractRequest) -> dict:
+async def extract_content(req: ExtractRequest, request: Request) -> dict:
     """Extract content from a URL without running analysis. Returns extracted text and metadata."""
+    _check_rate_limit(request)
     url = req.url.strip()
     if not url:
         raise HTTPException(status_code=400, detail="Keine URL angegeben.")
@@ -412,12 +439,13 @@ async def extract_content(req: ExtractRequest) -> dict:
 
 
 @app.post("/api/analyze")
-async def analyze(req: AnalyzeRequest) -> dict:
+async def analyze(req: AnalyzeRequest, request: Request) -> dict:
     """Submit an analysis job. Returns a job_id for polling.
 
     Accepts either plain text or a URL (or both). If a URL is provided,
     content is first extracted and then analyzed.
     """
+    _check_rate_limit(request)
     _cleanup_old_jobs()
 
     text = req.text.strip()
@@ -598,6 +626,69 @@ async def archive_stats() -> dict:
     """Statistiken über das Archiv (Anzahl, Verteilung, etc.)."""
     archive = _get_archive()
     return archive.stats()
+
+
+# ── PDF Export endpoint ────────────────────────────────────────────
+
+
+@app.get("/api/export/pdf/{archive_id}")
+async def export_pdf(archive_id: str) -> Response:
+    """Exportiere einen Archiv-Eintrag als PDF-Report.
+
+    Gibt das PDF als Download zurück (Content-Disposition: attachment).
+    """
+    archive = _get_archive()
+    entry = archive.get(archive_id)
+    if entry is None:
+        raise HTTPException(status_code=404, detail="Archiv-Eintrag nicht gefunden.")
+
+    from tools.pdf_export import generate_pdf
+
+    result = entry.get("result", {})
+    title = entry.get("title", "Faktencheck-Report")
+    source_url = entry.get("source_url", "")
+
+    pdf_bytes = generate_pdf(result, title=title, source_url=source_url or "")
+
+    # Dateiname aus Titel ableiten (sanitized)
+    import re
+    safe_title = re.sub(r"[^\w\s-]", "", title or "report")[:50].strip().replace(" ", "_")
+    filename = f"faktencheck_{safe_title}.pdf"
+
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+        },
+    )
+
+
+@app.post("/api/export/pdf")
+async def export_pdf_from_result(req: dict) -> Response:
+    """Exportiere ein Analyse-Ergebnis direkt als PDF (ohne Archiv).
+
+    Erwartet im Body: { result: {...}, title?: str, source_url?: str }
+    Nützlich für den Export direkt aus einem laufenden Job.
+    """
+    result = req.get("result")
+    if not result:
+        raise HTTPException(status_code=400, detail="Kein Analyse-Ergebnis angegeben.")
+
+    from tools.pdf_export import generate_pdf
+
+    title = req.get("title", "Faktencheck-Report")
+    source_url = req.get("source_url", "")
+
+    pdf_bytes = generate_pdf(result, title=title, source_url=source_url)
+
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": 'attachment; filename="faktencheck_report.pdf"',
+        },
+    )
 
 
 @app.get("/api/health")
