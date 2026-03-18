@@ -55,10 +55,10 @@ export default function LeftPanel({ steps, result, isAnalyzing }: LeftPanelProps
             return (
               <div key={id} className="flex items-center gap-2.5">
                 <span
-                  className={`shrink-0 h-2 w-2 rounded-full ${
+                  className={`shrink-0 h-2 w-2 rounded-full transition-colors ${
                     status === "done"      ? "bg-success"
                     : status === "running" ? "bg-warning animate-pulse-dot"
-                    : status === "error"   ? "bg-error"
+                    : status === "error"   ? "bg-error animate-pulse-dot"
                     : "bg-text-tertiary/25"
                   }`}
                 />
