@@ -27,10 +27,11 @@ const CLAIM_LABEL: Record<FactRating, string> = {
   FALSE:        "Falsch",
 };
 
-function getPhaseStatus(phase: string, steps: Step[]): "pending" | "running" | "done" {
+function getPhaseStatus(phase: string, steps: Step[]): "pending" | "running" | "done" | "error" {
   const ps = steps.filter((s) => s.phase === phase);
   if (ps.length === 0) return "pending";
   if (ps.some((s) => s.status === "running")) return "running";
+  if (ps.some((s) => s.status === "error")) return "error";
   return "done";
 }
 
@@ -54,14 +55,13 @@ export default function LeftPanel({ steps, result, isAnalyzing }: LeftPanelProps
             return (
               <div key={id} className="flex items-center gap-2.5">
                 <span
-                  className={`shrink-0 text-xs font-mono ${
-                    status === "done"    ? "text-success"
-                    : status === "running" ? "text-accent animate-blink"
-                    : "text-text-tertiary/30"
+                  className={`shrink-0 h-2 w-2 rounded-full ${
+                    status === "done"      ? "bg-success"
+                    : status === "running" ? "bg-warning animate-pulse-dot"
+                    : status === "error"   ? "bg-error"
+                    : "bg-text-tertiary/25"
                   }`}
-                >
-                  {status === "done" ? "✓" : status === "running" ? "●" : "○"}
-                </span>
+                />
                 <span className={`text-xs ${status === "pending" ? "text-text-tertiary" : "text-text-primary"}`}>
                   {label}
                 </span>

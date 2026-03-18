@@ -14,7 +14,7 @@ export default function ReasoningSteps({ steps, isActive }: ReasoningStepsProps)
     <div className="w-full mb-5 glass-card overflow-hidden animate-fade-in">
       {/* Status bar */}
       <div className="flex items-center gap-2.5 px-4 py-2.5 border-b border-[var(--glass-inner-border)]">
-        <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${isActive ? "bg-accent animate-blink" : "bg-success"}`} />
+        <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${isActive ? "bg-warning animate-pulse-dot" : "bg-success"}`} />
         <span className="text-xs font-medium text-text-secondary">
           {isActive ? "Analyse läuft" : "Abgeschlossen"}
         </span>
@@ -32,7 +32,7 @@ export default function ReasoningSteps({ steps, isActive }: ReasoningStepsProps)
               <span className="text-text-tertiary"> — </span>
               {step.message}
               {step.status === "running" && (
-                <span className="animate-blink text-accent ml-0.5">_</span>
+                <span className="animate-blink text-warning ml-0.5">_</span>
               )}
             </span>
           </div>
