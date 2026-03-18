@@ -4,12 +4,13 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import ChatInput from "./components/ChatInput";
 import ReasoningSteps from "./components/ReasoningSteps";
 import ResultDisplay from "./components/ResultDisplay";
+import NeuralBrain from "./components/NeuralBrain";
 import LeftPanel from "./components/LeftPanel";
 import RightPanel from "./components/RightPanel";
 import { analyzeArticle, resumeJob } from "./lib/api";
 import { AnalysisState, Step, AnalysisResult } from "./lib/types";
 
-const HEADER_HEIGHT = 46;
+const HEADER_HEIGHT = 64;
 const STORAGE_KEY = "fng_pending_job";
 
 export default function Home() {
@@ -110,7 +111,7 @@ export default function Home() {
 
   if (isIdle) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-46px)] px-4">
+      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-64px)] px-4">
         <div className="w-full max-w-2xl animate-fade-in">
           <p className="text-sm text-text-tertiary text-center mb-6 leading-relaxed">
             Text, Artikel oder Behauptung eingeben — das System extrahiert Claims,
@@ -123,7 +124,7 @@ export default function Home() {
   }
 
   return (
-    <div className="flex flex-col min-h-[calc(100vh-46px)]">
+    <div className="flex flex-col min-h-[calc(100vh-64px)]">
       {/* Three-column grid */}
       <div className="flex-1 grid grid-cols-1 lg:grid-cols-[180px_1fr_160px] lg:divide-x lg:divide-border">
 
@@ -140,6 +141,8 @@ export default function Home() {
           {(state.status === "analyzing" || state.status === "done") && (
             <ReasoningSteps steps={steps} isActive={isAnalyzing} />
           )}
+
+          {isAnalyzing && <NeuralBrain />}
 
           {state.status === "done" && (
             <div ref={resultRef}>
@@ -169,8 +172,8 @@ export default function Home() {
         </aside>
       </div>
 
-      {/* Input bar – sticky at bottom */}
-      <div className="sticky bottom-0 bg-bg-primary/95 backdrop-blur-sm px-4 py-2.5" style={{ boxShadow: "var(--shadow-footer)" }}>
+      {/* Input bar – floating glass at bottom */}
+      <div className="sticky bottom-3 mx-4 glass-bar rounded-2xl px-4 py-2.5">
         <div className="max-w-3xl mx-auto">
           <ChatInput onSubmit={handleSubmit} disabled={isAnalyzing} />
         </div>
