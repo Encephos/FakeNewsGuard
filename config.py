@@ -55,13 +55,17 @@ class LLMConfig:
 class SearchConfig:
     """Konfiguration für die Web-Suche."""
 
-    provider: str = "tavily"  # "tavily" | "serper" | "brave"
+    provider: str = "searxng"  # "searxng" | "tavily" | "serper" | "brave"
     api_key: str = ""
+    base_url: str = ""  # Für SearXNG: URL der Instanz (z.B. http://localhost:8888)
     max_results: int = 5
     max_concurrent_searches: int = 3  # Für async Parallelisierung
 
     def __post_init__(self) -> None:
-        if not self.api_key:
+        if self.provider == "searxng":
+            if not self.base_url:
+                self.base_url = os.getenv("SEARXNG_URL", "http://localhost:8888")
+        elif not self.api_key:
             key_map = {
                 "tavily": "TAVILY_API_KEY",
                 "serper": "SERPER_API_KEY",
@@ -120,7 +124,10 @@ class AppConfig:
         if self.llm.provider in key_env and not self.llm.api_key:
             errors.append(f"Fehlender LLM API Key: {key_env[self.llm.provider]} nicht gesetzt")
 
-        if not self.search.api_key:
+        if self.search.provider == "searxng":
+            if not self.search.base_url:
+                errors.append("Fehlende SearXNG URL: SEARXNG_URL nicht gesetzt")
+        elif not self.search.api_key:
             key_map = {"tavily": "TAVILY_API_KEY", "serper": "SERPER_API_KEY", "brave": "BRAVE_API_KEY"}
             env_var = key_map.get(self.search.provider, f"{self.search.provider.upper()}_API_KEY")
             errors.append(f"Fehlender Search API Key: {env_var} nicht gesetzt")
