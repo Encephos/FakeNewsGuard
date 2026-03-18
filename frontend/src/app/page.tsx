@@ -8,7 +8,7 @@ import NeuralBrain from "./components/NeuralBrain";
 import LeftPanel from "./components/LeftPanel";
 import RightPanel from "./components/RightPanel";
 import { analyzeArticle, resumeJob } from "./lib/api";
-import { AnalysisState, Step, AnalysisResult } from "./lib/types";
+import { AnalysisState, Step, AnalysisResult, ExtractedContent } from "./lib/types";
 
 const HEADER_HEIGHT = 64;
 const STORAGE_KEY = "fng_pending_job";
@@ -54,12 +54,20 @@ export default function Home() {
     });
   }, []);
 
+  const onExtractedContent = useCallback((content: ExtractedContent) => {
+    setState((prev) => {
+      if (prev.status !== "analyzing") return prev;
+      return { ...prev, extractedContent: content };
+    });
+  }, []);
+
   const finishWithResult = useCallback((result: AnalysisResult) => {
     localStorage.removeItem(STORAGE_KEY);
     setState((prev) => ({
       status: "done",
       steps: prev.status === "analyzing" ? prev.steps : [],
       result,
+      extractedContent: (prev as { extractedContent?: ExtractedContent }).extractedContent,
     }));
   }, []);
 
@@ -83,16 +91,21 @@ export default function Home() {
   );
 
   const handleSubmit = useCallback(
-    async (text: string) => {
-      setState({ status: "analyzing", steps: [], currentPhase: "Phase 1" });
+    async (text: string, url?: string) => {
+      setState({ status: "analyzing", steps: [], currentPhase: url ? "Phase 0" : "Phase 1" });
       try {
-        const result = await analyzeArticle(text, onStep, (jobId) => {
-          // Save job_id as soon as we get it so mobile can resume
-          localStorage.setItem(
-            STORAGE_KEY,
-            JSON.stringify({ jobId, submittedAt: Date.now() }),
-          );
-        });
+        const result = await analyzeArticle(
+          text,
+          onStep,
+          (jobId) => {
+            localStorage.setItem(
+              STORAGE_KEY,
+              JSON.stringify({ jobId, submittedAt: Date.now() }),
+            );
+          },
+          onExtractedContent,
+          url,
+        );
         finishWithResult(result);
       } catch (err: unknown) {
         const message =
@@ -100,7 +113,7 @@ export default function Home() {
         finishWithError(message);
       }
     },
-    [onStep, finishWithResult, finishWithError],
+    [onStep, onExtractedContent, finishWithResult, finishWithError],
   );
 
   const isAnalyzing = state.status === "analyzing";
@@ -114,7 +127,7 @@ export default function Home() {
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-64px)] px-4">
         <div className="w-full max-w-2xl animate-fade-in">
           <p className="text-sm text-text-tertiary text-center mb-6 leading-relaxed">
-            Text, Artikel oder Behauptung eingeben — das System extrahiert Claims,
+            Text, Artikel, Behauptung oder Link einfügen — das System extrahiert Claims,
             prüft Fakten und analysiert Manipulationstechniken.
           </p>
           <ChatInput onSubmit={handleSubmit} disabled={false} />
@@ -126,18 +139,18 @@ export default function Home() {
   return (
     <div className="flex flex-col min-h-[calc(100vh-64px)]">
       {/* Three-column grid */}
-      <div className="flex-1 grid grid-cols-1 lg:grid-cols-[180px_1fr_160px] lg:divide-x lg:divide-border">
+      <div className="flex-1 grid grid-cols-1 lg:grid-cols-[180px_1fr_160px] gap-3 lg:gap-0 px-3 lg:px-0">
 
         {/* Left panel */}
         <aside
-          className="hidden lg:block bg-bg-tertiary"
-          style={{ position: "sticky", top: HEADER_HEIGHT, alignSelf: "start", maxHeight: `calc(100vh - ${HEADER_HEIGHT}px)`, overflowY: "auto" }}
+          className="hidden lg:block glass-panel rounded-2xl ml-3 mt-3"
+          style={{ position: "sticky", top: HEADER_HEIGHT + 12, alignSelf: "start", maxHeight: `calc(100vh - ${HEADER_HEIGHT + 24}px)`, overflowY: "auto" }}
         >
           <LeftPanel steps={steps} result={result} isAnalyzing={isAnalyzing} />
         </aside>
 
         {/* Main content */}
-        <div className="min-w-0 px-4 lg:px-8 py-7">
+        <div className="min-w-0 px-1 lg:px-8 py-5">
           {(state.status === "analyzing" || state.status === "done") && (
             <ReasoningSteps steps={steps} isActive={isAnalyzing} />
           )}
@@ -151,7 +164,7 @@ export default function Home() {
           )}
 
           {state.status === "error" && (
-            <div className="border border-error/40 px-4 py-3">
+            <div className="glass-card border-error/30 px-5 py-4">
               <p className="text-xs font-mono text-error">{state.message}</p>
               <button
                 className="mt-3 text-xs font-mono text-text-tertiary underline hover:text-text-primary"
@@ -165,8 +178,8 @@ export default function Home() {
 
         {/* Right panel */}
         <aside
-          className="hidden lg:block bg-bg-tertiary"
-          style={{ position: "sticky", top: HEADER_HEIGHT, alignSelf: "start", maxHeight: `calc(100vh - ${HEADER_HEIGHT}px)`, overflowY: "auto" }}
+          className="hidden lg:block glass-panel rounded-2xl mr-3 mt-3"
+          style={{ position: "sticky", top: HEADER_HEIGHT + 12, alignSelf: "start", maxHeight: `calc(100vh - ${HEADER_HEIGHT + 24}px)`, overflowY: "auto" }}
         >
           <RightPanel steps={steps} result={result} isAnalyzing={isAnalyzing} />
         </aside>

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import Link from "next/link";
 import ThemeToggle from "./components/ThemeToggle";
 
 const geistSans = Geist({
@@ -43,13 +44,21 @@ export default function RootLayout({
       >
         <header className="fixed top-3 left-4 right-4 z-50 glass-bar rounded-2xl">
           <div className="flex items-center justify-between px-5 py-2.5">
-            <div className="flex items-center gap-2.5">
+            <Link href="/" className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
               <span className="inline-block h-2 w-2 rounded-full bg-accent" />
               <span className="font-mono text-sm font-bold tracking-tight text-text-primary">
                 FakeNewsGuard
               </span>
+            </Link>
+            <div className="flex items-center gap-4">
+              <Link
+                href="/archiv"
+                className="font-mono text-xs text-text-tertiary hover:text-text-primary transition-colors"
+              >
+                Archiv
+              </Link>
+              <ThemeToggle />
             </div>
-            <ThemeToggle />
           </div>
         </header>
 

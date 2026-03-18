@@ -19,6 +19,16 @@
   --surface-hover: #f0efec;
   --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.06), 0 1px 2px -1px rgb(0 0 0 / 0.04);
   --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.07), 0 2px 4px -2px rgb(0 0 0 / 0.05);
+
+  /* Glass tokens */
+  --glass-bg: rgba(255, 255, 255, 0.55);
+  --glass-border: rgba(255, 255, 255, 0.35);
+  --glass-shadow: 0 2px 20px -4px rgba(0, 0, 0, 0.08), 0 1px 4px -1px rgba(0, 0, 0, 0.04);
+  --glass-inset: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  --glass-subtle-bg: rgba(255, 255, 255, 0.35);
+  --glass-subtle-border: rgba(255, 255, 255, 0.25);
+  --glass-inner-bg: rgba(255, 255, 255, 0.3);
+  --glass-inner-border: rgba(0, 0, 0, 0.04);
 }
 
 .dark {
@@ -40,6 +50,16 @@
   --surface-hover: #252422;
   --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.2), 0 1px 2px -1px rgb(0 0 0 / 0.15);
   --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.25), 0 2px 4px -2px rgb(0 0 0 / 0.2);
+
+  /* Glass tokens – dark */
+  --glass-bg: rgba(30, 29, 27, 0.6);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-shadow: 0 2px 20px -4px rgba(0, 0, 0, 0.35), 0 1px 4px -1px rgba(0, 0, 0, 0.2);
+  --glass-inset: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  --glass-subtle-bg: rgba(255, 255, 255, 0.04);
+  --glass-subtle-border: rgba(255, 255, 255, 0.06);
+  --glass-inner-bg: rgba(255, 255, 255, 0.03);
+  --glass-inner-border: rgba(255, 255, 255, 0.05);
 }
 
 @theme inline {
@@ -70,28 +90,53 @@ body {
   transition: background-color 0.15s ease, border-color 0.15s ease;
 }
 
-/* Liquid glass floating bars */
+/* ── Liquid glass system ────────────────────────────────── */
+
+/* Floating bars (header, footer) */
 .glass-bar {
-  background: rgba(255, 255, 255, 0.55);
-  backdrop-filter: blur(24px) saturate(1.6);
-  -webkit-backdrop-filter: blur(24px) saturate(1.6);
-  border: 1px solid rgba(255, 255, 255, 0.35);
-  box-shadow:
-    0 2px 16px -2px rgba(0, 0, 0, 0.08),
-    0 1px 4px -1px rgba(0, 0, 0, 0.04),
-    inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  background: var(--glass-bg);
+  backdrop-filter: blur(28px) saturate(1.7);
+  -webkit-backdrop-filter: blur(28px) saturate(1.7);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow), var(--glass-inset);
 }
 
-.dark .glass-bar {
-  background: rgba(30, 29, 27, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow:
-    0 2px 16px -2px rgba(0, 0, 0, 0.35),
-    0 1px 4px -1px rgba(0, 0, 0, 0.2),
-    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+/* Content cards */
+.glass-card {
+  background: var(--glass-bg);
+  backdrop-filter: blur(20px) saturate(1.5);
+  -webkit-backdrop-filter: blur(20px) saturate(1.5);
+  border: 1px solid var(--glass-border);
+  border-radius: 1rem;
+  box-shadow: var(--glass-shadow), var(--glass-inset);
 }
 
-/* Scrollbar */
+/* Subtle panels (sidebars) */
+.glass-panel {
+  background: var(--glass-subtle-bg);
+  backdrop-filter: blur(16px) saturate(1.4);
+  -webkit-backdrop-filter: blur(16px) saturate(1.4);
+  border: 1px solid var(--glass-subtle-border);
+  box-shadow: var(--glass-inset);
+}
+
+/* Inner cards inside glass cards */
+.glass-inner {
+  background: var(--glass-inner-bg);
+  border: 1px solid var(--glass-inner-border);
+  border-radius: 0.75rem;
+}
+
+/* Badge pills */
+.glass-badge {
+  background: var(--glass-inner-bg);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid var(--glass-inner-border);
+  border-radius: 9999px;
+}
+
+/* ── Scrollbar ──────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
@@ -99,7 +144,7 @@ body {
   border-radius: 2px;
 }
 
-/* Animations */
+/* ── Animations ─────────────────────────────────────────── */
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(5px); }
   to   { opacity: 1; transform: translateY(0); }
@@ -114,4 +159,14 @@ body {
 }
 .animate-blink {
   animation: blink 1s step-end infinite;
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.animate-shimmer {
+  background: linear-gradient(90deg, transparent 25%, rgba(255,255,255,0.08) 50%, transparent 75%);
+  background-size: 200% 100%;
+  animation: shimmer 2.5s ease-in-out infinite;
 }

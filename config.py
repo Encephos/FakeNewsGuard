@@ -72,11 +72,42 @@ class SearchConfig:
 
 
 @dataclass
+class ArchiveConfig:
+    """Konfiguration für das Analyse-Archiv."""
+
+    enabled: bool = True
+    db_path: str = ".fakeguard_archive.db"
+    max_entries: int = 1000  # Max. Einträge, älteste werden gelöscht (0 = unbegrenzt)
+
+    def __post_init__(self) -> None:
+        # Im Docker nutzen wir /app/data/ für Persistenz
+        env_path = os.getenv("ARCHIVE_DB_PATH", "")
+        if env_path:
+            self.db_path = env_path
+
+
+@dataclass
+class TelegramConfig:
+    """Konfiguration für den Telegram Bot."""
+
+    bot_token: str = ""
+    backend_url: str = "http://localhost:8000"
+
+    def __post_init__(self) -> None:
+        if not self.bot_token:
+            self.bot_token = os.getenv("TELEGRAM_BOT_TOKEN", "")
+        if not self.backend_url or self.backend_url == "http://localhost:8000":
+            self.backend_url = os.getenv("BACKEND_URL", "http://localhost:8000")
+
+
+@dataclass
 class AppConfig:
     llm: LLMConfig = field(default_factory=LLMConfig)
     search: SearchConfig = field(default_factory=SearchConfig)
     retry: RetryConfig = field(default_factory=RetryConfig)
     cache: CacheConfig = field(default_factory=CacheConfig)
+    archive: ArchiveConfig = field(default_factory=ArchiveConfig)
+    telegram: TelegramConfig = field(default_factory=TelegramConfig)
     verbose: bool = True  # Zeige Agent-Wechsel und Zwischenergebnisse
     language: str = "de"  # Primärsprache der Analyse
     max_input_chars: int = 10_000  # Schutz vor übermäßig langen Inputs

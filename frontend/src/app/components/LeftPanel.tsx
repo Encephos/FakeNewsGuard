@@ -57,7 +57,7 @@ export default function LeftPanel({ steps, result, isAnalyzing }: LeftPanelProps
                   className={`shrink-0 text-xs font-mono ${
                     status === "done"    ? "text-success"
                     : status === "running" ? "text-accent animate-blink"
-                    : "text-border"
+                    : "text-text-tertiary/30"
                   }`}
                 >
                   {status === "done" ? "✓" : status === "running" ? "●" : "○"}

@@ -107,8 +107,10 @@ class Orchestrator:
                 continue
 
             # Fact Check – Graceful Degradation
+            # Originaltext als context mitgeben, damit Suchqueries thematisch
+            # angereichert werden und das LLM den Gesamtzusammenhang kennt
             self._log(f"\n  ── Fact-Check für {claim.id} ──")
-            fc_result, fc_error = self.fact_checker.run_safe(claim)
+            fc_result, fc_error = self.fact_checker.run_safe(claim, context=text)
             if fc_error:
                 self._log(f"  ⚠ Fact-Check fehlgeschlagen: {fc_error}")
                 analysis_errors.append(fc_error)
@@ -195,7 +197,8 @@ class Orchestrator:
 
         async def check_claim(claim: Claim) -> tuple[FactCheckResult | None, NumberAuditResult | None, list[str]]:
             errors: list[str] = []
-            fc_result, fc_error = await self.fact_checker.run_safe_async(claim)
+            # Originaltext als context mitgeben für kontextualisierte Suche
+            fc_result, fc_error = await self.fact_checker.run_safe_async(claim, context=text)
             if fc_error:
                 self._log(f"  ⚠ Fact-Check fehlgeschlagen: {fc_error}")
                 errors.append(fc_error)

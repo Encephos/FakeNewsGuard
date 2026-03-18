@@ -24,7 +24,7 @@ export default function ThemeToggle() {
     <button
       onClick={toggle}
       aria-label="Toggle dark mode"
-      className="font-mono text-xs text-text-tertiary hover:text-text-primary transition-colors px-2 py-1 rounded-md border border-transparent hover:border-border hover:bg-surface-hover"
+      className="glass-badge font-mono text-xs text-text-tertiary hover:text-text-primary transition-colors px-3 py-1"
     >
       {dark ? "Hell" : "Dunkel"}
     </button>
