@@ -13,6 +13,9 @@ from tools.retry import retry_call
 class LLMClient:
     """Einheitliches Interface für verschiedene LLM-Provider."""
 
+    # Max seconds for a single LLM API call before giving up
+    REQUEST_TIMEOUT = 120.0
+
     def __init__(self, config: LLMConfig, retry: RetryConfig | None = None) -> None:
         self.config = config
         self._retry = retry or RetryConfig()
@@ -22,13 +25,20 @@ class LLMClient:
     def _init_client(self) -> None:
         if self.config.provider == "anthropic":
             import anthropic
+            import httpx as _httpx
 
-            self._client = anthropic.Anthropic(api_key=self.config.api_key)
+            self._client = anthropic.Anthropic(
+                api_key=self.config.api_key,
+                timeout=_httpx.Timeout(self.REQUEST_TIMEOUT, connect=10.0),
+            )
 
         elif self.config.provider == "openai":
             import openai
 
-            kwargs: dict[str, Any] = {"api_key": self.config.api_key}
+            kwargs: dict[str, Any] = {
+                "api_key": self.config.api_key,
+                "timeout": self.REQUEST_TIMEOUT,
+            }
             if self.config.base_url:
                 kwargs["base_url"] = self.config.base_url
             self._client = openai.OpenAI(**kwargs)
@@ -39,6 +49,7 @@ class LLMClient:
             self._client = openai.OpenAI(
                 base_url=self.config.base_url or "https://openrouter.ai/api/v1",
                 api_key=self.config.api_key,
+                timeout=self.REQUEST_TIMEOUT,
                 default_headers={
                     "HTTP-Referer": "https://github.com/Encephos/FakeNewsGuard",
                     "X-Title": "FakeNewsGuard",
@@ -51,6 +62,7 @@ class LLMClient:
             self._client = openai.OpenAI(
                 base_url=self.config.base_url or "http://localhost:11434/v1",
                 api_key="ollama",
+                timeout=self.REQUEST_TIMEOUT,
             )
 
     def complete(
