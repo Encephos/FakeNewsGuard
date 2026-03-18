@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from agents.base import BaseAgent
+from i18n import t
 from models.schemas import FACT_CHECK_SCHEMA, Claim, FactCheckResult, FactRating
 from tools.factcheck_databases import FactCheckDatabaseClient, FactCheckDatabaseConfig
 from tools.web_search import WebSearchClient
@@ -72,17 +73,21 @@ def _build_search_queries(claim: Claim, original_text: str = "") -> list[str]:
 
     # ── Adaptive Strategie nach Claim-Typ ──────────────────────────
 
+    suffix_fc = t("agents.fact_checker.search_suffix_factcheck")
+    suffix_stats = t("agents.fact_checker.search_suffix_stats")
+    suffix_official = t("agents.fact_checker.search_suffix_official")
+    suffix_causal = t("agents.fact_checker.search_suffix_causal")
+
     if claim_type == "FACTUAL":
         # Einfache Fakten: Direktsuche reicht oft, Faktencheck als Ergänzung
         if len(text) > 60:
-            # Längere Claims profitieren von einer Faktencheck-Suche
-            queries.append(f"{text} faktencheck")
+            queries.append(f"{text} {suffix_fc}")
 
     elif claim_type == "STATISTICAL":
         # Statistische Claims: Aggressive Suche nach Primärdaten
-        queries.append(f"{text} faktencheck")
-        queries.append(f"{text} statistik daten")
-        queries.append(f"{text} destatis eurostat studie")
+        queries.append(f"{text} {suffix_fc}")
+        queries.append(f"{text} {suffix_stats}")
+        queries.append(f"{text} {suffix_official}")
         # Kontext-Suche ist hier besonders wichtig
         if original_text and len(original_text) > len(text) + 30:
             context_query = _build_context_query(claim, original_text)
@@ -91,12 +96,12 @@ def _build_search_queries(claim: Claim, original_text: str = "") -> list[str]:
 
     elif claim_type == "CAUSAL":
         # Kausalbehauptungen: Faktencheck + Korrelation vs. Kausalität
-        queries.append(f"{text} faktencheck")
-        queries.append(f"{text} ursache wirkung zusammenhang")
+        queries.append(f"{text} {suffix_fc}")
+        queries.append(f"{text} {suffix_causal}")
 
     elif claim_type == "CONTEXTUAL":
         # Kontextuelle Claims: Faktencheck + Kontext-Suche
-        queries.append(f"{text} faktencheck")
+        queries.append(f"{text} {suffix_fc}")
         if original_text and len(original_text) > len(text) + 30:
             context_query = _build_context_query(claim, original_text)
             if context_query and context_query not in queries:
@@ -104,7 +109,7 @@ def _build_search_queries(claim: Claim, original_text: str = "") -> list[str]:
 
     else:
         # Fallback für unbekannte Typen
-        queries.append(f"{text} faktencheck")
+        queries.append(f"{text} {suffix_fc}")
 
     return queries
 
@@ -294,8 +299,9 @@ class FactCheckerAgent(BaseAgent):
 
         user_msg += f"\n## Suchergebnisse\n\n{search_context}"
 
+        prompt = t("agents.fact_checker.system_prompt")
         raw = self._llm_structured(
-            SYSTEM_PROMPT, user_msg, FACT_CHECK_SCHEMA,
+            prompt, user_msg, FACT_CHECK_SCHEMA,
             tool_name="fact_check", tool_description="Fact-Check Ergebnis"
         )
 

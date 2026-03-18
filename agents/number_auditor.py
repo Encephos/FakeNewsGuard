@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from agents.base import BaseAgent
+from i18n import t
 from models.schemas import NUMBER_AUDIT_SCHEMA, Claim, ManipulationType, NumberAuditResult
 from tools.web_search import WebSearchClient
 
@@ -77,7 +78,8 @@ class NumberAuditorAgent(BaseAgent):
             except Exception:
                 pass
 
-        search_query = f"{claim.text} Statistik Daten"
+        suffix = t("agents.number_auditor.search_suffix")
+        search_query = f"{claim.text} {suffix}"
         search_results = self._web_search(search_query, max_results=3)
         return self._audit_with_context(claim, search_results, context)
 
@@ -92,7 +94,8 @@ class NumberAuditorAgent(BaseAgent):
             except Exception:
                 pass
 
-        search_query = f"{claim.text} Statistik Daten"
+        suffix = t("agents.number_auditor.search_suffix")
+        search_query = f"{claim.text} {suffix}"
         results = await self.async_search.search_async(search_query, max_results=3)
         search_results = WebSearchClient.format_results_for_llm(results)
         return self._audit_with_context(claim, search_results, context)
@@ -109,8 +112,9 @@ class NumberAuditorAgent(BaseAgent):
 
         user_msg += f"\n## Suchergebnisse zu den Zahlen\n\n{search_results}"
 
+        prompt = t("agents.number_auditor.system_prompt")
         raw = self._llm_structured(
-            SYSTEM_PROMPT, user_msg, NUMBER_AUDIT_SCHEMA,
+            prompt, user_msg, NUMBER_AUDIT_SCHEMA,
             tool_name="number_audit", tool_description="Number Audit Ergebnis"
         )
 

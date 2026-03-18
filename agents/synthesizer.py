@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from agents.base import BaseAgent
+from i18n import t
 from models.schemas import (
     SYNTHESIS_SCHEMA,
     FactCheckResult,
@@ -108,9 +109,11 @@ class SynthesizerAgent(BaseAgent):
 
         user_msg = "\n".join(parts)
 
+        prompt = t("agents.synthesizer.system_prompt")
+        tool_desc = t("agents.synthesizer.tool_description")
         raw = self._llm_structured(
-            SYSTEM_PROMPT, user_msg, SYNTHESIS_SCHEMA,
-            tool_name="synthesis", tool_description="Gesamt-Syntheseergebnis"
+            prompt, user_msg, SYNTHESIS_SCHEMA,
+            tool_name="synthesis", tool_description=tool_desc
         )
 
         # Alle Quellen sammeln und deduplizieren

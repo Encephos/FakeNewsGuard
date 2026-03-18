@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from agents.base import BaseAgent
+from i18n import t
 from models.schemas import RhetoricAnalysisResult, RhetoricTechnique, Severity
 
 SYSTEM_PROMPT = """\
@@ -73,11 +74,12 @@ class RhetoricAnalyzerAgent(BaseAgent):
         else:
             text = str(input_data)
 
-        user_msg = f"Analysiere folgenden Text auf manipulative Rhetorik:\n\n{text}"
+        user_msg = f"{t('agents.rhetoric_analyzer.analyze_prefix')}{text}"
         if context:
             user_msg += f"\n\n## Zusätzlicher Kontext\n\n{context}"
 
-        raw = self._llm_json(SYSTEM_PROMPT, user_msg)
+        prompt = t("agents.rhetoric_analyzer.system_prompt")
+        raw = self._llm_json(prompt, user_msg)
 
         techniques = []
         for t in raw.get("techniques", []):
@@ -91,7 +93,7 @@ class RhetoricAnalyzerAgent(BaseAgent):
                     )
                 )
             except (KeyError, ValueError) as e:
-                self._log(f"Überspringe ungültige Technik: {e}")
+                self._log(f"{t('agents.rhetoric_analyzer.skip_invalid_technique')}: {e}")
 
         result = RhetoricAnalysisResult(
             techniques=techniques,

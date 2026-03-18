@@ -7,6 +7,7 @@ import sys
 from typing import Any
 
 from config import AppConfig
+from i18n import set_default_locale, t
 from models.schemas import (
     Claim,
     ClaimType,
@@ -43,6 +44,9 @@ class Orchestrator:
 
     def __init__(self, config: AppConfig) -> None:
         self.config = config
+
+        # i18n auf konfigurierte Sprache setzen
+        set_default_locale(config.language)
 
         # API Keys beim Start prüfen
         config.validate()
