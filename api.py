@@ -56,8 +56,9 @@ def _get_archive() -> AnalysisArchive:
 _JOB_TTL_SECONDS = 3600
 # Maximum time a single analysis job may run before being killed (total hard cap)
 _JOB_TIMEOUT_SECONDS = 1800  # 30 minutes hard cap
-# If no progress (new step) for this long, the job is considered stale
-_JOB_INACTIVITY_TIMEOUT = 300  # 5 minutes without progress
+# If no progress (new step) for this long, the job is considered stale.
+# Per-job override possible via job["inactivity_timeout"].
+_JOB_INACTIVITY_TIMEOUT = 300  # 5 minutes without progress (default)
 
 
 def _cleanup_old_jobs() -> None:
@@ -241,13 +242,19 @@ async def _run_job(job_id: str, text: str, url: str = "") -> None:
                 f"{claim.id} [{claim.type.value}]: {claim.text}",
             )
 
-        # ── Phase 2 + 3: Fact-check claims (parallel) + Rhetoric ──
+        # ── Phase 2 + 3: Fact-check claims (parallel, batched) + Rhetoric ──
         from models.schemas import ClaimType
+
+        _CLAIM_BATCH_SIZE = 4  # Max parallel claim checks to avoid API overload
 
         fact_checks = []
         number_audits = []
         analysis_errors = []
         checkable = [c for c in extraction.claims if c.type != ClaimType.OPINION]
+
+        # Scale inactivity timeout for large inputs: base 300s + 30s per claim
+        if len(checkable) > 4:
+            job["inactivity_timeout"] = _JOB_INACTIVITY_TIMEOUT + len(checkable) * 30
 
         async def _check_claim(claim):
             """Fact-check a single claim, then optionally number-audit it."""
@@ -283,7 +290,7 @@ async def _run_job(job_id: str, text: str, url: str = "") -> None:
                         f"{claim.id}: {na_result.manipulation_type.value}",
                     )
 
-        # Run all claim checks + rhetoric analysis in parallel
+        # Run rhetoric analysis in parallel with claim batches
         async def _run_rhetoric():
             push_step("Phase 3", "Rhetoric Analyzer", "Rhetorische Analyse gestartet…", "running")
             rhet_result, rhet_error = await asyncio.get_event_loop().run_in_executor(
@@ -291,12 +298,29 @@ async def _run_job(job_id: str, text: str, url: str = "") -> None:
             )
             return rhet_result, rhet_error
 
-        claim_tasks = [_check_claim(c) for c in checkable]
-        rhetoric_task = _run_rhetoric()
-        results = await asyncio.gather(*claim_tasks, rhetoric_task, return_exceptions=True)
+        # Process claims in batches to avoid API rate limits and overload
+        rhetoric_task = asyncio.create_task(_run_rhetoric())
 
-        # Process rhetoric result (last item in gathered results)
-        rhetoric_gathered = results[-1]
+        for batch_start in range(0, len(checkable), _CLAIM_BATCH_SIZE):
+            batch = checkable[batch_start : batch_start + _CLAIM_BATCH_SIZE]
+            batch_num = batch_start // _CLAIM_BATCH_SIZE + 1
+            total_batches = (len(checkable) + _CLAIM_BATCH_SIZE - 1) // _CLAIM_BATCH_SIZE
+            if total_batches > 1:
+                push_step(
+                    "Phase 2", "Fact Checker",
+                    f"Batch {batch_num}/{total_batches} ({len(batch)} Claims)…", "running",
+                )
+            batch_tasks = [_check_claim(c) for c in batch]
+            batch_results = await asyncio.gather(*batch_tasks, return_exceptions=True)
+            for i, res in enumerate(batch_results):
+                if isinstance(res, Exception):
+                    analysis_errors.append(f"ClaimCheck: {res}")
+
+        # Wait for rhetoric to finish
+        results = [await rhetoric_task]
+
+        # Process rhetoric result
+        rhetoric_gathered = results[0]
         rhetoric_result = None
         if isinstance(rhetoric_gathered, Exception):
             analysis_errors.append(f"RhetoricAnalyzer: {rhetoric_gathered}")
@@ -311,11 +335,6 @@ async def _run_job(job_id: str, text: str, url: str = "") -> None:
                     "Phase 3", "Rhetoric Analyzer",
                     f"{len(rhetoric_result.techniques)} Techniken erkannt",
                 )
-
-        # Check if any claim task raised an exception
-        for i, res in enumerate(results[:-1]):
-            if isinstance(res, Exception):
-                analysis_errors.append(f"ClaimCheck: {res}")
 
         # ── Phase 4: Synthesis ────────────────────────────────────
         push_step("Phase 4", "Synthesizer", "Erstelle Gesamtbewertung…", "running")
@@ -441,7 +460,8 @@ async def analyze(req: AnalyzeRequest) -> dict:
             now = time.time()
             idle = now - job.get("last_activity", job["created_at"])
             total = now - job["created_at"]
-            if idle > _JOB_INACTIVITY_TIMEOUT:
+            inactivity_limit = job.get("inactivity_timeout", _JOB_INACTIVITY_TIMEOUT)
+            if idle > inactivity_limit:
                 job["error"] = (
                     f"Zeitüberschreitung: Kein Fortschritt seit {int(idle)}s. "
                     "Möglicherweise hängt ein externer API-Aufruf."
