@@ -110,121 +110,170 @@ def severity_emoji(severity: str) -> str:
     return {"LOW": "\U0001F7E2", "MEDIUM": "\U0001F7E1", "HIGH": "\U0001F534"}.get(severity, "\u2022")
 
 
+def severity_label(severity: str) -> str:
+    return {"LOW": "Niedrig", "MEDIUM": "Mittel", "HIGH": "Hoch"}.get(severity, severity)
+
+
+def confidence_bar(confidence: int) -> str:
+    """Create a visual confidence meter: ████████░░ 80%"""
+    filled = round(confidence / 10)
+    empty = 10 - filled
+    bar = "\u2588" * filled + "\u2591" * empty
+    return f"`{bar}` {escape_md(str(confidence))}%"
+
+
+def divider() -> str:
+    return escape_md("─" * 28)
+
+
 # ── Format Analysis Result ───────────────────────────────────────
 
 def format_result(result: dict[str, Any]) -> str:
     """Format the analysis result as Telegram MarkdownV2 message."""
     parts: list[str] = []
 
-    # Header with verdict
     rating = result.get("overall_rating", "?")
     confidence = result.get("confidence", 0)
     emoji = rating_emoji(rating)
 
-    parts.append(f"{emoji} {bold('FAKTENCHECK-ERGEBNIS')}")
-    parts.append("")
-    parts.append(f"{bold('Bewertung:')} {escape_md(rating)}")
-    parts.append(f"{bold('Konfidenz:')} {escape_md(str(confidence))}%")
+    # ── Hero Header ──
+    parts.append(f"{emoji}  {bold(rating.upper())}")
+    parts.append(confidence_bar(confidence))
     parts.append("")
 
-    # Summary
+    # ── Summary ──
     summary = result.get("summary", "")
     if summary:
-        parts.append(f"{bold('Zusammenfassung:')}")
+        parts.append(f"\U0001F4DD {bold('Zusammenfassung')}")
         parts.append(escape_md(summary))
         parts.append("")
 
-    # Claims
+    # ── Claims ──
     claims = result.get("claims", [])
     if claims:
-        parts.append(f"\U0001F50D {bold('CLAIMS')}")
+        parts.append(divider())
+        parts.append(f"\U0001F50D {bold('Behauptungen')}  _{escape_md(f'({len(claims)})')}_")
         parts.append("")
+
         for i, claim in enumerate(claims, 1):
             r = claim.get("rating", "")
             re_ = fact_rating_emoji(r)
             label = fact_rating_label(r)
-            parts.append(f"{re_} {bold(f'Claim {i}:')} {escape_md(claim.get('text', '')[:200])}")
-            parts.append(f"   {italic('Bewertung:')} {escape_md(label)}")
+
+            # Claim header line
+            parts.append(f"{re_} *{escape_md(f'#{i}')}*  {escape_md(claim.get('text', '')[:200])}")
+            parts.append(f"    \u2192 {italic(label)}")
 
             evidence = claim.get("evidence", "")
             if evidence:
-                parts.append(f"   {italic('Evidenz:')} {escape_md(evidence[:300])}")
+                parts.append(f"    {escape_md(evidence[:300])}")
 
             correction = claim.get("correction", "")
             if correction:
-                parts.append(f"   {italic('Korrektur:')} {escape_md(correction[:200])}")
+                parts.append(f"    \u26A0\uFE0F {italic('Korrektur:')} {escape_md(correction[:200])}")
 
             missing = claim.get("missing_context", "")
             if missing:
-                parts.append(f"   {italic('Fehlender Kontext:')} {escape_md(missing[:200])}")
+                parts.append(f"    \U0001F4AC {italic('Kontext:')} {escape_md(missing[:200])}")
 
             # Number audit
             na = claim.get("number_audit")
             if na and na.get("manipulation", "NONE") != "NONE":
-                parts.append(f"   \U0001F4CA {italic('Zahlenmanipulation:')} {escape_md(na.get('manipulation', ''))}")
+                parts.append(f"    \U0001F4CA {italic('Zahlenmanipulation:')} {escape_md(na.get('manipulation', ''))}")
                 if na.get("correct_value"):
-                    parts.append(f"   {italic('Korrekte Einordnung:')} {escape_md(na['correct_value'][:200])}")
+                    parts.append(f"    \u2192 {escape_md(na['correct_value'][:200])}")
 
-            parts.append("")
+            # Add spacing between claims
+            if i < len(claims):
+                parts.append("")
 
-    # Rhetoric / Manipulation Techniques
+    # ── Rhetoric / Manipulation Techniques ──
     rhetoric = result.get("rhetoric", [])
     if rhetoric:
-        parts.append(f"\U0001F3AD {bold('MANIPULATIONSTECHNIKEN')}")
+        parts.append("")
+        parts.append(divider())
+        parts.append(f"\U0001F3AD {bold('Manipulationstechniken')}  _{escape_md(f'({len(rhetoric)})')}_")
         parts.append("")
         for tech in rhetoric:
-            sev = severity_emoji(tech.get("severity", ""))
-            parts.append(f"{sev} {bold(tech.get('name', ''))}")
+            sev = tech.get("severity", "")
+            sev_e = severity_emoji(sev)
+            sev_l = severity_label(sev)
+            parts.append(f"{sev_e} {bold(tech.get('name', ''))}  \u00B7  {italic(sev_l)}")
             if tech.get("description"):
-                parts.append(f"   {escape_md(tech['description'][:200])}")
+                parts.append(f"    {escape_md(tech['description'][:200])}")
             if tech.get("example"):
-                parts.append(f"   {italic('Beispiel:')} {escape_md(tech['example'][:150])}")
+                parts.append(f"    \u00AB{escape_md(tech['example'][:150])}\u00BB")
             parts.append("")
 
-    # Corrections
+    # ── Corrections ──
     corrections = result.get("corrections", [])
     if corrections:
-        parts.append(f"\u270F\uFE0F {bold('KORREKTUREN')}")
+        parts.append(divider())
+        parts.append(f"\u270F\uFE0F {bold('Korrekturen')}")
+        parts.append("")
         for i, corr in enumerate(corrections, 1):
             parts.append(f"  {escape_md(str(i))}\\. {escape_md(corr[:200])}")
         parts.append("")
 
-    # Fairness
+    # ── Fairness ──
     fairness = result.get("fairness", [])
     if fairness:
-        parts.append(f"\u2696\uFE0F {bold('WAS KORREKT WAR')}")
+        parts.append(divider())
+        parts.append(f"\u2705 {bold('Was korrekt war')}")
+        parts.append("")
         for note in fairness:
-            parts.append(f"  \u2022 {escape_md(note[:200])}")
+            parts.append(f"    \u2022 {escape_md(note[:200])}")
         parts.append("")
 
-    # Sources
+    # ── Sources ──
     sources = result.get("sources", [])
     if sources:
-        parts.append(f"\U0001F4CE {bold('QUELLEN')}")
+        parts.append(divider())
+        parts.append(f"\U0001F517 {bold('Quellen')}")
+        parts.append("")
         for src in sources[:8]:
             if src.startswith("http"):
-                # Show domain as link
                 domain = re.sub(r"^https?://(?:www\.)?", "", src).split("/")[0]
-                parts.append(f"  \u2022 {link(domain, src)}")
+                parts.append(f"    \u2023 {link(domain, src)}")
             else:
-                parts.append(f"  \u2022 {escape_md(src[:100])}")
+                parts.append(f"    \u2023 {escape_md(src[:100])}")
+
+    # Footer
+    parts.append("")
+    parts.append(escape_md("_____"))
+    parts.append(f"_{escape_md('FakeNewsGuard \u00B7 KI-Faktencheck')}_")
 
     return "\n".join(parts)
 
 
 def format_steps_progress(steps: list[dict[str, Any]]) -> str:
-    """Format current progress steps as a short status message."""
+    """Format current progress steps as a compact status message."""
     if not steps:
-        return escape_md("Analyse gestartet...")
+        return f"\U0001F9E0 {escape_md('Analyse wird vorbereitet...')}"
 
+    total = len(steps)
+    done = sum(1 for s in steps if s.get("status") != "running")
     last = steps[-1]
-    phase = last.get("phase", "")
     agent = last.get("agent", "")
     msg = last.get("message", "")
     status = last.get("status", "")
 
-    icon = "\U0001F504" if status == "running" else "\u2705"
-    return f"{icon} {escape_md(f'{phase} | {agent}')}\n{escape_md(msg[:100])}"
+    # Progress dots
+    filled = done
+    remaining = max(total - done, 0)
+    dots = "\u25C9" * filled + "\u25CB" * remaining
+
+    icon = "\U0001F9E0" if status == "running" else "\u2705"
+    agent_display = escape_md(agent) if agent else ""
+    header = f"{icon} {bold('Analyse')}  {escape_md(dots)}"
+    detail = escape_md(msg[:120]) if msg else ""
+
+    lines = [header]
+    if agent_display:
+        lines.append(f"    \u2192 {italic(agent)}")
+    if detail:
+        lines.append(f"    {detail}")
+    return "\n".join(lines)
 
 
 # ── Telegram Bot API Client ─────────────────────────────────────
@@ -340,19 +389,28 @@ async def handle_message(bot: TelegramBot, message: dict[str, Any]) -> None:
     # Handle /start command
     if text == "/start":
         welcome = (
-            f"\U0001F50D {bold('FakeNewsGuard Bot')}\n\n"
-            f"{escape_md('Sende mir einen Text, Artikel oder Link und ich prüfe ihn auf:')}\n\n"
-            f"  \u2022 {escape_md('Faktentreue')}\n"
-            f"  \u2022 {escape_md('Zahlenmanipulation')}\n"
-            f"  \u2022 {escape_md('Rhetorische Manipulationstechniken')}\n\n"
-            f"{bold('Unterstützte Plattformen:')}\n"
-            f"  \U0001D54F Twitter/X\n"
-            f"  \U0001F9F5 Threads\n"
-            f"  \U0001F4F7 Instagram\n"
-            f"  \U0001F4D8 Facebook\n"
-            f"  \u25B6\uFE0F YouTube\n"
-            f"  \U0001F4F0 News\\-Artikel\n\n"
-            f"{escape_md('Einfach Text oder Link senden!')}"
+            f"\U0001F9E0 {bold('FakeNewsGuard')}\n"
+            f"_{escape_md('KI-gestützter Faktencheck in Sekunden')}_\n"
+            f"\n"
+            f"{divider()}\n"
+            f"\n"
+            f"{escape_md('Sende mir einen Text, Artikel oder Link.')}\n"
+            f"{escape_md('Ich analysiere ihn auf:')}\n"
+            f"\n"
+            f"  \U0001F50D {escape_md('Faktentreue')}\n"
+            f"  \U0001F4CA {escape_md('Zahlenmanipulation')}\n"
+            f"  \U0001F3AD {escape_md('Rhetorische Tricks')}\n"
+            f"\n"
+            f"{bold('Plattformen')}\n"
+            f"  \U0001D54F {escape_md('Twitter/X')}   \u2022   "
+            f"\U0001F9F5 {escape_md('Threads')}   \u2022   "
+            f"\U0001F4F7 {escape_md('Instagram')}\n"
+            f"  \U0001F4D8 {escape_md('Facebook')}   \u2022   "
+            f"\u25B6\uFE0F {escape_md('YouTube')}   \u2022   "
+            f"\U0001F4F0 {escape_md('News')}\n"
+            f"\n"
+            f"{divider()}\n"
+            f"_{escape_md('Einfach Text oder Link senden \u2192 los gehts!')}_"
         )
         await bot.send_message(chat_id, welcome)
         return
@@ -360,15 +418,24 @@ async def handle_message(bot: TelegramBot, message: dict[str, Any]) -> None:
     # Handle /help command
     if text == "/help":
         help_text = (
-            f"{bold('Nutzung:')}\n\n"
-            f"  \u2022 {escape_md('Sende einen Text oder eine Behauptung')}\n"
-            f"  \u2022 {escape_md('Sende einen Link zu einem Social-Media-Post oder Artikel')}\n"
-            f"  \u2022 {escape_md('Der Bot extrahiert den Inhalt und analysiert ihn')}\n\n"
-            f"{bold('Beispiele:')}\n"
-            f"  {escape_md('• \"Deutschland hat die höchste Inflationsrate in Europa\"')}\n"
-            f"  {escape_md('• https://x.com/user/status/123...')}\n"
-            f"  {escape_md('• https://www.spiegel.de/...')}\n\n"
-            f"{escape_md('Die Analyse dauert ca. 1-3 Minuten.')}"
+            f"\U0001F4D6 {bold('So funktioniert es')}\n"
+            f"\n"
+            f"*{escape_md('1.')}* {escape_md('Sende einen Text oder eine Behauptung')}\n"
+            f"*{escape_md('2.')}* {escape_md('Oder sende einen Link zu einem Post/Artikel')}\n"
+            f"*{escape_md('3.')}* {escape_md('Die KI analysiert alles automatisch')}\n"
+            f"\n"
+            f"{divider()}\n"
+            f"\n"
+            f"{bold('Beispiele')}\n"
+            f"\n"
+            f"\U0001F4AC _{escape_md('\"Deutschland hat die höchste Inflationsrate in Europa\"')}_\n"
+            f"\n"
+            f"\U0001F517 `https://x\\.com/user/status/123`\n"
+            f"\n"
+            f"\U0001F517 `https://www\\.spiegel\\.de/\\.\\.\\.`\n"
+            f"\n"
+            f"{divider()}\n"
+            f"_{escape_md('Analyse dauert ca. 1\u20133 Minuten')}_"
         )
         await bot.send_message(chat_id, help_text)
         return
@@ -379,7 +446,7 @@ async def handle_message(bot: TelegramBot, message: dict[str, Any]) -> None:
     # Send initial "processing" message
     status_resp = await bot.send_message(
         chat_id,
-        f"\u23F3 {escape_md('Analyse wird gestartet…')}",
+        f"\U0001F9E0 {escape_md('Analyse wird gestartet...')}",
         reply_to_message_id=msg_id,
     )
     status_msg_id = status_resp.get("result", {}).get("message_id")
@@ -403,7 +470,7 @@ async def handle_message(bot: TelegramBot, message: dict[str, Any]) -> None:
             try:
                 await bot.edit_message(
                     chat_id, status_msg_id,
-                    f"\U0001F504 {escape_md('Analyse läuft… Dies kann 1-3 Minuten dauern.')}"
+                    f"\U0001F9E0 {bold('Analyse')}  {escape_md('\u25CB\u25CB\u25CB\u25CB')}\n    {escape_md('Dies kann 1\u20133 Minuten dauern...')}"
                 )
             except Exception:
                 pass
@@ -466,7 +533,7 @@ async def handle_message(bot: TelegramBot, message: dict[str, Any]) -> None:
         raise ValueError("Zeitüberschreitung: Analyse dauert zu lange.")
 
     except Exception as e:
-        error_text = f"\u274C {bold('Fehler')}\n\n{escape_md(str(e))}"
+        error_text = f"\u274C {bold('Fehler')}\n\n{escape_md(str(e))}\n\n_{escape_md('Versuche es erneut oder sende /help')}_"
         if status_msg_id:
             try:
                 await bot.edit_message(chat_id, status_msg_id, error_text)
