@@ -13,6 +13,7 @@ Schema:
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import sqlite3
@@ -21,6 +22,12 @@ from contextlib import contextmanager
 from typing import Any
 
 from config import ArchiveConfig
+
+
+def _input_hash(text: str = "", url: str = "") -> str:
+    """Stabiler Lookup-Key: URL hat Vorrang vor Text."""
+    raw = (url.strip().lower() if url else text.strip().lower())
+    return hashlib.sha256(raw.encode()).hexdigest()
 
 
 class AnalysisArchive:
@@ -50,10 +57,17 @@ class AnalysisArchive:
                     result_json       TEXT NOT NULL,
                     title             TEXT,
                     claims_count      INTEGER DEFAULT 0,
-                    techniques_count  INTEGER DEFAULT 0
+                    techniques_count  INTEGER DEFAULT 0,
+                    input_hash        TEXT
                 )
                 """
             )
+            # Migration: input_hash zu bestehenden Datenbanken hinzufügen
+            try:
+                conn.execute("ALTER TABLE analysis_archive ADD COLUMN input_hash TEXT")
+            except sqlite3.OperationalError:
+                pass  # Spalte existiert bereits
+
             # Index für schnelle Sortierung und Filterung
             conn.execute(
                 """
@@ -65,6 +79,12 @@ class AnalysisArchive:
                 """
                 CREATE INDEX IF NOT EXISTS idx_archive_rating
                 ON analysis_archive (overall_rating)
+                """
+            )
+            conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_archive_hash
+                ON analysis_archive (input_hash)
                 """
             )
 
@@ -85,6 +105,48 @@ class AnalysisArchive:
             conn.close()
 
     # ── Write Operations ─────────────────────────────────────────
+
+    def find_duplicate(self, text: str = "", url: str = "") -> dict[str, Any] | None:
+        """Suche nach einem bereits analysierten identischen Input.
+
+        Gibt den vollständigen Archiv-Eintrag zurück (inkl. ``result``),
+        oder None wenn kein Treffer.  URL hat Vorrang vor Text.
+        """
+        if not self.config.enabled or (not text and not url):
+            return None
+
+        key = _input_hash(text=text, url=url)
+        with self._connect() as conn:
+            row = conn.execute(
+                """
+                SELECT id, created_at, input_text, source_url, platform,
+                       overall_rating, confidence, summary, result_json,
+                       title, claims_count, techniques_count
+                FROM analysis_archive
+                WHERE input_hash = ?
+                ORDER BY created_at DESC
+                LIMIT 1
+                """,
+                (key,),
+            ).fetchone()
+
+        if row is None:
+            return None
+
+        return {
+            "id": row["id"],
+            "created_at": row["created_at"],
+            "input_text": row["input_text"],
+            "source_url": row["source_url"],
+            "platform": row["platform"],
+            "overall_rating": row["overall_rating"],
+            "confidence": row["confidence"],
+            "summary": row["summary"],
+            "result": json.loads(row["result_json"]),
+            "title": row["title"],
+            "claims_count": row["claims_count"],
+            "techniques_count": row["techniques_count"],
+        }
 
     def save(
         self,
@@ -121,14 +183,16 @@ class AnalysisArchive:
         claims_count = len(result.get("claims", []))
         techniques_count = len(result.get("rhetoric", []))
 
+        lookup_hash = _input_hash(text=input_text, url=source_url or "")
+
         with self._connect() as conn:
             conn.execute(
                 """
                 INSERT INTO analysis_archive
                     (id, created_at, input_text, source_url, platform,
                      overall_rating, confidence, summary, result_json,
-                     title, claims_count, techniques_count)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     title, claims_count, techniques_count, input_hash)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     archive_id,
@@ -143,6 +207,7 @@ class AnalysisArchive:
                     title,
                     claims_count,
                     techniques_count,
+                    lookup_hash,
                 ),
             )
 
