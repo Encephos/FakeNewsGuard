@@ -54,8 +54,10 @@ def _get_archive() -> AnalysisArchive:
 
 # Clean up jobs older than 1 hour to avoid memory leaks
 _JOB_TTL_SECONDS = 3600
-# Maximum time a single analysis job may run before being killed
-_JOB_TIMEOUT_SECONDS = 600  # 10 minutes
+# Maximum time a single analysis job may run before being killed (total hard cap)
+_JOB_TIMEOUT_SECONDS = 1800  # 30 minutes hard cap
+# If no progress (new step) for this long, the job is considered stale
+_JOB_INACTIVITY_TIMEOUT = 300  # 5 minutes without progress
 
 
 def _cleanup_old_jobs() -> None:
@@ -160,6 +162,8 @@ async def _run_job(job_id: str, text: str, url: str = "") -> None:
                 "timestamp": int(time.time() * 1000),
             }
         )
+        # Reset activity watchdog on every step
+        job["last_activity"] = time.time()
 
     try:
         job["status"] = "running"
@@ -237,7 +241,7 @@ async def _run_job(job_id: str, text: str, url: str = "") -> None:
                 f"{claim.id} [{claim.type.value}]: {claim.text}",
             )
 
-        # ── Phase 2: Fact-check each claim ────────────────────────
+        # ── Phase 2 + 3: Fact-check claims (parallel) + Rhetoric ──
         from models.schemas import ClaimType
 
         fact_checks = []
@@ -245,7 +249,8 @@ async def _run_job(job_id: str, text: str, url: str = "") -> None:
         analysis_errors = []
         checkable = [c for c in extraction.claims if c.type != ClaimType.OPINION]
 
-        for claim in checkable:
+        async def _check_claim(claim):
+            """Fact-check a single claim, then optionally number-audit it."""
             push_step("Phase 2", "Fact Checker", f"Prüfe: {claim.text[:80]}…", "running")
 
             fc_result, fc_error = await asyncio.get_event_loop().run_in_executor(
@@ -278,19 +283,39 @@ async def _run_job(job_id: str, text: str, url: str = "") -> None:
                         f"{claim.id}: {na_result.manipulation_type.value}",
                     )
 
-        # ── Phase 3: Rhetoric ─────────────────────────────────────
-        push_step("Phase 3", "Rhetoric Analyzer", "Rhetorische Analyse gestartet…", "running")
-        rhetoric_result, rhetoric_error = await asyncio.get_event_loop().run_in_executor(
-            None, lambda: orchestrator.rhetoric_analyzer.run_safe(text)
-        )
-        if rhetoric_error:
-            analysis_errors.append(rhetoric_error)
-            push_step("Phase 3", "Rhetoric Analyzer", f"Fehler: {rhetoric_error}", "error")
-        elif rhetoric_result is not None:
-            push_step(
-                "Phase 3", "Rhetoric Analyzer",
-                f"{len(rhetoric_result.techniques)} Techniken erkannt",
+        # Run all claim checks + rhetoric analysis in parallel
+        async def _run_rhetoric():
+            push_step("Phase 3", "Rhetoric Analyzer", "Rhetorische Analyse gestartet…", "running")
+            rhet_result, rhet_error = await asyncio.get_event_loop().run_in_executor(
+                None, lambda: orchestrator.rhetoric_analyzer.run_safe(text)
             )
+            return rhet_result, rhet_error
+
+        claim_tasks = [_check_claim(c) for c in checkable]
+        rhetoric_task = _run_rhetoric()
+        results = await asyncio.gather(*claim_tasks, rhetoric_task, return_exceptions=True)
+
+        # Process rhetoric result (last item in gathered results)
+        rhetoric_gathered = results[-1]
+        rhetoric_result = None
+        if isinstance(rhetoric_gathered, Exception):
+            analysis_errors.append(f"RhetoricAnalyzer: {rhetoric_gathered}")
+            push_step("Phase 3", "Rhetoric Analyzer", f"Fehler: {rhetoric_gathered}", "error")
+        else:
+            rhetoric_result, rhetoric_error = rhetoric_gathered
+            if rhetoric_error:
+                analysis_errors.append(rhetoric_error)
+                push_step("Phase 3", "Rhetoric Analyzer", f"Fehler: {rhetoric_error}", "error")
+            elif rhetoric_result is not None:
+                push_step(
+                    "Phase 3", "Rhetoric Analyzer",
+                    f"{len(rhetoric_result.techniques)} Techniken erkannt",
+                )
+
+        # Check if any claim task raised an exception
+        for i, res in enumerate(results[:-1]):
+            if isinstance(res, Exception):
+                analysis_errors.append(f"ClaimCheck: {res}")
 
         # ── Phase 4: Synthesis ────────────────────────────────────
         push_step("Phase 4", "Synthesizer", "Erstelle Gesamtbewertung…", "running")
@@ -393,26 +418,49 @@ async def analyze(req: AnalyzeRequest) -> dict:
     config = AppConfig()
 
     job_id = str(uuid.uuid4())
+    now = time.time()
     _jobs[job_id] = {
         "status": "pending",
         "steps": [],
         "result": None,
         "error": None,
-        "created_at": time.time(),
+        "created_at": now,
+        "last_activity": now,
         "source_url": url or None,
     }
 
-    # Fire-and-forget background task with timeout
-    async def _run_job_with_timeout(jid: str, txt: str, link: str) -> None:
-        try:
-            await asyncio.wait_for(_run_job(jid, txt, link), timeout=_JOB_TIMEOUT_SECONDS)
-        except asyncio.TimeoutError:
+    # Fire-and-forget background task with activity-based timeout watchdog
+    async def _watchdog(jid: str) -> None:
+        """Kill the job if no progress for _JOB_INACTIVITY_TIMEOUT seconds,
+        or if the total runtime exceeds _JOB_TIMEOUT_SECONDS."""
+        while True:
+            await asyncio.sleep(15)
             job = _jobs.get(jid)
-            if job and job["status"] not in ("done", "error"):
-                job["error"] = "Zeitüberschreitung: Die Analyse hat das Zeitlimit überschritten."
+            if not job or job["status"] in ("done", "error"):
+                return
+            now = time.time()
+            idle = now - job.get("last_activity", job["created_at"])
+            total = now - job["created_at"]
+            if idle > _JOB_INACTIVITY_TIMEOUT:
+                job["error"] = (
+                    f"Zeitüberschreitung: Kein Fortschritt seit {int(idle)}s. "
+                    "Möglicherweise hängt ein externer API-Aufruf."
+                )
                 job["status"] = "error"
+                return
+            if total > _JOB_TIMEOUT_SECONDS:
+                job["error"] = "Zeitüberschreitung: Gesamtlimit von 30 Minuten überschritten."
+                job["status"] = "error"
+                return
 
-    asyncio.create_task(_run_job_with_timeout(job_id, text, url))
+    async def _run_job_watched(jid: str, txt: str, link: str) -> None:
+        watchdog_task = asyncio.create_task(_watchdog(jid))
+        try:
+            await _run_job(jid, txt, link)
+        finally:
+            watchdog_task.cancel()
+
+    asyncio.create_task(_run_job_watched(job_id, text, url))
 
     return {"job_id": job_id}
 
@@ -424,12 +472,17 @@ async def get_job(job_id: str) -> dict:
         raise HTTPException(status_code=404, detail="Job nicht gefunden.")
     job = _jobs[job_id]
 
-    # Detect stale jobs that are still "running" past the timeout
+    # Detect stale jobs: no activity for too long OR total time exceeded
     if job["status"] in ("pending", "running"):
-        age = time.time() - job["created_at"]
-        if age > _JOB_TIMEOUT_SECONDS + 30:  # grace period
+        now = time.time()
+        idle = now - job.get("last_activity", job["created_at"])
+        total = now - job["created_at"]
+        if idle > _JOB_INACTIVITY_TIMEOUT + 30:
             job["status"] = "error"
-            job["error"] = "Zeitüberschreitung: Die Analyse hat das Zeitlimit überschritten."
+            job["error"] = "Zeitüberschreitung: Kein Fortschritt – Job hängt."
+        elif total > _JOB_TIMEOUT_SECONDS + 30:
+            job["status"] = "error"
+            job["error"] = "Zeitüberschreitung: Gesamtlimit überschritten."
 
     return {
         "status": job["status"],

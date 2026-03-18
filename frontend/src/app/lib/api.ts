@@ -2,7 +2,7 @@ import { Step, AnalysisResult, ExtractedContent } from "./types";
 
 const BASE_URL = "/api";
 const POLL_INTERVAL_MS = 2000;
-const MAX_POLL_ATTEMPTS = 360; // 360 × 2 s = 12 min timeout (backend kills at 10 min)
+const MAX_POLL_ATTEMPTS = 960; // 960 × 2 s = 32 min (backend hard cap at 30 min)
 
 /** URL detection regex (matches http/https URLs) */
 const URL_REGEX =
