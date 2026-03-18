@@ -161,27 +161,27 @@ def format_result(result: dict[str, Any]) -> str:
             label = fact_rating_label(r)
 
             # Claim header line
-            parts.append(f"{re_} *{escape_md(f'#{i}')}*  {escape_md(claim.get('text', '')[:200])}")
+            parts.append(f"{re_} *{escape_md(f'#{i}')}*  {escape_md(claim.get('text', ''))}")
             parts.append(f"    \u2192 {italic(label)}")
 
             evidence = claim.get("evidence", "")
             if evidence:
-                parts.append(f"    {escape_md(evidence[:300])}")
+                parts.append(f"    {escape_md(evidence)}")
 
             correction = claim.get("correction", "")
             if correction:
-                parts.append(f"    \u26A0\uFE0F {italic('Korrektur:')} {escape_md(correction[:200])}")
+                parts.append(f"    \u26A0\uFE0F {italic('Korrektur:')} {escape_md(correction)}")
 
             missing = claim.get("missing_context", "")
             if missing:
-                parts.append(f"    \U0001F4AC {italic('Kontext:')} {escape_md(missing[:200])}")
+                parts.append(f"    \U0001F4AC {italic('Kontext:')} {escape_md(missing)}")
 
             # Number audit
             na = claim.get("number_audit")
             if na and na.get("manipulation", "NONE") != "NONE":
                 parts.append(f"    \U0001F4CA {italic('Zahlenmanipulation:')} {escape_md(na.get('manipulation', ''))}")
                 if na.get("correct_value"):
-                    parts.append(f"    \u2192 {escape_md(na['correct_value'][:200])}")
+                    parts.append(f"    \u2192 {escape_md(na['correct_value'])}")
 
             # Add spacing between claims
             if i < len(claims):
@@ -200,9 +200,9 @@ def format_result(result: dict[str, Any]) -> str:
             sev_l = severity_label(sev)
             parts.append(f"{sev_e} {bold(tech.get('name', ''))}  \u00B7  {italic(sev_l)}")
             if tech.get("description"):
-                parts.append(f"    {escape_md(tech['description'][:200])}")
+                parts.append(f"    {escape_md(tech['description'])}")
             if tech.get("example"):
-                parts.append(f"    \u00AB{escape_md(tech['example'][:150])}\u00BB")
+                parts.append(f"    \u00AB{escape_md(tech['example'])}\u00BB")
             parts.append("")
 
     # ── Corrections ──
@@ -212,7 +212,7 @@ def format_result(result: dict[str, Any]) -> str:
         parts.append(f"\u270F\uFE0F {bold('Korrekturen')}")
         parts.append("")
         for i, corr in enumerate(corrections, 1):
-            parts.append(f"  {escape_md(str(i))}\\. {escape_md(corr[:200])}")
+            parts.append(f"  {escape_md(str(i))}\\. {escape_md(corr)}")
         parts.append("")
 
     # ── Fairness ──
@@ -222,7 +222,7 @@ def format_result(result: dict[str, Any]) -> str:
         parts.append(f"\u2705 {bold('Was korrekt war')}")
         parts.append("")
         for note in fairness:
-            parts.append(f"    \u2022 {escape_md(note[:200])}")
+            parts.append(f"    \u2022 {escape_md(note)}")
         parts.append("")
 
     # ── Sources ──
@@ -236,7 +236,7 @@ def format_result(result: dict[str, Any]) -> str:
                 domain = re.sub(r"^https?://(?:www\.)?", "", src).split("/")[0]
                 parts.append(f"    \u2023 {link(domain, src)}")
             else:
-                parts.append(f"    \u2023 {escape_md(src[:100])}")
+                parts.append(f"    \u2023 {escape_md(src)}")
 
     # Footer
     parts.append("")
