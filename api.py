@@ -159,12 +159,12 @@ def _transform_result(result: Any, claims_map: dict[str, Any]) -> dict:
         "claims": frontend_claims,
         "rhetoric": [
             {
-                "name": t.technique,
-                "severity": t.severity.value,
-                "description": t.explanation,
-                "example": t.example or "",
+                "name": tech.technique,
+                "severity": tech.severity.value,
+                "description": tech.explanation,
+                "example": tech.example or "",
             }
-            for t in result.manipulation_techniques
+            for tech in result.manipulation_techniques
         ],
         "corrections": result.key_corrections or [],
         "fairness": result.fairness_notes or [],
