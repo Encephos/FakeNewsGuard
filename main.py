@@ -113,11 +113,11 @@ def format_result(result: SynthesisResult) -> str:
     if result.manipulation_techniques:
         lines.append("🎭 MANIPULATIONSTECHNIKEN")
         lines.append("─" * 58)
-        for t in result.manipulation_techniques:
-            lines.append(f"  • {t.technique} [{t.severity.value}]")
-            lines.append(f"    {t.explanation}")
-            if t.example:
-                lines.append(f"    Beispiel: \"{t.example}\"")
+        for tech in result.manipulation_techniques:
+            lines.append(f"  • {tech.technique} [{tech.severity.value}]")
+            lines.append(f"    {tech.explanation}")
+            if tech.example:
+                lines.append(f"    Beispiel: \"{tech.example}\"")
         lines.append("")
 
     # Fairness-Check

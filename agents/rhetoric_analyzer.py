@@ -82,14 +82,14 @@ class RhetoricAnalyzerAgent(BaseAgent):
         raw = self._llm_json(prompt, user_msg)
 
         techniques = []
-        for t in raw.get("techniques", []):
+        for tech in raw.get("techniques", []):
             try:
                 techniques.append(
                     RhetoricTechnique(
-                        technique=t["technique"],
-                        example=t.get("example", ""),
-                        explanation=t.get("explanation", ""),
-                        severity=Severity(t.get("severity", "MEDIUM")),
+                        technique=tech["technique"],
+                        example=tech.get("example", ""),
+                        explanation=tech.get("explanation", ""),
+                        severity=Severity(tech.get("severity", "MEDIUM")),
                     )
                 )
             except (KeyError, ValueError) as e:

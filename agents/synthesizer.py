@@ -101,10 +101,10 @@ class SynthesizerAgent(BaseAgent):
         if rhetoric:
             parts.append("## Rhetoric-Analyse\n")
             parts.append(f"Gesamtframing: {rhetoric.overall_framing}\n")
-            for t in rhetoric.techniques:
+            for tech in rhetoric.techniques:
                 parts.append(
-                    f"- {t.technique} ({t.severity.value}): {t.explanation}\n"
-                    f"  Beispiel: \"{t.example}\"\n"
+                    f"- {tech.technique} ({tech.severity.value}): {tech.explanation}\n"
+                    f"  Beispiel: \"{tech.example}\"\n"
                 )
 
         user_msg = "\n".join(parts)
