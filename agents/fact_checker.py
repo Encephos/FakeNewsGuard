@@ -160,6 +160,74 @@ def _build_context_query(claim: Claim, original_text: str) -> str:
     return f"{claim_short} {extras}"
 
 
+def _evaluate_scrape_quality(
+    ranked: list[RankedSource],
+    scraped: list[ScrapedSource],
+) -> tuple[bool, str]:
+    """Prüfe ob die Scraping-Ergebnisse ausreichend sind.
+
+    Returns:
+        (needs_retry, reason) — True wenn ein Retry sinnvoll ist.
+    """
+    scrapable = [rs for rs in ranked if rs.should_scrape]
+
+    # Fall A: Keine Quelle war scrapbar
+    if not scrapable:
+        return True, "no_scrapable_sources"
+
+    # Fall B: Alle Scrapes fehlgeschlagen
+    if scraped and all(not s.fetch_success for s in scraped):
+        return True, "all_scrapes_failed"
+
+    # Fall C: Alle erfolgreichen Scrapes haben low_relevance
+    successful = [s for s in scraped if s.fetch_success]
+    if successful and all(s.low_relevance for s in successful):
+        return True, "all_low_relevance"
+
+    return False, ""
+
+
+def _build_fallback_queries(
+    claim: Claim,
+    original_queries: list[str],
+) -> list[str]:
+    """Generiere alternative Suchqueries für den Retry-Durchlauf.
+
+    Strategien:
+      1. Keyword-basierte Kurzquery (ohne Stoppwörter/Füllwörter)
+      2. Keyword-Query + "Faktencheck"
+      3. Zahlen-fokussierte Query (falls Zahlen im Claim)
+    """
+    from tools.scrape_ranker import _extract_claim_keywords
+
+    keywords = _extract_claim_keywords(claim.text)
+    if not keywords:
+        return []
+
+    # Strategie 1: Nur Keywords, kompakt
+    keyword_query = " ".join(sorted(keywords)[:6])
+
+    # Strategie 2: Keywords + Faktencheck
+    suffix_fc = t("agents.fact_checker.search_suffix_factcheck")
+    keyword_fc_query = f"{keyword_query} {suffix_fc}"
+
+    # Strategie 3: Zahlen + Kontext-Keywords (für statistische Claims)
+    import re
+    numbers = re.findall(r"\d+[\.,]?\d*%?", claim.text)
+    number_query = ""
+    if numbers:
+        number_query = f"{' '.join(numbers)} {keyword_query}"
+
+    # Nur Queries die nicht schon im Original waren
+    original_set = set(original_queries)
+    fallback = []
+    for q in (keyword_query, keyword_fc_query, number_query):
+        if q and q not in original_set:
+            fallback.append(q)
+
+    return fallback
+
+
 def _categories_for_claim(claim: Claim) -> str:
     """Bestimme SearXNG-Kategorien basierend auf dem Claim-Typ."""
     mapping = {
@@ -308,6 +376,52 @@ class FactCheckerAgent(BaseAgent):
         )
 
         # Source Scraping Pipeline: Ranking → Scraping → Enriched Context
+        ranked, scraped = await self._rank_and_scrape(results_by_query, claim)
+
+        # Retry bei unzureichenden Ergebnissen (max. 1x)
+        needs_retry, retry_reason = _evaluate_scrape_quality(ranked, scraped)
+        if needs_retry:
+            fallback_queries = _build_fallback_queries(claim, queries)
+            if fallback_queries:
+                self._log(
+                    f"Retry: {retry_reason} — Fallback-Suche mit {len(fallback_queries)} "
+                    f"alternativen Queries"
+                )
+                fallback_categories = "general,news" if categories == "general" else categories
+                retry_results = await self.async_search.multi_search_async(
+                    fallback_queries,
+                    max_results=max_results,
+                    categories=fallback_categories,
+                )
+                # Ergebnisse mergen (Original + Retry)
+                merged = dict(results_by_query)
+                merged.update(retry_results)
+
+                ranked, scraped = await self._rank_and_scrape(merged, claim)
+
+                retry_scrape = sum(1 for rs in ranked if rs.should_scrape)
+                retry_success = sum(1 for s in scraped if s.fetch_success)
+                self._log(
+                    f"Retry abgeschlossen: {retry_scrape} scrapbar, "
+                    f"{retry_success}/{len(scraped)} erfolgreich"
+                )
+            else:
+                self._log(f"Retry: {retry_reason} — keine Fallback-Queries generierbar")
+
+        search_context = _build_enriched_context(ranked, scraped)
+
+        return self._fact_check_with_context(
+            claim, search_context,
+            original_text=context,
+            external_factchecks=external_context,
+        )
+
+    async def _rank_and_scrape(
+        self,
+        results_by_query: dict[str, list],
+        claim: Claim,
+    ) -> tuple[list[RankedSource], list[ScrapedSource]]:
+        """Ranke Suchergebnisse und scrape die relevantesten Quellen."""
         ranked = rank_sources(
             results_by_query, claim.text,
             max_scrape=self.config.search.scrape_top_n,
@@ -322,14 +436,7 @@ class FactCheckerAgent(BaseAgent):
         )
         success_count = sum(1 for s in scraped if s.fetch_success)
         self._log(f"Scraping abgeschlossen: {success_count}/{len(scraped)} erfolgreich")
-
-        search_context = _build_enriched_context(ranked, scraped)
-
-        return self._fact_check_with_context(
-            claim, search_context,
-            original_text=context,
-            external_factchecks=external_context,
-        )
+        return ranked, scraped
 
     def _query_factcheck_databases(self, claim: Claim) -> str:
         """Frage externe Faktencheck-Datenbanken synchron ab."""

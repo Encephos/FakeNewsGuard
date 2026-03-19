@@ -7,8 +7,10 @@ import pytest
 from agents.fact_checker import (
     FactCheckerAgent,
     _build_enriched_context,
+    _build_fallback_queries,
     _build_search_queries,
     _categories_for_claim,
+    _evaluate_scrape_quality,
 )
 from models.schemas import Claim, ClaimType, FactRating
 from tools.scrape_ranker import RankedSource
@@ -222,3 +224,140 @@ def test_enriched_context_scrape_first_ordering():
     blocks = ctx.split("\n---\n")
     assert "Volltext-Auszug" in blocks[0]  # Scraped source first
     assert "Paywall" in blocks[1]
+
+
+# ── _evaluate_scrape_quality ─────────────────────────────────────
+
+
+def test_evaluate_no_scrapable_sources():
+    ranked = [_make_ranked("https://bild.de/a", SourceTier.MEDIA, False, skip_reason="paywall")]
+    needs, reason = _evaluate_scrape_quality(ranked, [])
+    assert needs is True
+    assert reason == "no_scrapable_sources"
+
+
+def test_evaluate_all_scrapes_failed():
+    ranked = [_make_ranked("https://tagesschau.de/a", SourceTier.QUALITY_JOURNALISM, True)]
+    scraped = [ScrapedSource(
+        url="https://tagesschau.de/a", tier_label="QJ",
+        passage="", low_relevance=False,
+        fetch_success=False, error="Timeout",
+    )]
+    needs, reason = _evaluate_scrape_quality(ranked, scraped)
+    assert needs is True
+    assert reason == "all_scrapes_failed"
+
+
+def test_evaluate_all_low_relevance():
+    ranked = [_make_ranked("https://tagesschau.de/a", SourceTier.QUALITY_JOURNALISM, True)]
+    scraped = [ScrapedSource(
+        url="https://tagesschau.de/a", tier_label="QJ",
+        passage="irrelevant", low_relevance=True,
+        fetch_success=True, error=None,
+    )]
+    needs, reason = _evaluate_scrape_quality(ranked, scraped)
+    assert needs is True
+    assert reason == "all_low_relevance"
+
+
+def test_evaluate_good_quality_no_retry():
+    ranked = [_make_ranked("https://correctiv.org/c", SourceTier.FACT_CHECKER, True)]
+    scraped = [ScrapedSource(
+        url="https://correctiv.org/c", tier_label="FC",
+        passage="Guter Inhalt", low_relevance=False,
+        fetch_success=True, error=None,
+    )]
+    needs, reason = _evaluate_scrape_quality(ranked, scraped)
+    assert needs is False
+    assert reason == ""
+
+
+def test_evaluate_mixed_success_no_retry():
+    """One success + one failure → no retry (not ALL failed)."""
+    ranked = [
+        _make_ranked("https://correctiv.org/c", SourceTier.FACT_CHECKER, True),
+        _make_ranked("https://tagesschau.de/a", SourceTier.QUALITY_JOURNALISM, True),
+    ]
+    scraped = [
+        ScrapedSource(
+            url="https://correctiv.org/c", tier_label="FC",
+            passage="Inhalt", low_relevance=False,
+            fetch_success=True, error=None,
+        ),
+        ScrapedSource(
+            url="https://tagesschau.de/a", tier_label="QJ",
+            passage="", low_relevance=False,
+            fetch_success=False, error="403",
+        ),
+    ]
+    needs, reason = _evaluate_scrape_quality(ranked, scraped)
+    assert needs is False
+
+
+def test_evaluate_empty_ranked_triggers_retry():
+    needs, reason = _evaluate_scrape_quality([], [])
+    assert needs is True
+    assert reason == "no_scrapable_sources"
+
+
+# ── _build_fallback_queries ──────────────────────────────────────
+
+
+def test_fallback_queries_basic():
+    claim = Claim(
+        id="C1",
+        text="Die Kriminalität in Deutschland ist um 50% gestiegen seit 2015",
+        type=ClaimType.FACTUAL,
+    )
+    original = ["Die Kriminalität in Deutschland ist um 50% gestiegen seit 2015"]
+    fallback = _build_fallback_queries(claim, original)
+
+    assert len(fallback) >= 1
+    # Should not duplicate originals
+    for q in fallback:
+        assert q not in original
+    # Should contain keywords
+    combined = " ".join(fallback).lower()
+    assert "kriminalität" in combined
+
+
+def test_fallback_queries_includes_numbers():
+    claim = Claim(
+        id="C1",
+        text="42% der Wohnungseinbrüche werden von Ausländern begangen",
+        type=ClaimType.STATISTICAL,
+    )
+    fallback = _build_fallback_queries(claim, [])
+
+    # At least one query should contain "42%"
+    combined = " ".join(fallback)
+    assert "42%" in combined
+
+
+def test_fallback_queries_deduplicates():
+    claim = Claim(id="C1", text="Berlin ist Hauptstadt", type=ClaimType.FACTUAL)
+    original_query = " ".join(sorted({"berlin", "hauptstadt"}))
+    fallback = _build_fallback_queries(claim, [original_query])
+
+    # The keyword query is identical to original → should be excluded
+    for q in fallback:
+        assert q != original_query
+
+
+def test_fallback_queries_empty_keywords():
+    """Claim with only stopwords/short words → no fallback possible."""
+    claim = Claim(id="C1", text="Das ist es", type=ClaimType.FACTUAL)
+    fallback = _build_fallback_queries(claim, [])
+    assert fallback == []
+
+
+def test_fallback_queries_contains_faktencheck():
+    claim = Claim(
+        id="C1",
+        text="Flüchtlinge bekommen mehr Geld als Rentner",
+        type=ClaimType.FACTUAL,
+    )
+    fallback = _build_fallback_queries(claim, [])
+
+    combined = " ".join(fallback).lower()
+    assert "faktencheck" in combined

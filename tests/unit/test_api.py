@@ -10,9 +10,10 @@ from fastapi.testclient import TestClient
 
 @pytest.fixture
 def client():
-    """TestClient für die FastAPI-App."""
-    from api import app
-    return TestClient(app)
+    """TestClient für die FastAPI-App mit frischem Rate-Limiter pro Test."""
+    import api
+    api._rate_limiter = None  # Singleton zurücksetzen → neuer Bucket pro Test
+    return TestClient(api.app)
 
 
 # ── Health Endpoint ──────────────────────────────────────────────
