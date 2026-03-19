@@ -128,6 +128,11 @@ class LLMClient:
         if response_format == "json" and self.config.provider in ("openai", "openrouter"):
             kwargs["response_format"] = {"type": "json_object"}
 
+        if self.config.provider == "openrouter":
+            kwargs["extra_body"] = {
+                "provider": {"sort": "price", "allow_fallbacks": True},
+            }
+
         def _call():
             response = self._client.chat.completions.create(**kwargs)
             return response.choices[0].message.content or ""
@@ -228,6 +233,12 @@ class LLMClient:
     ) -> dict:
         import json as _json
 
+        extra = {}
+        if self.config.provider == "openrouter":
+            extra["extra_body"] = {
+                "provider": {"sort": "price", "allow_fallbacks": True},
+            }
+
         def _call():
             response = self._client.chat.completions.create(
                 model=self.config.model,
@@ -246,6 +257,7 @@ class LLMClient:
                         "strict": True,
                     },
                 },
+                **extra,
             )
             content = response.choices[0].message.content or "{}"
             return _json.loads(content)
