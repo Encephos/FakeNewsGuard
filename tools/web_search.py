@@ -28,12 +28,15 @@ class WebSearchClient:
         self.config = config
         self._retry = retry or RetryConfig()
 
-    def search(self, query: str, max_results: int | None = None) -> list[SearchResult]:
+    def search(
+        self, query: str, max_results: int | None = None, categories: str = "general",
+    ) -> list[SearchResult]:
         """Führe eine Websuche durch.
 
         Args:
             query: Suchbegriff.
             max_results: Überschreibt den Default aus der Config.
+            categories: SearXNG-Kategorien (kommasepariert). Wird nur bei SearXNG genutzt.
 
         Returns:
             Liste von SearchResult-Objekten.
@@ -41,7 +44,7 @@ class WebSearchClient:
         n = max_results or self.config.max_results
 
         if self.config.provider == "searxng":
-            return self._search_searxng(query, n)
+            return self._search_searxng(query, n, categories=categories)
         elif self.config.provider == "tavily":
             return self._search_tavily(query, n)
         elif self.config.provider == "serper":
@@ -53,7 +56,9 @@ class WebSearchClient:
 
     # ── SearXNG (self-hosted) ────────────────────────────────────
 
-    def _search_searxng(self, query: str, max_results: int) -> list[SearchResult]:
+    def _search_searxng(
+        self, query: str, max_results: int, categories: str = "general",
+    ) -> list[SearchResult]:
         def _call():
             resp = httpx.get(
                 f"{self.config.base_url}/search",
@@ -62,7 +67,7 @@ class WebSearchClient:
                     "format": "json",
                     "pageno": 1,
                     "language": "de",
-                    "categories": "general",
+                    "categories": categories,
                 },
                 timeout=30.0,
             )
@@ -219,13 +224,15 @@ class AsyncWebSearchClient:
         self.config = config
         self._retry = retry or RetryConfig()
 
-    async def search_async(self, query: str, max_results: int | None = None) -> list[SearchResult]:
+    async def search_async(
+        self, query: str, max_results: int | None = None, categories: str = "general",
+    ) -> list[SearchResult]:
         """Führe eine Websuche asynchron durch."""
         n = max_results or self.config.max_results
 
         async with httpx.AsyncClient(timeout=30.0) as client:
             if self.config.provider == "searxng":
-                return await self._search_searxng_async(client, query, n)
+                return await self._search_searxng_async(client, query, n, categories=categories)
             elif self.config.provider == "tavily":
                 return await self._search_tavily_async(client, query, n)
             elif self.config.provider == "serper":
@@ -236,7 +243,10 @@ class AsyncWebSearchClient:
                 raise ValueError(f"Unbekannter Search-Provider: {self.config.provider}")
 
     async def multi_search_async(
-        self, queries: list[str], max_results: int | None = None
+        self,
+        queries: list[str],
+        max_results: int | None = None,
+        categories: str = "general",
     ) -> dict[str, list[SearchResult]]:
         """Führe mehrere Suchen parallel durch."""
         semaphore = asyncio.Semaphore(self.config.max_concurrent_searches)
@@ -244,7 +254,7 @@ class AsyncWebSearchClient:
         async def _bounded(query: str) -> tuple[str, list[SearchResult]]:
             async with semaphore:
                 try:
-                    results = await self.search_async(query, max_results)
+                    results = await self.search_async(query, max_results, categories=categories)
                     return query, results
                 except Exception as e:
                     print(
@@ -257,7 +267,8 @@ class AsyncWebSearchClient:
         return dict(pairs)
 
     async def _search_searxng_async(
-        self, client: httpx.AsyncClient, query: str, max_results: int
+        self, client: httpx.AsyncClient, query: str, max_results: int,
+        categories: str = "general",
     ) -> list[SearchResult]:
         async def _call():
             resp = await client.get(
@@ -267,7 +278,7 @@ class AsyncWebSearchClient:
                     "format": "json",
                     "pageno": 1,
                     "language": "de",
-                    "categories": "general",
+                    "categories": categories,
                 },
             )
             resp.raise_for_status()

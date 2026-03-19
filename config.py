@@ -60,6 +60,8 @@ class SearchConfig:
     base_url: str = ""  # Für SearXNG: URL der Instanz (z.B. http://localhost:8888)
     max_results: int = 5
     max_concurrent_searches: int = 3  # Für async Parallelisierung
+    scrape_top_n: int = 5           # Maximale Anzahl zu scrapender Quellen pro Claim
+    scrape_timeout: float = 10.0    # HTTP-Timeout pro Scrape-Request in Sekunden
 
     def __post_init__(self) -> None:
         if self.provider == "searxng":
@@ -73,6 +75,13 @@ class SearchConfig:
             }
             env_var = key_map.get(self.provider, "")
             self.api_key = os.getenv(env_var, "")
+
+        env_scrape_n = os.getenv("SCRAPE_TOP_N", "")
+        if env_scrape_n:
+            self.scrape_top_n = int(env_scrape_n)
+        env_scrape_timeout = os.getenv("SCRAPE_TIMEOUT", "")
+        if env_scrape_timeout:
+            self.scrape_timeout = float(env_scrape_timeout)
 
 
 @dataclass

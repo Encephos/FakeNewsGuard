@@ -8,6 +8,8 @@ from agents.base import BaseAgent
 from i18n import t
 from models.schemas import FACT_CHECK_SCHEMA, Claim, FactCheckResult, FactRating
 from tools.factcheck_databases import FactCheckDatabaseClient, FactCheckDatabaseConfig
+from tools.scrape_ranker import RankedSource, rank_sources
+from tools.source_scraper import ScrapedSource, scrape_sources
 from tools.web_search import WebSearchClient
 
 SYSTEM_PROMPT = """\
@@ -158,6 +160,75 @@ def _build_context_query(claim: Claim, original_text: str) -> str:
     return f"{claim_short} {extras}"
 
 
+def _categories_for_claim(claim: Claim) -> str:
+    """Bestimme SearXNG-Kategorien basierend auf dem Claim-Typ."""
+    mapping = {
+        "STATISTICAL": "general,science,news",
+        "CAUSAL": "general,science",
+        "FACTUAL": "general,news",
+        "CONTEXTUAL": "general,news",
+    }
+    return mapping.get(claim.type.value, "general")
+
+
+def _build_enriched_context(
+    ranked: list[RankedSource],
+    scraped: list[ScrapedSource],
+) -> str:
+    """Baue den angereicherten LLM-Kontext aus gerankten und gescrapten Quellen.
+
+    Quellen mit Volltext werden bevorzugt angezeigt, Quellen ohne Volltext
+    erhalten den Original-Snippet mit einem Hinweis auf den Grund.
+    """
+    skip_reason_labels = {
+        "paywall": "Paywall",
+        "low_tier": "Niedriger Quellen-Tier",
+        "irrelevant": "Kein thematischer Bezug (Snippet-Analyse)",
+        "limit_reached": "Scrape-Limit erreicht",
+    }
+
+    scraped_by_url: dict[str, ScrapedSource] = {s.url: s for s in scraped}
+
+    # Sortiere: should_scrape=True zuerst
+    sorted_ranked = sorted(ranked, key=lambda rs: (not rs.should_scrape, -rs.tier, -rs.relevance_score))
+
+    from tools.source_classifier import classify_source
+    parts: list[str] = []
+    for i, rs in enumerate(sorted_ranked, 1):
+        classified = classify_source(rs.result)
+        tier_label = classified.tier_label
+        title = rs.result.title
+        url = rs.result.url
+
+        sc = scraped_by_url.get(url)
+
+        if sc and sc.fetch_success:
+            block = (
+                f"[Quelle {i}] [{tier_label}] {title}\n"
+                f"URL: {url}\n"
+                f"Volltext-Auszug:\n  {sc.passage}"
+            )
+        elif sc and not sc.fetch_success:
+            block = (
+                f"[Quelle {i}] [{tier_label}] {title}\n"
+                f"URL: {url}\n"
+                f"Snippet: {rs.result.snippet}\n"
+                f"[Kein Volltext: {sc.error}]"
+            )
+        else:
+            reason = skip_reason_labels.get(rs.skip_reason or "", rs.skip_reason or "")
+            block = (
+                f"[Quelle {i}] [{tier_label}] {title}\n"
+                f"URL: {url}\n"
+                f"Snippet: {rs.result.snippet}\n"
+                f"[Kein Volltext: {reason}]"
+            )
+
+        parts.append(block)
+
+    return "\n---\n".join(parts) if parts else "Keine Suchergebnisse gefunden."
+
+
 def _adaptive_max_results(claim: Claim) -> int:
     """Bestimme die Anzahl der Suchergebnisse pro Query adaptiv.
 
@@ -223,21 +294,36 @@ class FactCheckerAgent(BaseAgent):
 
         queries = _build_search_queries(claim, original_text=context)
         max_results = _adaptive_max_results(claim)
-        self._log(f"Suche (async) nach: {queries} (max_results={max_results})")
+        categories = _categories_for_claim(claim)
+        self._log(f"Suche (async) nach: {queries} (max_results={max_results}, categories={categories})")
 
         # Websuche + Faktencheck-DB parallel
-        web_task = self.async_search.multi_search_async(queries, max_results=max_results)
+        web_task = self.async_search.multi_search_async(
+            queries, max_results=max_results, categories=categories,
+        )
         db_task = self._query_factcheck_databases_async(claim)
 
         results_by_query, external_context = await asyncio.gather(
             web_task, db_task, return_exceptions=False
         )
 
-        parts: list[str] = []
-        for query, results in results_by_query.items():
-            parts.append(f"=== Suche: '{query}' ===")
-            parts.append(WebSearchClient.format_results_for_llm(results))
-        search_context = "\n\n".join(parts)
+        # Source Scraping Pipeline: Ranking → Scraping → Enriched Context
+        ranked = rank_sources(
+            results_by_query, claim.text,
+            max_scrape=self.config.search.scrape_top_n,
+        )
+        scrape_count = sum(1 for rs in ranked if rs.should_scrape)
+        self._log(f"Scraping {scrape_count} von {len(ranked)} Quellen...")
+
+        scraped = await scrape_sources(
+            ranked, claim.text,
+            max_concurrent=self.config.search.max_concurrent_searches,
+            timeout=self.config.search.scrape_timeout,
+        )
+        success_count = sum(1 for s in scraped if s.fetch_success)
+        self._log(f"Scraping abgeschlossen: {success_count}/{len(scraped)} erfolgreich")
+
+        search_context = _build_enriched_context(ranked, scraped)
 
         return self._fact_check_with_context(
             claim, search_context,

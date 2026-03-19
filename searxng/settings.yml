@@ -35,3 +35,18 @@ engines:
     engine: wikipedia
     shortcut: wp
     disabled: false
+
+  - name: google news
+    engine: google_news
+    shortcut: gn
+    disabled: false
+
+  - name: wikidata
+    engine: wikidata
+    shortcut: wd
+    disabled: false
+
+  - name: google scholar
+    engine: google_scholar
+    shortcut: gsc
+    disabled: false
