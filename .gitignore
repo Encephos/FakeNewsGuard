@@ -12,7 +12,12 @@ __pycache__/
 # Project specific
 PLAN.md
 .DS_Store
+.fakeguard_archive.db
+*.db
+*.db-shm
+*.db-wal
 
 # IDEs
 .vscode/
 .idea/
+.claude
