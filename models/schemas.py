@@ -38,6 +38,72 @@ class ClaimExtractionResult(BaseModel):
     )
 
 
+# ── Image Analyzer ───────────────────────────────────────────────
+
+
+class ImageAnalysisItem(BaseModel):
+    image_index: int = Field(description="Index des Bildes (0-basiert)")
+    ocr_text: str = Field(default="", description="Erkannter Text im Bild (Overlays, Schlagzeilen, Wasserzeichen)")
+    visible_elements: list[str] = Field(
+        default_factory=list,
+        description="Erkannte Elemente: Personen, Orte, Gebäude, Uniformen, Logos, Symbole",
+    )
+    manipulation_signs: list[str] = Field(
+        default_factory=list,
+        description="Anzeichen für Bildmanipulation: inkonsistente Beleuchtung, Cloning-Artefakte, Auflösungsunterschiede",
+    )
+    emotional_framing: str = Field(
+        default="",
+        description="Emotionale Rahmung durch Bildwahl, Perspektive, selektiven Ausschnitt oder Farbgebung",
+    )
+    infographic_data: str = Field(
+        default="",
+        description="Daten, Statistiken oder Aussagen aus Infografiken und Charts",
+    )
+    context_clues: list[str] = Field(
+        default_factory=list,
+        description="Kontexthinweise: sichtbare Daten/Zeitstempel, geografische Merkmale, Zeitraum-Indikatoren",
+    )
+
+
+class ImageAnalysisResult(BaseModel):
+    items: list[ImageAnalysisItem] = Field(default_factory=list)
+    cross_image_observations: str = Field(
+        default="",
+        description="Beobachtungen aus dem Zusammenspiel mehrerer Bilder (Widersprüche, Sequenz, Kontext)",
+    )
+    overall_assessment: str = Field(
+        default="",
+        description="Zusammenfassende Einschätzung der Bildaussagen für den Faktencheck",
+    )
+
+
+IMAGE_ANALYSIS_SCHEMA: dict = {
+    "type": "object",
+    "properties": {
+        "items": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "image_index": {"type": "integer"},
+                    "ocr_text": {"type": "string"},
+                    "visible_elements": {"type": "array", "items": {"type": "string"}},
+                    "manipulation_signs": {"type": "array", "items": {"type": "string"}},
+                    "emotional_framing": {"type": "string"},
+                    "infographic_data": {"type": "string"},
+                    "context_clues": {"type": "array", "items": {"type": "string"}},
+                },
+                "required": ["image_index"],
+            },
+        },
+        "cross_image_observations": {"type": "string"},
+        "overall_assessment": {"type": "string"},
+    },
+    "required": ["items", "overall_assessment"],
+}
+
+
 # ── Fact Checker ─────────────────────────────────────────────────
 
 

@@ -91,19 +91,19 @@ def test_contextual_claim_queries():
 
 def test_statistical_gets_most_results():
     claim = Claim(id="C1", text="x", type=ClaimType.STATISTICAL)
-    assert _adaptive_max_results(claim) == 5
+    assert _adaptive_max_results(claim) == 10
 
 
 def test_causal_gets_medium_results():
     claim = Claim(id="C1", text="x", type=ClaimType.CAUSAL)
-    assert _adaptive_max_results(claim) == 4
+    assert _adaptive_max_results(claim) == 8
 
 
 def test_contextual_gets_medium_results():
     claim = Claim(id="C1", text="x", type=ClaimType.CONTEXTUAL)
-    assert _adaptive_max_results(claim) == 4
+    assert _adaptive_max_results(claim) == 8
 
 
 def test_factual_gets_minimal_results():
     claim = Claim(id="C1", text="x", type=ClaimType.FACTUAL)
-    assert _adaptive_max_results(claim) == 3
+    assert _adaptive_max_results(claim) == 5

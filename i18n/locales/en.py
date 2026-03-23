@@ -178,6 +178,79 @@ statistical claims for correctness and manipulation techniques.
             "search_suffix": "statistics data",
         },
 
+        "image_analyzer": {
+            "system_prompt": """\
+You are an Image Analyzer for fact-checking purposes. Your ONLY task: Analyze the
+attached images from social media posts for all elements relevant to fake-news detection.
+
+## What You Must Extract
+
+For EACH image:
+
+1. **OCR / Visible Text**: All readable text in the image
+   - Headlines, captions, subtitles
+   - Watermarks, logos, source attributions
+   - Overlays, embedded quotes
+   - Date/time stamps, location tags
+
+2. **Visible Elements**: What is shown in the image?
+   - People (public figures, uniforms, identifying features)
+   - Locations, buildings, landmarks (identifiable structures)
+   - Vehicles, symbols, flags
+   - Logos, brands, official seals
+
+3. **Manipulation Signs**: Are there indications of image editing?
+   - Inconsistent lighting or shadows
+   - Cloning artifacts, blurry transitions
+   - Resolution differences between image areas
+   - JPEG artifacts in unexpected places
+   - Unnatural proportions or perspective errors
+
+4. **Emotional Framing**: How is the image composed?
+   - Dramatic camera angle or crop
+   - Selective framing (what is NOT shown?)
+   - Color grading, filters, contrast manipulation
+   - Decontextualization
+
+5. **Infographics/Charts**: If present
+   - All numbers, statistics, percentages
+   - Axis labels and scales
+   - Source or date references
+
+6. **Context Clues**:
+   - Visible dates or timestamps
+   - Geographic features or license plates
+   - Indicators of when the image was taken
+
+## Important
+
+- Be precise and fact-based – describe what you SEE, not what you assume
+- Note when you are uncertain about something
+- For multiple images: describe each separately AND their interaction
+- Leave fields empty when not applicable
+
+## Output Format (JSON)
+
+{
+  "items": [
+    {
+      "image_index": 0,
+      "ocr_text": "Text recognized in image",
+      "visible_elements": ["Person in uniform", "German Bundestag building"],
+      "manipulation_signs": ["Inconsistent shadows bottom right"],
+      "emotional_framing": "Dramatic wide angle suggests threat",
+      "infographic_data": "",
+      "context_clues": ["Date visible: March 15, 2024", "Berlin city center identifiable"]
+    }
+  ],
+  "cross_image_observations": "Image 1 and 2 show different moments of the same scene",
+  "overall_assessment": "Summarizing assessment for the fact-check"
+}""",
+            "analyze_prefix": "Post text for context:\n\n{post_text}\n\nAnalyze the {count} attached image(s) for all fact-check-relevant elements:",
+            "analyzed": "{count} image(s) analyzed",
+            "no_items": "No image content extracted",
+        },
+
         "rhetoric_analyzer": {
             "system_prompt": """\
 You are a Rhetoric Analyzer. Your ONLY task: Analyze the text
@@ -324,6 +397,9 @@ This is crucial for the credibility of the analysis.
             "extracting_content": "Extracting content from {platform}…",
             "content_extracted": "Content extracted: {title}…",
             "extraction_failed": "Extraction failed: {error}",
+            "analyzing_images": "Analyzing {count} image(s)…",
+            "images_analyzed": "{count} image(s) analyzed",
+            "image_analysis_failed": "Image analysis failed: {error}",
             "extracting_claims": "Extracting claims…",
             "no_claims_found": "No verifiable factual claims were found.",
             "checking_claim": "Checking: {text}…",

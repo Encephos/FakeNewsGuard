@@ -7,15 +7,75 @@ import ResultDisplay from "./components/ResultDisplay";
 import NeuralBrain from "./components/NeuralBrain";
 import LeftPanel from "./components/LeftPanel";
 import RightPanel from "./components/RightPanel";
-import { analyzeArticle, resumeJob } from "./lib/api";
-import { AnalysisState, Step, AnalysisResult, ExtractedContent } from "./lib/types";
+import { analyzeArticle, resumeJob, setAuthToken } from "./lib/api";
+import { useAuth } from "./lib/auth";
+import { AnalysisState, Step, AnalysisResult, ExtractedContent, ScoutTier } from "./lib/types";
+import { useI18n } from "./lib/i18n";
 
 const HEADER_HEIGHT = 64;
 const STORAGE_KEY = "fng_pending_job";
+const TIER_STORAGE_KEY = "fng_scout_tier";
+const CONSENT_STORAGE_KEY = "fng_consent";
 
 export default function Home() {
   const [state, setState] = useState<AnalysisState>({ status: "idle" });
+  const [tier, setTier] = useState<ScoutTier>("max");
+  const [consent, setConsent] = useState<boolean>(false);
   const resultRef = useRef<HTMLDivElement>(null);
+  const { user, token } = useAuth();
+  const { t } = useI18n();
+
+  // Restore consent from localStorage or user profile
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      if (user?.consent) {
+        setConsent(true);
+        localStorage.setItem(CONSENT_STORAGE_KEY, "1");
+      } else {
+        setConsent(localStorage.getItem(CONSENT_STORAGE_KEY) === "1");
+      }
+    }
+  }, [user]);
+
+  const handleConsent = useCallback(async () => {
+    setConsent(true);
+    localStorage.setItem(CONSENT_STORAGE_KEY, "1");
+    // Persist consent to backend for logged-in users
+    if (token) {
+      try {
+        await fetch("/api/auth/consent", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        });
+      } catch { /* ignore – localStorage already set */ }
+    }
+  }, [token]);
+
+  // Sync auth token to API module
+  useEffect(() => {
+    setAuthToken(token);
+  }, [token]);
+
+  // Sync tier to user's plan when logged in
+  useEffect(() => {
+    if (user) {
+      setTier(user.tier as ScoutTier);
+      localStorage.setItem(TIER_STORAGE_KEY, user.tier);
+    }
+  }, [user]);
+
+  // Restore tier preference from localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem(TIER_STORAGE_KEY);
+    if (saved && (saved === "lite" || saved === "pro" || saved === "max")) {
+      setTier(saved);
+    }
+  }, []);
+
+  const handleTierChange = useCallback((newTier: ScoutTier) => {
+    setTier(newTier);
+    localStorage.setItem(TIER_STORAGE_KEY, newTier);
+  }, []);
 
   // On mount: if there's a saved job, resume it automatically
   useEffect(() => {
@@ -91,7 +151,8 @@ export default function Home() {
   );
 
   const handleSubmit = useCallback(
-    async (text: string, url?: string) => {
+    async (text: string, url?: string, selectedTier?: ScoutTier) => {
+      const useTier = selectedTier ?? tier;
       setState({ status: "analyzing", steps: [], currentPhase: url ? "Phase 0" : "Phase 1" });
       try {
         const result = await analyzeArticle(
@@ -105,6 +166,7 @@ export default function Home() {
           },
           onExtractedContent,
           url,
+          useTier,
         );
         finishWithResult(result);
       } catch (err: unknown) {
@@ -113,7 +175,7 @@ export default function Home() {
         finishWithError(message);
       }
     },
-    [onStep, onExtractedContent, finishWithResult, finishWithError],
+    [tier, onStep, onExtractedContent, finishWithResult, finishWithError],
   );
 
   const isAnalyzing = state.status === "analyzing";
@@ -130,7 +192,26 @@ export default function Home() {
             Text, Artikel, Behauptung oder Link einfügen — das System extrahiert Claims,
             prüft Fakten und analysiert Manipulationstechniken.
           </p>
-          <ChatInput onSubmit={handleSubmit} disabled={false} />
+
+          {!consent ? (
+            <div className="glass-card border-accent/20 px-5 py-4 mb-4 text-center">
+              <p className="text-xs text-text-secondary mb-3 leading-relaxed">
+                {t("consent.notice")}
+              </p>
+              <button
+                onClick={handleConsent}
+                className="px-4 py-1.5 text-xs font-mono rounded-lg bg-accent/20 text-accent hover:bg-accent/30 transition-colors"
+              >
+                {t("consent.accept")}
+              </button>
+            </div>
+          ) : (
+            <p className="text-[10px] text-text-tertiary/50 text-center mb-4">
+              {t("consent.notice")}
+            </p>
+          )}
+
+          <ChatInput onSubmit={handleSubmit} disabled={!consent} tier={tier} onTierChange={handleTierChange} />
         </div>
       </div>
     );
@@ -186,9 +267,9 @@ export default function Home() {
       </div>
 
       {/* Input bar – floating glass at bottom */}
-      <div className="sticky bottom-3 mx-4 glass-bar rounded-2xl px-4 py-2.5">
+      <div className="sticky bottom-3 mx-4 glass-bar rounded-2xl px-4 py-2.5 shadow-lg">
         <div className="max-w-3xl mx-auto">
-          <ChatInput onSubmit={handleSubmit} disabled={isAnalyzing} />
+          <ChatInput onSubmit={handleSubmit} disabled={isAnalyzing} tier={tier} onTierChange={handleTierChange} />
         </div>
       </div>
     </div>

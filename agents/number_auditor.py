@@ -71,7 +71,7 @@ class NumberAuditorAgent(BaseAgent):
     def execute(self, input_data: Any, context: str = "") -> NumberAuditResult:
         claim: Claim = input_data
 
-        cached = self._cache_get(claim.text)
+        cached = self._cache_get(claim.text, context)
         if cached is not None:
             try:
                 return NumberAuditResult(**cached)
@@ -87,7 +87,7 @@ class NumberAuditorAgent(BaseAgent):
         """Async-Version – Suche läuft non-blocking."""
         claim: Claim = input_data
 
-        cached = self._cache_get(claim.text)
+        cached = self._cache_get(claim.text, context)
         if cached is not None:
             try:
                 return NumberAuditResult(**cached)
@@ -131,6 +131,6 @@ class NumberAuditorAgent(BaseAgent):
             manipulation_type=manip_type,
         )
 
-        self._cache_set(claim.text, result.model_dump())
+        self._cache_set(claim.text, result.model_dump(), context)
         self._log(f"Claim {claim.id}: Manipulation = {result.manipulation_type.value}")
         return result

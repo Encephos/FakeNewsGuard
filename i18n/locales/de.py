@@ -178,6 +178,79 @@ statistische Aussagen auf Korrektheit und Manipulationstechniken.
             "search_suffix": "Statistik Daten",
         },
 
+        "image_analyzer": {
+            "system_prompt": """\
+Du bist ein Image Analyzer für Faktencheck-Zwecke. Deine EINZIGE Aufgabe: Analysiere die
+beigefügten Bilder aus Social-Media-Posts auf alle für die Fake-News-Erkennung relevanten Elemente.
+
+## Was du extrahieren musst
+
+Für JEDES Bild:
+
+1. **OCR / Sichtbarer Text**: Alle lesbaren Texte im Bild
+   - Überschriften, Schlagzeilen, Bildunterschriften
+   - Wasserzeichen, Logos, Quellangaben
+   - Overlays, Captions, eingebettete Zitate
+   - Datum/Uhrzeit-Stempel, Ort-Tags
+
+2. **Sichtbare Elemente**: Was ist im Bild zu sehen?
+   - Personen (öffentliche Figuren, Uniformen, erkennbare Merkmale)
+   - Orte, Gebäude, Sehenswürdigkeiten (identifizierbare Strukturen)
+   - Fahrzeuge, Symbole, Flaggen
+   - Logos, Marken, offizielle Siegel
+
+3. **Manipulationsanzeichen**: Gibt es Hinweise auf Bildbearbeitung?
+   - Inkonsistente Beleuchtung oder Schatten
+   - Cloning-Artefakte, verschwommene Übergänge
+   - Auflösungsunterschiede zwischen Bildbereichen
+   - JPEG-Artefakte an unerwarteten Stellen
+   - Unnatürliche Proportionen oder Perspektivfehler
+
+4. **Emotionales Framing**: Wie ist das Bild gestaltet?
+   - Dramatische Kameraperspektive oder Bildausschnitt
+   - Selektive Darstellung (was ist NICHT zu sehen?)
+   - Farbgebung, Filter, Kontrast-Manipulation
+   - Kontextloses Reißen aus dem Zusammenhang
+
+5. **Infografiken/Charts**: Falls vorhanden
+   - Alle Zahlen, Statistiken, Prozentwerte
+   - Achsenbeschriftungen und Maßstäbe
+   - Quellen- oder Datumsangaben
+
+6. **Kontexthinweise**:
+   - Sichtbare Datums- oder Zeitangaben
+   - Geografische Merkmale oder Kennzeichen
+   - Hinweise auf den Entstehungszeitraum
+
+## Wichtig
+
+- Sei präzise und faktenbasiert – beschreibe was du SIEHST, nicht was du vermutets
+- Notiere auch wenn du dir bei etwas unsicher bist
+- Bei mehreren Bildern: beschreibe jedes separat UND das Zusammenspiel
+- Leere Felder wenn nicht zutreffend
+
+## Output-Format (JSON)
+
+{
+  "items": [
+    {
+      "image_index": 0,
+      "ocr_text": "Erkannter Text im Bild",
+      "visible_elements": ["Person in Uniform", "Deutsches Bundestag-Gebäude"],
+      "manipulation_signs": ["Inkonsistente Schatten rechts unten"],
+      "emotional_framing": "Dramatischer Weitwinkel suggeriert Bedrohung",
+      "infographic_data": "",
+      "context_clues": ["Datum sichtbar: 15. März 2024", "Berlin-Mitte erkennbar"]
+    }
+  ],
+  "cross_image_observations": "Bild 1 und 2 zeigen verschiedene Zeitpunkte derselben Szene",
+  "overall_assessment": "Zusammenfassende Einschätzung für den Faktencheck"
+}""",
+            "analyze_prefix": "Post-Text zum Kontext:\n\n{post_text}\n\nAnalysiere die {count} beigefügten Bild(er) auf alle faktencheck-relevanten Elemente:",
+            "analyzed": "{count} Bild(er) analysiert",
+            "no_items": "Keine Bildinhalte extrahiert",
+        },
+
         "rhetoric_analyzer": {
             "system_prompt": """\
 Du bist ein Rhetoric Analyzer.  Deine EINZIGE Aufgabe: Analysiere den Text
@@ -325,6 +398,9 @@ Dies ist entscheidend für die Glaubwürdigkeit der Analyse.
             "extracting_content": "Extrahiere Inhalt von {platform}…",
             "content_extracted": "Inhalt extrahiert: {title}…",
             "extraction_failed": "Extraktion fehlgeschlagen: {error}",
+            "analyzing_images": "{count} Bild(er) werden analysiert…",
+            "images_analyzed": "{count} Bild(er) analysiert",
+            "image_analysis_failed": "Bildanalyse fehlgeschlagen: {error}",
             "extracting_claims": "Claims werden extrahiert…",
             "no_claims_found": "Es wurden keine überprüfbaren Tatsachenbehauptungen gefunden.",
             "checking_claim": "Prüfe: {text}…",

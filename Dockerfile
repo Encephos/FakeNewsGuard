@@ -6,6 +6,7 @@ WORKDIR /app
 RUN mkdir -p /app/data
 ENV DB_PATH=/app/data/.fakeguard_cache.db
 ENV ARCHIVE_DB_PATH=/app/data/.fakeguard_archive.db
+ENV USERS_DB_PATH=/app/data/.fakeguard_users.db
 
 # Dependencies installieren
 COPY requirements.txt .

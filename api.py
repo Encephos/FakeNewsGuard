@@ -13,36 +13,91 @@ Usage:
 from __future__ import annotations
 
 import asyncio
+import contextvars
+import os
 import time
-import traceback
 import uuid
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, Request
+# True only when explicitly enabled (e.g. behind an HTTPS reverse proxy)
+_SECURE_COOKIES = os.getenv("SECURE_COOKIES", "false").lower() == "true"
+
+from fastapi import FastAPI, HTTPException, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 
-from config import AppConfig
+from config import AppConfig, RateLimitConfig, ScoutTier
 from i18n import set_default_locale, t
 from orchestrator import InputValidationError, Orchestrator
 from tools.archive import AnalysisArchive
 from tools.content_extractor import ContentExtractor, ExtractedContent, detect_platform, extract_urls, is_url
 from tools.cross_reference import CrossReferenceGraph
+from tools.logger import (
+    get_logger,
+    get_metrics_snapshot,
+    get_recent_logs,
+    record_auth_attempt,
+    record_request,
+    setup_logging,
+)
 from tools.rate_limiter import RateLimiter
+from tools.user_db import UserDB, create_access_token, create_refresh_token, decode_token
+
+# ── Logging einrichten ─────────────────────────────────────────────
+setup_logging()
+logger = get_logger("fng-api")
+
+# ── Correlation-ID Context-Variable ───────────────────────────────
+_correlation_id: contextvars.ContextVar[str] = contextvars.ContextVar(
+    "correlation_id", default=""
+)
 
 app = FastAPI(title="FakeNewsGuard API")
 
 # i18n auf konfigurierte Sprache setzen
 set_default_locale(AppConfig().language)
 
-# CORS – allow all origins so the deployed server works regardless of domain
+# CORS – konfigurierbar via CORS_ORIGINS Umgebungsvariable.
+# Standard: "*" (alle Origins), für Produktion explizit setzen.
+_cors_origins = AppConfig().cors_origins
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_origins=_cors_origins,
+    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["*"],
+    expose_headers=["X-Request-ID"],
 )
+
+
+# ── HTTP Middleware: Request-Logging + Metriken ────────────────────
+@app.middleware("http")
+async def request_logging_middleware(request: Request, call_next: Any) -> Any:
+    correlation_id = str(uuid.uuid4())[:8]
+    _correlation_id.set(correlation_id)
+    start = time.monotonic()
+    path = request.url.path
+    method = request.method
+    client_ip = request.client.host if request.client else "unknown"
+
+    logger.info("→ %s %s [%s] rid=%s", method, path, client_ip, correlation_id)
+    try:
+        response = await call_next(request)
+        duration_ms = (time.monotonic() - start) * 1000
+        record_request(path, response.status_code, duration_ms)
+        logger.info(
+            "← %s %s %d %.1fms rid=%s",
+            method, path, response.status_code, duration_ms, correlation_id,
+        )
+        response.headers["X-Request-ID"] = correlation_id
+        # Periodisch abgelaufene Jobs bereinigen (günstig, läuft nur bei Requests)
+        _cleanup_old_jobs()
+        return response
+    except Exception as exc:
+        duration_ms = (time.monotonic() - start) * 1000
+        record_request(path, 500, duration_ms)
+        logger.exception("✗ %s %s ERROR %.1fms rid=%s: %s", method, path, duration_ms, correlation_id, exc)
+        raise
 
 # ── In-memory job store ────────────────────────────────────────────
 # { job_id: { status, steps, result, error, created_at } }
@@ -81,6 +136,79 @@ def _get_graph() -> CrossReferenceGraph:
         config = AppConfig()
         _graph = CrossReferenceGraph(config.graph.db_path)
     return _graph
+
+
+# ── User Database (singleton) ───────────────────────────────────
+_user_db: UserDB | None = None
+
+
+def _get_user_db() -> UserDB:
+    global _user_db
+    if _user_db is None:
+        config = AppConfig()
+        _user_db = UserDB(config.user_db)
+        # Auto-migrate from old users.json on first access
+        import pathlib
+        json_path = pathlib.Path(__file__).parent / "users.json"
+        if json_path.exists():
+            imported = _user_db.migrate_from_json(str(json_path))
+            if imported > 0:
+                import logging
+                logging.getLogger("fng-api").info("Migrated %d users from users.json", imported)
+    return _user_db
+
+
+# ── Auth Rate-Limiter (strenger: 5 req/min, burst 2) ─────────────
+_auth_rate_limiter: RateLimiter | None = None
+
+
+def _get_auth_rate_limiter() -> RateLimiter:
+    global _auth_rate_limiter
+    if _auth_rate_limiter is None:
+        _auth_rate_limiter = RateLimiter(
+            RateLimitConfig(enabled=True, requests_per_minute=5, burst=2)
+        )
+    return _auth_rate_limiter
+
+
+def _check_auth_rate_limit(request: Request) -> None:
+    """Prüfe Auth-Rate-Limit (5 req/min). Schützt vor Brute-Force."""
+    limiter = _get_auth_rate_limiter()
+    client_ip = request.client.host if request.client else "unknown"
+    allowed, retry_after = limiter.check(client_ip)
+    if not allowed:
+        logger.warning("Auth rate limit erreicht: %s", client_ip)
+        raise HTTPException(
+            status_code=429,
+            detail=f"Zu viele Anmeldeversuche. Bitte warte {retry_after:.0f} Sekunden.",
+            headers={"Retry-After": str(int(retry_after) + 1)},
+        )
+
+
+# ── Auth helpers ─────────────────────────────────────────────────
+
+def _get_current_user_optional(request: Request) -> dict[str, Any] | None:
+    """Extract user from JWT Bearer token. Returns None if no token."""
+    auth = request.headers.get("Authorization", "")
+    if not auth.startswith("Bearer "):
+        return None
+    token = auth[7:]
+    try:
+        payload = decode_token(token)
+        if payload.get("type") != "access":
+            return None
+        user_db = _get_user_db()
+        return user_db.get_by_id(payload["sub"])
+    except Exception:
+        return None
+
+
+def _get_current_user(request: Request) -> dict[str, Any]:
+    """Extract user from JWT Bearer token. Raises 401 if missing/invalid."""
+    user = _get_current_user_optional(request)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Nicht authentifiziert.")
+    return user
 
 
 # Clean up jobs older than 1 hour to avoid memory leaks
@@ -172,9 +300,37 @@ def _transform_result(result: Any, claims_map: dict[str, Any]) -> dict:
     }
 
 
+def _format_image_analysis(result: Any) -> str:
+    """Konvertiert ImageAnalysisResult in einen lesbaren Text-Block für LLM-Kontext."""
+    parts: list[str] = []
+    for item in result.items:
+        idx = item.image_index + 1
+        parts.append(f"### Bild {idx}")
+        if item.ocr_text:
+            parts.append(f"**Sichtbarer Text:** {item.ocr_text}")
+        if item.visible_elements:
+            parts.append(f"**Erkannte Elemente:** {', '.join(item.visible_elements)}")
+        if item.manipulation_signs:
+            parts.append(f"**Manipulationsanzeichen:** {', '.join(item.manipulation_signs)}")
+        if item.emotional_framing:
+            parts.append(f"**Emotionales Framing:** {item.emotional_framing}")
+        if item.infographic_data:
+            parts.append(f"**Infografik-Daten:** {item.infographic_data}")
+        if item.context_clues:
+            parts.append(f"**Kontexthinweise:** {', '.join(item.context_clues)}")
+        parts.append("")
+
+    if result.cross_image_observations:
+        parts.append(f"**Zusammenspiel der Bilder:** {result.cross_image_observations}")
+    if result.overall_assessment:
+        parts.append(f"**Gesamteinschätzung:** {result.overall_assessment}")
+
+    return "\n".join(parts).strip()
+
+
 # ── Background worker ──────────────────────────────────────────────
 
-async def _run_job(job_id: str, text: str, url: str = "") -> None:
+async def _run_job(job_id: str, text: str, url: str = "", tier: ScoutTier = ScoutTier.MAX) -> None:
     """Run the full analysis pipeline, updating _jobs[job_id] in-place."""
     job = _jobs[job_id]
     step_counter = 0
@@ -198,11 +354,12 @@ async def _run_job(job_id: str, text: str, url: str = "") -> None:
 
     try:
         job["status"] = "running"
-        config = AppConfig(verbose=True)
+        config = AppConfig(verbose=True, tier=tier)
         orchestrator = Orchestrator(config)
         claims_map: dict[str, Any] = {}
 
         # ── Phase 0: URL Content Extraction (if URL provided) ──────
+        content = None  # wird in Phase 0 gesetzt, für Phase 0.5 benötigt
         if url:
             platform = detect_platform(url)
             push_step("Phase 0", "Content Extractor", t("api.steps.extracting_content").format(platform=platform.capitalize()), "running")
@@ -234,6 +391,42 @@ async def _run_job(job_id: str, text: str, url: str = "") -> None:
                     job["error"] = f"Inhalt konnte nicht extrahiert werden: {e}"
                     job["status"] = "error"
                     return
+
+        # ── Phase 0.5: Bildanalyse (nur Social Media) ─────────────
+        _VISION_PLATFORMS = {"twitter", "instagram", "threads"}
+        image_analysis_text = ""
+
+        if content is not None and content.images and content.platform in _VISION_PLATFORMS:
+            img_urls = content.images[:5]
+            push_step(
+                "Phase 0.5", "Image Analyzer",
+                t("api.steps.analyzing_images").format(count=len(img_urls)),
+                "running",
+            )
+            img_input = {"image_urls": img_urls, "post_text": content.text}
+            img_result, img_error = await asyncio.get_event_loop().run_in_executor(
+                None, lambda: orchestrator.image_analyzer.run_safe(img_input)
+            )
+            if img_error:
+                push_step(
+                    "Phase 0.5", "Image Analyzer",
+                    t("api.steps.image_analysis_failed").format(error=img_error), "error",
+                )
+            elif img_result is not None:
+                image_analysis_text = _format_image_analysis(img_result)
+                push_step(
+                    "Phase 0.5", "Image Analyzer",
+                    t("api.steps.images_analyzed").format(count=len(img_result.items)),
+                )
+                # Bildanalyse als Kontext in den Text einfügen → ClaimExtractor sieht ihn
+                text += f"\n\n--- Bildanalyse ---\n\n{image_analysis_text}"
+                # Für das Frontend speichern
+                if "extracted_content" in job:
+                    job["extracted_content"]["image_analysis"] = {
+                        "items": [item.model_dump() for item in img_result.items],
+                        "overall_assessment": img_result.overall_assessment,
+                        "cross_image_observations": img_result.cross_image_observations,
+                    }
 
         # Input-Validierung und -Kürzung wird zentral im Orchestrator erledigt
 
@@ -323,7 +516,7 @@ async def _run_job(job_id: str, text: str, url: str = "") -> None:
         async def _run_rhetoric():
             push_step("Phase 3", "Rhetoric Analyzer", t("api.steps.rhetoric_started"), "running")
             rhet_result, rhet_error = await asyncio.get_event_loop().run_in_executor(
-                None, lambda: orchestrator.rhetoric_analyzer.run_safe(text)
+                None, lambda: orchestrator.rhetoric_analyzer.run_safe(text, context=image_analysis_text)
             )
             return rhet_result, rhet_error
 
@@ -372,6 +565,7 @@ async def _run_job(job_id: str, text: str, url: str = "") -> None:
             "fact_checks": fact_checks,
             "number_audits": number_audits,
             "rhetoric": rhetoric_result,
+            "image_analysis": image_analysis_text,
         }
         final_result = await asyncio.get_event_loop().run_in_executor(
             None, lambda: orchestrator.synthesizer.run(synthesis_input)
@@ -411,21 +605,388 @@ async def _run_job(job_id: str, text: str, url: str = "") -> None:
         except Exception:
             pass  # Archivierung darf Analyse nicht brechen
 
+        # ── Usage-Tracking ──────────────────────────────────────
+        try:
+            if job.get("user_id"):
+                user_db = _get_user_db()
+                result_data = job.get("result", {})
+                user_db.log_usage(
+                    user_id=job["user_id"],
+                    tier_used=job.get("tier", "max"),
+                    claims=len(result_data.get("claims", [])),
+                    rating=result_data.get("overall_rating"),
+                    source="web",
+                )
+        except Exception:
+            pass  # Usage-Tracking darf Analyse nicht brechen
+
     except Exception as exc:
-        traceback.print_exc()
+        logger.exception("Job %s fehlgeschlagen: %s", job_id, exc)
         job["error"] = f"{type(exc).__name__}: {exc}"
         job["status"] = "error"
 
 
 # ── API endpoints ──────────────────────────────────────────────────
 
+class RegisterRequest(BaseModel):
+    email: EmailStr
+    password: str
+    display_name: str = ""
+
+
+class LoginRequest(BaseModel):
+    email: EmailStr
+    password: str
+    remember_me: bool = False
+
+
 class AnalyzeRequest(BaseModel):
     text: str
     url: str | None = None
+    agent: str | None = None  # "Scout Lite" | "Scout Pro" | "Scout Max"
+    tier: str | None = None   # "lite" | "pro" | "max" (default: max)
 
 
 class ExtractRequest(BaseModel):
     url: str
+
+
+# ── Auth endpoints ────────────────────────────────────────────────
+
+@app.post("/api/auth/register")
+async def auth_register(req: RegisterRequest, request: Request) -> dict:
+    """Register a new user account."""
+    _check_auth_rate_limit(request)
+    if len(req.password) < 8:
+        raise HTTPException(status_code=400, detail="Passwort muss mindestens 8 Zeichen lang sein.")
+
+    user_db = _get_user_db()
+    user = user_db.create_user(
+        email=req.email,
+        password=req.password,
+        display_name=req.display_name or req.email.split("@")[0],
+    )
+    if user is None:
+        record_auth_attempt(False)
+        raise HTTPException(status_code=409, detail="Ein Konto mit dieser E-Mail existiert bereits.")
+
+    record_auth_attempt(True)
+    logger.info("Neuer Nutzer registriert: %s", req.email)
+    access_token = create_access_token(user["id"], user["tier"], bool(user["admin"]))
+    refresh_token = create_refresh_token(user["id"])
+
+    response = JSONResponse(content={
+        "user": {
+            "id": user["id"],
+            "email": user["email"],
+            "display_name": user["display_name"],
+            "tier": user["tier"],
+            "admin": bool(user["admin"]),
+            "consent": bool(user.get("consent", 0)),
+        },
+        "access_token": access_token,
+    })
+    response.set_cookie(
+        key="refresh_token",
+        value=refresh_token,
+        httponly=True,
+        secure=_SECURE_COOKIES,
+        samesite="lax",
+        max_age=7 * 86400,
+        path="/api/auth",
+    )
+    return response
+
+
+@app.post("/api/auth/login")
+async def auth_login(req: LoginRequest, request: Request) -> dict:
+    """Login with email and password."""
+    _check_auth_rate_limit(request)
+    user_db = _get_user_db()
+    user = user_db.authenticate(req.email, req.password)
+    if user is None:
+        record_auth_attempt(False)
+        logger.warning("Fehlgeschlagener Login-Versuch: %s", req.email)
+        raise HTTPException(status_code=401, detail="E-Mail oder Passwort ungültig.")
+
+    record_auth_attempt(True)
+    access_token = create_access_token(user["id"], user["tier"], bool(user["admin"]))
+    remember_days = 30 if req.remember_me else 7
+    refresh_token = create_refresh_token(user["id"], expire_days=remember_days)
+
+    response = JSONResponse(content={
+        "user": {
+            "id": user["id"],
+            "email": user["email"],
+            "display_name": user["display_name"],
+            "tier": user["tier"],
+            "admin": bool(user["admin"]),
+            "consent": bool(user.get("consent", 0)),
+        },
+        "access_token": access_token,
+    })
+    # remember_me=False → session cookie (no max_age, cleared when browser closes)
+    # remember_me=True  → persistent 30-day cookie
+    response.set_cookie(
+        key="refresh_token",
+        value=refresh_token,
+        httponly=True,
+        secure=_SECURE_COOKIES,
+        samesite="lax",
+        max_age=30 * 86400 if req.remember_me else None,
+        path="/api/auth",
+    )
+    return response
+
+
+@app.post("/api/auth/refresh")
+async def auth_refresh(request: Request) -> dict:
+    """Refresh the access token using the refresh cookie."""
+    token = request.cookies.get("refresh_token")
+    if not token:
+        raise HTTPException(status_code=401, detail="Kein Refresh-Token.")
+
+    try:
+        payload = decode_token(token)
+        if payload.get("type") != "refresh":
+            raise HTTPException(status_code=401, detail="Ungültiger Token-Typ.")
+    except Exception:
+        raise HTTPException(status_code=401, detail="Refresh-Token ungültig oder abgelaufen.")
+
+    user_db = _get_user_db()
+    user = user_db.get_by_id(payload["sub"])
+    if user is None:
+        raise HTTPException(status_code=401, detail="Nutzer nicht gefunden.")
+
+    access_token = create_access_token(user["id"], user["tier"], bool(user["admin"]))
+    return {"access_token": access_token}
+
+
+@app.get("/api/auth/me")
+async def auth_me(request: Request) -> dict:
+    """Get current user info from JWT."""
+    user = _get_current_user(request)
+    return {
+        "id": user["id"],
+        "email": user.get("email"),
+        "display_name": user.get("display_name", ""),
+        "tier": user["tier"],
+        "admin": bool(user.get("admin", 0)),
+        "telegram_id": user.get("telegram_id"),
+        "consent": bool(user.get("consent", 0)),
+    }
+
+
+@app.post("/api/auth/logout")
+async def auth_logout() -> dict:
+    """Clear the refresh token cookie."""
+    response = JSONResponse(content={"ok": True})
+    response.delete_cookie(key="refresh_token", path="/api/auth")
+    return response
+
+
+class UpdateProfileRequest(BaseModel):
+    display_name: str
+
+
+@app.patch("/api/auth/profile")
+async def auth_update_profile(req: UpdateProfileRequest, request: Request) -> dict:
+    """Update current user's display name."""
+    user = _get_current_user(request)
+    name = req.display_name.strip()
+    if not name or len(name) > 50:
+        raise HTTPException(status_code=400, detail="Anzeigename muss 1–50 Zeichen lang sein.")
+
+    user_db = _get_user_db()
+    user_db.update_display_name(user["id"], name)
+    updated = user_db.get_by_id(user["id"])
+    return {
+        "id": updated["id"],
+        "email": updated.get("email"),
+        "display_name": updated["display_name"],
+        "tier": updated["tier"],
+        "admin": bool(updated.get("admin", 0)),
+        "telegram_id": updated.get("telegram_id"),
+    }
+
+
+@app.post("/api/auth/consent")
+async def auth_consent(request: Request) -> dict:
+    """Set the logging consent flag for the current user."""
+    user = _get_current_user(request)
+    user_db = _get_user_db()
+    user_db.set_consent(user["id"], True)
+    return {"ok": True}
+
+
+@app.post("/api/auth/telegram/request-link")
+async def auth_telegram_request_link(request: Request) -> dict:
+    """Generate a 6-char code for the user to send to the Telegram bot."""
+    user = _get_current_user(request)
+    if user.get("telegram_id"):
+        raise HTTPException(status_code=409, detail="Telegram ist bereits verknüpft.")
+
+    user_db = _get_user_db()
+    code = user_db.create_link_code(user["id"])
+    return {"code": code, "expires_in": 600}
+
+
+class TelegramVerifyRequest(BaseModel):
+    code: str
+    telegram_id: str
+
+
+@app.post("/api/auth/telegram/verify-link")
+async def auth_telegram_verify_link(req: TelegramVerifyRequest) -> dict:
+    """Called by the Telegram bot to verify a link code and bind the account."""
+    user_db = _get_user_db()
+    user = user_db.verify_link_code(req.code.strip().upper(), str(req.telegram_id))
+    if user is None:
+        raise HTTPException(status_code=400, detail="Code ungültig, abgelaufen oder Telegram-ID bereits verknüpft.")
+    return {
+        "ok": True,
+        "user_id": user["id"],
+        "display_name": user.get("display_name", ""),
+    }
+
+
+@app.delete("/api/auth/telegram/unlink")
+async def auth_telegram_unlink(request: Request) -> dict:
+    """Remove the Telegram link from the current user's account."""
+    user = _get_current_user(request)
+    if not user.get("telegram_id"):
+        raise HTTPException(status_code=400, detail="Kein Telegram-Konto verknüpft.")
+
+    user_db = _get_user_db()
+    user_db.unlink_telegram(user["id"])
+    return {"ok": True}
+
+
+class SetupCredentialsRequest(BaseModel):
+    telegram_id: str
+    email: EmailStr
+    password: str
+    setup_secret: str
+
+
+@app.post("/api/auth/setup-credentials")
+async def auth_setup_credentials(req: SetupCredentialsRequest) -> dict:
+    """One-time endpoint to add email+password to a Telegram-only account.
+
+    Requires SETUP_SECRET env var to be set. Only works if the account
+    has no email/password yet (prevents credential override attacks).
+    """
+    import os
+    expected_secret = os.getenv("SETUP_SECRET", "")
+    if not expected_secret:
+        raise HTTPException(status_code=503, detail="SETUP_SECRET nicht konfiguriert.")
+    if req.setup_secret != expected_secret:
+        raise HTTPException(status_code=403, detail="Falsches Setup-Secret.")
+    if len(req.password) < 8:
+        raise HTTPException(status_code=400, detail="Passwort muss mindestens 8 Zeichen lang sein.")
+
+    user_db = _get_user_db()
+    user = user_db.get_by_telegram_id(req.telegram_id)
+    if user is None:
+        raise HTTPException(status_code=404, detail=f"Telegram-Nutzer {req.telegram_id} nicht gefunden.")
+    if user.get("email"):
+        raise HTTPException(status_code=409, detail="Dieser Account hat bereits E-Mail-Zugangsdaten.")
+
+    ok = user_db.set_credentials(user["id"], req.email, req.password)
+    if not ok:
+        raise HTTPException(status_code=409, detail="E-Mail bereits von einem anderen Account verwendet.")
+
+    return {"ok": True, "message": f"Credentials für Telegram-ID {req.telegram_id} gesetzt."}
+
+
+# ── Admin endpoints ───────────────────────────────────────────────
+
+def _require_admin(request: Request) -> dict[str, Any]:
+    """Require the current user to be an admin. Raises 403 otherwise."""
+    user = _get_current_user(request)
+    if not user.get("admin"):
+        raise HTTPException(status_code=403, detail="Nur Admins haben Zugriff.")
+    return user
+
+
+class UpdateTierRequest(BaseModel):
+    tier: str  # "lite" | "pro" | "max"
+
+
+@app.get("/api/admin/users")
+async def admin_list_users(request: Request) -> dict:
+    """List all users with usage stats. Admin only."""
+    _require_admin(request)
+    user_db = _get_user_db()
+    users = user_db.list_users()
+    return {"users": users}
+
+
+@app.patch("/api/admin/users/{user_id}/tier")
+async def admin_update_tier(user_id: str, req: UpdateTierRequest, request: Request) -> dict:
+    """Change a user's tier. Admin only."""
+    _require_admin(request)
+    if req.tier not in ("lite", "pro", "max"):
+        raise HTTPException(status_code=400, detail="Ungültiger Tier. Erlaubt: lite, pro, max")
+    user_db = _get_user_db()
+    if not user_db.update_tier(user_id, req.tier):
+        raise HTTPException(status_code=404, detail="Nutzer nicht gefunden.")
+    return {"ok": True, "tier": req.tier}
+
+
+@app.get("/api/admin/users/{user_id}/usage")
+async def admin_user_usage(user_id: str, request: Request) -> dict:
+    """Get usage log for a specific user. Admin only."""
+    _require_admin(request)
+    user_db = _get_user_db()
+    user = user_db.get_by_id(user_id)
+    if user is None:
+        raise HTTPException(status_code=404, detail="Nutzer nicht gefunden.")
+    usage = user_db.get_user_usage(user_id, days=30)
+    return {"user_id": user_id, "usage": usage}
+
+
+@app.get("/api/admin/stats")
+async def admin_stats(request: Request) -> dict:
+    """Get overall platform stats. Admin only."""
+    _require_admin(request)
+    user_db = _get_user_db()
+    users = user_db.list_users()
+    # Analyse-Zahlen aus dem Archiv (erfasst auch unauthentifizierte Analysen)
+    archive = _get_archive()
+    archive_counts = archive.count_analyses()
+    total_analyses = archive_counts["total"]
+    month_analyses = archive_counts["last_30_days"]
+    tier_counts = {}
+    for u in users:
+        t = u.get("tier", "lite")
+        tier_counts[t] = tier_counts.get(t, 0) + 1
+    return {
+        "total_users": len(users),
+        "total_analyses": total_analyses,
+        "month_analyses": month_analyses,
+        "tier_distribution": tier_counts,
+    }
+
+
+@app.get("/api/admin/metrics")
+async def admin_metrics(request: Request) -> dict:
+    """Echtzeit-Systemmetriken (Requests, Latenzen, Auth-Stats). Admin only."""
+    _require_admin(request)
+    snapshot = get_metrics_snapshot()
+    snapshot["active_jobs"] = sum(
+        1 for j in _jobs.values() if j["status"] in ("pending", "running")
+    )
+    return snapshot
+
+
+@app.get("/api/admin/logs")
+async def admin_logs(
+    request: Request, limit: int = 100, level: str | None = None
+) -> dict:
+    """Letzte Log-Einträge aus dem In-Memory-Puffer. Admin only."""
+    _require_admin(request)
+    return {"logs": get_recent_logs(limit=limit, level=level)}
 
 
 def _check_rate_limit(request: Request) -> None:
@@ -490,7 +1051,54 @@ async def analyze(req: AnalyzeRequest, request: Request) -> dict:
     if not text and not url:
         raise HTTPException(status_code=400, detail=t("api.errors.no_text"))
 
-    config = AppConfig()
+    # ── Tier-Bestimmung ───────────────────────────────────────────
+    # Wenn der Nutzer authentifiziert ist, wird sein Plan-Tier aus der DB
+    # verwendet und begrenzt den gewünschten Tier.
+    # Ohne Auth: Fallback auf Request-basierte Logik (Telegram-Bot, etc.)
+    PLAN_ACCESS: dict[ScoutTier, set[ScoutTier]] = {
+        ScoutTier.LITE: {ScoutTier.LITE},
+        ScoutTier.PRO: {ScoutTier.LITE, ScoutTier.PRO},
+        ScoutTier.MAX: {ScoutTier.LITE, ScoutTier.PRO, ScoutTier.MAX},
+    }
+
+    user = _get_current_user_optional(request)
+    if user is not None:
+        # Consent check: user must have agreed to data logging
+        if not user.get("consent", 0):
+            raise HTTPException(
+                status_code=403,
+                detail="Bitte stimme der Datenverarbeitung zu, bevor du eine Analyse startest.",
+            )
+        # Authenticated: user's DB tier is the plan ceiling
+        plan = ScoutTier(user["tier"])
+    else:
+        # Unauthenticated: derive plan from agent field (backwards compat)
+        AGENT_TO_PLAN: dict[str, ScoutTier] = {
+            "scout lite": ScoutTier.LITE,
+            "scout pro": ScoutTier.PRO,
+            "scout max": ScoutTier.MAX,
+        }
+        plan = ScoutTier.MAX
+        if req.agent:
+            plan = AGENT_TO_PLAN.get(req.agent.strip().lower(), ScoutTier.MAX)
+
+    # Bestimme gewünschten Tier (default: Plan-Maximum)
+    tier = plan
+    if req.tier:
+        try:
+            tier = ScoutTier(req.tier.strip().lower())
+        except ValueError:
+            raise HTTPException(status_code=400, detail=f"Ungültiger Tier: {req.tier}. Erlaubt: lite, pro, max")
+
+    # Prüfe ob der Plan Zugriff auf den Tier hat
+    if tier not in PLAN_ACCESS[plan]:
+        raise HTTPException(
+            status_code=403,
+            detail=f"Dein Plan ({plan.value.upper()}) erlaubt keinen Zugriff auf Tier '{tier.value}'. "
+                   f"Erlaubt: {', '.join(t.value for t in sorted(PLAN_ACCESS[plan], key=lambda x: x.value))}",
+        )
+
+    config = AppConfig(tier=tier)
 
     # ── Archiv-Duplikat-Prüfung ────────────────────────────────────
     # Wenn derselbe URL oder Text schon mal analysiert wurde, sofort
@@ -525,6 +1133,7 @@ async def analyze(req: AnalyzeRequest, request: Request) -> dict:
 
     job_id = str(uuid.uuid4())
     now = time.time()
+    user_id = user["id"] if user else None
     _jobs[job_id] = {
         "status": "pending",
         "steps": [],
@@ -533,6 +1142,9 @@ async def analyze(req: AnalyzeRequest, request: Request) -> dict:
         "created_at": now,
         "last_activity": now,
         "source_url": url or None,
+        "agent": f"Scout {plan.value.capitalize()}",
+        "tier": tier.value,
+        "user_id": user_id,
     }
 
     # Fire-and-forget background task with activity-based timeout watchdog
@@ -557,14 +1169,14 @@ async def analyze(req: AnalyzeRequest, request: Request) -> dict:
                 job["status"] = "error"
                 return
 
-    async def _run_job_watched(jid: str, txt: str, link: str) -> None:
+    async def _run_job_watched(jid: str, txt: str, link: str, t: ScoutTier = ScoutTier.MAX) -> None:
         watchdog_task = asyncio.create_task(_watchdog(jid))
         try:
-            await _run_job(jid, txt, link)
+            await _run_job(jid, txt, link, tier=t)
         finally:
             watchdog_task.cancel()
 
-    asyncio.create_task(_run_job_watched(job_id, text, url))
+    asyncio.create_task(_run_job_watched(job_id, text, url, tier))
 
     return {"job_id": job_id}
 
@@ -596,6 +1208,8 @@ async def get_job(job_id: str) -> dict:
         "extracted_content": job.get("extracted_content"),
         "archive_id": job.get("archive_id"),
         "from_cache": job.get("from_cache", False),
+        "agent": job.get("agent", "Scout Max"),
+        "tier": job.get("tier", "max"),
     }
 
 

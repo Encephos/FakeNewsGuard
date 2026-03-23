@@ -58,7 +58,7 @@ def test_analyze_no_claims_returns_reliable(minimal_config, mocker):
     orch.rhetoric_analyzer = mocker.MagicMock()
     orch.synthesizer = mocker.MagicMock()
 
-    orch.claim_extractor.run.return_value = _make_extraction([])
+    orch.claim_extractor.run_safe.return_value = (_make_extraction([]), None)
 
     result = orch.analyze("Leerer Text ohne Claims.")
     assert result.overall_rating == OverallRating.RELIABLE
@@ -75,7 +75,7 @@ def test_analyze_skips_opinion_claims(minimal_config, mocker):
     opinion = Claim(id="C1", text="Das ist schlecht.", type=ClaimType.OPINION)
 
     orch.claim_extractor = mocker.MagicMock()
-    orch.claim_extractor.run.return_value = _make_extraction([opinion])
+    orch.claim_extractor.run_safe.return_value = (_make_extraction([opinion]), None)
 
     orch.fact_checker = mocker.MagicMock()
     orch.number_auditor = mocker.MagicMock()
@@ -99,7 +99,7 @@ def test_analyze_graceful_degradation_on_fact_check_failure(minimal_config, mock
 
     factual = Claim(id="C1", text="Faktenbehauptung", type=ClaimType.FACTUAL)
     orch.claim_extractor = mocker.MagicMock()
-    orch.claim_extractor.run.return_value = _make_extraction([factual])
+    orch.claim_extractor.run_safe.return_value = (_make_extraction([factual]), None)
 
     orch.fact_checker = mocker.MagicMock()
     orch.fact_checker.run_safe.return_value = (None, "FactChecker: ConnectionError: timeout")
@@ -130,7 +130,7 @@ def test_analyze_collects_sources_from_fact_checks(minimal_config, mocker):
     fc = _make_fact_check("C1")
 
     orch.claim_extractor = mocker.MagicMock()
-    orch.claim_extractor.run.return_value = _make_extraction([factual])
+    orch.claim_extractor.run_safe.return_value = (_make_extraction([factual]), None)
     orch.fact_checker = mocker.MagicMock()
     orch.fact_checker.run_safe.return_value = (fc, None)
     orch.number_auditor = mocker.MagicMock()

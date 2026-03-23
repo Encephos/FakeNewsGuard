@@ -23,7 +23,7 @@ import sys
 import textwrap
 from pathlib import Path
 
-from config import AppConfig, LLMConfig, SearchConfig
+from config import AppConfig, LLMConfig, ScoutTier, SearchConfig
 from orchestrator import Orchestrator
 from models.schemas import SynthesisResult
 
@@ -161,9 +161,12 @@ def build_config(args: argparse.Namespace) -> AppConfig:
 
     search = SearchConfig(provider=args.search_provider)
 
+    tier = ScoutTier(args.tier)
+
     return AppConfig(
         llm=llm,
         search=search,
+        tier=tier,
         verbose=not args.quiet,
     )
 
@@ -179,6 +182,13 @@ def main() -> None:
     parser.add_argument("text", nargs="?", help="Zu prüfender Text")
     parser.add_argument("--file", "-f", type=Path, help="Text aus Datei lesen")
     parser.add_argument("--interactive", "-i", action="store_true", help="Interaktiver Modus")
+
+    # Scout Tier
+    parser.add_argument(
+        "--tier", default="max",
+        choices=["lite", "pro", "max"],
+        help="Scout-Stufe: lite (Free Tier), pro (Gemma), max (Gemma+Qwen, default)",
+    )
 
     # LLM
     parser.add_argument(

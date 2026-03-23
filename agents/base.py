@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import sys
 from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor
@@ -14,7 +15,7 @@ from tools.llm import LLMClient
 from tools.web_search import AsyncWebSearchClient, WebSearchClient
 
 # Geteilter Thread-Pool für sync→async Brücke
-_thread_pool = ThreadPoolExecutor(max_workers=8)
+_thread_pool = ThreadPoolExecutor(max_workers=min(32, (os.cpu_count() or 4) * 4))
 
 
 class BaseAgent(ABC):
@@ -60,13 +61,22 @@ class BaseAgent(ABC):
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(_thread_pool, lambda: self.execute(input_data, context))
 
+    # Max. Sekunden für einen einzelnen Agent-Durchlauf (async)
+    AGENT_TIMEOUT: float = 180.0
+
     async def run_async(self, input_data: Any, context: str = "") -> Any:
-        """Async-Version von run() – Logging + Error Handling um execute_async()."""
+        """Async-Version von run() – Logging + Error Handling + Timeout um execute_async()."""
         self._log("Starte (async) ...")
         try:
-            result = await self.execute_async(input_data, context)
+            result = await asyncio.wait_for(
+                self.execute_async(input_data, context),
+                timeout=self.AGENT_TIMEOUT,
+            )
             self._log("Fertig.")
             return result
+        except asyncio.TimeoutError:
+            self._log(f"TIMEOUT nach {self.AGENT_TIMEOUT}s")
+            raise TimeoutError(f"{self.name}: Timeout nach {self.AGENT_TIMEOUT}s")
         except Exception as e:
             self._log(f"FEHLER: {type(e).__name__}: {e}")
             raise
@@ -131,6 +141,11 @@ class BaseAgent(ABC):
         """LLM-Call der Freitext zurückgibt."""
         return self.llm.complete(system_prompt, user_message, response_format="text")
 
+    def _llm_vision(self, system_prompt: str, user_message: str, image_urls: list[str]) -> dict:
+        """Vision-LLM-Call mit Bildern – gibt geparsten dict zurück."""
+        raw = self.llm.complete_vision(system_prompt, user_message, image_urls, response_format="json")
+        return LLMClient._parse_json(raw)
+
     def _web_search(self, query: str, max_results: int = 5) -> str:
         """Websuche → formatierter String für LLM-Kontext."""
         results = self.search.search(query, max_results)
@@ -145,19 +160,19 @@ class BaseAgent(ABC):
             parts.append(self.search.format_results_for_llm(results))
         return "\n\n".join(parts)
 
-    def _cache_get(self, claim_text: str) -> dict | None:
+    def _cache_get(self, claim_text: str, context: str = "") -> dict | None:
         """Lies gecachtes Ergebnis für diesen Agenten. Gibt None zurück wenn kein Treffer."""
         if self.cache is None:
             return None
-        result = self.cache.get(claim_text, self.name)
+        result = self.cache.get(claim_text, self.name, context)
         if result is not None:
             self._log(f"Cache-Treffer für '{claim_text[:60]}...'")
         return result
 
-    def _cache_set(self, claim_text: str, result: dict) -> None:
+    def _cache_set(self, claim_text: str, result: dict, context: str = "") -> None:
         """Speichere Ergebnis für diesen Agenten im Cache."""
         if self.cache is not None:
-            self.cache.set(claim_text, self.name, result)
+            self.cache.set(claim_text, self.name, result, context)
 
     def _log(self, message: str) -> None:
         if self.config.verbose:

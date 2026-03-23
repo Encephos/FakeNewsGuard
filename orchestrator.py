@@ -6,7 +6,7 @@ import asyncio
 import sys
 from typing import Any
 
-from config import AppConfig
+from config import AppConfig, ScoutTier
 from i18n import set_default_locale, t
 from models.schemas import (
     Claim,
@@ -19,6 +19,7 @@ from models.schemas import (
 )
 from agents.claim_extractor import ClaimExtractorAgent
 from agents.fact_checker import FactCheckerAgent
+from agents.image_analyzer import ImageAnalyzerAgent
 from agents.number_auditor import NumberAuditorAgent
 from agents.rhetoric_analyzer import RhetoricAnalyzerAgent
 from agents.synthesizer import SynthesizerAgent
@@ -51,14 +52,40 @@ class Orchestrator:
         # API Keys beim Start prüfen
         config.validate()
 
-        # Zwei LLM-Clients: schnelles Modell für Extraktion/Fact-Check,
-        # mächtiges Modell für Zahlen/Rhetorik/Synthese
+        # LLM-Clients je nach Scout-Tier konfigurieren
         from dataclasses import replace
-        llm_fast = LLMClient(
-            replace(config.llm, model="google/gemma-3-27b-it"),
-            config.retry,
-        )
-        llm_powerful = LLMClient(config.llm, config.retry)
+
+        tier = config.tier
+        tier_labels = {
+            ScoutTier.LITE: "Scout Lite (Free Tier Router)",
+            ScoutTier.PRO: "Scout Pro (Gemma)",
+            ScoutTier.MAX: "Scout Max (Gemma + Qwen)",
+        }
+        self._log(f"🔎 Tier: {tier_labels[tier]}")
+
+        if tier == ScoutTier.LITE:
+            # Tier 1: Alle Agenten nutzen den OpenRouter Free Tier Router
+            free_model = "google/gemma-3-12b-it:free"
+            llm_fast = LLMClient(
+                replace(config.llm, model=free_model),
+                config.retry,
+            )
+            llm_powerful = llm_fast
+        elif tier == ScoutTier.PRO:
+            # Tier 2: Alle Agenten nutzen Gemma
+            gemma_model = "google/gemma-3-27b-it"
+            llm_fast = LLMClient(
+                replace(config.llm, model=gemma_model),
+                config.retry,
+            )
+            llm_powerful = llm_fast
+        else:
+            # Tier 3 (MAX): Gemma (schnell) + Qwen (mächtig)
+            llm_fast = LLMClient(
+                replace(config.llm, model="google/gemma-3-27b-it"),
+                config.retry,
+            )
+            llm_powerful = LLMClient(config.llm, config.retry)
 
         search = WebSearchClient(config.search, config.retry)
 
@@ -66,6 +93,7 @@ class Orchestrator:
         cache = ClaimCache(config.cache)
 
         # Agenten initialisieren – gezielt verschiedene Modelle zuweisen
+        self.image_analyzer = ImageAnalyzerAgent(config, llm_fast, search)
         self.claim_extractor = ClaimExtractorAgent(config, llm_fast, search)
         self.fact_checker = FactCheckerAgent(config, llm_fast, search, cache)
         self.number_auditor = NumberAuditorAgent(config, llm_powerful, search, cache)
@@ -115,7 +143,17 @@ class Orchestrator:
 
         # ── Phase 1: Claims extrahieren ──────────────────────────
         self._log("\n📋 PHASE 1: Claims extrahieren")
-        extraction = self.claim_extractor.run(text)  # Pflicht – kein safe hier
+        extraction, extraction_error = self.claim_extractor.run_safe(text)
+        if extraction_error:
+            self._log(f"  ⚠ Claim-Extraction fehlgeschlagen: {extraction_error}")
+            return SynthesisResult(
+                overall_rating=OverallRating.MIXED,
+                confidence=0.0,
+                summary="Die Analyse konnte nicht durchgeführt werden: "
+                        "Behauptungen konnten nicht aus dem Text extrahiert werden.",
+                sources=[],
+                analysis_errors=[extraction_error],
+            )
 
         if not extraction.claims:
             self._log("Keine prüfbaren Claims gefunden.")
@@ -213,7 +251,17 @@ class Orchestrator:
 
         # ── Phase 1: Claims extrahieren (sync, kein Netz) ─────────
         self._log("\n📋 PHASE 1: Claims extrahieren")
-        extraction = self.claim_extractor.run(text)
+        extraction, extraction_error = self.claim_extractor.run_safe(text)
+        if extraction_error:
+            self._log(f"  ⚠ Claim-Extraction fehlgeschlagen: {extraction_error}")
+            return SynthesisResult(
+                overall_rating=OverallRating.MIXED,
+                confidence=0.0,
+                summary="Die Analyse konnte nicht durchgeführt werden: "
+                        "Behauptungen konnten nicht aus dem Text extrahiert werden.",
+                sources=[],
+                analysis_errors=[extraction_error],
+            )
 
         if not extraction.claims:
             self._log("Keine prüfbaren Claims gefunden.")

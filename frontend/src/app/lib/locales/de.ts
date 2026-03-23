@@ -21,6 +21,8 @@ const de = {
   // ── Layout / Navigation ───────────────────────────────────────
   nav: {
     archive: "Archiv",
+    admin: "Admin",
+    profile: "Profil",
     newAnalysis: "Neue Analyse",
     backToArchive: "Zurück zum Archiv",
   },
@@ -127,11 +129,115 @@ const de = {
     loadFailed: "Fehler beim Laden",
   },
 
+  // ── Scout Tiers ──────────────────────────────────────────────
+  tiers: {
+    label: "Analyse-Modus",
+    lite: "Scout Lite",
+    liteDesc: "Schnell · Kostenlos",
+    pro: "Scout Pro",
+    proDesc: "Ausgewogen · Gemma",
+    max: "Scout Max",
+    maxDesc: "Beste Qualität · Gemma + Qwen",
+  },
+
   // ── Language switcher ─────────────────────────────────────────
   language: {
     label: "Sprache",
     de: "Deutsch",
     en: "English",
+  },
+
+  // ── Admin Dashboard ──────────────────────────────────────────
+  admin: {
+    title: "Admin Dashboard",
+    totalUsers: "Nutzer gesamt",
+    totalAnalyses: "Analysen gesamt",
+    monthAnalyses: "Analysen (30 Tage)",
+    tierDistribution: "Tier-Verteilung",
+    user: "Nutzer",
+    tier: "Tier",
+    analysesTotal: "Analysen",
+    analysesMonth: "30 Tage",
+    lastAnalysis: "Letzte Analyse",
+    registered: "Registriert",
+    noUsers: "Keine Nutzer vorhanden.",
+    noSearchResults: "Keine Nutzer gefunden.",
+    searchUsers: "Nutzer suchen…",
+    noAccess: "Zugriff verweigert. Nur Admins.",
+    loadError: "Fehler beim Laden der Daten.",
+    loading: "Wird geladen…",
+    tab: {
+      users: "Nutzer",
+      system: "System",
+    },
+    system: {
+      uptime: "Uptime",
+      requestsTotal: "Anfragen gesamt",
+      errors: "Fehler",
+      avgLatency: "Ø Latenz",
+      activeJobs: "Aktive Jobs",
+      authAttempts: "Auth-Versuche",
+      authFailures: "Auth-Fehler",
+      topEndpoints: "Anfragen nach Endpoint",
+      endpoint: "Endpoint",
+      count: "Anfragen",
+      avgMs: "Ø ms",
+      errorRate: "Fehlerrate",
+      recentLogs: "Aktuelle Logs",
+      allLevels: "Alle Level",
+      noLogs: "Keine Logs vorhanden.",
+      refresh: "Aktualisieren",
+    },
+  },
+
+  // ── Auth ─────────────────────────────────────────────────────
+  auth: {
+    login: "Anmelden",
+    register: "Registrieren",
+    logout: "Abmelden",
+    email: "E-Mail",
+    password: "Passwort",
+    passwordPlaceholder: "Min. 8 Zeichen",
+    displayName: "Anzeigename",
+    displayNamePlaceholder: "Optional",
+    loginButton: "Anmelden",
+    registerButton: "Konto erstellen",
+    loading: "Wird geladen…",
+    genericError: "Ein Fehler ist aufgetreten.",
+    tierNote: "Neue Konten starten mit dem Lite-Plan.",
+    rememberMe: "Angemeldet bleiben",
+  },
+
+  // ── Profile ─────────────────────────────────────────────────
+  profile: {
+    title: "Profil",
+    account: "Account",
+    plan: "Plan",
+    displayNameSection: "Anzeigename",
+    displayNamePlaceholder: "Dein Anzeigename",
+    save: "Speichern",
+    saving: "Wird gespeichert…",
+    saved: "Gespeichert!",
+    error: "Ein Fehler ist aufgetreten.",
+    telegram: "Telegram",
+    telegramLinked: "Telegram ist verknüpft",
+    telegramDescription: "Verknüpfe dein Telegram-Konto, um Analysen direkt im Chat zu starten.",
+    connectTelegram: "Telegram verbinden",
+    unlinkTelegram: "Verknüpfung aufheben",
+    unlinkConfirm: "Telegram-Verknüpfung wirklich aufheben?",
+    yourCode: "Dein Verknüpfungscode",
+    codeExpires: "Gültig für {seconds}s",
+    step1: "Öffne den FakeNewsGuard Bot in Telegram",
+    step2: "Sende dem Bot den Befehl:",
+    step3: "Die Verknüpfung wird automatisch bestätigt",
+    newCode: "Neuen Code generieren",
+  },
+
+  // ── Consent ─────────────────────────────────────────────────────
+  consent: {
+    notice: "Alle Anfragen werden protokolliert, um das Modell und die Architektur zu verbessern.",
+    accept: "Zustimmen & starten",
+    accepted: "Datenverarbeitung zugestimmt",
   },
 
   // ── Metadata ──────────────────────────────────────────────────

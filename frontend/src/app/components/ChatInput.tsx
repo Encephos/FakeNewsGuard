@@ -2,13 +2,17 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { detectUrl, detectPlatform, getPlatformLabel, getPlatformIcon, isUrl } from "../lib/api";
+import { ScoutTier } from "../lib/types";
+import TierSelector from "./TierSelector";
 
 interface ChatInputProps {
-  onSubmit: (text: string, url?: string) => void;
+  onSubmit: (text: string, url?: string, tier?: ScoutTier) => void;
   disabled?: boolean;
+  tier: ScoutTier;
+  onTierChange: (tier: ScoutTier) => void;
 }
 
-export default function ChatInput({ onSubmit, disabled }: ChatInputProps) {
+export default function ChatInput({ onSubmit, disabled, tier, onTierChange }: ChatInputProps) {
   const [text, setText] = useState("");
   const [detectedUrl, setDetectedUrl] = useState<string | null>(null);
   const [detectedPlatform, setDetectedPlatform] = useState<string>("");
@@ -39,13 +43,11 @@ export default function ChatInput({ onSubmit, disabled }: ChatInputProps) {
     if (!trimmed || disabled) return;
 
     if (detectedUrl && isUrl(trimmed)) {
-      // Text is just a URL -> pass as url parameter
-      onSubmit("", detectedUrl);
+      onSubmit("", detectedUrl, tier);
     } else if (detectedUrl) {
-      // Text contains a URL along with other text
-      onSubmit(trimmed, detectedUrl);
+      onSubmit(trimmed, detectedUrl, tier);
     } else {
-      onSubmit(trimmed);
+      onSubmit(trimmed, undefined, tier);
     }
 
     setText("");
@@ -132,9 +134,12 @@ export default function ChatInput({ onSubmit, disabled }: ChatInputProps) {
           )}
         </button>
       </div>
-      <p className="mt-1.5 text-center text-[11px] text-text-tertiary">
-        Shift+Enter für Zeilenumbruch · Links werden automatisch erkannt
-      </p>
+      <div className="mt-1.5 flex items-center justify-between px-1">
+        <TierSelector value={tier} onChange={onTierChange} disabled={disabled} />
+        <p className="text-[11px] text-text-tertiary">
+          Shift+Enter für Zeilenumbruch
+        </p>
+      </div>
     </div>
   );
 }

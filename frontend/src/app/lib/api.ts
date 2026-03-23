@@ -1,8 +1,21 @@
-import { Step, AnalysisResult, ExtractedContent } from "./types";
+import { Step, AnalysisResult, ExtractedContent, ScoutTier } from "./types";
 
 const BASE_URL = "/api";
 const POLL_INTERVAL_MS = 2000;
 const MAX_POLL_ATTEMPTS = 960; // 960 × 2 s = 32 min (backend hard cap at 30 min)
+
+// ── Auth token injection ────────────────────────────────────────
+let _authToken: string | null = null;
+
+export function setAuthToken(token: string | null) {
+  _authToken = token;
+}
+
+function authHeaders(): Record<string, string> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (_authToken) headers["Authorization"] = `Bearer ${_authToken}`;
+  return headers;
+}
 
 /** URL detection regex (matches http/https URLs) */
 const URL_REGEX =
@@ -67,7 +80,7 @@ export function getPlatformIcon(platform: string): string {
 export async function extractContent(url: string): Promise<ExtractedContent & { text: string }> {
   const res = await fetch(`${BASE_URL}/extract`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: authHeaders(),
     body: JSON.stringify({ url }),
   });
   if (!res.ok) {
@@ -77,16 +90,27 @@ export async function extractContent(url: string): Promise<ExtractedContent & { 
   return res.json();
 }
 
+/** Map tier id to agent name sent to backend */
+const TIER_AGENT_MAP: Record<ScoutTier, string> = {
+  lite: "Scout Lite",
+  pro: "Scout Pro",
+  max: "Scout Max",
+};
+
 /**
  * Submits text (and optionally a URL) for analysis and returns a job_id immediately.
  */
-async function submitJob(text: string, url?: string): Promise<string> {
-  const body: Record<string, string> = { text };
+async function submitJob(text: string, url?: string, tier: ScoutTier = "max"): Promise<string> {
+  const body: Record<string, string> = {
+    text,
+    agent: TIER_AGENT_MAP[tier],
+    tier,
+  };
   if (url) body.url = url;
 
   const res = await fetch(`${BASE_URL}/analyze`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: authHeaders(),
     body: JSON.stringify(body),
   });
   if (!res.ok) {
@@ -156,8 +180,9 @@ export async function analyzeArticle(
   onJobId?: (jobId: string) => void,
   onExtractedContent?: (content: ExtractedContent) => void,
   url?: string,
+  tier: ScoutTier = "max",
 ): Promise<AnalysisResult> {
-  const jobId = await submitJob(text, url);
+  const jobId = await submitJob(text, url, tier);
   onJobId?.(jobId);
   return resumeJob(jobId, onStep, onExtractedContent);
 }

@@ -21,14 +21,14 @@
   --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.07), 0 2px 4px -2px rgb(0 0 0 / 0.05);
 
   /* Glass tokens */
-  --glass-bg: rgba(255, 255, 255, 0.72);
-  --glass-border: rgba(255, 255, 255, 0.5);
-  --glass-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 4px 24px -4px rgba(0, 0, 0, 0.06);
-  --glass-inset: inset 0 1px 0 rgba(255, 255, 255, 0.8);
-  --glass-subtle-bg: rgba(255, 255, 255, 0.45);
-  --glass-subtle-border: rgba(255, 255, 255, 0.4);
-  --glass-inner-bg: rgba(255, 255, 255, 0.35);
-  --glass-inner-border: rgba(0, 0, 0, 0.04);
+  --glass-bg: rgba(255, 255, 255, 0.92);
+  --glass-border: rgba(0, 0, 0, 0.08);
+  --glass-shadow: 0 1px 2px rgba(0, 0, 0, 0.06), 0 4px 24px -4px rgba(0, 0, 0, 0.08);
+  --glass-inset: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  --glass-subtle-bg: rgba(255, 255, 255, 0.65);
+  --glass-subtle-border: rgba(0, 0, 0, 0.06);
+  --glass-inner-bg: rgba(255, 255, 255, 0.6);
+  --glass-inner-border: rgba(0, 0, 0, 0.07);
 }
 
 .dark {
@@ -52,14 +52,14 @@
   --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.25), 0 2px 4px -2px rgb(0 0 0 / 0.2);
 
   /* Glass tokens – dark */
-  --glass-bg: rgba(30, 29, 27, 0.72);
-  --glass-border: rgba(255, 255, 255, 0.1);
-  --glass-shadow: 0 1px 2px rgba(0, 0, 0, 0.2), 0 4px 24px -4px rgba(0, 0, 0, 0.3);
-  --glass-inset: inset 0 1px 0 rgba(255, 255, 255, 0.06);
-  --glass-subtle-bg: rgba(255, 255, 255, 0.05);
-  --glass-subtle-border: rgba(255, 255, 255, 0.08);
-  --glass-inner-bg: rgba(255, 255, 255, 0.04);
-  --glass-inner-border: rgba(255, 255, 255, 0.06);
+  --glass-bg: rgba(30, 29, 27, 0.92);
+  --glass-border: rgba(255, 255, 255, 0.12);
+  --glass-shadow: 0 1px 2px rgba(0, 0, 0, 0.25), 0 4px 24px -4px rgba(0, 0, 0, 0.35);
+  --glass-inset: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  --glass-subtle-bg: rgba(255, 255, 255, 0.08);
+  --glass-subtle-border: rgba(255, 255, 255, 0.1);
+  --glass-inner-bg: rgba(255, 255, 255, 0.08);
+  --glass-inner-border: rgba(255, 255, 255, 0.1);
 }
 
 @theme inline {
@@ -177,4 +177,19 @@ body {
 }
 .animate-pulse-dot {
   animation: pulse-dot 1.5s ease-in-out infinite;
+}
+
+/* ── Admin dashboard cards ─────────────────────────────────── */
+.admin-card-enter {
+  animation: adminCardIn 0.4s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+@keyframes adminCardIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
