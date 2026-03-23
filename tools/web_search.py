@@ -68,7 +68,6 @@ class WebSearchClient:
                     "pageno": 1,
                     "language": "de",
                     "categories": categories,
-                    "engines": self.config.engines,
                 },
                 timeout=30.0,
             )
@@ -280,7 +279,6 @@ class AsyncWebSearchClient:
                     "pageno": 1,
                     "language": "de",
                     "categories": categories,
-                    "engines": self.config.engines,
                 },
             )
             resp.raise_for_status()
