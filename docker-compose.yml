@@ -52,6 +52,8 @@ services:
     environment:
       - BACKEND_URL=http://backend:8000
       - SEARXNG_URL=http://searxng:8080
+    volumes:
+      - fng_data:/app/data
     depends_on:
       - backend
     restart: unless-stopped

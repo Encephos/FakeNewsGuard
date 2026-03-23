@@ -68,7 +68,7 @@ class AnalysisArchive:
             except sqlite3.OperationalError:
                 pass  # Spalte existiert bereits
 
-            # Index für schnelle Sortierung und Filterung
+            # Indices für schnelle Sortierung und Filterung
             conn.execute(
                 """
                 CREATE INDEX IF NOT EXISTS idx_archive_created
@@ -87,6 +87,38 @@ class AnalysisArchive:
                 ON analysis_archive (input_hash)
                 """
             )
+            # Composite-Index: Rating-Filter + Sortierung (häufigste Query)
+            conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_archive_rating_created
+                ON analysis_archive (overall_rating, created_at DESC)
+                """
+            )
+
+            # FTS5 Virtual Table für performante Volltextsuche
+            conn.execute(
+                """
+                CREATE VIRTUAL TABLE IF NOT EXISTS archive_fts USING fts5(
+                    title, summary, source_url, input_text,
+                    content=analysis_archive,
+                    content_rowid=rowid
+                )
+                """
+            )
+
+            # FTS-Index initial befüllen (idempotent: nur wenn leer)
+            fts_count = conn.execute("SELECT COUNT(*) FROM archive_fts").fetchone()[0]
+            if fts_count == 0:
+                main_count = conn.execute("SELECT COUNT(*) FROM analysis_archive").fetchone()[0]
+                if main_count > 0:
+                    conn.execute(
+                        """
+                        INSERT INTO archive_fts(rowid, title, summary, source_url, input_text)
+                        SELECT rowid, COALESCE(title, ''), COALESCE(summary, ''),
+                               COALESCE(source_url, ''), COALESCE(input_text, '')
+                        FROM analysis_archive
+                        """
+                    )
 
     @contextmanager
     def _connect(self):
@@ -185,6 +217,9 @@ class AnalysisArchive:
 
         lookup_hash = _input_hash(text=input_text, url=source_url or "")
 
+        input_short = input_text[:500]  # Gekürzt für Übersicht
+        summary_text = result.get("summary", "")
+
         with self._connect() as conn:
             conn.execute(
                 """
@@ -197,18 +232,29 @@ class AnalysisArchive:
                 (
                     archive_id,
                     time.time(),
-                    input_text[:500],  # Gekürzt für Übersicht
+                    input_short,
                     source_url,
                     platform,
                     result.get("overall_rating", "?"),
                     result.get("confidence", 0),
-                    result.get("summary", ""),
+                    summary_text,
                     json.dumps(result, ensure_ascii=False),
                     title,
                     claims_count,
                     techniques_count,
                     lookup_hash,
                 ),
+            )
+            # FTS-Index synchron aktualisieren
+            rowid = conn.execute(
+                "SELECT rowid FROM analysis_archive WHERE id = ?", (archive_id,)
+            ).fetchone()[0]
+            conn.execute(
+                """
+                INSERT INTO archive_fts(rowid, title, summary, source_url, input_text)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (rowid, title or "", summary_text, source_url or "", input_short),
             )
 
         # Automatisches Aufräumen (max. Einträge begrenzen)
@@ -223,6 +269,18 @@ class AnalysisArchive:
             return False
 
         with self._connect() as conn:
+            # FTS-Eintrag vor dem Löschen entfernen
+            row = conn.execute(
+                "SELECT rowid FROM analysis_archive WHERE id = ?", (archive_id,)
+            ).fetchone()
+            if row:
+                conn.execute(
+                    "INSERT INTO archive_fts(archive_fts, rowid, title, summary, source_url, input_text) "
+                    "SELECT 'delete', rowid, COALESCE(title,''), COALESCE(summary,''), "
+                    "COALESCE(source_url,''), COALESCE(input_text,'') "
+                    "FROM analysis_archive WHERE id = ?",
+                    (archive_id,),
+                )
             cursor = conn.execute(
                 "DELETE FROM analysis_archive WHERE id = ?", (archive_id,)
             )
@@ -234,6 +292,8 @@ class AnalysisArchive:
             return 0
 
         with self._connect() as conn:
+            # FTS-Index komplett leeren
+            conn.execute("DELETE FROM archive_fts")
             cursor = conn.execute("DELETE FROM analysis_archive")
             return cursor.rowcount
 
@@ -266,33 +326,36 @@ class AnalysisArchive:
         params: list[Any] = []
 
         if rating_filter:
-            where_clauses.append("overall_rating = ?")
+            where_clauses.append("a.overall_rating = ?")
             params.append(rating_filter)
 
+        # FTS5-basierte Volltextsuche (O(log n) statt O(n) LIKE-Scan)
+        fts_join = ""
         if search:
-            where_clauses.append(
-                "(title LIKE ? OR summary LIKE ? OR source_url LIKE ? OR input_text LIKE ?)"
-            )
-            like = f"%{search}%"
-            params.extend([like, like, like, like])
+            fts_join = "JOIN archive_fts ON a.rowid = archive_fts.rowid"
+            where_clauses.append("archive_fts MATCH ?")
+            # FTS5-Syntax: Begriffe mit OR verknüpfen für Teilwort-Suche
+            fts_query = " OR ".join(f'"{term}"' for term in search.split() if term)
+            params.append(fts_query)
 
         where_sql = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
 
         with self._connect() as conn:
             # Total count
             total = conn.execute(
-                f"SELECT COUNT(*) FROM analysis_archive {where_sql}", params
+                f"SELECT COUNT(*) FROM analysis_archive a {fts_join} {where_sql}", params
             ).fetchone()[0]
 
             # Paginated results (ohne das große result_json)
             rows = conn.execute(
                 f"""
-                SELECT id, created_at, input_text, source_url, platform,
-                       overall_rating, confidence, summary, title,
-                       claims_count, techniques_count
-                FROM analysis_archive
+                SELECT a.id, a.created_at, a.input_text, a.source_url, a.platform,
+                       a.overall_rating, a.confidence, a.summary, a.title,
+                       a.claims_count, a.techniques_count
+                FROM analysis_archive a
+                {fts_join}
                 {where_sql}
-                ORDER BY created_at DESC
+                ORDER BY a.created_at DESC
                 LIMIT ? OFFSET ?
                 """,
                 params + [limit, offset],
@@ -361,6 +424,22 @@ class AnalysisArchive:
             "techniques_count": row["techniques_count"],
         }
 
+    def count_analyses(self) -> dict[str, int]:
+        """Zähle Analysen: gesamt und letzte 30 Tage."""
+        if not self.config.enabled:
+            return {"total": 0, "last_30_days": 0}
+        import time
+        cutoff = time.time() - 30 * 86400
+        with self._connect() as conn:
+            total = conn.execute(
+                "SELECT COUNT(*) FROM analysis_archive"
+            ).fetchone()[0]
+            recent = conn.execute(
+                "SELECT COUNT(*) FROM analysis_archive WHERE created_at > ?",
+                (cutoff,),
+            ).fetchone()[0]
+        return {"total": total, "last_30_days": recent}
+
     def stats(self) -> dict[str, Any]:
         """Statistiken über das Archiv."""
         if not self.config.enabled:
@@ -400,6 +479,21 @@ class AnalysisArchive:
 
             if count > self.config.max_entries:
                 excess = count - self.config.max_entries
+                # FTS-Einträge der zu löschenden Zeilen entfernen
+                conn.execute(
+                    """
+                    INSERT INTO archive_fts(archive_fts, rowid, title, summary, source_url, input_text)
+                    SELECT 'delete', rowid, COALESCE(title,''), COALESCE(summary,''),
+                           COALESCE(source_url,''), COALESCE(input_text,'')
+                    FROM analysis_archive
+                    WHERE id IN (
+                        SELECT id FROM analysis_archive
+                        ORDER BY created_at ASC
+                        LIMIT ?
+                    )
+                    """,
+                    (excess,),
+                )
                 conn.execute(
                     """
                     DELETE FROM analysis_archive

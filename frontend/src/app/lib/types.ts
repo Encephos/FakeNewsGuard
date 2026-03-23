@@ -81,6 +81,15 @@ export interface ExtractedContent {
   url: string;
 }
 
+export type ScoutTier = "lite" | "pro" | "max";
+
+export interface ScoutTierInfo {
+  id: ScoutTier;
+  agent: string;       // "Scout Lite" | "Scout Pro" | "Scout Max"
+  label: string;       // display label (localized)
+  description: string; // short description (localized)
+}
+
 export type AnalysisState =
   | { status: "idle" }
   | { status: "analyzing"; steps: Step[]; currentPhase: string; extractedContent?: ExtractedContent }

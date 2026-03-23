@@ -112,6 +112,21 @@ class LLMClient:
             backoff_factor=self._retry.backoff_factor,
         )
 
+    def _needs_system_fold(self) -> bool:
+        """Check if the model needs system prompt folded into user message."""
+        model = self.config.model.lower()
+        return "gemma" in model or "free" in model
+
+    def _build_messages(self, system_prompt: str, user_message: str) -> list[dict[str, str]]:
+        """Build message list, folding system prompt for models that don't support it."""
+        if self._needs_system_fold():
+            combined = f"[INSTRUKTIONEN]\n{system_prompt}\n[/INSTRUKTIONEN]\n\n{user_message}"
+            return [{"role": "user", "content": combined}]
+        return [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_message},
+        ]
+
     def _complete_openai(
         self, system_prompt: str, user_message: str, response_format: str
     ) -> str:
@@ -119,10 +134,7 @@ class LLMClient:
             "model": self.config.model,
             "max_tokens": self.config.max_tokens,
             "temperature": self.config.temperature,
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_message},
-            ],
+            "messages": self._build_messages(system_prompt, user_message),
         }
         # OpenAI supports structured JSON mode
         if response_format == "json" and self.config.provider in ("openai", "openrouter"):
@@ -136,6 +148,117 @@ class LLMClient:
         def _call():
             response = self._client.chat.completions.create(**kwargs)
             return response.choices[0].message.content or ""
+
+        return retry_call(
+            _call,
+            max_attempts=self._retry.max_attempts,
+            base_delay=self._retry.base_delay_s,
+            max_delay=self._retry.max_delay_s,
+            backoff_factor=self._retry.backoff_factor,
+        )
+
+    def complete_vision(
+        self,
+        system_prompt: str,
+        user_message: str,
+        image_urls: list[str],
+        response_format: str = "json",
+    ) -> str:
+        """Vision-Call: sendet Text + Bilder an ein multimodales LLM.
+
+        Args:
+            system_prompt: System-Prompt für den Agenten.
+            user_message: Textuelle Nachricht / Analyseanweisung.
+            image_urls: Liste von Bild-URLs (max. 5 empfohlen).
+            response_format: "text" oder "json".
+
+        Returns:
+            Die Antwort als String.
+        """
+        if response_format == "json":
+            system_prompt += (
+                "\n\nAntworte AUSSCHLIESSLICH mit validem JSON. "
+                "Kein Markdown, keine Erklärungen, kein ```json Block. Nur das JSON-Objekt."
+            )
+
+        if self.config.provider == "anthropic":
+            return self._complete_vision_anthropic(system_prompt, user_message, image_urls)
+        else:
+            return self._complete_vision_openai(system_prompt, user_message, image_urls, response_format)
+
+    def _complete_vision_openai(
+        self,
+        system_prompt: str,
+        user_message: str,
+        image_urls: list[str],
+        response_format: str,
+    ) -> str:
+        """Vision-Call über OpenAI-kompatible API (openrouter/openai/ollama)."""
+        image_parts: list[dict] = [
+            {"type": "image_url", "image_url": {"url": url}}
+            for url in image_urls
+        ]
+
+        if self._needs_system_fold():
+            combined_text = f"[INSTRUKTIONEN]\n{system_prompt}\n[/INSTRUKTIONEN]\n\n{user_message}"
+            user_content: list[dict] = [{"type": "text", "text": combined_text}] + image_parts
+            messages: list[dict] = [{"role": "user", "content": user_content}]
+        else:
+            user_content = [{"type": "text", "text": user_message}] + image_parts
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_content},
+            ]
+
+        kwargs: dict[str, Any] = {
+            "model": self.config.model,
+            "max_tokens": self.config.max_tokens,
+            "temperature": self.config.temperature,
+            "messages": messages,
+        }
+        if response_format == "json" and self.config.provider in ("openai", "openrouter"):
+            kwargs["response_format"] = {"type": "json_object"}
+        if self.config.provider == "openrouter":
+            kwargs["extra_body"] = {
+                "provider": {"sort": "price", "allow_fallbacks": True},
+            }
+
+        def _call():
+            response = self._client.chat.completions.create(**kwargs)
+            return response.choices[0].message.content or ""
+
+        return retry_call(
+            _call,
+            max_attempts=self._retry.max_attempts,
+            base_delay=self._retry.base_delay_s,
+            max_delay=self._retry.max_delay_s,
+            backoff_factor=self._retry.backoff_factor,
+        )
+
+    def _complete_vision_anthropic(
+        self,
+        system_prompt: str,
+        user_message: str,
+        image_urls: list[str],
+    ) -> str:
+        """Vision-Call über Anthropic API."""
+        image_parts_anthropic: list[dict] = [
+            {"type": "image", "source": {"type": "url", "url": url}}
+            for url in image_urls
+        ]
+        user_content_anthropic: list[dict] = image_parts_anthropic + [
+            {"type": "text", "text": user_message}
+        ]
+
+        def _call():
+            response = self._client.messages.create(
+                model=self.config.model,
+                max_tokens=self.config.max_tokens,
+                temperature=self.config.temperature,
+                system=system_prompt,
+                messages=[{"role": "user", "content": user_content_anthropic}],
+            )
+            return response.content[0].text
 
         return retry_call(
             _call,
@@ -239,15 +362,14 @@ class LLMClient:
                 "provider": {"sort": "price", "allow_fallbacks": True},
             }
 
+        messages = self._build_messages(system_prompt, user_message)
+
         def _call():
             response = self._client.chat.completions.create(
                 model=self.config.model,
                 max_tokens=self.config.max_tokens,
                 temperature=self.config.temperature,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_message},
-                ],
+                messages=messages,
                 response_format={
                     "type": "json_schema",
                     "json_schema": {

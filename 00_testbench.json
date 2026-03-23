@@ -1,0 +1,447 @@
+{
+    "dataset_name": "Fake_vs_Real_News_Combined_Testset",
+    "language": "de",
+    "total_items": 55,
+    "data": [
+        {
+            "id": 1,
+            "label": "fake",
+            "difficulty": "leicht",
+            "topic": "Technologie/Social Media",
+            "text": "ACHTUNG!!! Ab morgen kostet WhatsApp 5 Euro pro Nachricht! 😱 Mark Zuckerberg hat das gerade bestätigt! Leite diese Nachricht an 10 Kontakte weiter, damit dein Logo blau wird und es für dich kostenlos bleibt!!!",
+            "trick": "Kettenbrief-Muster, exzessive Satzzeichen, Erzeugung von falschem Zeitdruck."
+        },
+        {
+            "id": 2,
+            "label": "fake",
+            "difficulty": "leicht",
+            "topic": "Gesundheit/Diät",
+            "text": "Ärzte hassen diesen Trick! Mit diesem geheimen Hausmittel aus dem Himalaya verlierst du über Nacht 25 Kilo pures Fett, ohne Sport zu machen. Klicke hier, um das Geheimnis zu lüften!",
+            "trick": "Klassischer Clickbait, unrealistische Heilsversprechen."
+        },
+        {
+            "id": 3,
+            "label": "fake",
+            "difficulty": "leicht",
+            "topic": "Verschwörungstheorie",
+            "text": "EILMELDUNG: Reptiloiden haben den Bundestag unterwandert! Exklusive Bilder zeigen, wie sich Spitzenpolitiker nachts in Echsen verwandeln. Die Mainstream-Medien schweigen!",
+            "trick": "Absurde Behauptungen, 'Mainstream-Medien schweigen'-Trope."
+        },
+        {
+            "id": 4,
+            "label": "fake",
+            "difficulty": "leicht",
+            "topic": "Wissenschaft",
+            "text": "NASA-Mitarbeiter packt aus: Die Erde ist in Wahrheit ein riesiger Pfannkuchen. Alle Satellitenbilder wurden mit Photoshop gefälscht!",
+            "trick": "Offensichtlicher Nonsens, angebliche Whistleblower."
+        },
+        {
+            "id": 5,
+            "label": "fake",
+            "difficulty": "leicht",
+            "topic": "Wissenschaft/Kurioses",
+            "text": "Wahnsinn: Wissenschaftler in Bayern haben heimlich einen T-Rex geklont. Er lebt jetzt versteckt in einem Wald bei München und hat bereits zwei Kühe gefressen.",
+            "trick": "Erfundene Sensation ohne jegliche seriöse Quelle."
+        },
+        {
+            "id": 6,
+            "label": "fake",
+            "difficulty": "mittel",
+            "topic": "Politik/Gesellschaft",
+            "text": "Neues Gesetz aus Brüssel durchgewunken: Ab 2028 dürfen EU-Bürger nur noch an zwei Tagen in der Woche Fleisch essen. Bei Verstößen drohen hohe Geldstrafen und der Entzug der Fahrerlaubnis.",
+            "trick": "Übertreibung realer Debatten (Klimaschutz) zu absurden Verboten."
+        },
+        {
+            "id": 7,
+            "label": "fake",
+            "difficulty": "mittel",
+            "topic": "Gesundheit",
+            "text": "Neue schwedische Studie beweist eindeutig: Ein Glas Rotwein am Morgen heilt Krebs besser als jede Chemotherapie. Die Pharmaindustrie versucht, diese Ergebnisse geheim zu halten.",
+            "trick": "Berufung auf vage 'Studien', Verschwörungsnarrativ gegen Pharmaindustrie."
+        },
+        {
+            "id": 8,
+            "label": "fake",
+            "difficulty": "mittel",
+            "topic": "Technologie/Wirtschaft",
+            "text": "Deutsches Startup erfindet Auto, das nur mit Leitungswasser fährt. Das Patent wurde sofort von einem großen Ölkonzern aufgekauft und vernichtet, die Erfinder sind seitdem spurlos verschwunden.",
+            "trick": "Unterdrückte-Erfindung-Mythos, Plausibilität durch Bezug auf Ölkonzerne."
+        },
+        {
+            "id": 9,
+            "label": "fake",
+            "difficulty": "mittel",
+            "topic": "Kriminalität",
+            "text": "Polizei warnt: Neue Einbrecher-Bande in Sachsen markiert Häuser jetzt mit unsichtbarer UV-Farbe. Wenn Ihr Hund nachts bellt, sind Sie das nächste Opfer!",
+            "trick": "Angstmache, Imitation von Behördenwarnungen."
+        },
+        {
+            "id": 10,
+            "label": "fake",
+            "difficulty": "mittel",
+            "topic": "Politik",
+            "text": "Geheimes Dokument geleakt: Die Regierung plant, ab nächsten Monat heimlich Beruhigungsmittel ins Trinkwasser zu mischen, um Proteste gegen die Inflation zu unterdrücken.",
+            "trick": "Paranoia-Schürung, angebliche Leaks."
+        },
+        {
+            "id": 11,
+            "label": "fake",
+            "difficulty": "schwer",
+            "topic": "Wirtschaft",
+            "text": "Nach einem bisher unveröffentlichten Bericht des Statistischen Bundesamtes (Destatis) sind die Reallöhne in Deutschland im letzten Quartal unerwartet um 11,4 % eingebrochen. Experten des Ifo-Instituts sprechen von einer bewussten Zurückhaltung dieser Zahlen vor den anstehenden Wahlen.",
+            "trick": "Seriöser Stil, Nutzung echter Institutionen, erfundene Zahlen."
+        },
+        {
+            "id": 12,
+            "label": "fake",
+            "difficulty": "schwer",
+            "topic": "Gesundheitspolitik",
+            "text": "Im Interview mit dem 'Medical Journal of Europe' erklärte Prof. Dr. Johannes Weber vom virologischen Institut Genf: 'Die aktuell zirkulierenden Erregerstämme zeigen eine auf null gesunkene Letalität, weshalb sämtliche Präventionsmaßnahmen medizinisch nicht mehr zu rechtfertigen sind.'",
+            "trick": "Erfundene Experten und Journale, imitiert Fachsprache."
+        },
+        {
+            "id": 13,
+            "label": "fake",
+            "difficulty": "schwer",
+            "topic": "EU-Politik/Netzpolitik",
+            "text": "Die EU-Kommission hat gestern einen internen Entwurf zur Reform der Netzneutralität verabschiedet. Dieser erlaubt es Internetprovidern künftig, sogenannte 'Fast-Lane-Gebühren' von Endkunden zu verlangen.",
+            "trick": "Plausibles regulatorisches Szenario, sehr spezifische Details."
+        },
+        {
+            "id": 14,
+            "label": "fake",
+            "difficulty": "schwer",
+            "topic": "Finanzen",
+            "text": "Ein vertrauliches Memo der Bundesbank warnt vor einer vorgezogenen Bargeldabschaffung bis Ende 2027. Laut dem 40-seitigen Papier sollen physische Euro-Banknoten dann schrittweise durch einen digitalen Euro ersetzt werden.",
+            "trick": "Verknüpfung realer Projekte mit Verschwörungsängsten."
+        },
+        {
+            "id": 15,
+            "label": "fake",
+            "difficulty": "schwer",
+            "topic": "Klima",
+            "text": "Eine neue Auswertung von historischen Klimadaten des Grönländischen Eisschildes durch Forscher der Universität Oslo zeigt, dass sich die Eisschmelze in den letzten fünf Jahren um knapp 40 % verlangsamt hat.",
+            "trick": "Wissenschaftlicher Anstrich, erfundene Studie widerspricht Konsens."
+        },
+        {
+            "id": 16,
+            "label": "fake",
+            "difficulty": "sehr schwer",
+            "topic": "Mobilität/E-Autos",
+            "text": "Offizielle Zahlen des Kraftfahrt-Bundesamtes (KBA) belegen ein dramatisches Sicherheitsrisiko: Die Zahl der brennenden Elektroautos auf deutschen Straßen ist von 2020 bis 2025 um unfassbare 450 % gestiegen.",
+            "trick": "Absolute vs. relative Zahlen. Marktwachstum wird als Risiko getarnt."
+        },
+        {
+            "id": 17,
+            "label": "fake",
+            "difficulty": "sehr schwer",
+            "topic": "Klimawandel",
+            "text": "Die Panikmache der Klima-Aktivisten entlarvt: Satellitendaten der NASA zeigen eindeutig, dass das Meereis in der Antarktis im vergangenen Juli um über 1,2 Millionen Quadratkilometer gewachsen ist.",
+            "trick": "Cherry-Picking saisonaler Daten gegen langfristige Trends."
+        },
+        {
+            "id": 18,
+            "label": "fake",
+            "difficulty": "sehr schwer",
+            "topic": "Ernährung",
+            "text": "Eine groß angelegte Langzeitstudie mit 50.000 Probanden beweist endgültig: Light-Getränke machen dick! Die Daten zeigen, dass Menschen mit Light-Konsum einen um 15 % höheren BMI aufweisen.",
+            "trick": "Falsche Kausalität (Korrelation != Ursache)."
+        },
+        {
+            "id": 19,
+            "label": "fake",
+            "difficulty": "sehr schwer",
+            "topic": "Energiepolitik",
+            "text": "Trotz des Ausbaus von Solar- und Windkraft musste Deutschland im Januar massiv Atom- und Kohlestrom aus dem Ausland importieren. Das beweist mathematisch, dass erneuerbare Energien wirkungslos sind.",
+            "trick": "Fehlender Kontext (Wetterabhängigkeit vs. Jahresschnitt)."
+        },
+        {
+            "id": 20,
+            "label": "fake",
+            "difficulty": "sehr schwer",
+            "topic": "Wirtschaft/Arbeit",
+            "text": "Die letzte Erhöhung des Mindestlohns entpuppt sich als Job-Killer. Auswertungen zeigen, dass die geleisteten Arbeitsstunden im Gastgewerbe um 8 % zurückgegangen sind.",
+            "trick": "Selektive Metriken (Stunden vs. Köpfe)."
+        },
+        {
+            "id": 21,
+            "label": "fake",
+            "difficulty": "ultra schwer",
+            "topic": "EU-Recht/Finanzen",
+            "text": "Gemäß der novellierten EU-Richtlinie 2025/1142/EU Artikel 4b werden ab dem 01.01.2027 sämtliche Bareinzahlungen ab 500 Euro automatisch einer Verdachtsmeldung an die FIU unterzogen.",
+            "trick": "Bürokratische Tarnung, erfundenes Gesetz in perfektem Fachdeutsch."
+        },
+        {
+            "id": 22,
+            "label": "fake",
+            "difficulty": "ultra schwer",
+            "topic": "Umwelt",
+            "text": "Faktencheck: Behauptungen, das UBA hätte Messstationen falsch platziert, sind FALSCH. Unsere Recherchen belegen jedoch, dass die Software einen Toleranzaufschlag von +12 % aufweist.",
+            "trick": "Meta-Faktencheck: Tarnt sich als Richtigstellung, um neue Lügen zu verbreiten."
+        },
+        {
+            "id": 23,
+            "label": "fake",
+            "difficulty": "ultra schwer",
+            "topic": "Wissenschaft/Medizin",
+            "text": "Eine Vorab-Publikation auf medRxiv (DOI: 10.1101/2026.02.14) zeigt eine Korrelation zwischen mRNA-Grippeimpfstoffen und beschleunigtem Abbau von Telomeren in T-Zellen.",
+            "trick": "Preprint-Exploit: Nutzt ungeprüfte Studien und Fachjargon."
+        },
+        {
+            "id": 24,
+            "label": "fake",
+            "difficulty": "ultra schwer",
+            "topic": "Finanzmarkt",
+            "text": "Insidern zufolge steht die BaFin kurz davor, eine offizielle Sonderprüfung bei der Commerzbank anzuordnen. Grund seien Unregelmäßigkeiten bei ESG-Krediten im Volumen von 4,2 Mrd. Euro.",
+            "trick": "Finanz-Spoofing: Imitiert trockenen Nachrichtenagentur-Stil."
+        },
+        {
+            "id": 25,
+            "label": "fake",
+            "difficulty": "ultra schwer",
+            "topic": "Geopolitik",
+            "text": "Nach dem Zwischenfall im Südchinesischen Meer erklärte der Sprecher in Peking, man werde 'militärische Präventivschläge' nicht länger ausschließen.",
+            "trick": "Lost in Translation: Bewusste Fehlübersetzung diplomatischer Floskeln."
+        },
+        {
+            "id": 26,
+            "label": "fake",
+            "difficulty": "propaganda",
+            "topic": "Klimapolitik/Eigentum",
+            "text": "In einem geleakten Audiomitschnitt fordert die Fraktionsspitze eine 'Klima-Abgabe für Einfamilienhäuser', die faktisch einer Enteignung gleichkommt.",
+            "trick": "Strohmann-Argument, Angsterzeugung."
+        },
+        {
+            "id": 27,
+            "label": "fake",
+            "difficulty": "propaganda",
+            "topic": "Soziales/Migration",
+            "text": "Eine interne Anfrage deckt auf: Durch den 'Integrationszuschlag' erhalten Asylbewerber 350 Euro mehr Netto als ein Rentner mit 40 Beitragsjahren.",
+            "trick": "False Equivalence, Sündenbock-Motiv."
+        },
+        {
+            "id": 28,
+            "label": "fake",
+            "difficulty": "propaganda",
+            "topic": "Krieg/Konflikt",
+            "text": "OSINT-Analysten bestätigen: Der Raketeneinschlag war ein amerikanischer Patriot-Abfangflugkörper. Die Trümmerteile wurden nachts ausgetauscht.",
+            "trick": "Täter-Opfer-Umkehr, Pseudowissenschaftliche 'Beweise'."
+        },
+        {
+            "id": 29,
+            "label": "fake",
+            "difficulty": "propaganda",
+            "topic": "EU/Souveränität",
+            "text": "Abstimmung heimlich durchgewunken: Brüssel kann nun deutsche Staatsbürger zwischen 18 und 35 Jahren direkt per EU-Dekret einziehen.",
+            "trick": "Misinterpretation von Kompetenzen, 'Heimlich'-Trope."
+        },
+        {
+            "id": 30,
+            "label": "fake",
+            "difficulty": "propaganda",
+            "topic": "Demokratie/Wahlen",
+            "text": "Wahlbetrug bestätigt: In drei Wahlkreisen lag die Wahlbeteiligung bei 114 %. Ein IT-Experte gab anonym die Manipulation zu Protokoll.",
+            "trick": "Framing technischer Anomalien als systemischen Betrug."
+        },
+        {
+            "id": 31,
+            "label": "fake",
+            "difficulty": "propaganda",
+            "topic": "Überwachung/Digitales",
+            "text": "EZB-Pilotprojekt verbindet digitalen Euro mit CO2-Fußabdruck. Wallets werden bei zu viel Fleischkonsum automatisch gesperrt.",
+            "trick": "Technologie-Panik, Social-Credit-Dystopie."
+        },
+        {
+            "id": 32,
+            "label": "fake",
+            "difficulty": "propaganda",
+            "topic": "WHO/Gesundheit",
+            "text": "Artikel 14 des WHO-Vertrags erlaubt dem Generaldirektor, Grundrechte außer Kraft zu setzen und Quarantänezonen militärisch durchzusetzen.",
+            "trick": "Juristische Desinformation, Souveränitätsangst."
+        },
+        {
+            "id": 33,
+            "label": "fake",
+            "difficulty": "propaganda",
+            "topic": "Innere Sicherheit",
+            "text": "Ein Whistleblower veröffentlichte die unzensierte PKS: Gewalttaten werden als 'regionale Milieukriminalität' verbucht, um Täterquoten zu verbergen.",
+            "trick": "Behauptung systematischer staatlicher Vertuschung."
+        },
+        {
+            "id": 34,
+            "label": "fake",
+            "difficulty": "propaganda",
+            "topic": "Militär/Geheimdienste",
+            "text": "Satellitenbilder beweisen: Die Staudamm-Zerstörung wurde durch britische Spezialkräfte verursacht, um Truppenvormarsch zu kaschieren.",
+            "trick": "False-Flag-Erzählung, Nutzung fiktiver Leaks."
+        },
+        {
+            "id": 35,
+            "label": "fake",
+            "difficulty": "propaganda",
+            "topic": "Stadtplanung",
+            "text": "Konzept der '15-Minuten-Stadt' bindend: Bürger dürfen Wohnbezirke nur noch 100 Mal im Jahr mit dem Auto verlassen.",
+            "trick": "Dammbruch-Argument, radikale Umdeutung von Stadtplanung."
+        },
+        {
+            "id": 36,
+            "label": "fake",
+            "difficulty": "propaganda",
+            "topic": "Geoengineering",
+            "text": "Erhöhte Bariumwerte im Regen bestätigen 'Solar Radiation Management' durch unmarkierte NATO-Maschinen zur Wettermanipulation.",
+            "trick": "Wissenschaftliche Mimikry, Verschwörungstheorie."
+        },
+        {
+            "id": 37,
+            "label": "fake",
+            "difficulty": "propaganda",
+            "topic": "Bildung/Kulturkampf",
+            "text": "Rahmenlehrplan zwingt 2. Klässler zu 'Gender-Transition-Rollenspielen'. Bei Verweigerung drohen Bußgelder für Eltern.",
+            "trick": "Moralische Panikmache, Instrumentalisierung von Kindern."
+        },
+        {
+            "id": 38,
+            "label": "fake",
+            "difficulty": "propaganda",
+            "topic": "Landwirtschaft",
+            "text": "Unter dem Deckmantel der EU-Strategie werden Bauern enteignet, um Flächen für genmanipulierte Insektenfarmen von Investmentfonds freizumachen.",
+            "trick": "Sündenbock-Narrativ, Angst vor Eliten."
+        },
+        {
+            "id": 39,
+            "label": "fake",
+            "difficulty": "propaganda",
+            "topic": "Infrastruktur/Energie",
+            "text": "Versteckte Klausel in § 14a EnWG: Netzbetreiber können Waschmaschinen und Backöfen zentral und ohne Vorwarnung abschalten.",
+            "trick": "Halbwahrheiten: Reales Gesetz wird auf falsche Geräte ausgeweitet."
+        },
+        {
+            "id": 40,
+            "label": "fake",
+            "difficulty": "propaganda",
+            "topic": "Medien/Tech",
+            "text": "IT-Experten entdeckten 'Trusted-Narrative-API', die regierungskritische Blogs algorithmisch um 80 % drosselt.",
+            "trick": "Technobabble, Zensur-Legende."
+        },
+        {
+            "id": 41,
+            "label": "real",
+            "difficulty": "leicht",
+            "topic": "Geografie/Politik",
+            "text": "Berlin ist die Hauptstadt der Bundesrepublik Deutschland und mit über 3,7 Millionen Einwohnern zugleich das bevölkerungsreichste Bundesland des Landes.",
+            "trick": "Allgemeinwissen, sachlich neutral."
+        },
+        {
+            "id": 42,
+            "label": "real",
+            "difficulty": "leicht",
+            "topic": "Geschichte",
+            "text": "Am 9. November 1989 fiel die Berliner Mauer, was das Ende der Teilung Deutschlands einleitete und zur offiziellen Wiedervereinigung am 3. Oktober 1990 führte.",
+            "trick": "Historischer Konsens, überprüfbare Daten."
+        },
+        {
+            "id": 43,
+            "label": "real",
+            "difficulty": "leicht",
+            "topic": "Astronomie",
+            "text": "Die Erde benötigt für eine vollständige Umkreisung der Sonne etwa 365,25 Tage. Dieser Vierteltag führt alle vier Jahre zu einem Schaltjahr.",
+            "trick": "Wissenschaftliches Basiswissen."
+        },
+        {
+            "id": 44,
+            "label": "real",
+            "difficulty": "leicht",
+            "topic": "Physik/Chemie",
+            "text": "Wasserstoff ist das leichteste und am häufigsten vorkommende chemische Element im Universum. Es macht etwa 75 Prozent der baryonischen Masse aus.",
+            "trick": "Nüchterne Faktenangabe."
+        },
+        {
+            "id": 45,
+            "label": "real",
+            "difficulty": "leicht",
+            "topic": "Aktuelles/Sport",
+            "text": "Die Olympischen Sommerspiele des Jahres 2024 wurden offiziell in der französischen Hauptstadt Paris ausgetragen.",
+            "trick": "Verifizierbares Weltereignis."
+        },
+        {
+            "id": 46,
+            "label": "real",
+            "difficulty": "mittel",
+            "topic": "Wirtschaft",
+            "text": "Nach Angaben des Statistischen Bundesamtes (Destatis) lag die Inflationsrate in Deutschland im Jahresdurchschnitt 2023 bei +5,9 Prozent im Vergleich zum Vorjahr.",
+            "trick": "Echte Behörde, reale historische Statistik."
+        },
+        {
+            "id": 47,
+            "label": "real",
+            "difficulty": "mittel",
+            "topic": "Klimawissenschaft",
+            "text": "Das Jahr 2023 war laut dem EU-Klimawandeldienst Copernicus das wärmste Jahr seit Beginn der globalen Wetteraufzeichnungen im Jahr 1850.",
+            "trick": "Wissenschaftlicher Konsens, belegte Daten."
+        },
+        {
+            "id": 48,
+            "label": "real",
+            "difficulty": "mittel",
+            "topic": "Technologie/Energie",
+            "text": "Der Anteil der erneuerbaren Energien an der Bruttostromerzeugung in Deutschland lag im Jahr 2023 bei über 50 Prozent.",
+            "trick": "Sachliche Zusammenfassung technologischer Daten."
+        },
+        {
+            "id": 49,
+            "label": "real",
+            "difficulty": "mittel",
+            "topic": "Demografie",
+            "text": "Japan hat weltweit einen der höchsten Anteile an Menschen über 65 Jahren. Im Jahr 2023 lag dieser Wert bei etwa 29 Prozent der Gesamtbevölkerung.",
+            "trick": "Korrekte demografische Statistik."
+        },
+        {
+            "id": 50,
+            "label": "real",
+            "difficulty": "mittel",
+            "topic": "Medizin",
+            "text": "Die Entdeckung des Penicillins durch Alexander Fleming im Jahr 1928 revolutionierte die Medizin und führte zur Entwicklung der ersten Antibiotika.",
+            "trick": "Historisch-medizinischer Fakt."
+        },
+        {
+            "id": 51,
+            "label": "real",
+            "difficulty": "schwer",
+            "topic": "Bürokratie/Recht",
+            "text": "Die EU-DSGVO verpflichtet Unternehmen bei schweren Datenpannen, die Aufsichtsbehörde innerhalb von 72 Stunden zu informieren. Bußgelder bis zu 4 % des Jahresumsatzes sind möglich.",
+            "trick": "Klingt bürokratisch drohend, ist aber geltendes Recht."
+        },
+        {
+            "id": 52,
+            "label": "real",
+            "difficulty": "schwer",
+            "topic": "Physik/Technologie",
+            "text": "GPS-Systeme müssen die Relativitätstheorie berücksichtigen, da Satellitenuhren im All minimal schneller laufen als auf der Erde.",
+            "trick": "Klingt kontraintuitiv, ist physikalische Realität."
+        },
+        {
+            "id": 53,
+            "label": "real",
+            "difficulty": "schwer",
+            "topic": "Astronomie",
+            "text": "Obwohl der Merkur der Sonne am nächsten ist, ist die Venus aufgrund ihrer dichten Atmosphäre der heißeste Planet im Sonnensystem.",
+            "trick": "Widerspricht einfacher Logik, ist aber korrekt."
+        },
+        {
+            "id": 54,
+            "label": "real",
+            "difficulty": "schwer",
+            "topic": "Recht/Steuern",
+            "text": "Durch das Steuerumgehungsbekämpfungsgesetz sind Banken seit 2018 verpflichtet, Daten über ausländische Briefkastengesellschaften an das Bundeszentralamt für Steuern zu melden.",
+            "trick": "Klingt nach Überwachung, ist reale Gesetzgebung."
+        },
+        {
+            "id": 55,
+            "label": "real",
+            "difficulty": "schwer",
+            "topic": "Biologie/Kurioses",
+            "text": "Das australische Schnabeltier besitzt keinen Magen, legt Eier und die Männchen produzieren ein Gift aus Spornen an ihren Hinterbeinen.",
+            "trick": "Absurd klingende, aber echte biologische Fakten."
+        }
+    ]
+}
