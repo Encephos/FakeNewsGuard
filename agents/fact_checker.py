@@ -2,12 +2,18 @@
 
 from __future__ import annotations
 
+import json
+import logging
+import sys
 from typing import Any
+
+logger = logging.getLogger("fng.fact_checker")
 
 from agents.base import BaseAgent
 from i18n import t
 from models.schemas import FACT_CHECK_SCHEMA, Claim, FactCheckResult, FactRating
 from tools.factcheck_databases import FactCheckDatabaseClient, FactCheckDatabaseConfig
+from tools.llm import LLMClient
 from tools.scrape_ranker import RankedSource, rank_sources
 from tools.source_scraper import ScrapedSource, scrape_sources
 from tools.web_search import WebSearchClient
@@ -56,6 +62,53 @@ NIEMALS Blogs, Telegram, X/Twitter oder Parteiseiten als Primärquelle verwenden
   "sources": ["url1", "url2"]
 }
 """
+
+
+_QUERY_OPTIMIZER_PROMPT = """\
+Du bist ein Suchquery-Optimierer für Faktenprüfung. Deine Aufgabe: Generiere 3 optimierte, \
+kurze Suchqueries für eine Suchmaschine, um die gegebene Behauptung zu überprüfen.
+
+## Regeln
+- Jede Query maximal 6-8 Wörter (kurz und präzise!)
+- Verwende Schlüsselbegriffe, KEINE ganzen Sätze
+- Query 1: Direkte Suche nach dem Kernfakt (z.B. "Studie 2016 Frauen Haushalt Glück Deutschland")
+- Query 2: Faktencheck-Suche (z.B. "Hausfrauen glücklicher Studie Faktencheck")
+- Query 3: Quellensuche nach Primärdaten (z.B. "Studie Frauen Zufriedenheit Haushalt 2016 Ergebnis")
+- Verwende die Sprache der Behauptung
+- Entferne Füllwörter (der, die, das, und, ist, hat, etc.)
+- Behalte spezifische Zahlen, Jahreszahlen und Eigennamen bei
+
+Antworte NUR mit einem JSON-Array von 3 Strings. Beispiel:
+["query eins", "query zwei", "query drei"]
+"""
+
+
+def _optimize_queries_with_llm(
+    claim: Claim, llm: LLMClient, original_text: str = "",
+) -> list[str] | None:
+    """Nutze das LLM um optimierte Suchqueries aus dem Claim zu generieren.
+
+    Returns:
+        Liste von 3 optimierten Queries, oder None bei Fehler.
+    """
+    user_msg = f"Behauptung: {claim.text}\nTyp: {claim.type.value}"
+    if original_text and len(original_text) > len(claim.text) + 30:
+        user_msg += f"\nOriginaltext (Kontext): {original_text[:500]}"
+
+    try:
+        raw = llm.complete(_QUERY_OPTIMIZER_PROMPT, user_msg, response_format="json")
+        parsed = json.loads(raw) if isinstance(raw, str) else raw
+        # Akzeptiere sowohl direkte Liste als auch {"items": [...]}
+        if isinstance(parsed, list):
+            queries = [str(q).strip() for q in parsed if isinstance(q, str) and q.strip()]
+        elif isinstance(parsed, dict) and "items" in parsed:
+            queries = [str(q).strip() for q in parsed["items"] if isinstance(q, str) and q.strip()]
+        else:
+            return None
+        return queries[:4] if queries else None
+    except Exception as e:
+        logger.warning("Query-Optimierung fehlgeschlagen: %s: %s", type(e).__name__, e)
+        return None
 
 
 def _build_search_queries(claim: Claim, original_text: str = "") -> list[str]:
@@ -303,10 +356,10 @@ def _adaptive_max_results(claim: Claim) -> int:
     Einfache Claims brauchen weniger Ergebnisse, komplexe mehr.
     """
     if claim.type.value == "STATISTICAL":
-        return 5  # Brauche mehr Quellen für Zahlenverifikation
+        return 10  # Brauche mehr Quellen für Zahlenverifikation
     if claim.type.value in ("CAUSAL", "CONTEXTUAL"):
-        return 4  # Kontext-Suche braucht etwas mehr
-    return 3  # FACTUAL: weniger Ergebnisse reichen meist
+        return 8  # Kontext-Suche braucht etwas mehr
+    return 5  # FACTUAL: weniger Ergebnisse reichen meist
 
 
 class FactCheckerAgent(BaseAgent):
@@ -321,19 +374,33 @@ class FactCheckerAgent(BaseAgent):
             retry=self.config.retry,
         )
 
-    def execute(self, input_data: Any, context: str = "") -> FactCheckResult:
-        claim: Claim = input_data
-
-        # Cache-Lookup
-        cached = self._cache_get(claim.text)
+    def _check_cache(self, claim: Claim, context: str) -> FactCheckResult | None:
+        """Cache-Lookup mit Kontext für kollisionsfreie Keys."""
+        cached = self._cache_get(claim.text, context)
         if cached is not None:
             try:
                 return FactCheckResult(**cached)
             except Exception:
                 pass  # Ungültiger Cache – neu berechnen
+        return None
 
-        # Websuche
-        queries = _build_search_queries(claim, original_text=context)
+    def _resolve_queries(self, claim: Claim, context: str) -> list[str]:
+        """LLM-optimierte Queries versuchen, Fallback auf regelbasierte Queries."""
+        optimized = _optimize_queries_with_llm(claim, self.llm, original_text=context)
+        if optimized:
+            self._log(f"LLM-optimierte Queries: {optimized}")
+            return optimized
+        self._log("Fallback auf regelbasierte Queries")
+        return _build_search_queries(claim, original_text=context)
+
+    def execute(self, input_data: Any, context: str = "") -> FactCheckResult:
+        claim: Claim = input_data
+
+        cached = self._check_cache(claim, context)
+        if cached is not None:
+            return cached
+
+        queries = self._resolve_queries(claim, context)
         max_results = _adaptive_max_results(claim)
         self._log(f"Suche nach: {queries} (max_results={max_results})")
         search_context = self._web_multi_search(queries, max_results=max_results)
@@ -352,15 +419,16 @@ class FactCheckerAgent(BaseAgent):
         import asyncio
         claim: Claim = input_data
 
-        # Cache-Lookup (sync, schnell)
-        cached = self._cache_get(claim.text)
+        cached = self._check_cache(claim, context)
         if cached is not None:
-            try:
-                return FactCheckResult(**cached)
-            except Exception:
-                pass
+            return cached
 
-        queries = _build_search_queries(claim, original_text=context)
+        # Query-Optimierung im Thread-Pool (blockiert nicht den Event Loop)
+        loop = asyncio.get_event_loop()
+        queries = await loop.run_in_executor(
+            None, self._resolve_queries, claim, context,
+        )
+
         max_results = _adaptive_max_results(claim)
         categories = _categories_for_claim(claim)
         self._log(f"Suche (async) nach: {queries} (max_results={max_results}, categories={categories})")
@@ -512,6 +580,6 @@ class FactCheckerAgent(BaseAgent):
             sources=raw.get("sources", []),
         )
 
-        self._cache_set(claim.text, result.model_dump())
+        self._cache_set(claim.text, result.model_dump(), original_text)
         self._log(f"Claim {claim.id}: {result.rating.value}")
         return result

@@ -65,7 +65,7 @@ class Orchestrator:
 
         if tier == ScoutTier.LITE:
             # Tier 1: Alle Agenten nutzen den OpenRouter Free Tier Router
-            free_model = "google/gemma-3-12b-it:free"
+            free_model = "openrouter/free"
             llm_fast = LLMClient(
                 replace(config.llm, model=free_model),
                 config.retry,

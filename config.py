@@ -5,8 +5,17 @@ from __future__ import annotations
 import os
 import sys
 from dataclasses import dataclass, field
+from enum import Enum
 
 from dotenv import load_dotenv
+
+
+class ScoutTier(Enum):
+    """Scout-Analyse-Stufen – bestimmen Modellauswahl und Qualität."""
+
+    LITE = "lite"   # Tier 1: OpenRouter Free Tier Router (kostenlos)
+    PRO = "pro"     # Tier 2: Gemma für alle Agenten
+    MAX = "max"     # Tier 3: Gemma (schnell) + Qwen (mächtig)
 
 load_dotenv()
 
@@ -58,15 +67,18 @@ class SearchConfig:
     provider: str = "searxng"  # "searxng" | "tavily" | "serper" | "brave"
     api_key: str = ""
     base_url: str = ""  # Für SearXNG: URL der Instanz (z.B. http://localhost:8888)
-    max_results: int = 5
-    max_concurrent_searches: int = 3  # Für async Parallelisierung
-    scrape_top_n: int = 5           # Maximale Anzahl zu scrapender Quellen pro Claim
+    engines: str = ""   # SearXNG: kommaseparierte Engine-Liste (z.B. "google,duckduckgo,bing")
+    max_results: int = 10
+    max_concurrent_searches: int = 5  # Für async Parallelisierung
+    scrape_top_n: int = 8           # Maximale Anzahl zu scrapender Quellen pro Claim
     scrape_timeout: float = 10.0    # HTTP-Timeout pro Scrape-Request in Sekunden
-    engines: str = "duckduckgo,bing,brave,qwant,yahoo,google"
+
     def __post_init__(self) -> None:
         if self.provider == "searxng":
             if not self.base_url:
                 self.base_url = os.getenv("SEARXNG_URL", "http://localhost:8888")
+            if not self.engines:
+                self.engines = os.getenv("SEARXNG_ENGINES", "")
         elif not self.api_key:
             key_map = {
                 "tavily": "TAVILY_API_KEY",
@@ -82,6 +94,18 @@ class SearchConfig:
         env_scrape_timeout = os.getenv("SCRAPE_TIMEOUT", "")
         if env_scrape_timeout:
             self.scrape_timeout = float(env_scrape_timeout)
+
+
+@dataclass
+class UserDBConfig:
+    """Konfiguration für die SQLite-Nutzerdatenbank."""
+
+    db_path: str = ".fakeguard_users.db"
+
+    def __post_init__(self) -> None:
+        env_path = os.getenv("USERS_DB_PATH", "")
+        if env_path:
+            self.db_path = env_path
 
 
 @dataclass
@@ -150,12 +174,23 @@ class AppConfig:
     retry: RetryConfig = field(default_factory=RetryConfig)
     cache: CacheConfig = field(default_factory=CacheConfig)
     archive: ArchiveConfig = field(default_factory=ArchiveConfig)
+    user_db: UserDBConfig = field(default_factory=UserDBConfig)
     telegram: TelegramConfig = field(default_factory=TelegramConfig)
     rate_limit: RateLimitConfig = field(default_factory=RateLimitConfig)
     graph: GraphConfig = field(default_factory=GraphConfig)
+    tier: ScoutTier = ScoutTier.MAX  # Scout-Stufe (lite / pro / max)
     verbose: bool = True  # Zeige Agent-Wechsel und Zwischenergebnisse
     language: str = "de"  # Primärsprache der Analyse
     max_input_chars: int = 10_000  # Schutz vor übermäßig langen Inputs
+    # CORS: kommaseparierte Liste erlaubter Origins.
+    # Standardwert "*" erlaubt alle – in Produktion mit CORS_ORIGINS setzen.
+    # Beispiel: CORS_ORIGINS=https://fakeguard.example.com,https://app.example.com
+    cors_origins: list = field(
+        default_factory=lambda: (
+            [o.strip() for o in os.getenv("CORS_ORIGINS", "").split(",") if o.strip()]
+            or ["*"]
+        )
+    )
 
     def validate(self) -> None:
         """Prüft, ob alle nötigen API Keys vorhanden sind. Beendet mit Fehlermeldung wenn nicht."""

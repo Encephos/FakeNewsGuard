@@ -73,6 +73,7 @@ class SynthesizerAgent(BaseAgent):
         number_audits: list[NumberAuditResult] = data.get("number_audits", [])
         rhetoric: RhetoricAnalysisResult | None = data.get("rhetoric")
         original_text: str = data.get("original_text", "")
+        image_analysis: str = data.get("image_analysis", "")
 
         # Kontext für das LLM zusammenbauen
         parts: list[str] = [f"## Originaltext\n\n{original_text}\n"]
@@ -106,6 +107,10 @@ class SynthesizerAgent(BaseAgent):
                     f"- {tech.technique} ({tech.severity.value}): {tech.explanation}\n"
                     f"  Beispiel: \"{tech.example}\"\n"
                 )
+
+        if image_analysis:
+            parts.append("## Bildanalyse\n")
+            parts.append(image_analysis + "\n")
 
         user_msg = "\n".join(parts)
 
