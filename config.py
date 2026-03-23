@@ -62,7 +62,7 @@ class SearchConfig:
     max_concurrent_searches: int = 3  # Für async Parallelisierung
     scrape_top_n: int = 5           # Maximale Anzahl zu scrapender Quellen pro Claim
     scrape_timeout: float = 10.0    # HTTP-Timeout pro Scrape-Request in Sekunden
-
+    engines: str = "duckduckgo,bing,brave,qwant,yahoo,google"
     def __post_init__(self) -> None:
         if self.provider == "searxng":
             if not self.base_url:
