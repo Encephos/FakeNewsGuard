@@ -3,10 +3,12 @@
 import { Step, AnalysisResult, FactRating } from "../lib/types";
 
 const PHASES = [
-  { id: "Phase 1", label: "Extraktion" },
-  { id: "Phase 2", label: "Fact-Check" },
-  { id: "Phase 3", label: "Rhetorik" },
-  { id: "Phase 4", label: "Synthese" },
+  { id: "Phase 0",   label: "Inhalte laden", optional: true },
+  { id: "Phase 0.5", label: "Bilder",         optional: true },
+  { id: "Phase 1",   label: "Extraktion",     optional: false },
+  { id: "Phase 2",   label: "Fact-Check",     optional: false },
+  { id: "Phase 3",   label: "Rhetorik",       optional: false },
+  { id: "Phase 4",   label: "Synthese",       optional: false },
 ];
 
 const CLAIM_DOT: Record<FactRating, string> = {
@@ -50,8 +52,10 @@ export default function LeftPanel({ steps, result, isAnalyzing }: LeftPanelProps
           Phasen
         </h4>
         <div className="space-y-2">
-          {PHASES.map(({ id, label }) => {
+          {PHASES.map(({ id, label, optional }) => {
             const status = getPhaseStatus(id, steps);
+            // Hide optional phases that have never appeared in any step
+            if (optional && status === "pending") return null;
             return (
               <div key={id} className="flex items-center gap-2.5">
                 <span
@@ -65,6 +69,15 @@ export default function LeftPanel({ steps, result, isAnalyzing }: LeftPanelProps
                 <span className={`text-xs ${status === "pending" ? "text-text-tertiary" : "text-text-primary"}`}>
                   {label}
                 </span>
+                {/* Show currently running agent for this phase */}
+                {status === "running" && (() => {
+                  const runningStep = steps.findLast?.((s) => s.phase === id && s.status === "running");
+                  return runningStep ? (
+                    <span className="text-[10px] text-text-tertiary font-mono ml-auto truncate max-w-[80px]">
+                      {runningStep.agent}
+                    </span>
+                  ) : null;
+                })()}
               </div>
             );
           })}

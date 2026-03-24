@@ -292,30 +292,40 @@ def format_result(result: dict[str, Any]) -> str:
     return "\n".join(parts)
 
 
+_MAIN_PHASES = ["Phase 1", "Phase 2", "Phase 3", "Phase 4"]
+
+
 def format_steps_progress(steps: list[dict[str, Any]]) -> str:
     """Format current progress steps as a compact status message."""
     if not steps:
         return f"\U0001F9E0 {escape_md('Analyse wird vorbereitet...')}"
 
-    total = len(steps)
-    done = sum(1 for s in steps if s.get("status") != "running")
+    # Phase-based counting: count how many main phases are fully done
+    phases_done = sum(
+        1 for phase_id in _MAIN_PHASES
+        if any(s.get("phase") == phase_id for s in steps)
+        and all(
+            s.get("status") != "running"
+            for s in steps
+            if s.get("phase") == phase_id
+        )
+    )
+    total_phases = len(_MAIN_PHASES)
+
     last = steps[-1]
     agent = last.get("agent", "")
     msg = last.get("message", "")
     status = last.get("status", "")
 
-    # Progress dots
-    filled = done
-    remaining = max(total - done, 0)
-    dots = "\u25C9" * filled + "\u25CB" * remaining
+    # Progress dots (one dot per main phase)
+    dots = "\u25C9" * phases_done + "\u25CB" * (total_phases - phases_done)
 
     icon = "\U0001F9E0" if status == "running" else "\u2705"
-    agent_display = escape_md(agent) if agent else ""
-    header = f"{icon} {bold('Analyse')}  {escape_md(dots)}"
+    header = f"{icon} {bold('Analyse')}  {escape_md(dots)}  {escape_md(f'{phases_done}/{total_phases}')}"
     detail = escape_md(msg[:120]) if msg else ""
 
     lines = [header]
-    if agent_display:
+    if agent:
         lines.append(f"    \u2192 {italic(agent)}")
     if detail:
         lines.append(f"    {detail}")

@@ -1,15 +1,34 @@
-"""Orchestrator – Zentrale Steuerung des Multi-Agent-Workflows."""
+"""Orchestrator – Zentrale Steuerung des Multi-Agent-Workflows.
+
+Neuer Ablauf (v2):
+    1. Input validieren
+    2. Claim Processing Pipeline (6 Stufen: Split → Canonicalize → Prioritize)
+    3. Top-N Claims nach Priorität auswählen (konfigurierbar)
+    4. Für jeden Claim (parallel in async):
+       a. EvidenceBuilderAgent → EvidencePack
+       b. CoVeProcessor → CoVeTrace (optional)
+       c. VerdictAgent → FactCheckResult
+       d. NumberAuditor (bei STATISTICAL)
+    5. Parallel: RhetoricAnalyzer (Gesamttext)
+    6. Optional: ImageAnalyzer
+    7. Synthesizer → SynthesisResult
+
+Abwärtskompatibilität:
+    analyze(text) -> SynthesisResult  (unverändert)
+    analyze_async(text) -> SynthesisResult  (unverändert)
+"""
 
 from __future__ import annotations
 
 import asyncio
 import sys
-from typing import Any
+from typing import Any, Callable
 
 from config import AppConfig, ScoutTier
 from i18n import set_default_locale, t
 from models.schemas import (
     Claim,
+    ClaimProcessingResult,
     ClaimType,
     FactCheckResult,
     NumberAuditResult,
@@ -36,23 +55,25 @@ class InputValidationError(ValueError):
 class Orchestrator:
     """Steuert den gesamten Analyse-Workflow.
 
-    Ablauf:
-        1. Claim Extractor zerlegt den Text
-        2. Für jeden Claim: Routing an zuständige Agenten
-        3. Rhetoric Analyzer bewertet den Gesamttext
-        4. Synthesizer erstellt das Gesamtverdikt
+    Ablauf v2:
+        1. Claim Processing Pipeline (mehrstufig, mit Priorisierung)
+        2. Top-N Claims auswählen
+        3. Für jeden Claim: EvidenceBuilder → CoVe → VerdictAgent + ggf. NumberAuditor
+        4. RhetoricAnalyzer parallel
+        5. Synthesizer
     """
 
-    def __init__(self, config: AppConfig) -> None:
+    def __init__(
+        self,
+        config: AppConfig,
+        on_step: Callable[[str, str], None] | None = None,
+    ) -> None:
         self.config = config
+        self._on_step = on_step  # Callback für Step-Updates (z.B. API Progress)
 
-        # i18n auf konfigurierte Sprache setzen
         set_default_locale(config.language)
-
-        # API Keys beim Start prüfen
         config.validate()
 
-        # LLM-Clients je nach Scout-Tier konfigurieren
         from dataclasses import replace
 
         tier = config.tier
@@ -63,69 +84,94 @@ class Orchestrator:
         }
         self._log(f"🔎 Tier: {tier_labels[tier]}")
 
+        _gemma_small = "google/gemma-3-4b-it"
+
         if tier == ScoutTier.LITE:
-            # Tier 1: Alle Agenten nutzen den OpenRouter Free Tier Router
             free_model = "openrouter/free"
-            llm_fast = LLMClient(
-                replace(config.llm, model=free_model),
-                config.retry,
-            )
+            llm_fast = LLMClient(replace(config.llm, model=free_model), config.retry)
+            llm_small = LLMClient(replace(config.llm, model=_gemma_small), config.retry)
             llm_powerful = llm_fast
         elif tier == ScoutTier.PRO:
-            # Tier 2: Alle Agenten nutzen Gemma
             gemma_model = "google/gemma-3-27b-it"
-            llm_fast = LLMClient(
-                replace(config.llm, model=gemma_model),
-                config.retry,
-            )
+            llm_fast = LLMClient(replace(config.llm, model=gemma_model), config.retry)
+            llm_small = LLMClient(replace(config.llm, model=_gemma_small), config.retry)
             llm_powerful = llm_fast
         else:
-            # Tier 3 (MAX): Gemma (schnell) + Qwen (mächtig)
-            llm_fast = LLMClient(
-                replace(config.llm, model="google/gemma-3-27b-it"),
-                config.retry,
-            )
+            llm_fast = LLMClient(replace(config.llm, model="google/gemma-3-27b-it"), config.retry)
+            llm_small = LLMClient(replace(config.llm, model=_gemma_small), config.retry)
             llm_powerful = LLMClient(config.llm, config.retry)
 
         search = WebSearchClient(config.search, config.retry)
-
-        # Claim-Cache (optional, deaktivierbar über config.cache.enabled)
         cache = ClaimCache(config.cache)
 
-        # Agenten initialisieren – gezielt verschiedene Modelle zuweisen
         self.image_analyzer = ImageAnalyzerAgent(config, llm_fast, search)
-        self.claim_extractor = ClaimExtractorAgent(config, llm_fast, search)
-        self.fact_checker = FactCheckerAgent(config, llm_fast, search, cache)
+        self.claim_extractor = ClaimExtractorAgent(config, llm_fast, search, llm_small=llm_small)
+        self.fact_checker = FactCheckerAgent(config, llm_fast, search, cache, llm_small=llm_small)
         self.number_auditor = NumberAuditorAgent(config, llm_powerful, search, cache)
         self.rhetoric_analyzer = RhetoricAnalyzerAgent(config, llm_powerful, search)
         self.synthesizer = SynthesizerAgent(config, llm_powerful, search)
 
+    # ── Input Validation ──────────────────────────────────────────────────────
+
     def _validate_input(self, text: str) -> str:
-        """Validiere und bereinige den Input-Text zentral.
-
-        Returns:
-            Der bereinigte (ggf. gekürzte) Text.
-
-        Raises:
-            InputValidationError: Bei leerem Input.
-        """
         text = text.strip()
         if not text:
             raise InputValidationError("Kein Text zur Analyse angegeben.")
-
         if len(text) > self.config.max_input_chars:
-            self._log(
-                f"Input gekürzt: {len(text)} → {self.config.max_input_chars} Zeichen"
-            )
+            self._log(f"Input gekürzt: {len(text)} → {self.config.max_input_chars} Zeichen")
             text = text[: self.config.max_input_chars]
-
         return text
 
+    # ── Top-N Claim Auswahl ───────────────────────────────────────────────────
+
+    def _select_top_claims(self, result: ClaimProcessingResult) -> list[Claim]:
+        """Wähle die Top-N Claims nach Priorität aus.
+
+        - Meinungen werden immer herausgefiltert
+        - Claims mit is_checkworthy=False werden herausgefiltert
+        - Wenn top_n=0: alle verbleibenden Claims zurückgeben
+        - Sonst: die N Claims mit höchstem priority_score
+        """
+        checkable = [
+            c for c in result.claims
+            if c.type != ClaimType.OPINION and c.is_checkworthy
+        ]
+
+        for c in result.claims:
+            if c.type == ClaimType.OPINION:
+                self._log(f"  ⏭ {c.id}: Meinung – übersprungen")
+            elif not c.is_checkworthy:
+                self._log(f"  ⏭ {c.id}: Nicht prüfenswert – übersprungen")
+
+        top_n = self.config.claim_processing.top_n
+        if top_n > 0 and len(checkable) > top_n:
+            # Sortiere nach priority_score (höchste zuerst)
+            checkable.sort(key=lambda c: -c.priority_score)
+            skipped = checkable[top_n:]
+            checkable = checkable[:top_n]
+            for c in skipped:
+                self._log(f"  ⏭ {c.id}: Top-N Limit ({top_n}) erreicht – übersprungen")
+
+        return checkable
+
+    # ── Step Callbacks ────────────────────────────────────────────────────────
+
+    def _step(self, phase: str, message: str) -> None:
+        """Sendet einen Step-Update an den optionalen on_step Callback."""
+        self._log(message)
+        if self._on_step:
+            try:
+                self._on_step(phase, message)
+            except Exception:
+                pass
+
+    # ── Synchrone Analyse ─────────────────────────────────────────────────────
+
     def analyze(self, text: str) -> SynthesisResult:
-        """Analysiere einen Text vollständig.
+        """Analysiere einen Text vollständig (synchron).
 
         Args:
-            text: Der zu prüfende Text (Tweet, Rede, Artikel, etc.)
+            text: Der zu prüfende Text.
 
         Returns:
             SynthesisResult mit Gesamtbewertung.
@@ -134,18 +180,17 @@ class Orchestrator:
             InputValidationError: Bei leerem Input.
         """
         text = self._validate_input(text)
-
         self._log("=" * 60)
         self._log("FAKTENCHECK GESTARTET")
         self._log("=" * 60)
 
         analysis_errors: list[str] = []
 
-        # ── Phase 1: Claims extrahieren ──────────────────────────
-        self._log("\n📋 PHASE 1: Claims extrahieren")
+        # ── Phase 1: Claim Processing ─────────────────────────────────────────
+        self._step("claim_processing", "\n📋 PHASE 1: Claim Processing")
         extraction, extraction_error = self.claim_extractor.run_safe(text)
         if extraction_error:
-            self._log(f"  ⚠ Claim-Extraction fehlgeschlagen: {extraction_error}")
+            self._log(f"  ⚠ Claim-Processing fehlgeschlagen: {extraction_error}")
             return SynthesisResult(
                 overall_rating=OverallRating.MIXED,
                 confidence=0.0,
@@ -164,25 +209,20 @@ class Orchestrator:
                 sources=[],
             )
 
-        # Claims anzeigen
         for claim in extraction.claims:
-            self._log(f"  {claim.id} [{claim.type.value}]: {claim.text}")
+            self._log(f"  {claim.id} [{claim.type.value}] (prio={claim.priority_score:.2f}): {claim.text}")
 
-        # ── Phase 2: Claims an Agenten routen ────────────────────
-        self._log("\n🔄 PHASE 2: Claims prüfen")
+        # ── Top-N Auswahl ────────────────────────────────────────────────────
+        checkable = self._select_top_claims(extraction)
+
+        # ── Phase 2: Claims prüfen ────────────────────────────────────────────
+        self._step("fact_checking", f"\n🔄 PHASE 2: {len(checkable)} Claims prüfen")
 
         fact_checks: list[FactCheckResult] = []
         number_audits: list[NumberAuditResult] = []
 
-        for claim in extraction.claims:
-            if claim.type == ClaimType.OPINION:
-                self._log(f"  ⏭ {claim.id}: Meinung – übersprungen")
-                continue
-
-            # Fact Check – Graceful Degradation
-            # Originaltext als context mitgeben, damit Suchqueries thematisch
-            # angereichert werden und das LLM den Gesamtzusammenhang kennt
-            self._log(f"\n  ── Fact-Check für {claim.id} ──")
+        for claim in checkable:
+            self._step("fact_checking", f"\n  ── Fact-Check für {claim.id} ──")
             fc_result, fc_error = self.fact_checker.run_safe(claim, context=text)
             if fc_error:
                 self._log(f"  ⚠ Fact-Check fehlgeschlagen: {fc_error}")
@@ -190,12 +230,11 @@ class Orchestrator:
             elif fc_result is not None:
                 fact_checks.append(fc_result)
 
-            # Number Audit (für statistische Claims) – Graceful Degradation
             if "number_auditor" in claim.requires_agents or claim.type == ClaimType.STATISTICAL:
-                self._log(f"  ── Number-Audit für {claim.id} ──")
+                self._step("number_audit", f"  ── Number-Audit für {claim.id} ──")
                 fc_context = ""
                 if fc_result is not None:
-                    fc_context = f"Fact-Check Ergebnis: {fc_result.rating.value}\nEvidenz: {fc_result.evidence}"
+                    fc_context = f"Fact-Check: {fc_result.rating.value}\nEvidenz: {fc_result.evidence}"
                 na_result, na_error = self.number_auditor.run_safe(claim, context=fc_context)
                 if na_error:
                     self._log(f"  ⚠ Number-Audit fehlgeschlagen: {na_error}")
@@ -203,15 +242,15 @@ class Orchestrator:
                 elif na_result is not None:
                     number_audits.append(na_result)
 
-        # ── Phase 3: Rhetoric-Analyse des Gesamttexts ────────────
-        self._log("\n🎭 PHASE 3: Rhetoric-Analyse")
+        # ── Phase 3: Rhetoric-Analyse ─────────────────────────────────────────
+        self._step("rhetoric", "\n🎭 PHASE 3: Rhetoric-Analyse")
         rhetoric_result, rhetoric_error = self.rhetoric_analyzer.run_safe(text)
         if rhetoric_error:
             self._log(f"  ⚠ Rhetoric-Analyse fehlgeschlagen: {rhetoric_error}")
             analysis_errors.append(rhetoric_error)
 
-        # ── Phase 4: Synthese ────────────────────────────────────
-        self._log("\n📊 PHASE 4: Synthese")
+        # ── Phase 4: Synthese ─────────────────────────────────────────────────
+        self._step("synthesis", "\n📊 PHASE 4: Synthese")
         synthesis_input = {
             "original_text": text,
             "fact_checks": fact_checks,
@@ -219,41 +258,37 @@ class Orchestrator:
             "rhetoric": rhetoric_result,
         }
         result = self.synthesizer.run(synthesis_input)
-
-        # Fehler in Ergebnis eintragen
         if analysis_errors:
             result.analysis_errors.extend(analysis_errors)
 
         self._log("\n" + "=" * 60)
         self._log("FAKTENCHECK ABGESCHLOSSEN")
         self._log("=" * 60)
-
         return result
 
-    async def analyze_async(self, text: str) -> SynthesisResult:
-        """Async-Version von analyze() – Phase 2 läuft parallel.
+    # ── Asynchrone Analyse ────────────────────────────────────────────────────
 
-        Claim Extraction (Phase 1) und Synthese (Phase 4) laufen weiterhin
-        sequenziell, da sie keine Web-I/O auf Claim-Ebene benötigen.
-        Phase 2 (Fact-Check + Number-Audit) und Phase 3 (Rhetoric) laufen
-        gleichzeitig mit asyncio.gather.
+    async def analyze_async(self, text: str) -> SynthesisResult:
+        """Async-Version von analyze() – Phase 2+3 laufen parallel.
+
+        Claim Processing (Phase 1) und Synthese (Phase 4) laufen sequenziell.
+        Phase 2 (alle Claims) + Phase 3 (Rhetoric) laufen parallel.
 
         Raises:
             InputValidationError: Bei leerem Input.
         """
         text = self._validate_input(text)
-
         self._log("=" * 60)
         self._log("FAKTENCHECK GESTARTET (async)")
         self._log("=" * 60)
 
         analysis_errors: list[str] = []
 
-        # ── Phase 1: Claims extrahieren (sync, kein Netz) ─────────
-        self._log("\n📋 PHASE 1: Claims extrahieren")
+        # ── Phase 1: Claim Processing ─────────────────────────────────────────
+        self._step("claim_processing", "\n📋 PHASE 1: Claim Processing")
         extraction, extraction_error = self.claim_extractor.run_safe(text)
         if extraction_error:
-            self._log(f"  ⚠ Claim-Extraction fehlgeschlagen: {extraction_error}")
+            self._log(f"  ⚠ Claim-Processing fehlgeschlagen: {extraction_error}")
             return SynthesisResult(
                 overall_rating=OverallRating.MIXED,
                 confidence=0.0,
@@ -273,19 +308,16 @@ class Orchestrator:
             )
 
         for claim in extraction.claims:
-            self._log(f"  {claim.id} [{claim.type.value}]: {claim.text}")
+            self._log(f"  {claim.id} [{claim.type.value}] (prio={claim.priority_score:.2f}): {claim.text}")
 
-        # ── Phase 2 + 3: Parallel ─────────────────────────────────
-        self._log("\n🔄 PHASE 2+3: Claims prüfen + Rhetoric (parallel)")
+        checkable = self._select_top_claims(extraction)
 
-        checkable = [c for c in extraction.claims if c.type != ClaimType.OPINION]
-        opinion_ids = [c.id for c in extraction.claims if c.type == ClaimType.OPINION]
-        for oid in opinion_ids:
-            self._log(f"  ⏭ {oid}: Meinung – übersprungen")
+        # ── Phase 2+3: Parallel ───────────────────────────────────────────────
+        self._step("fact_checking", f"\n🔄 PHASE 2+3: {len(checkable)} Claims + Rhetoric (parallel)")
 
         async def check_claim(claim: Claim) -> tuple[FactCheckResult | None, NumberAuditResult | None, list[str]]:
             errors: list[str] = []
-            # Originaltext als context mitgeben für kontextualisierte Suche
+            self._step("fact_checking", f"  ── Fact-Check für {claim.id} ──")
             fc_result, fc_error = await self.fact_checker.run_safe_async(claim, context=text)
             if fc_error:
                 self._log(f"  ⚠ Fact-Check fehlgeschlagen: {fc_error}")
@@ -293,27 +325,26 @@ class Orchestrator:
 
             na_result: NumberAuditResult | None = None
             if "number_auditor" in claim.requires_agents or claim.type == ClaimType.STATISTICAL:
+                self._step("number_audit", f"  ── Number-Audit für {claim.id} ──")
                 fc_context = ""
                 if fc_result is not None:
-                    fc_context = f"Fact-Check Ergebnis: {fc_result.rating.value}\nEvidenz: {fc_result.evidence}"
+                    fc_context = f"Fact-Check: {fc_result.rating.value}\nEvidenz: {fc_result.evidence}"
                 na_result, na_error = await self.number_auditor.run_safe_async(claim, context=fc_context)
                 if na_error:
                     self._log(f"  ⚠ Number-Audit fehlgeschlagen: {na_error}")
                     errors.append(na_error)
             return fc_result, na_result, errors
 
-        # Phase 2 (alle Claims) + Phase 3 (Rhetoric) gleichzeitig
         tasks = [check_claim(c) for c in checkable]
         tasks.append(self.rhetoric_analyzer.run_safe_async(text))  # type: ignore[arg-type]
 
         raw_results = await asyncio.gather(*tasks, return_exceptions=False)
 
-        # Ergebnisse auswerten
         fact_checks: list[FactCheckResult] = []
         number_audits: list[NumberAuditResult] = []
         rhetoric_result = None
 
-        for i, claim_result in enumerate(raw_results[:-1]):
+        for claim_result in raw_results[:-1]:
             fc, na, errs = claim_result  # type: ignore[misc]
             if fc is not None:
                 fact_checks.append(fc)
@@ -326,8 +357,8 @@ class Orchestrator:
             self._log(f"  ⚠ Rhetoric-Analyse fehlgeschlagen: {rhetoric_error}")
             analysis_errors.append(rhetoric_error)
 
-        # ── Phase 4: Synthese ─────────────────────────────────────
-        self._log("\n📊 PHASE 4: Synthese")
+        # ── Phase 4: Synthese ─────────────────────────────────────────────────
+        self._step("synthesis", "\n📊 PHASE 4: Synthese")
         synthesis_input = {
             "original_text": text,
             "fact_checks": fact_checks,
@@ -335,14 +366,12 @@ class Orchestrator:
             "rhetoric": rhetoric_result,
         }
         result = self.synthesizer.run(synthesis_input)
-
         if analysis_errors:
             result.analysis_errors.extend(analysis_errors)
 
         self._log("\n" + "=" * 60)
         self._log("FAKTENCHECK ABGESCHLOSSEN")
         self._log("=" * 60)
-
         return result
 
     def _log(self, message: str) -> None:

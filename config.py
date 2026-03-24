@@ -97,6 +97,121 @@ class SearchConfig:
 
 
 @dataclass
+class LangSearchConfig:
+    """Konfiguration für LangSearch – semantische Websuche.
+
+    LangSearch wird im EvidenceBuilderAgent parallel zu SearXNG genutzt
+    und liefert semantisch gerankete Ergebnisse.
+    Optionales Reranking über die LangSearch-API wenn verfügbar.
+
+    Env-Vars:
+        LANGSEARCH_API_KEY     – API-Key (Pflicht wenn enabled)
+        LANGSEARCH_BASE_URL    – API-Basis-URL (Default: offizieller Endpunkt)
+        LANGSEARCH_ENABLED     – "true"/"false" (Default: true wenn Key vorhanden)
+    """
+
+    api_key: str = ""
+    base_url: str = "https://api.langsearch.com/v1"
+    enabled: bool = True
+    max_results: int = 10
+
+    def __post_init__(self) -> None:
+        if not self.api_key:
+            self.api_key = os.getenv("LANGSEARCH_API_KEY", "")
+        env_url = os.getenv("LANGSEARCH_BASE_URL", "")
+        if env_url:
+            self.base_url = env_url
+        env_enabled = os.getenv("LANGSEARCH_ENABLED", "")
+        if env_enabled:
+            self.enabled = env_enabled.lower() in ("true", "1", "yes")
+        elif not self.api_key:
+            # Automatisch deaktivieren wenn kein Key
+            self.enabled = False
+
+
+@dataclass
+class GoogleFactCheckConfig:
+    """Konfiguration für die Google Fact Check Tools API.
+
+    Env-Vars:
+        GOOGLE_FACT_CHECK_API_KEY  – API-Key (kostenlos über Google Cloud Console)
+        GOOGLE_FACT_CHECK_ENABLED  – "true"/"false" (Default: true wenn Key vorhanden)
+
+    Hinweis: Der API-Key hieß früher GOOGLE_FACTCHECK_API_KEY (ohne zweites F).
+    Beide Varianten werden akzeptiert für Abwärtskompatibilität.
+    """
+
+    api_key: str = ""
+    enabled: bool = True
+    max_results: int = 5
+
+    def __post_init__(self) -> None:
+        if not self.api_key:
+            # Beide Schreibweisen akzeptieren
+            self.api_key = os.getenv(
+                "GOOGLE_FACT_CHECK_API_KEY",
+                os.getenv("GOOGLE_FACTCHECK_API_KEY", ""),
+            )
+        env_enabled = os.getenv("GOOGLE_FACT_CHECK_ENABLED", "")
+        if env_enabled:
+            self.enabled = env_enabled.lower() in ("true", "1", "yes")
+        elif not self.api_key:
+            self.enabled = False
+
+
+@dataclass
+class ClaimProcessingConfig:
+    """Konfiguration für die mehrstufige Claim-Processing-Pipeline.
+
+    Env-Vars:
+        CLAIM_TOP_N                   – Max. Claims die verarbeitet werden (0 = alle)
+        USE_CANONICAL_CACHE           – Cache-Keys auf canonical_text statt Rohtext
+    """
+
+    top_n: int = 0  # 0 = alle Claims verarbeiten
+    use_canonical_cache: bool = False
+    # Minimale Checkworthiness-Score um einen Claim zu verarbeiten (0 = alle)
+    min_checkworthiness: float = 0.0
+
+    def __post_init__(self) -> None:
+        env_n = os.getenv("CLAIM_TOP_N", "")
+        if env_n:
+            self.top_n = int(env_n)
+        env_cache = os.getenv("USE_CANONICAL_CACHE", "")
+        if env_cache:
+            self.use_canonical_cache = env_cache.lower() in ("true", "1", "yes")
+        env_min = os.getenv("MIN_CHECKWORTHINESS", "")
+        if env_min:
+            self.min_checkworthiness = float(env_min)
+
+
+@dataclass
+class CoVeConfig:
+    """Konfiguration für Chain-of-Verification (CoVe).
+
+    Env-Vars:
+        COVE_ENABLED                        – CoVe aktivieren (Default: true)
+        MAX_VERIFICATION_QUESTIONS          – Max. Verifikationsfragen pro Claim
+        MAX_ADDITIONAL_VERIFICATION_SEARCHES – Max. zusätzliche Suchanfragen in CoVe
+    """
+
+    enabled: bool = True
+    max_verification_questions: int = 3   # 2–5 Fragen pro Claim
+    max_additional_searches: int = 2      # Budget für zusätzliche Retrieval-Runden
+
+    def __post_init__(self) -> None:
+        env_enabled = os.getenv("COVE_ENABLED", "")
+        if env_enabled:
+            self.enabled = env_enabled.lower() in ("true", "1", "yes")
+        env_q = os.getenv("MAX_VERIFICATION_QUESTIONS", "")
+        if env_q:
+            self.max_verification_questions = int(env_q)
+        env_s = os.getenv("MAX_ADDITIONAL_VERIFICATION_SEARCHES", "")
+        if env_s:
+            self.max_additional_searches = int(env_s)
+
+
+@dataclass
 class UserDBConfig:
     """Konfiguration für die SQLite-Nutzerdatenbank."""
 
@@ -171,6 +286,10 @@ class RateLimitConfig:
 class AppConfig:
     llm: LLMConfig = field(default_factory=LLMConfig)
     search: SearchConfig = field(default_factory=SearchConfig)
+    langsearch: LangSearchConfig = field(default_factory=LangSearchConfig)
+    google_fact_check: GoogleFactCheckConfig = field(default_factory=GoogleFactCheckConfig)
+    claim_processing: ClaimProcessingConfig = field(default_factory=ClaimProcessingConfig)
+    cove: CoVeConfig = field(default_factory=CoVeConfig)
     retry: RetryConfig = field(default_factory=RetryConfig)
     cache: CacheConfig = field(default_factory=CacheConfig)
     archive: ArchiveConfig = field(default_factory=ArchiveConfig)
@@ -178,7 +297,7 @@ class AppConfig:
     telegram: TelegramConfig = field(default_factory=TelegramConfig)
     rate_limit: RateLimitConfig = field(default_factory=RateLimitConfig)
     graph: GraphConfig = field(default_factory=GraphConfig)
-    tier: ScoutTier = ScoutTier.MAX  # Scout-Stufe (lite / pro / max)
+    tier: ScoutTier = ScoutTier.PRO  # Scout-Stufe (lite / pro / max)
     verbose: bool = True  # Zeige Agent-Wechsel und Zwischenergebnisse
     language: str = "de"  # Primärsprache der Analyse
     max_input_chars: int = 10_000  # Schutz vor übermäßig langen Inputs
@@ -207,6 +326,15 @@ class AppConfig:
             key_map = {"tavily": "TAVILY_API_KEY", "serper": "SERPER_API_KEY", "brave": "BRAVE_API_KEY"}
             env_var = key_map.get(self.search.provider, f"{self.search.provider.upper()}_API_KEY")
             errors.append(f"Fehlender Search API Key: {env_var} nicht gesetzt")
+
+        # LangSearch und Google Fact Check sind optional – nur warnen, nicht abbrechen
+        if self.langsearch.enabled and not self.langsearch.api_key:
+            print("  ⚠ LangSearch aktiviert aber kein LANGSEARCH_API_KEY – wird deaktiviert.", file=sys.stderr)
+            self.langsearch.enabled = False
+
+        if self.google_fact_check.enabled and not self.google_fact_check.api_key:
+            print("  ⚠ Google Fact Check aktiviert aber kein GOOGLE_FACT_CHECK_API_KEY – wird deaktiviert.", file=sys.stderr)
+            self.google_fact_check.enabled = False
 
         if errors:
             print("❌ Konfigurationsfehler:", file=sys.stderr)

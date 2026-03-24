@@ -23,10 +23,16 @@ interface RightPanelProps {
   isAnalyzing: boolean;
 }
 
+const MAIN_PHASES = ["Phase 1", "Phase 2", "Phase 3", "Phase 4"];
+
 export default function RightPanel({ steps, result, isAnalyzing }: RightPanelProps) {
   if (isAnalyzing) {
-    const done = steps.filter((s) => s.status === "done").length;
-    const total = steps.length;
+    // Count phases by checking which main phases have all their steps completed
+    const phasesDone = MAIN_PHASES.filter((phaseId) => {
+      const phaseSteps = steps.filter((s) => s.phase === phaseId);
+      return phaseSteps.length > 0 && phaseSteps.every((s) => s.status === "done");
+    }).length;
+    const totalPhases = MAIN_PHASES.length;
     const running = steps.findLast?.((s) => s.status === "running");
 
     return (
@@ -35,11 +41,11 @@ export default function RightPanel({ steps, result, isAnalyzing }: RightPanelPro
           Fortschritt
         </h4>
         <p className="text-sm text-text-primary font-medium tabular-nums">
-          {done}<span className="text-text-tertiary font-normal"> / {total || "—"}</span>
+          {phasesDone}<span className="text-text-tertiary font-normal"> / {totalPhases}</span>
         </p>
-        <p className="text-xs text-text-tertiary mt-0.5">Schritte</p>
+        <p className="text-xs text-text-tertiary mt-0.5">Phasen</p>
         {running && (
-          <p className="text-xs text-text-secondary mt-3 font-mono">{running.phase}</p>
+          <p className="text-xs text-text-secondary mt-3 font-mono">{running.agent} · {running.phase}</p>
         )}
       </div>
     );

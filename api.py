@@ -458,10 +458,11 @@ async def _run_job(job_id: str, text: str, url: str = "", tier: ScoutTier = Scou
             return
 
         for claim in extraction.claims:
+            prio_info = f" prio={claim.priority_score:.2f}" if hasattr(claim, "priority_score") else ""
             push_step(
                 "Phase 1",
                 "Claim Extractor",
-                f"{claim.id} [{claim.type.value}]: {claim.text}",
+                f"{claim.id} [{claim.type.value}]{prio_info}: {claim.text}",
             )
 
         # ── Phase 2 + 3: Fact-check claims (parallel, batched) + Rhetoric ──
@@ -472,7 +473,14 @@ async def _run_job(job_id: str, text: str, url: str = "", tier: ScoutTier = Scou
         fact_checks = []
         number_audits = []
         analysis_errors = []
-        checkable = [c for c in extraction.claims if c.type != ClaimType.OPINION]
+
+        # Top-N Filterung via Orchestrator (berücksichtigt priority_score + is_checkworthy)
+        checkable = orchestrator._select_top_claims(extraction)
+        if len(checkable) < len([c for c in extraction.claims if c.type != ClaimType.OPINION]):
+            push_step(
+                "Phase 1", "Claim Extractor",
+                f"Top-{len(checkable)} von {len(extraction.claims)} Claims ausgewählt (konfigurierbar via CLAIM_TOP_N)",
+            )
 
         # Scale inactivity timeout for large inputs: base 300s + 30s per claim
         if len(checkable) > 4:

@@ -27,7 +27,8 @@ export default function ReasoningSteps({ steps, isActive }: ReasoningStepsProps)
             <span className="shrink-0 text-text-tertiary select-none w-5 text-right">
               {i + 1}
             </span>
-            <span>
+            <span className="min-w-0">
+              <span className="text-text-tertiary text-[10px] mr-1.5 opacity-60">[{step.phase}]</span>
               <span className="text-text-primary">{step.agent}</span>
               <span className="text-text-tertiary"> — </span>
               {step.message}
