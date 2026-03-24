@@ -146,6 +146,90 @@ _COMMERCIAL_DOMAINS: frozenset[str] = frozenset({
     "strafzettel-ratgeber.de", "recht-finanzen.de",
 })
 
+# ── Low-Trust-Seitentyp-Erkennung ────────────────────────────────────────────
+# Strukturelle Klasse: Seiten die kaum zur finalen Evidenzqualität beitragen
+# dürfen, weil sie generisch sind und keinen direkten Claim-Bezug haben.
+
+# Low-Trust Domains: Währungsrechner, allgemeine Grammatik-/Wörterbuchseiten,
+# allgemeine Juraforen/Lexika, allgemeine Bußgeldrechner
+_LOW_TRUST_DOMAINS: frozenset[str] = frozenset({
+    # Währungsrechner
+    "xe.com", "x-rates.com", "oanda.com", "wise.com", "transferwise.com",
+    "exchangerate.guru", "currency-converter.com", "finanzen.net",
+    # Grammatik / Wörterbuch / Konjugation
+    "duden.de", "verbformen.de", "verbformen.com", "konjugator.de",
+    "conjugation.com", "reverso.net", "linguee.de", "linguee.com",
+    "deepl.com", "dict.cc", "wiktionary.org", "pons.com",
+    "wordreference.com", "dict.leo.org",
+    # Allgemeine Juraforen / Lexika (ohne konkreten Claim-Bezug)
+    "juraforum.de", "anwalt.de", "123recht.de", "frag-einen-anwalt.de",
+    "rechtsanwalt.com", "advocado.de", "fachanwalt.de",
+    # Allgemeine Hilfs-/Erklärseiten
+    "gutefrage.net", "wer-weiss-was.de", "helpster.de",
+    "haushaltstipps.net", "tipps.net",
+})
+
+# Low-Trust Titel/Snippet-Muster: erkennt generische Hilfsseiten anhand Inhalt
+_LOW_TRUST_CONTENT_PATTERNS: list[re.Pattern] = [
+    # Währungsrechner / Umrechnung
+    re.compile(
+        r"\b(currency\s+convert|w[äa]hrungsrechner|umrechn|exchange\s+rate|wechselkurs)"
+        r"|\b\d+\s*(gbp|usd|eur|pfund|dollar)\s+(in|to|nach|zu)\s+\d*\s*(gbp|usd|eur|euro|pfund|dollar)",
+        re.IGNORECASE,
+    ),
+    # Grammatik / Konjugation
+    re.compile(
+        r"\bkonjugation\b.*\b(verb|dürfen|können|sollen|müssen|werden|haben|sein)\b"
+        r"|\b(indikativ|konjunktiv|imperativ|pr[äa]teritum|partizip)\b.*\bkonjugation\b"
+        r"|\bverb\s+(conjugat|konjugier)",
+        re.IGNORECASE,
+    ),
+    # Allgemeine Bußgeldrechner/-tabellen (ohne spezifischen Claim-Bezug)
+    re.compile(
+        r"\bbu[sß]geld(rechner|tabelle|katalog)\b.*\b(berechne|online|aktuell)\b"
+        r"|\b(berechne|berechnung)\b.*\bbu[sß]geld\b",
+        re.IGNORECASE,
+    ),
+    # Generische Rechts-Lexikon-Seiten
+    re.compile(
+        r"\b(rechtslexikon|jura\s*lexikon|rechts(begriffe|w[öo]rterbuch))\b"
+        r"|\b(definition|begriff)\b.{0,30}\b(jura|recht|gesetz)\b",
+        re.IGNORECASE,
+    ),
+]
+
+
+def _is_low_trust_site(url: str, title: str, snippet: str) -> bool:
+    """Prüfe ob eine Quelle ein Low-Trust-Seitentyp ist.
+
+    Erkennt strukturell:
+        - Währungsrechner (xe.com, Umrechnungsseiten)
+        - Grammatik-/Konjugationsseiten (verbformen.de, duden.de)
+        - Allgemeine Juraforen/Lexika ohne Claim-Bezug
+        - Allgemeine Bußgeldrechner ohne redaktionellen Kontext
+        - Generische Hilfs-/Erklärseiten
+
+    Nutzt sowohl URL/Domain als auch Titel/Snippet-Muster.
+
+    Returns:
+        True wenn die Quelle als Low-Trust eingestuft wird.
+    """
+    domain = _extract_domain(url)
+
+    # 1. Domain-Match
+    if domain in _LOW_TRUST_DOMAINS:
+        return True
+    # Subdomain-Match (z.B. de.pons.com)
+    if any(lt_domain in domain for lt_domain in _LOW_TRUST_DOMAINS):
+        return True
+
+    # 2. Titel/Snippet-Muster
+    combined = f"{title} {snippet}"
+    if any(p.search(combined) for p in _LOW_TRUST_CONTENT_PATTERNS):
+        return True
+
+    return False
+
 # Kommerzielle Content-Signale (Snippets/Titel)
 _COMMERCIAL_SNIPPET_PATTERNS: list[re.Pattern] = [
     re.compile(r"\bjetzt\s+(kaufen|bestellen|sichern)\b", re.IGNORECASE),
@@ -282,6 +366,19 @@ def _is_offtopic_content(
     if has_exclusion and hits == 0 and total_anchors >= 2:
         return True, 0.6
 
+    # Policy-sensitiver Filter: Bei Regelungsclaims (Sanktion/Policy vorhanden)
+    # müssen strukturelle Claim-Fit-Merkmale stärker greifen.
+    is_regulatory = has_sanction_anchor or (has_policy_anchor and has_inst_anchor)
+    if is_regulatory:
+        # Für Regelungsclaims: ohne Institution ODER Ort → stärkere Abwertung
+        if not inst_hit and not loc_hit:
+            # Nur Zahl oder Sanktionsbegriff ohne Kontext → fast sicher off-topic
+            penalty = 0.75 if (number_hit or sanction_hit) else 0.70
+            return True, penalty
+        # Institution ODER Ort trifft, aber Policy-Kontext fehlt → moderate Abwertung
+        if not policy_hit and hits <= 1:
+            return False, 0.45
+
     # Weiche Abwertung: Weniger als die Hälfte der erwarteten Anker
     if total_anchors >= 3 and hits == 0:
         return True, 0.5
@@ -417,7 +514,10 @@ def _relevance_score(
 
     # Signal 3: Off-topic Penalty (URL + Inhalt wenn Profil vorhanden)
     offtopic_penalty = 0.0
-    if _is_offtopic_url(result.url):
+    # Low-Trust-Seitentyp: starke Penalty (Währungsrechner, Grammatik, Juraforen etc.)
+    if _is_low_trust_site(result.url, result.title, result.snippet):
+        offtopic_penalty = 0.75
+    elif _is_offtopic_url(result.url):
         offtopic_penalty = 0.6
     elif profile:
         _, content_penalty = _is_offtopic_content(result.title, result.snippet, profile)
@@ -534,6 +634,13 @@ def _rank_evidence_items(
         has_gfc_match = _extract_domain(r.url) in fact_check_domains
 
         # ── Off-topic Detection ──────────────────────────────────
+        # 0. Low-Trust-Seitentyp: fast immer verwerfen (Währungsrechner, Grammatik etc.)
+        is_low_trust = _is_low_trust_site(r.url, r.title, r.snippet)
+        if is_low_trust and not is_fc and not has_gfc_match:
+            # Low-Trust-Seiten nur durchlassen wenn außergewöhnlich relevant
+            if rel < 0.50:
+                continue
+
         # 1. URL-basiert: klar irrelevante Domains
         if _is_offtopic_url(r.url) and rel < 0.3:
             continue
@@ -555,7 +662,9 @@ def _rank_evidence_items(
 
         # ── Penalty-Berechnung ───────────────────────────────────
         offtopic_penalty = 0.0
-        if _is_offtopic_url(r.url):
+        if is_low_trust:
+            offtopic_penalty = 0.7  # Low-Trust: starke Abwertung
+        elif _is_offtopic_url(r.url):
             offtopic_penalty = 0.4
         elif content_offtopic:
             offtopic_penalty = max(offtopic_penalty, content_penalty)
@@ -566,7 +675,13 @@ def _rank_evidence_items(
         anchor_bonus = 0.0
         if profile:
             combined = f"{r.title} {r.snippet}".lower()
-            anchor_bonus = _profile_anchor_score(combined, profile) * 0.15
+            raw_anchor = _profile_anchor_score(combined, profile)
+            # Bei Regelungsclaims (Sanktion/Policy + Institution) höheres Anchor-Gewicht
+            is_regulatory_profile = bool(profile.sanction_terms) or (
+                bool(profile.policy_terms) and bool(profile.institutions)
+            )
+            anchor_weight = 0.22 if is_regulatory_profile else 0.15
+            anchor_bonus = raw_anchor * anchor_weight
 
         # ── Multi-Signal Ranking-Score ───────────────────────────
         score = (
@@ -673,6 +788,16 @@ def _compute_quality_signals(
     else:
         off_topic_rate = 0.0
 
+    # Low-Trust-Rate: Anteil strukturell ungeeigneter Quellen in den Top-5
+    if top_5:
+        low_trust_count = sum(
+            1 for i in top_5
+            if _is_low_trust_site(i.source.url, i.source.title, "")
+        )
+        low_trust_rate = low_trust_count / len(top_5)
+    else:
+        low_trust_rate = 0.0
+
     # Echte Freshness-Berechnung (Durchschnitt der Top-Quellen)
     freshness_scores = [
         _compute_freshness(i.source.publication_date)
@@ -709,6 +834,7 @@ def _compute_quality_signals(
         top_tier_count=top_tier_count,
         off_topic_rate=off_topic_rate,
         avg_top5_relevance=avg_relevance,
+        low_trust_rate=low_trust_rate,
     )
 
 

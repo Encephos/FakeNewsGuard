@@ -116,6 +116,15 @@ class EvidenceQualitySignals(BaseModel):
         le=1.0,
         description="Durchschnittlicher Relevanz-Score der Top-5-Treffer",
     )
+    low_trust_rate: float = Field(
+        default=0.0,
+        ge=0.0,
+        le=1.0,
+        description=(
+            "Anteil der Low-Trust-Seiten (Währungsrechner, Grammatik, Juraforen etc.) "
+            "in den Top-5-Ergebnissen. Hoher Wert → Evidenz kaum belastbar."
+        ),
+    )
 
 
 # ── Google Fact Check ──────────────────────────────────────────────────────────

@@ -101,17 +101,95 @@ Antworte NUR mit einem JSON-Array von 3-4 Strings. Beispiel:
 """
 
 
+def _count_strong_anchors(parts: list[str], profile: "ClaimSearchProfile") -> int:  # type: ignore[name-defined]
+    """Zähle starke Anker in einer Query-Teilliste.
+
+    Starke Anker sind:
+        - Institution
+        - Location
+        - Policy-Kontext
+        - konkrete Maßnahme (Sanktion/Enforcement)
+        - gebundene Zahl (Zahl + Kontext-Wort, z.B. '250 Euro Bußgeld')
+
+    Schwache Komponenten (generische Verben/Nomen, isolierte Zahlen,
+    lose Hilfs-/Abstraktbegriffe) zählen NICHT.
+    """
+    text = " ".join(parts).lower()
+    count = 0
+
+    # Institution
+    if profile.institutions and any(
+        inst.lower() in text for inst in profile.institutions if inst
+    ):
+        count += 1
+    # Location
+    if profile.locations and any(
+        loc.lower() in text for loc in profile.locations if loc
+    ):
+        count += 1
+    # Policy-Kontext
+    if profile.policy_terms and any(
+        term.lower() in text for term in profile.policy_terms if term
+    ):
+        count += 1
+    # Sanktion / Enforcement (konkrete Maßnahme)
+    if profile.sanction_terms and any(
+        term.lower() in text for term in profile.sanction_terms if term
+    ):
+        count += 1
+
+    return count
+
+
+def _bind_number_to_context(number: str, profile: "ClaimSearchProfile") -> str:  # type: ignore[name-defined]
+    """Binde eine isolierte Zahl an ihren Kontext aus dem Profil.
+
+    Isolierte Zahlen wie '250' oder '100' driften in generische Treffer
+    (Währungsrechner, Produktseiten). Stattdessen gebundene Formen verwenden:
+        '250' → '250 Euro Bußgeld'
+        '100' → '100 Autofahrten'
+
+    Falls kein sinnvoller Kontext gefunden wird, wird die Zahl NICHT verwendet.
+    """
+    # Prüfe ob Sanktions-Term die Zahl enthält (z.B. "250 Euro Bußgeld")
+    for term in profile.sanction_terms:
+        if number in term:
+            return term  # Bereits gebunden
+
+    # Prüfe ob der Frame-Rohtext eine gebundene Form enthält
+    import re
+    from models.schemas import ProcessedClaim as _PC2
+    raw = ""
+    # Versuche raw_text aus dem Frame zu bekommen
+    if hasattr(profile, '_parent_frame_raw'):
+        raw = profile._parent_frame_raw
+    # Fallback: Suche im Claim-Text nach Zahl + Kontext-Wörtern
+    # Pattern: Zahl gefolgt von oder vorangestellt mit Kontext (z.B. "100 Autofahrten", "250 Euro")
+    for term in profile.policy_terms + profile.action_terms:
+        if term:
+            return f"{number} {term}"
+
+    # Kein sinnvoller Kontext → Zahl nicht verwenden
+    return ""
+
+
 def _build_search_queries_from_profile(claim: "ProcessedClaim") -> list[str]:  # type: ignore[name-defined]
     """Baue Suchqueries aus dem strukturierten ClaimSearchProfile.
 
     Kein freier Claim-Text als primäre Basis. Verhindert Query-Kollaps
     auf generische Einzelbegriffe wie "Höhe", "Bürger", "Bußgeld".
 
+    Query-Qualitätsregel:
+        - Eine Query wird nur hoch priorisiert wenn sie ≥2 starke Anker enthält.
+        - Zahlen nur in gebundener Form (z.B. '250 Euro Bußgeld', nicht '250').
+        - Starke Anker: institution, location, policy_context, Sanktion, gebundene Zahl.
+        - Schwache Komponenten: generische Verben, isolierte Zahlen, Abstraktbegriffe.
+
     Query-Typen:
-        1. entity/policy   – Kernentitäten + Policy + Zahlen
+        1. entity/policy   – Kernentitäten + Policy + gebundene Zahlen
         2. official-source – site:-Hint + Institution + Thema
         3. fact-check      – Faktenchecker + Kernentität + Policy
-        4. sanction/number – Entität + Zahlen + Sanktion (bei STATISTICAL)
+        4. sanction/number – Ort + gebundene Sanktion + Policy
 
     Returns:
         Liste von 2–4 kontextreichen Queries.
@@ -133,18 +211,31 @@ def _build_search_queries_from_profile(claim: "ProcessedClaim") -> list[str]:  #
         q1_parts.extend(profile.policy_terms[:1])
     elif profile.action_terms:
         q1_parts.extend(profile.action_terms[:2])
-    q1_parts.extend(profile.number_terms[:1])
+    # Zahl nur gebunden verwenden – niemals isoliert
+    if profile.number_terms:
+        bound = _bind_number_to_context(profile.number_terms[0], profile)
+        if bound:
+            q1_parts.append(bound)
     if q1_parts:
         q1 = " ".join(p for p in q1_parts if p)
-        if len(q1.strip()) >= 6:
+        # Nur akzeptieren wenn ≥2 starke Anker
+        if len(q1.strip()) >= 6 and _count_strong_anchors(q1_parts, profile) >= 2:
             queries.append(q1.strip())
+        elif len(q1.strip()) >= 6:
+            # Fallback: trotzdem verwenden wenn Institution+Ort vorhanden
+            if profile.institutions and profile.locations:
+                queries.append(q1.strip())
 
     # ── Query 2: official-source ───────────────────────────────────────────
     if profile.official_source_hints:
         q2_parts = [profile.official_source_hints[0]]
         q2_parts.extend(profile.institutions[:1])
-        q2_parts.extend(profile.action_terms[:2])
         q2_parts.extend(profile.policy_terms[:1])
+        # Ergänze Ort wenn noch nicht durch Institution abgedeckt
+        if profile.locations and not any(
+            loc.lower() in " ".join(q2_parts).lower() for loc in profile.locations
+        ):
+            q2_parts.extend(profile.locations[:1])
         q2 = " ".join(p for p in q2_parts if p)
         if q2.strip() not in queries:
             queries.append(q2.strip())
@@ -159,15 +250,26 @@ def _build_search_queries_from_profile(claim: "ProcessedClaim") -> list[str]:  #
             queries.append(q3.strip())
 
     # ── Query 4: sanction/number (nur bei konkreten Zahlen + Sanktionen) ──
-    # Location immer mitführen, damit Treffer wie "Bußgeld 250" ohne Ort vermieden werden
+    # Ort + Policy immer mitführen, damit Treffer wie "Bußgeld 250" ohne Kontext vermieden werden
     if profile.sanction_terms and profile.number_terms:
         q4_parts: list[str] = []
-        # Ort als Kontext-Anker zuerst – verhindert decontextualisierte Treffer
+        # Ort als Kontext-Anker zuerst
         q4_parts.extend(profile.locations[:1])
-        q4_parts.extend(profile.number_terms[:1])
+        # Policy-Kontext mitführen für Verankerung
+        q4_parts.extend(profile.policy_terms[:1])
+        # Gebundene Sanktion verwenden statt isolierter Zahl
         q4_parts.extend(profile.sanction_terms[:1])
         q4 = " ".join(p for p in q4_parts if p)
-        if q4.strip() and q4.strip() not in queries:
+        if q4.strip() and q4.strip() not in queries and _count_strong_anchors(q4_parts, profile) >= 2:
+            queries.append(q4.strip())
+    elif profile.sanction_terms:
+        # Sanktion ohne Zahl: Ort + Policy + Sanktion
+        q4_parts = []
+        q4_parts.extend(profile.locations[:1])
+        q4_parts.extend(profile.policy_terms[:1])
+        q4_parts.extend(profile.sanction_terms[:1])
+        q4 = " ".join(p for p in q4_parts if p)
+        if q4.strip() and q4.strip() not in queries and _count_strong_anchors(q4_parts, profile) >= 2:
             queries.append(q4.strip())
 
     return queries
