@@ -850,3 +850,477 @@ class TestQueryProfileImprovements:
 
 
 import re  # noqa: E402 – benötigt für TestQueryProfileImprovements
+
+
+# ── Tests: Low-Trust-Seitentyp-Erkennung ──────────────────────────────────────
+
+
+class TestLowTrustSiteDetection:
+    """Low-Trust-Seiten (Währungsrechner, Grammatik, Juraforen) müssen erkannt werden."""
+
+    def test_xe_currency_converter_is_low_trust(self):
+        from agents.evidence_builder import _is_low_trust_site
+        assert _is_low_trust_site(
+            "https://www.xe.com/de/currencyconverter/convert/?Amount=250&From=GBP&To=EUR",
+            "250 GBP in EUR – Xe Währungsrechner",
+            "250 Britische Pfund = 289,50 Euro. Aktueller Wechselkurs.",
+        )
+
+    def test_verbformen_grammar_is_low_trust(self):
+        from agents.evidence_builder import _is_low_trust_site
+        assert _is_low_trust_site(
+            "https://www.verbformen.de/konjugation/duerfen.htm",
+            "Konjugation dürfen – alle Formen, Tabellen, Beispiele",
+            "Die Konjugation des Verbs dürfen: Indikativ, Konjunktiv, Imperativ.",
+        )
+
+    def test_juraforum_generic_is_low_trust(self):
+        from agents.evidence_builder import _is_low_trust_site
+        assert _is_low_trust_site(
+            "https://www.juraforum.de/lexikon/kameraueberwachung",
+            "Kameraüberwachung – Juraforum Rechtslexikon",
+            "Definition Kameraüberwachung im deutschen Recht.",
+        )
+
+    def test_currency_converter_snippet_is_low_trust(self):
+        """Auch bei unbekannter Domain: Titel/Snippet mit Währungsumrechnung → Low Trust."""
+        from agents.evidence_builder import _is_low_trust_site
+        assert _is_low_trust_site(
+            "https://unknown-converter.com/eur-gbp",
+            "250 GBP to EUR – Currency Converter",
+            "Convert 250 British Pounds to Euros at current exchange rate.",
+        )
+
+    def test_grammar_conjugation_snippet_is_low_trust(self):
+        """Konjugationsseite über Snippet erkannt, auch bei unbekannter Domain."""
+        from agents.evidence_builder import _is_low_trust_site
+        assert _is_low_trust_site(
+            "https://some-grammar-site.com/verbs",
+            "Konjugation von 'dürfen' – Indikativ, Konjunktiv",
+            "Verb konjugieren: ich darf, du darfst, er darf. Präteritum: durfte.",
+        )
+
+    def test_tagesschau_not_low_trust(self):
+        from agents.evidence_builder import _is_low_trust_site
+        assert not _is_low_trust_site(
+            "https://www.tagesschau.de/inland/hannover-verkehr",
+            "Hannover plant neue Verkehrsregeln",
+            "Der Stadtrat Hannover diskutiert Maßnahmen zur Verkehrsberuhigung.",
+        )
+
+    def test_correctiv_not_low_trust(self):
+        from agents.evidence_builder import _is_low_trust_site
+        assert not _is_low_trust_site(
+            "https://correctiv.org/faktencheck/hannover",
+            "Faktencheck: 15-Minuten-Stadt in Hannover",
+            "Correctiv prüft die Behauptung über eine Fahrtenbegrenzung in Hannover.",
+        )
+
+
+# ── Tests: Hannover C2/C3 Szenario – Regressionstests ────────────────────────
+
+
+def _make_hannover_c2() -> "ProcessedClaim":
+    """C2: Bürger dürfen nur 100x im Jahr mit Auto den Bezirk verlassen."""
+    from models.schemas import ClaimFrame, ClaimSearchProfile, ClaimType, ProcessedClaim
+
+    frame = ClaimFrame(
+        raw_text="Bürger dürfen ihre zugewiesenen Wohnbezirke dann nur noch maximal 100 Mal im Jahr mit dem Auto verlassen.",
+        subject="Bürger",
+        predicate="dürfen verlassen",
+        object="zugewiesene Wohnbezirke",
+        institution="Stadtrat Hannover",
+        location="Hannover",
+        numbers=["100"],
+        sanction="",
+        enforcement="",
+        policy_context="15-Minuten-Stadt",
+    )
+    profile = ClaimSearchProfile(
+        core_entities=["Stadtrat Hannover", "Hannover"],
+        institutions=["Stadtrat Hannover"],
+        locations=["Hannover"],
+        action_terms=["begrenzen", "verlassen"],
+        policy_terms=["15-Minuten-Stadt"],
+        number_terms=["100"],
+        sanction_terms=[],
+        exclusion_terms=["höhe", "bürger", "dürfen"],
+        official_source_hints=["site:hannover.de"],
+        fact_check_hints=["site:correctiv.org"],
+    )
+    return ProcessedClaim(
+        id="C2",
+        text="Bürger dürfen ihre zugewiesenen Wohnbezirke dann nur noch maximal 100 Mal im Jahr mit dem Auto verlassen.",
+        type=ClaimType.STATISTICAL,
+        frame=frame,
+        search_profile=profile,
+    )
+
+
+def _make_hannover_c3() -> "ProcessedClaim":
+    """C3: Zuwiderhandlungen werden per Kamera mit 250 Euro Bußgeld geahndet."""
+    from models.schemas import ClaimFrame, ClaimSearchProfile, ClaimType, ProcessedClaim
+
+    frame = ClaimFrame(
+        raw_text="Zuwiderhandlungen werden automatisiert per Kameraüberwachung mit 250 Euro Bußgeld geahndet.",
+        subject="Zuwiderhandlungen",
+        predicate="geahndet",
+        object="Autofahrer",
+        institution="Stadtrat Hannover",
+        location="Hannover",
+        numbers=["250"],
+        sanction="250 Euro Bußgeld",
+        enforcement="Kameraüberwachung",
+        policy_context="15-Minuten-Stadt",
+    )
+    profile = ClaimSearchProfile(
+        core_entities=["Stadtrat Hannover", "Hannover"],
+        institutions=["Stadtrat Hannover"],
+        locations=["Hannover"],
+        action_terms=["ahnden"],
+        policy_terms=["15-Minuten-Stadt"],
+        number_terms=["250"],
+        sanction_terms=["250 Euro Bußgeld", "Kameraüberwachung"],
+        exclusion_terms=["höhe"],
+        official_source_hints=["site:hannover.de"],
+        fact_check_hints=["site:correctiv.org"],
+    )
+    return ProcessedClaim(
+        id="C3",
+        text="Zuwiderhandlungen werden automatisiert per Kameraüberwachung mit 250 Euro Bußgeld geahndet.",
+        type=ClaimType.STATISTICAL,
+        frame=frame,
+        search_profile=profile,
+    )
+
+
+class TestHannoverC2Regression:
+    """C2: Keine Grammatik-/Konjugationsseiten in Top-Evidenz."""
+
+    def test_c2_queries_no_isolated_duerfen(self):
+        """Queries für C2 sollen nicht zu 'dürfen 100 auto' driften."""
+        from agents.fact_checker import _build_search_queries_from_profile
+
+        claim = _make_hannover_c2()
+        queries = _build_search_queries_from_profile(claim)
+
+        for q in queries:
+            tokens = q.lower().split()
+            # Keine Query soll nur 'dürfen' + Zahl sein
+            assert not (
+                len(tokens) <= 3 and "dürfen" in tokens and any(t.isdigit() for t in tokens)
+            ), f"Zu generische Query würde Grammatikseiten auslösen: '{q}'"
+
+    def test_c2_queries_contain_hannover_and_policy(self):
+        """C2-Queries sollen Hannover und Policy-Kontext enthalten."""
+        from agents.fact_checker import _build_search_queries_from_profile
+
+        claim = _make_hannover_c2()
+        queries = _build_search_queries_from_profile(claim)
+        combined = " ".join(queries).lower()
+
+        assert "hannover" in combined, f"Hannover muss in C2-Queries vorkommen: {queries}"
+        assert "15-minuten" in combined or "stadtrat" in combined, \
+            f"Policy oder Institution muss in C2-Queries vorkommen: {queries}"
+
+    def test_c2_grammar_page_filtered_from_ranking(self):
+        """Grammatik-/Konjugationsseite wird aus Ranking verworfen oder stark abgewertet."""
+        from agents.evidence_builder import _rank_evidence_items
+        from models.schemas import ClaimSearchProfile
+        from tools.web_search import SearchResult
+
+        profile = ClaimSearchProfile(
+            institutions=["Stadtrat Hannover"],
+            locations=["Hannover"],
+            policy_terms=["15-Minuten-Stadt"],
+            number_terms=["100"],
+        )
+        claim_text = "Bürger dürfen Wohnbezirke 100 Mal Jahr Auto verlassen Hannover"
+
+        results = [
+            SearchResult(
+                title="Konjugation dürfen – alle Formen, Tabellen, Beispiele",
+                url="https://www.verbformen.de/konjugation/duerfen.htm",
+                snippet="Die Konjugation des Verbs dürfen im Deutschen: Indikativ, Konjunktiv.",
+            ),
+            SearchResult(
+                title="Hannover: Stadtrat debattiert Verkehrskonzept",
+                url="https://tagesschau.de/inland/hannover-verkehr",
+                snippet="Der Stadtrat Hannover diskutiert das 15-Minuten-Stadt-Konzept.",
+            ),
+        ]
+
+        items = _rank_evidence_items(results, claim_text, [], profile=profile)
+        urls = [i.source.url for i in items]
+
+        # Grammatikseite soll entweder verworfen oder hinter der Tagesschau sein
+        if "verbformen.de" in " ".join(urls):
+            vf_pos = next(i for i, u in enumerate(urls) if "verbformen" in u)
+            ts_pos = next((i for i, u in enumerate(urls) if "tagesschau" in u), -1)
+            if ts_pos >= 0:
+                assert ts_pos < vf_pos, \
+                    "Tagesschau-Artikel soll vor Grammatikseite ranken"
+
+
+class TestHannoverC3Regression:
+    """C3: Keine Währungsrechner in Top-Evidenz."""
+
+    def test_c3_queries_no_isolated_250(self):
+        """C3-Queries sollen nicht '250 euro kamera' oder 'bußgeld 250' isoliert sein."""
+        from agents.fact_checker import _build_search_queries_from_profile
+
+        claim = _make_hannover_c3()
+        queries = _build_search_queries_from_profile(claim)
+
+        for q in queries:
+            tokens = q.lower().split()
+            # Keine Query nur aus '250' + einem generischen Wort
+            if "250" in tokens and len(tokens) <= 2:
+                pytest.fail(f"Isolierte Zahl-Query würde Währungsrechner auslösen: '{q}'")
+
+    def test_c3_queries_contain_bound_sanction(self):
+        """C3-Queries sollen gebundene Sanktion '250 Euro Bußgeld' verwenden, nicht '250' isoliert."""
+        from agents.fact_checker import _build_search_queries_from_profile
+
+        claim = _make_hannover_c3()
+        queries = _build_search_queries_from_profile(claim)
+        combined = " ".join(queries).lower()
+
+        # Wenn 250 vorkommt, muss es gebunden sein (mit Bußgeld, Euro, Sanktion etc.)
+        if "250" in combined:
+            assert "bußgeld" in combined or "euro" in combined or "sanktion" in combined, \
+                f"Zahl '250' muss gebunden vorkommen, nicht isoliert: {queries}"
+
+    def test_c3_currency_converter_filtered(self):
+        """Währungsrechner-Seite wird aus Ranking verworfen."""
+        from agents.evidence_builder import _rank_evidence_items
+        from models.schemas import ClaimSearchProfile
+        from tools.web_search import SearchResult
+
+        profile = ClaimSearchProfile(
+            institutions=["Stadtrat Hannover"],
+            locations=["Hannover"],
+            policy_terms=["15-Minuten-Stadt"],
+            number_terms=["250"],
+            sanction_terms=["250 Euro Bußgeld", "Kameraüberwachung"],
+        )
+        claim_text = "Hannover 250 Euro Bußgeld Kameraüberwachung 15-Minuten-Stadt"
+
+        results = [
+            SearchResult(
+                title="250 GBP in EUR – Xe Währungsrechner",
+                url="https://www.xe.com/de/currencyconverter/convert/?Amount=250&From=GBP&To=EUR",
+                snippet="250 Britische Pfund = 289,50 Euro. Aktueller Wechselkurs.",
+            ),
+            SearchResult(
+                title="Faktencheck: 15-Minuten-Stadt Hannover",
+                url="https://correctiv.org/faktencheck/hannover-15min",
+                snippet="Correctiv prüft die Behauptung über Bußgelder in Hannover.",
+            ),
+        ]
+
+        items = _rank_evidence_items(results, claim_text, [], profile=profile)
+        urls = [i.source.url for i in items]
+
+        # Währungsrechner soll verworfen sein
+        assert "xe.com" not in " ".join(urls), \
+            f"Währungsrechner xe.com soll aus Ranking verworfen werden: {urls}"
+
+    def test_c3_juraforum_without_claim_context_filtered(self):
+        """Allgemeines Juraforum ohne Hannover-Bezug wird abgewertet/verworfen."""
+        from agents.evidence_builder import _rank_evidence_items
+        from models.schemas import ClaimSearchProfile
+        from tools.web_search import SearchResult
+
+        profile = ClaimSearchProfile(
+            institutions=["Stadtrat Hannover"],
+            locations=["Hannover"],
+            policy_terms=["15-Minuten-Stadt"],
+            number_terms=["250"],
+            sanction_terms=["250 Euro Bußgeld"],
+        )
+        claim_text = "Hannover Kameraüberwachung 250 Euro Bußgeld 15-Minuten-Stadt"
+
+        results = [
+            SearchResult(
+                title="Kameraüberwachung – Juraforum Rechtslexikon",
+                url="https://www.juraforum.de/lexikon/kameraueberwachung",
+                snippet="Definition Kameraüberwachung im deutschen Recht. Rechtliche Grundlagen.",
+            ),
+            SearchResult(
+                title="Hannover: Debatte um 15-Minuten-Stadt",
+                url="https://correctiv.org/faktencheck/hannover",
+                snippet="Correctiv prüft: Werden in Hannover Autofahrten begrenzt?",
+            ),
+        ]
+
+        items = _rank_evidence_items(results, claim_text, [], profile=profile)
+        urls = [i.source.url for i in items]
+
+        # Correctiv soll vor Juraforum ranken
+        if "juraforum" in " ".join(urls) and "correctiv" in " ".join(urls):
+            jf_pos = next(i for i, u in enumerate(urls) if "juraforum" in u)
+            co_pos = next(i for i, u in enumerate(urls) if "correctiv" in u)
+            assert co_pos < jf_pos, \
+                "Correctiv soll vor allgemeinem Juraforum ranken"
+
+
+class TestRegulatoryClaimConfidence:
+    """Regelungsclaims ohne offizielle Quellen: Confidence gedeckelt."""
+
+    def _make_regulatory_pack(
+        self, low_trust_rate: float = 0.0
+    ) -> "EvidencePack":
+        from models.evidence_models import (
+            EvidenceItem, EvidencePack, EvidenceQualitySignals,
+            EvidenceSource, SourceConsensus,
+        )
+        quality = EvidenceQualitySignals(
+            has_primary_sources=False,
+            has_fact_check_org_result=False,
+            source_consensus=SourceConsensus.INSUFFICIENT,
+            freshness_score=0.5,
+            overall_quality=0.25,
+            top_tier_count=0,
+            off_topic_rate=0.4,
+            avg_top5_relevance=0.20,
+            low_trust_rate=low_trust_rate,
+        )
+        dummy = EvidenceItem(
+            source=EvidenceSource(
+                url="https://some-blog.de/page",
+                title="Generic Page",
+                domain="some-blog.de",
+                domain_tier=5,
+            ),
+            excerpt="Generic content",
+            relevance_score=0.20,
+            extraction_confidence=0.3,
+        )
+        return EvidencePack(
+            claim_id="C3",
+            claim_text="250 Euro Bußgeld per Kameraüberwachung",
+            evidence_quality=quality,
+            web_results=[dummy],
+        )
+
+    def test_regulatory_claim_without_official_source_capped(self):
+        """Regelungsclaim ohne offizielle Quelle: Confidence stark gedeckelt."""
+        from agents.verdict_agent import _calibrate_confidence
+
+        pack = self._make_regulatory_pack()
+        calibrated, reasons = _calibrate_confidence(
+            raw_confidence=0.92,
+            pack=pack,
+            cove_trace=None,
+            claim_quality_score=0.9,
+            is_regulatory_claim=True,
+        )
+
+        # Multiple Ceilings greifen (insufficient consensus, weak evidence, no primary etc.)
+        # Endwert soll deutlich unter 0.72 liegen
+        assert calibrated <= 0.72, \
+            f"Regulatory claim ohne offizielle Quelle: Confidence ≤ 0.72, war {calibrated:.2f}"
+        assert len(reasons) >= 2, \
+            f"Mehrere Deckungsgründe erwartet: {reasons}"
+
+    def test_regulatory_ceiling_triggers_with_moderate_evidence(self):
+        """Regulatory-Ceiling greift wenn nur die Regulatory-Bedingung fehlt."""
+        from agents.verdict_agent import _calibrate_confidence
+        from models.evidence_models import (
+            EvidenceItem, EvidencePack, EvidenceQualitySignals,
+            EvidenceSource, SourceConsensus,
+        )
+
+        # Moderate Evidenz (overall > 0.3, consensus != insufficient) – aber keine Primary/FC
+        quality = EvidenceQualitySignals(
+            has_primary_sources=False,
+            has_fact_check_org_result=False,
+            source_consensus=SourceConsensus.AGREEING,
+            freshness_score=0.7,
+            overall_quality=0.45,
+            top_tier_count=0,
+            off_topic_rate=0.1,
+            avg_top5_relevance=0.35,
+        )
+        dummy = EvidenceItem(
+            source=EvidenceSource(
+                url="https://news-blog.de/page",
+                title="News",
+                domain="news-blog.de",
+                domain_tier=5,
+            ),
+            excerpt="Content",
+            relevance_score=0.35,
+            extraction_confidence=0.5,
+        )
+        pack = EvidencePack(
+            claim_id="C_reg",
+            claim_text="Bußgeld bei Verstoß",
+            evidence_quality=quality,
+            web_results=[dummy],
+        )
+
+        calibrated, reasons = _calibrate_confidence(
+            raw_confidence=0.88,
+            pack=pack,
+            cove_trace=None,
+            claim_quality_score=0.9,
+            is_regulatory_claim=True,
+        )
+
+        assert calibrated <= 0.72, \
+            f"Regulatory claim ohne offizielle Quelle: Confidence ≤ 0.72, war {calibrated:.2f}"
+        assert any("regelungsclaim" in r.lower() for r in reasons), \
+            f"Soll Regelungsclaim-Ceiling erwähnen: {reasons}"
+
+    def test_high_low_trust_rate_caps_confidence(self):
+        """Wenn Low-Trust-Quellen dominieren: Confidence ≤ 0.62."""
+        from agents.verdict_agent import _calibrate_confidence
+
+        pack = self._make_regulatory_pack(low_trust_rate=0.6)
+        calibrated, reasons = _calibrate_confidence(
+            raw_confidence=0.88,
+            pack=pack,
+            cove_trace=None,
+            claim_quality_score=0.9,
+            is_regulatory_claim=True,
+        )
+
+        assert calibrated <= 0.62, \
+            f"High low-trust rate: Confidence ≤ 0.62, war {calibrated:.2f}"
+        assert any("low-trust" in r.lower() for r in reasons), \
+            f"Soll Low-Trust-Ceiling erwähnen: {reasons}"
+
+    def test_non_regulatory_claim_not_affected(self):
+        """Nicht-Regelungsclaim soll kein Regulatory-Ceiling bekommen."""
+        from agents.verdict_agent import _calibrate_confidence
+        from models.evidence_models import (
+            EvidencePack, EvidenceQualitySignals, SourceConsensus,
+        )
+
+        quality = EvidenceQualitySignals(
+            has_primary_sources=True,
+            has_fact_check_org_result=True,
+            source_consensus=SourceConsensus.AGREEING,
+            freshness_score=0.9,
+            overall_quality=0.85,
+            top_tier_count=2,
+            avg_top5_relevance=0.70,
+        )
+        pack = EvidencePack(
+            claim_id="C_test",
+            claim_text="Test Claim",
+            evidence_quality=quality,
+            web_results=[],
+        )
+        calibrated, reasons = _calibrate_confidence(
+            raw_confidence=0.90,
+            pack=pack,
+            cove_trace=None,
+            claim_quality_score=0.9,
+            is_regulatory_claim=False,
+        )
+
+        assert not any("regelungsclaim" in r.lower() for r in reasons), \
+            f"Nicht-Regulatory Claim soll kein Regulatory-Ceiling haben: {reasons}"

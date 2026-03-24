@@ -45,6 +45,10 @@ _CEILING_POOR_CLAIM_QUALITY = 0.72
 _CEILING_LOW_AVG_RELEVANCE = 0.68
 # Ceiling bei sehr schwacher Top-5-Relevanz (fast alle Quellen unbrauchbar)
 _CEILING_VERY_LOW_AVG_RELEVANCE = 0.58
+# Ceiling bei hohem Low-Trust-Anteil in Top-5 (Währungsrechner, Grammatik, Juraforen)
+_CEILING_HIGH_LOW_TRUST = 0.62
+# Ceiling bei fehlender offizieller Quelle für Regelungsclaims
+_CEILING_REGULATORY_NO_OFFICIAL = 0.72
 # Minimale Anzahl guter Quellen für hohe Confidence
 _MIN_GOOD_SOURCES_FOR_HIGH_CONF = 2
 
@@ -54,6 +58,7 @@ def _calibrate_confidence(
     pack: "EvidencePack",
     cove_trace: "CoVeTrace | None",
     claim_quality_score: float = 1.0,
+    is_regulatory_claim: bool = False,
 ) -> tuple[float, list[str]]:
     """Regelbasierter Confidence-Postprocessor.
 
@@ -66,6 +71,8 @@ def _calibrate_confidence(
         - Schwache Evidenzqualität (overall < 0.30): max 0.70
         - Schlechte Claim-Qualität (score < 0.50): max 0.72
         - Insufficient source consensus: max 0.65
+        - Hoher Low-Trust-Anteil in Top-5: max 0.62
+        - Regelungsclaim ohne offizielle Quelle: max 0.72
 
     Penalty-Regeln:
         - Zu wenige gute Quellen (Tier 1-3 oder Fact-Check): -0.10
@@ -80,6 +87,8 @@ def _calibrate_confidence(
         cove_trace: Optionaler Chain-of-Verification Trace
         claim_quality_score: Qualität des ursprünglichen Claims (0.0–1.0)
                              aus ProcessedClaim.claim_quality_score
+        is_regulatory_claim: True wenn der Claim Beschlüsse, Bußgelder,
+                             Überwachung oder rechtlich bindende Regeln behauptet
     """
     confidence = raw_confidence
     reasons: list[str] = []
@@ -160,6 +169,25 @@ def _calibrate_confidence(
             )
             confidence = min(confidence, _CEILING_LOW_AVG_RELEVANCE)
 
+    # Ceiling: hoher Low-Trust-Anteil (Währungsrechner, Grammatik, Juraforen in Top-5)
+    _low_trust = quality.low_trust_rate if quality else 0.0
+    if quality and _low_trust > 0.3:
+        if confidence > _CEILING_HIGH_LOW_TRUST:
+            reasons.append(
+                f"Low-Trust-Quellen dominieren (Rate={_low_trust:.0%}) → "
+                f"Ceiling {_CEILING_HIGH_LOW_TRUST}"
+            )
+            confidence = min(confidence, _CEILING_HIGH_LOW_TRUST)
+
+    # Ceiling: Regelungsclaim ohne offizielle Quelle (Tier 1-2)
+    if is_regulatory_claim and not has_primary and not has_fc:
+        if confidence > _CEILING_REGULATORY_NO_OFFICIAL:
+            reasons.append(
+                f"Regelungsclaim ohne offizielle Quelle/Fact-Check → "
+                f"Ceiling {_CEILING_REGULATORY_NO_OFFICIAL}"
+            )
+            confidence = min(confidence, _CEILING_REGULATORY_NO_OFFICIAL)
+
     # ── Penalties ─────────────────────────────────────────────────────────────
 
     # Penalty: zu wenige gute Quellen (Tier 1-3 oder Fact-Check)
@@ -239,6 +267,17 @@ Quelle diesen Sachverhalt bestätigt, dann:
   der Claim dieses aber verzerrt oder übertreibt
 - UNVERIFIABLE nur, wenn das Thema prinzipiell nicht nachprüfbar ist (z.B. interne
   Beratungen ohne öffentliche Quellen) – NICHT als Ausweichoption bei schlechten Quellen
+- Konkret: Wenn ein spezifisches Bußgeld, eine Überwachungsmaßnahme oder eine
+  rechtlich bindende Regel behauptet wird und KEINE Regelungsgrundlage in den
+  Quellen existiert, ist das Urteil FALSE – nicht MISLEADING
+
+## Quellen-Qualitätshinweis
+Wenn die Evidenzquellen überwiegend aus allgemeinen Hilfsseiten bestehen
+(Währungsrechner, Grammatikseiten, Juraforen ohne Claim-Bezug, Bußgeldrechner):
+- Diese Quellen belegen NICHTS über den konkreten Claim
+- Behandle solche Quellen als Nicht-Evidenz (weder stützend noch widerlegend)
+- Ziehe dein Urteil AUS DEM FEHLEN belastbarer Quellen, nicht aus dem Inhalt
+  irrelevanter Seiten
 
 ## Output-Format (JSON)
 {
@@ -301,12 +340,21 @@ class VerdictAgent(BaseAgent):
         # Claim-Qualität einbeziehen (kommt aus ProcessedClaim wenn vorhanden)
         from models.schemas import ProcessedClaim as _PC
         claim_quality = 1.0
+        is_regulatory = False
         if isinstance(claim, _PC):
             claim_quality = claim.claim_quality_score
+            # Regulatory-Claim-Erkennung aus Frame-Feldern
+            if claim.frame:
+                f = claim.frame
+                is_regulatory = bool(
+                    f.sanction or f.enforcement
+                    or (f.policy_context and f.institution)
+                )
 
         calibrated_confidence, calibration_reasons = _calibrate_confidence(
             raw_confidence, pack, cove_trace,
             claim_quality_score=claim_quality,
+            is_regulatory_claim=is_regulatory,
         )
 
         # Unsicherheitssignale aus Kalibrierung + eigenen Checks sammeln
