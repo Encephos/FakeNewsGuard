@@ -127,6 +127,32 @@ _OFFTOPIC_URL_PATTERNS: list[re.Pattern] = [
     re.compile(r"(wetter|weather|horoskop|horoscope)", re.IGNORECASE),
     re.compile(r"(shop|kaufen|bestellen|amazon|ebay)", re.IGNORECASE),
     re.compile(r"(forum|reddit\.com/r/(?!de|europe|news|worldnews))", re.IGNORECASE),
+    # Bußgeld-/Strafrechner ohne redaktionellen Kontext
+    re.compile(r"(bu[sß]sgeld|straf|verwarn).*(rechner|calculator|berechne)", re.IGNORECASE),
+    re.compile(r"rechner.*(bu[sß]sgeld|strafe|verwarn)", re.IGNORECASE),
+    # Bekannte Produkt-/Shop-Domains
+    re.compile(r"(mediamarkt|saturn\.de|otto\.de|zalando|idealo|geizhals)", re.IGNORECASE),
+    # Generische Produkt-URLs (preis, angebot, produkt in URL)
+    re.compile(r"/(preis|angebot|produkt|artikel)-", re.IGNORECASE),
+]
+
+# Bekannte kommerzielle/nicht-redaktionelle Domains
+_COMMERCIAL_DOMAINS: frozenset[str] = frozenset({
+    "mediamarkt.de", "saturn.de", "otto.de", "zalando.de", "idealo.de",
+    "amazon.de", "amazon.com", "ebay.de", "ebay.com", "geizhals.de",
+    "preisvergleich.de", "check24.de", "verivox.de",
+    "bussgeldkatalog.de", "bussgeldkatalog.org", "bussgeld.de",
+    "bussgeldrechner.de", "bußgeldrechner.net", "bussgeldrechner.org",
+    "strafzettel-ratgeber.de", "recht-finanzen.de",
+})
+
+# Kommerzielle Content-Signale (Snippets/Titel)
+_COMMERCIAL_SNIPPET_PATTERNS: list[re.Pattern] = [
+    re.compile(r"\bjetzt\s+(kaufen|bestellen|sichern)\b", re.IGNORECASE),
+    re.compile(r"\bab\s+\d+\s*euro\b.*\b(kaufen|bestellen|shop)\b", re.IGNORECASE),
+    re.compile(r"\b(günstig|billig|preis|angebot|rabatt|deal)\b.{0,30}\b(kaufen|bestellen|shop)\b", re.IGNORECASE),
+    re.compile(r"\bpreisvergleich\b|\bversandkostenfrei\b|\bin\s+den\s+warenkorb\b", re.IGNORECASE),
+    re.compile(r"\bbußgeld\s+berechnen\b|\bbu[sß]sgeld\s+rechner\b", re.IGNORECASE),
 ]
 
 
@@ -155,10 +181,23 @@ def _entity_overlap(claim_text: str, result_text: str) -> float:
 
 def _is_offtopic_url(url: str) -> bool:
     """Prüfe ob die URL auf eine typisch irrelevante Seite hinweist."""
+    domain = _extract_domain(url)
+    if domain in _COMMERCIAL_DOMAINS:
+        return True
     for pattern in _OFFTOPIC_URL_PATTERNS:
         if pattern.search(url):
             return True
     return False
+
+
+def _has_commercial_content(title: str, snippet: str) -> bool:
+    """Prüfe ob Titel/Snippet typische Kauf-/Shop-Sprache enthalten.
+
+    Erkennt Produktseiten, Bußgeldrechner und andere kommerzielle Inhalte
+    die keine redaktionellen Faktencheck-Quellen sind.
+    """
+    combined = f"{title} {snippet}"
+    return any(p.search(combined) for p in _COMMERCIAL_SNIPPET_PATTERNS)
 
 
 def _is_offtopic_content(
@@ -222,10 +261,21 @@ def _is_offtopic_content(
         term.lower() in combined for term in profile.exclusion_terms if term
     )
 
+    # Hartes Signal: kommerzieller Inhalt (Produktseite, Rechner, Shop)
+    is_commercial = _has_commercial_content(title, snippet)
+    if is_commercial:
+        # Kommerzielle Seite die keine Institution/Ort trifft → sofort hard-offtopic
+        if has_inst_anchor and has_loc_anchor and not inst_hit and not loc_hit:
+            return True, 0.80
+        # Kommerzielle Seite ohne Policy-Kontext → starke Abwertung
+        if not policy_hit and not inst_hit:
+            return True, 0.75
+
     # Off-topic wenn: Institution + Ort erwartet aber keiner trifft zu
     if has_inst_anchor and has_loc_anchor:
         if not inst_hit and not loc_hit and not policy_hit:
-            penalty = 0.7 if not number_hit else 0.5
+            # Zahlenübereinstimmung allein ist kein ausreichendes Relevanz-Signal
+            penalty = 0.70 if number_hit else 0.70
             return True, penalty
 
     # Off-topic wenn: Nur Exclusion-Begriffe treffen zu, keine echten Anker
@@ -495,7 +545,8 @@ def _rank_evidence_items(
             content_offtopic, content_penalty = _is_offtopic_content(
                 r.title, r.snippet, profile
             )
-            if content_offtopic and rel < 0.25 and not is_fc and not has_gfc_match:
+            # Erhöhte Discard-Schwelle: 0.30 statt 0.25 – fängt mehr Randtreffer ab
+            if content_offtopic and rel < 0.30 and not is_fc and not has_gfc_match:
                 continue  # Klar off-topic: verwerfen
 
         # 3. Generisch: Tier-5 ohne Relevanz

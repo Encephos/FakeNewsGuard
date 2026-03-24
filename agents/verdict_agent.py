@@ -41,6 +41,10 @@ _CEILING_WEAK_EVIDENCE = 0.70
 _CEILING_INSUFFICIENT_CONSENSUS = 0.65
 # Maximale Confidence bei sehr schlechter Claim-Qualität
 _CEILING_POOR_CLAIM_QUALITY = 0.72
+# Ceiling bei schwacher durchschnittlicher Top-5-Relevanz (Produkte, Rechner etc.)
+_CEILING_LOW_AVG_RELEVANCE = 0.68
+# Ceiling bei sehr schwacher Top-5-Relevanz (fast alle Quellen unbrauchbar)
+_CEILING_VERY_LOW_AVG_RELEVANCE = 0.58
 # Minimale Anzahl guter Quellen für hohe Confidence
 _MIN_GOOD_SOURCES_FOR_HIGH_CONF = 2
 
@@ -136,6 +140,26 @@ def _calibrate_confidence(
             )
             confidence = min(confidence, _CEILING_POOR_CLAIM_QUALITY)
 
+    # Ceiling: schwache Top-5-Relevanz (Produkte, Rechner, allgemeine Seiten dominieren)
+    # Nur anwenden wenn ein echter Messwert vorliegt: avg_top5_relevance > 0.0.
+    # Der Default 0.0 ist ein Sentinel-Wert ("nicht gemessen"), kein echter Messwert.
+    # In der Praxis berechnet _compute_quality_signals immer > 0 wenn web_results vorhanden.
+    _avg_rel = quality.avg_top5_relevance if quality else 0.0
+    if quality and _avg_rel > 0.0 and _avg_rel < 0.15:
+        if confidence > _CEILING_VERY_LOW_AVG_RELEVANCE:
+            reasons.append(
+                f"Top-5-Quellen sehr schwach (Relevanz Ø={_avg_rel:.2f}) → "
+                f"Ceiling {_CEILING_VERY_LOW_AVG_RELEVANCE}"
+            )
+            confidence = min(confidence, _CEILING_VERY_LOW_AVG_RELEVANCE)
+    elif quality and _avg_rel > 0.0 and _avg_rel < 0.25:
+        if confidence > _CEILING_LOW_AVG_RELEVANCE:
+            reasons.append(
+                f"Top-5-Quellen schwach (Relevanz Ø={_avg_rel:.2f}) → "
+                f"Ceiling {_CEILING_LOW_AVG_RELEVANCE}"
+            )
+            confidence = min(confidence, _CEILING_LOW_AVG_RELEVANCE)
+
     # ── Penalties ─────────────────────────────────────────────────────────────
 
     # Penalty: zu wenige gute Quellen (Tier 1-3 oder Fact-Check)
@@ -205,6 +229,16 @@ Du erhältst strukturierte Evidenz (keine Webseiten-Rohtexte).
 - Sei fair: Wenn etwas stimmt, sag es klar
 - Prüfe Zeitraum, Bezugsgröße, Kategorie
 - Gib die URLs der verwendeten Quellen an
+
+## Sonderregel: Claims über Beschlüsse, Bußgelder, Überwachung, Regelungen
+Wenn ein Claim eine konkrete Regelung, einen Beschluss, ein Bußgeld oder eine
+Überwachungsmaßnahme behauptet UND keine belastbare amtliche oder journalistische
+Quelle diesen Sachverhalt bestätigt, dann:
+- Bevorzuge FALSE oder MOSTLY_FALSE gegenüber MISLEADING oder UNVERIFIABLE
+- MISLEADING nur, wenn ein ähnliches (nicht identisches) Konzept belegt ist,
+  der Claim dieses aber verzerrt oder übertreibt
+- UNVERIFIABLE nur, wenn das Thema prinzipiell nicht nachprüfbar ist (z.B. interne
+  Beratungen ohne öffentliche Quellen) – NICHT als Ausweichoption bei schlechten Quellen
 
 ## Output-Format (JSON)
 {

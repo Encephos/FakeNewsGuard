@@ -592,3 +592,261 @@ class TestRankingIntegration:
         assert calibrated <= 0.75, \
             f"Confidence soll bei schwacher Evidenz ≤ 0.75 sein, war {calibrated:.2f}"
         assert reasons, "Deckelungs-Grund soll angegeben sein"
+
+
+# ── Tests: Neue Ceilings für schwache avg_top5_relevance ─────────────────────
+
+
+class TestAvgRelevanceCeilings:
+    """Confidence-Ceiling bei schwacher Top-5-Relevanz (Produkte, Rechner, Hilfsseiten)."""
+
+    def _make_pack(self, avg_relevance: float, off_topic_rate: float = 0.2) -> "EvidencePack":
+        from models.evidence_models import (
+            EvidencePack, EvidenceItem, EvidenceQualitySignals, EvidenceSource, SourceConsensus,
+        )
+        quality = EvidenceQualitySignals(
+            has_primary_sources=False,
+            has_fact_check_org_result=False,
+            source_consensus=SourceConsensus.INSUFFICIENT,
+            freshness_score=0.5,
+            overall_quality=0.30,
+            top_tier_count=0,
+            off_topic_rate=off_topic_rate,
+            avg_top5_relevance=avg_relevance,
+        )
+        # Mindestens ein EvidenceItem damit web_results nicht leer ist
+        # (leere web_results → avg_top5_relevance Ceiling wird nicht ausgelöst)
+        dummy_item = EvidenceItem(
+            source=EvidenceSource(
+                url="https://some-blog.de/page",
+                title="Generic Page",
+                domain="some-blog.de",
+                domain_tier=5,
+                is_fact_check_org=False,
+            ),
+            excerpt="Generic content",
+            relevance_score=avg_relevance,
+            extraction_confidence=0.3,
+        )
+        return EvidencePack(
+            claim_id="C_test",
+            claim_text="Test Claim",
+            evidence_quality=quality,
+            web_results=[dummy_item],
+        )
+
+    def test_very_low_relevance_ceiling_058(self):
+        """avg_top5_relevance=0.10 (echter Messwert) → Ceiling 0.58."""
+        from agents.verdict_agent import _calibrate_confidence
+        # avg_relevance=0.10 ist ein echter Messwert (> 0), Ceiling soll greifen
+        pack = self._make_pack(avg_relevance=0.10)
+        calibrated, reasons = _calibrate_confidence(0.90, pack, None, 1.0)
+        assert calibrated <= 0.58, \
+            f"Bei avg_relevance=0.10 soll Ceiling ≤ 0.58 sein, war {calibrated:.2f}"
+        assert any("sehr schwach" in r.lower() or "top-5" in r.lower() for r in reasons), \
+            "Ceiling-Grund soll Top-5-Relevanz erwähnen"
+
+    def test_low_relevance_ceiling_068(self):
+        """avg_top5_relevance=0.20 (echter Messwert) → Ceiling 0.68."""
+        from agents.verdict_agent import _calibrate_confidence
+        pack = self._make_pack(avg_relevance=0.20)
+        calibrated, reasons = _calibrate_confidence(0.90, pack, None, 1.0)
+        assert calibrated <= 0.68, \
+            f"Bei avg_relevance=0.20 soll Ceiling ≤ 0.68 sein, war {calibrated:.2f}"
+
+    def test_acceptable_relevance_no_new_ceiling(self):
+        """avg_top5_relevance ≥ 0.25 löst keinen neuen Relevanz-Ceiling aus."""
+        from agents.verdict_agent import _calibrate_confidence
+        pack = self._make_pack(avg_relevance=0.35)
+        calibrated, reasons = _calibrate_confidence(0.90, pack, None, 1.0)
+        # Andere Ceilings (kein Primary, kein FC) greifen weiterhin
+        # Aber kein spezifischer avg_relevance-Ceiling
+        assert not any("top-5-quellen schwach" in r.lower() for r in reasons), \
+            "Bei avg_relevance=0.35 soll kein Top-5-Relevanz-Ceiling ausgelöst werden"
+
+    def test_zero_avg_relevance_no_false_ceiling(self):
+        """avg_top5_relevance=0.0 (Default-Sentinel, nicht gemessen) → kein Ceiling."""
+        from agents.verdict_agent import _calibrate_confidence
+        from models.evidence_models import EvidencePack, EvidenceQualitySignals, SourceConsensus
+        # Leeres Pack ohne Quellen – avg_top5_relevance=0.0 ist Sentinel, kein Messwert
+        quality = EvidenceQualitySignals(
+            has_primary_sources=True,
+            has_fact_check_org_result=True,
+            source_consensus=SourceConsensus.AGREEING,
+            freshness_score=0.9,
+            overall_quality=0.9,
+            top_tier_count=1,
+            avg_top5_relevance=0.0,  # Sentinel-Default
+        )
+        pack = EvidencePack(
+            claim_id="C_test",
+            claim_text="Test Claim",
+            evidence_quality=quality,
+            web_results=[],  # leer → avg_top5_relevance ist Dummy
+        )
+        calibrated, reasons = _calibrate_confidence(0.90, pack, None, 1.0)
+        # Kein avg-Relevanz-Ceiling soll ausgelöst werden
+        assert not any("top-5" in r.lower() for r in reasons), \
+            f"Bei avg_relevance=0.0 ohne Quellen soll kein Ceiling ausgelöst werden: {reasons}"
+
+
+# ── Tests: Commercial Content Erkennung ──────────────────────────────────────
+
+
+class TestCommercialContentDetection:
+    """_has_commercial_content erkennt Shop-Sprache in Titeln/Snippets."""
+
+    def test_shop_buy_language_detected(self):
+        from agents.evidence_builder import _has_commercial_content
+        assert _has_commercial_content(
+            "Überwachungskamera 250 Euro – Jetzt kaufen",
+            "Top Angebote für Überwachungskameras. Jetzt bestellen!",
+        )
+
+    def test_bussgeldrechner_detected(self):
+        from agents.evidence_builder import _has_commercial_content
+        assert _has_commercial_content(
+            "Bußgeldrechner online",
+            "Bußgeld berechnen: Geben Sie Ihr Vergehen ein und berechnen Sie das Bußgeld.",
+        )
+
+    def test_news_article_not_commercial(self):
+        from agents.evidence_builder import _has_commercial_content
+        assert not _has_commercial_content(
+            "Hannover: Stadtrat debattiert 15-Minuten-Stadt",
+            "Der Stadtrat Hannover diskutiert Maßnahmen zur Verkehrsberuhigung.",
+        )
+
+    def test_correctiv_not_commercial(self):
+        from agents.evidence_builder import _has_commercial_content
+        assert not _has_commercial_content(
+            "Faktencheck: Wird in Hannover eine Fahrtensteuer eingeführt?",
+            "Correctiv hat geprüft ob der Stadtrat Hannover Autofahrten begrenzen will.",
+        )
+
+
+# ── Tests: Shop-Domain als off-topic URL ─────────────────────────────────────
+
+
+class TestShopDomainOfftopic:
+    """Bekannte Shop-Domains sollen via _is_offtopic_url erkannt werden."""
+
+    def test_mediamarkt_offtopic_url(self):
+        from agents.evidence_builder import _is_offtopic_url
+        assert _is_offtopic_url("https://www.mediamarkt.de/de/product/kamera.html")
+
+    def test_bussgeldrechner_offtopic_url(self):
+        from agents.evidence_builder import _is_offtopic_url
+        assert _is_offtopic_url("https://www.bussgeldkatalog.de/rechner/")
+        assert _is_offtopic_url("https://bussgeldrechner.de/berechnen")
+
+    def test_correctiv_not_offtopic_url(self):
+        from agents.evidence_builder import _is_offtopic_url
+        assert not _is_offtopic_url("https://correctiv.org/faktencheck/hannover-15min")
+
+    def test_saturn_offtopic_url(self):
+        from agents.evidence_builder import _is_offtopic_url
+        assert _is_offtopic_url("https://www.saturn.de/de/product/kamera")
+
+
+# ── Tests: Q1 action_terms Fallback + Q4 Location-Anker ─────────────────────
+
+
+class TestQueryProfileImprovements:
+    """Verbesserte Query-Generierung aus SearchProfile."""
+
+    def test_q1_uses_action_terms_when_no_policy(self):
+        """Wenn policy_terms leer, sollen action_terms in Q1 landen."""
+        from agents.fact_checker import _build_search_queries_from_profile
+        from models.schemas import ClaimFrame, ClaimSearchProfile, ClaimType, ProcessedClaim
+
+        frame = ClaimFrame(
+            raw_text="Der Stadtrat Hannover plant Maßnahmen zur Verkehrsberuhigung.",
+            subject="Stadtrat Hannover",
+            predicate="plant Maßnahmen",
+            object="Verkehrsberuhigung",
+            institution="Stadtrat Hannover",
+            location="Hannover",
+            policy_context="",  # absichtlich leer
+        )
+        profile = ClaimSearchProfile(
+            core_entities=["Stadtrat Hannover"],
+            institutions=["Stadtrat Hannover"],
+            locations=["Hannover"],
+            action_terms=["Verkehrsberuhigung", "Beschluss"],
+            policy_terms=[],  # leer
+            number_terms=[],
+            sanction_terms=[],
+            official_source_hints=["site:hannover.de"],
+            fact_check_hints=["site:correctiv.org"],
+        )
+        claim = ProcessedClaim(
+            id="C_test", text="Stadtrat Hannover Verkehr", type=ClaimType.FACTUAL,
+            frame=frame, search_profile=profile,
+        )
+        queries = _build_search_queries_from_profile(claim)
+        q1 = queries[0] if queries else ""
+        assert any("verkehrsberuhigung" in q.lower() or "beschluss" in q.lower() for q in queries), \
+            f"Q1 soll action_term enthalten wenn policy_terms leer: {queries}"
+
+    def test_q4_includes_location_anchor(self):
+        """Q4 (sanction/number) soll Ort als Anker enthalten."""
+        from agents.fact_checker import _build_search_queries_from_profile
+        from models.schemas import ClaimFrame, ClaimSearchProfile, ClaimType, ProcessedClaim
+
+        frame = ClaimFrame(
+            raw_text="Verstöße werden mit 250 Euro Bußgeld geahndet.",
+            subject="Stadtrat Hannover",
+            predicate="ahndet",
+            object="Verstöße",
+            institution="Stadtrat Hannover",
+            location="Hannover",
+            numbers=["250"],
+            sanction="250 Euro Bußgeld",
+            policy_context="15-Minuten-Stadt",
+        )
+        profile = ClaimSearchProfile(
+            core_entities=["Stadtrat Hannover", "Hannover"],
+            institutions=["Stadtrat Hannover"],
+            locations=["Hannover"],
+            action_terms=["ahnden"],
+            policy_terms=["15-Minuten-Stadt"],
+            number_terms=["250"],
+            sanction_terms=["250 Euro Bußgeld"],
+            official_source_hints=["site:hannover.de"],
+            fact_check_hints=["site:correctiv.org"],
+        )
+        claim = ProcessedClaim(
+            id="C_test", text="Verstöße 250 Euro Bußgeld Hannover", type=ClaimType.FACTUAL,
+            frame=frame, search_profile=profile,
+        )
+        queries = _build_search_queries_from_profile(claim)
+        # Q4 (sanction) soll Location enthalten, nicht nur "250 Bußgeld"
+        sanction_queries = [q for q in queries if "250" in q or "bußgeld" in q.lower()]
+        for q in sanction_queries:
+            assert "hannover" in q.lower(), \
+                f"Sanktions-Query soll Ort 'Hannover' enthalten, war: '{q}'"
+
+    def test_hannover_full_profile_at_least_3_queries(self):
+        """Vollständiges SearchProfile soll ≥ 3 Queries ohne LLM erzeugen."""
+        from agents.fact_checker import _build_search_queries_from_profile
+        claim = _make_hannover_claim()
+        queries = _build_search_queries_from_profile(claim)
+        assert len(queries) >= 3, \
+            f"Vollständiges Profil soll ≥ 3 Queries erzeugen, war {len(queries)}: {queries}"
+
+    def test_no_decontextualized_number_queries(self):
+        """Es darf keine Query entstehen die nur aus Zahlen/generischen Tokens besteht."""
+        from agents.fact_checker import _build_search_queries_from_profile
+        claim = _make_hannover_claim()
+        queries = _build_search_queries_from_profile(claim)
+        for q in queries:
+            tokens = q.strip().split()
+            # Eine gültige Query muss mehr als 1 Token haben
+            assert len(tokens) >= 2, f"Zu kurze/generische Query: '{q}'"
+            # Keine Query besteht nur aus Zahlen
+            all_numbers = all(re.match(r"^\d+$", t) for t in tokens)
+            assert not all_numbers, f"Query besteht nur aus Zahlen: '{q}'"
+
+
+import re  # noqa: E402 – benötigt für TestQueryProfileImprovements

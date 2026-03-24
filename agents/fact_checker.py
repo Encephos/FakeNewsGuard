@@ -124,10 +124,15 @@ def _build_search_queries_from_profile(claim: "ProcessedClaim") -> list[str]:  #
     queries: list[str] = []
 
     # ── Query 1: entity/policy ─────────────────────────────────────────────
+    # Bevorzuge Institution + Ort + Policy; falls keine Policy → action_terms
     q1_parts: list[str] = []
     q1_parts.extend(profile.institutions[:1])
     q1_parts.extend(profile.locations[:1])
-    q1_parts.extend(profile.policy_terms[:1])
+    # Policy-Kontext bevorzugen; Fallback auf action_terms wenn leer
+    if profile.policy_terms:
+        q1_parts.extend(profile.policy_terms[:1])
+    elif profile.action_terms:
+        q1_parts.extend(profile.action_terms[:2])
     q1_parts.extend(profile.number_terms[:1])
     if q1_parts:
         q1 = " ".join(p for p in q1_parts if p)
@@ -154,9 +159,11 @@ def _build_search_queries_from_profile(claim: "ProcessedClaim") -> list[str]:  #
             queries.append(q3.strip())
 
     # ── Query 4: sanction/number (nur bei konkreten Zahlen + Sanktionen) ──
+    # Location immer mitführen, damit Treffer wie "Bußgeld 250" ohne Ort vermieden werden
     if profile.sanction_terms and profile.number_terms:
         q4_parts: list[str] = []
-        q4_parts.extend(profile.core_entities[:1])
+        # Ort als Kontext-Anker zuerst – verhindert decontextualisierte Treffer
+        q4_parts.extend(profile.locations[:1])
         q4_parts.extend(profile.number_terms[:1])
         q4_parts.extend(profile.sanction_terms[:1])
         q4 = " ".join(p for p in q4_parts if p)
