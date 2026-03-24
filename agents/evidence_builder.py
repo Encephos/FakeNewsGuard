@@ -436,25 +436,40 @@ def _compute_quality_signals(
         else:
             consensus = SourceConsensus.MIXED
 
+    # Off-topic-Rate: Anteil schwach-relevanter Treffer in den Top-5
+    top_5 = items[:5]
+    if top_5:
+        offtopic_count = sum(1 for i in top_5 if i.relevance_score < 0.2)
+        off_topic_rate = offtopic_count / len(top_5)
+    else:
+        off_topic_rate = 0.0
+
     # Echte Freshness-Berechnung (Durchschnitt der Top-Quellen)
     freshness_scores = [
         _compute_freshness(i.source.publication_date)
         for i in items[:6]
         if i.source.publication_date
     ]
-    freshness = sum(freshness_scores) / len(freshness_scores) if freshness_scores else 0.5
+    # 0.0 wenn keine Items (nicht 0.5 neutral) – verhindert künstliche overall_quality-Inflation
+    freshness = sum(freshness_scores) / len(freshness_scores) if freshness_scores else (0.5 if items else 0.0)
 
     # Relevanz-Qualität: wie relevant sind die Top-Treffer?
     top_relevance = [i.relevance_score for i in items[:5]]
     avg_relevance = sum(top_relevance) / len(top_relevance) if top_relevance else 0.0
+
+    # Off-topic-Penalty in overall_quality einrechnen
+    offtopic_penalty = off_topic_rate * 0.15
+    freshness_term = freshness * 0.10 if items else 0.0
 
     overall = (
         min(1.0, top_tier_count / 3) * 0.30
         + (0.25 if has_primary else 0)
         + (0.25 if has_fc else 0)
         + avg_relevance * 0.10
-        + freshness * 0.10
+        + freshness_term
+        - offtopic_penalty
     )
+    overall = max(0.0, min(1.0, overall))
 
     return EvidenceQualitySignals(
         has_primary_sources=has_primary,
@@ -463,6 +478,8 @@ def _compute_quality_signals(
         freshness_score=freshness,
         overall_quality=overall,
         top_tier_count=top_tier_count,
+        off_topic_rate=off_topic_rate,
+        avg_top5_relevance=avg_relevance,
     )
 
 
@@ -533,16 +550,22 @@ class EvidenceBuilderAgent(BaseAgent):
         notes.append(f"Queries: {queries}")
 
         # ── 2. Paralleles Retrieval ───────────────────────────────────────────
-        # SearXNG + LangSearch + Google Fact Check parallel
+        # Strategie: LangSearch = semantische Hauptsuche (Primär-Queries)
+        #            SearXNG = Breite/Fallback/Discovery (alle Queries)
+        # Google Fact Check = strukturierter Shortcut-Layer (höchste Priorität)
         from agents.fact_checker import _categories_for_claim
         categories = _categories_for_claim(claim)
+
+        # LangSearch bekommt nur die ersten 2 Queries (semantisch präziser)
+        langsearch_primary_queries = queries[:2] if len(queries) >= 2 else queries
 
         searxng_task = self._async_search.multi_search_async(
             queries, max_results=self.config.search.max_results,
             categories=categories,
         )
         langsearch_task = self._langsearch.multi_search_async(
-            queries, max_results=self.config.langsearch.max_results,
+            langsearch_primary_queries,
+            max_results=self.config.langsearch.max_results,
         )
         gfc_task = self._gfc_client.search_async(claim.text)
 
@@ -551,16 +574,18 @@ class EvidenceBuilderAgent(BaseAgent):
         )
 
         # ── 3. Ergebnisse zusammenführen + deduplizieren ──────────────────────
+        # LangSearch-Ergebnisse zuerst einfügen (semantisch priorisiert)
         all_results: list[SearchResult] = []
-        for results_by_q in (searxng_results, langsearch_results):
-            for q_results in results_by_q.values():
-                all_results.extend(q_results)
+        for q_results in langsearch_results.values():
+            all_results.extend(q_results)
+        for q_results in searxng_results.values():
+            all_results.extend(q_results)
 
         unique_results = _dedup_results(all_results)
         notes.append(
             f"Retrieval: {len(all_results)} Treffer → {len(unique_results)} unique "
-            f"(SearXNG: {sum(len(v) for v in searxng_results.values())}, "
-            f"LangSearch: {sum(len(v) for v in langsearch_results.values())})"
+            f"(LangSearch: {sum(len(v) for v in langsearch_results.values())} primär, "
+            f"SearXNG: {sum(len(v) for v in searxng_results.values())} breit)"
         )
 
         # ── 4. Google Fact Check Matches aufbereiten ──────────────────────────
@@ -589,11 +614,14 @@ class EvidenceBuilderAgent(BaseAgent):
         contradictions = _detect_contradictions(evidence_items[:6])
         quality = _compute_quality_signals(evidence_items, gfc_matches)
 
-        # Retry wenn Qualität zu niedrig und LangSearch nicht geliefert hat
-        if quality.overall_quality < 0.2 and not any(
+        # Retry wenn Qualität zu niedrig oder Off-topic-Rate hoch
+        high_offtopic = quality.off_topic_rate > 0.6
+        low_quality = quality.overall_quality < 0.2
+        if (low_quality or high_offtopic) and not any(
             r.content for results_map in langsearch_results.values() for r in results_map
         ):
-            notes.append("Qualität niedrig – Fallback-Suche mit alternativen Queries")
+            reason = "Off-topic-Rate hoch" if high_offtopic else "Qualität niedrig"
+            notes.append(f"{reason} – Fallback-Suche mit alternativen Queries")
             fallback_results = await self._fallback_retrieval(claim, queries)
             unique_results = _dedup_results(all_results + fallback_results)
             ranked, scraped = await self._rank_and_scrape(unique_results, claim)

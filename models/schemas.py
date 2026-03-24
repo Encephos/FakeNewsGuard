@@ -48,6 +48,79 @@ class AmbiguityLevel(str, Enum):
     HIGH = "HIGH"
 
 
+class ClaimFrame(BaseModel):
+    """Strukturierter semantischer Rahmen eines Claims.
+
+    Der ClaimFrame ist der eigentliche Wahrheitsträger. Freier Claim-Text
+    ist nur noch Render-/Ausgabeform. Alle Such- und Prüfoperationen sollen
+    auf den Frame-Feldern basieren, nicht auf dem rohen Claim-Text.
+    """
+
+    raw_text: str = Field(description="Ursprünglicher Claim-Text (unveränderlich)")
+    subject: str = Field(default="", description="Subjekt / Akteur der Behauptung")
+    predicate: str = Field(default="", description="Handlung / Aussage / Verb-Phrase")
+    object: str = Field(default="", description="Objekt / Ziel / Betroffenes")
+    institution: str = Field(default="", description="Beteiligte Institution oder Behörde")
+    location: str = Field(default="", description="Ort / Region / Land")
+    time_reference: str = Field(default="", description="Zeitbezug (ISO oder beschreibend)")
+    numbers: list[str] = Field(
+        default_factory=list,
+        description="Alle spezifischen Zahlen und Mengenangaben",
+    )
+    sanction: str = Field(default="", description="Sanktion oder Strafe (z.B. Bußgeld)")
+    enforcement: str = Field(default="", description="Durchsetzungsmechanismus (z.B. Kameraüberwachung)")
+    policy_context: str = Field(default="", description="Politischer/regulativer Kontext (z.B. 15-Minuten-Stadt)")
+    claim_type: str = Field(default="", description="Klassifikation des Claims")
+    canonical_text: str = Field(
+        default="",
+        description="Kanonische Formulierung rekonstruiert aus Frame-Feldern",
+    )
+
+
+class ClaimSearchProfile(BaseModel):
+    """Suchprofil abgeleitet aus ClaimFrame. Basis für Query-Generierung.
+
+    Kein freier Claim-Text als primäre Suchgrundlage – stattdessen
+    strukturierte Felder für verschiedene Query-Typen. Verhindert
+    Query-Kollaps auf generische Einzelbegriffe.
+    """
+
+    core_entities: list[str] = Field(
+        default_factory=list,
+        description="Kernentitäten: Personen, Institutionen, Orte",
+    )
+    institutions: list[str] = Field(default_factory=list)
+    locations: list[str] = Field(default_factory=list)
+    action_terms: list[str] = Field(
+        default_factory=list,
+        description="Handlungs-/Ereignis-Begriffe",
+    )
+    policy_terms: list[str] = Field(
+        default_factory=list,
+        description="Policy-/Gesetz-/Programmbegriffe",
+    )
+    number_terms: list[str] = Field(
+        default_factory=list,
+        description="Spezifische Zahlen aus dem Claim",
+    )
+    sanction_terms: list[str] = Field(
+        default_factory=list,
+        description="Sanktions- und Durchsetzungsbegriffe",
+    )
+    exclusion_terms: list[str] = Field(
+        default_factory=list,
+        description="Begriffe die Off-topic-Treffer verursachen (für Nachfilterung)",
+    )
+    official_source_hints: list[str] = Field(
+        default_factory=list,
+        description="site:-Hints für offizielle Primärquellen",
+    )
+    fact_check_hints: list[str] = Field(
+        default_factory=list,
+        description="site:-Hints für Faktenchecker-Organisationen",
+    )
+
+
 class ProcessedClaim(Claim):
     """Claim nach mehrstufiger Processing-Pipeline.
 
@@ -118,6 +191,16 @@ class ProcessedClaim(Claim):
     is_checkworthy: bool = Field(
         default=True,
         description="False wenn der Claim als nicht prüfenswert eingestuft wurde",
+    )
+
+    # ── Strukturierter Frame (ClaimFrameExtractor) ───────────────
+    frame: Optional["ClaimFrame"] = Field(
+        default=None,
+        description="Strukturierter semantischer Frame – der Wahrheitsträger",
+    )
+    search_profile: Optional["ClaimSearchProfile"] = Field(
+        default=None,
+        description="Suchprofil für frame-basierte Query-Generierung",
     )
 
     # ── Validierung (ClaimValidator) ──────────────────────────────

@@ -101,6 +101,21 @@ class EvidenceQualitySignals(BaseModel):
         default=0,
         description="Anzahl Quellen mit domain_tier <= 2",
     )
+    off_topic_rate: float = Field(
+        default=0.0,
+        ge=0.0,
+        le=1.0,
+        description=(
+            "Anteil der Off-topic-Treffer in den Top-5-Ergebnissen "
+            "(relevance_score < 0.2). Hoher Wert → Retrieval-Verschmutzung."
+        ),
+    )
+    avg_top5_relevance: float = Field(
+        default=0.0,
+        ge=0.0,
+        le=1.0,
+        description="Durchschnittlicher Relevanz-Score der Top-5-Treffer",
+    )
 
 
 # ── Google Fact Check ──────────────────────────────────────────────────────────
@@ -227,6 +242,8 @@ class EvidencePack(BaseModel):
                 f"  Faktenchecker-Ergebnis vorhanden: {q.has_fact_check_org_result}\n"
                 f"  Quellen-Konsens: {q.source_consensus.value}\n"
                 f"  Qualitätsscore: {q.overall_quality:.2f}\n"
+                f"  Off-topic-Rate (Top-5): {q.off_topic_rate:.0%}\n"
+                f"  Ø Relevanz (Top-5): {q.avg_top5_relevance:.2f}\n"
             )
 
         return "\n".join(parts) if parts else "Keine Evidenz gefunden."

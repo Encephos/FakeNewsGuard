@@ -7,10 +7,12 @@ import pytest
 from models.schemas import (
     Claim,
     ClaimExtractionResult,
+    ClaimProcessingResult,
     ClaimType,
     FactCheckResult,
     FactRating,
     OverallRating,
+    ProcessedClaim,
     RhetoricAnalysisResult,
     SynthesisResult,
 )
@@ -19,8 +21,25 @@ from models.schemas import (
 # ── Hilfsfunktionen ───────────────────────────────────────────────
 
 
-def _make_extraction(claims: list[Claim]) -> ClaimExtractionResult:
-    return ClaimExtractionResult(claims=claims)
+def _make_extraction(claims: list[Claim]) -> ClaimProcessingResult:
+    """Erstelle ein ClaimProcessingResult aus einer Liste von Claims.
+
+    Konvertiert plain Claim → ProcessedClaim (mit sinnvollen Defaults),
+    da der Orchestrator ProcessedClaim-Felder (priority_score etc.) erwartet.
+    """
+    processed: list[ProcessedClaim] = []
+    for c in claims:
+        if isinstance(c, ProcessedClaim):
+            processed.append(c)
+        else:
+            processed.append(ProcessedClaim(
+                id=c.id,
+                text=c.text,
+                type=c.type,
+                context=c.context,
+                requires_agents=c.requires_agents,
+            ))
+    return ClaimProcessingResult(claims=processed)
 
 
 def _make_fact_check(claim_id: str = "C1", rating: FactRating = FactRating.TRUE) -> FactCheckResult:
@@ -50,6 +69,7 @@ def test_analyze_no_claims_returns_reliable(minimal_config, mocker):
 
     orch = Orchestrator.__new__(Orchestrator)
     orch.config = minimal_config
+    orch._on_step = None
 
     # Mock alle Agenten
     orch.claim_extractor = mocker.MagicMock()
@@ -71,6 +91,7 @@ def test_analyze_skips_opinion_claims(minimal_config, mocker):
 
     orch = Orchestrator.__new__(Orchestrator)
     orch.config = minimal_config
+    orch._on_step = None
 
     opinion = Claim(id="C1", text="Das ist schlecht.", type=ClaimType.OPINION)
 
@@ -96,6 +117,7 @@ def test_analyze_graceful_degradation_on_fact_check_failure(minimal_config, mock
 
     orch = Orchestrator.__new__(Orchestrator)
     orch.config = minimal_config
+    orch._on_step = None
 
     factual = Claim(id="C1", text="Faktenbehauptung", type=ClaimType.FACTUAL)
     orch.claim_extractor = mocker.MagicMock()
@@ -125,6 +147,7 @@ def test_analyze_collects_sources_from_fact_checks(minimal_config, mocker):
 
     orch = Orchestrator.__new__(Orchestrator)
     orch.config = minimal_config
+    orch._on_step = None
 
     factual = Claim(id="C1", text="Behauptung", type=ClaimType.FACTUAL)
     fc = _make_fact_check("C1")

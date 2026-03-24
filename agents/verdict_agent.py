@@ -33,12 +33,14 @@ from models.verdict_models import CoVeTrace, FinalVerdictMeta
 
 # Maximale Confidence ohne Primärquelle
 _CEILING_NO_PRIMARY_SOURCE = 0.82
-# Maximale Confidence bei hohem Off-topic Anteil
+# Maximale Confidence bei hohem Off-topic Anteil (>50%)
 _CEILING_OFFTOPIC_CONTAMINATION = 0.75
 # Maximale Confidence bei schwacher Evidenzqualität
 _CEILING_WEAK_EVIDENCE = 0.70
 # Maximale Confidence bei insufficient consensus
 _CEILING_INSUFFICIENT_CONSENSUS = 0.65
+# Maximale Confidence bei sehr schlechter Claim-Qualität
+_CEILING_POOR_CLAIM_QUALITY = 0.72
 # Minimale Anzahl guter Quellen für hohe Confidence
 _MIN_GOOD_SOURCES_FOR_HIGH_CONF = 2
 
@@ -47,24 +49,33 @@ def _calibrate_confidence(
     raw_confidence: float,
     pack: "EvidencePack",
     cove_trace: "CoVeTrace | None",
+    claim_quality_score: float = 1.0,
 ) -> tuple[float, list[str]]:
     """Regelbasierter Confidence-Postprocessor.
 
-    Senkt die LLM-Confidence basierend auf objektiven Signalen.
-    Gibt (kalibrierte_confidence, gründe) zurück.
+    Senkt die LLM-Confidence basierend auf objektiven Pipeline-Signalen.
+    LLM-Confidence wird nie direkt übernommen.
 
     Ceiling-Regeln:
-        - Ohne Primärquelle: max 0.82
-        - Bei off-topic contamination: max 0.75
-        - Bei schwacher Evidenz: max 0.70
-        - Bei insufficient consensus: max 0.65
+        - Ohne Primärquelle UND ohne Fact-Check: max 0.82
+        - Off-topic-Rate > 50% (aus EvidenceQualitySignals): max 0.75
+        - Schwache Evidenzqualität (overall < 0.30): max 0.70
+        - Schlechte Claim-Qualität (score < 0.50): max 0.72
+        - Insufficient source consensus: max 0.65
 
     Penalty-Regeln:
-        - Zu wenige gute Quellen: -0.10
-        - Fehlende Primärquelle: -0.05
-        - Hoher off-topic Anteil: -0.10
-        - Unbeantwortete CoVe-Kernfragen: -0.05 pro Frage
-        - Schwache Claim-Validität: -0.10
+        - Zu wenige gute Quellen (Tier 1-3 oder Fact-Check): -0.10
+        - CoVe-Widersprüche: dynamisch (bis -0.15)
+        - Unbeantwortete CoVe-Fragen: -0.05 pro Frage (max -0.15)
+        - Quellen widersprechen sich: -0.10
+        - Schlechte Claim-Qualität (score < 0.70): -0.05 bis -0.10
+
+    Args:
+        raw_confidence: Rohkonfidenz des LLM (0.0–1.0)
+        pack: EvidencePack mit Qualitätssignalen inkl. off_topic_rate
+        cove_trace: Optionaler Chain-of-Verification Trace
+        claim_quality_score: Qualität des ursprünglichen Claims (0.0–1.0)
+                             aus ProcessedClaim.claim_quality_score
     """
     confidence = raw_confidence
     reasons: list[str] = []
@@ -94,14 +105,36 @@ def _calibrate_confidence(
             reasons.append(f"Unzureichender Quellen-Konsens → Ceiling {_CEILING_INSUFFICIENT_CONSENSUS}")
             confidence = min(confidence, _CEILING_INSUFFICIENT_CONSENSUS)
 
-    # Ceiling: off-topic contamination (mehr als 50% der Top-Quellen irrelevant)
-    if pack.web_results:
+    # Ceiling: off-topic contamination – aus gemessener off_topic_rate
+    # (bevorzugt gegenüber der Inline-Berechnung unten, da bereits in Signals)
+    if quality and quality.off_topic_rate > 0.5:
+        if confidence > _CEILING_OFFTOPIC_CONTAMINATION:
+            reasons.append(
+                f"Off-topic-Rate {quality.off_topic_rate:.0%} → "
+                f"Ceiling {_CEILING_OFFTOPIC_CONTAMINATION}"
+            )
+            confidence = min(confidence, _CEILING_OFFTOPIC_CONTAMINATION)
+    elif pack.web_results:
+        # Fallback: inline berechnen wenn off_topic_rate nicht gesetzt
         top_results = pack.web_results[:5]
-        low_relevance_count = sum(1 for r in top_results if r.relevance_score < 0.2)
-        if low_relevance_count > len(top_results) / 2:
+        low_rel = sum(1 for r in top_results if r.relevance_score < 0.2)
+        if low_rel > len(top_results) / 2:
             if confidence > _CEILING_OFFTOPIC_CONTAMINATION:
-                reasons.append(f"Off-topic Contamination ({low_relevance_count}/{len(top_results)} schwach) → Ceiling {_CEILING_OFFTOPIC_CONTAMINATION}")
+                reasons.append(
+                    f"Off-topic Contamination ({low_rel}/{len(top_results)} schwach) "
+                    f"→ Ceiling {_CEILING_OFFTOPIC_CONTAMINATION}"
+                )
                 confidence = min(confidence, _CEILING_OFFTOPIC_CONTAMINATION)
+
+    # Ceiling: schlechte Claim-Qualität (Claim hat bei der Dekomposition Kontext verloren
+    # oder war von Anfang an vage → senkt die Ceiling zusätzlich)
+    if claim_quality_score < 0.50:
+        if confidence > _CEILING_POOR_CLAIM_QUALITY:
+            reasons.append(
+                f"Niedrige Claim-Qualität ({claim_quality_score:.2f}) → "
+                f"Ceiling {_CEILING_POOR_CLAIM_QUALITY}"
+            )
+            confidence = min(confidence, _CEILING_POOR_CLAIM_QUALITY)
 
     # ── Penalties ─────────────────────────────────────────────────────────────
 
@@ -133,6 +166,13 @@ def _calibrate_confidence(
     if quality and quality.source_consensus.value == "contradictory":
         penalty = 0.10
         reasons.append(f"Quellen widersprechen sich → -{penalty}")
+        confidence -= penalty
+
+    # Penalty: Claim-Qualität unter Schwellwert
+    if claim_quality_score < 0.70:
+        # Sanfter gradueller Abzug: 0.05 bei 0.5–0.7, 0.10 darunter
+        penalty = 0.10 if claim_quality_score < 0.50 else 0.05
+        reasons.append(f"Claim-Qualität niedrig ({claim_quality_score:.2f}) → -{penalty}")
         confidence -= penalty
 
     confidence = max(0.0, min(1.0, confidence))
@@ -221,10 +261,18 @@ class VerdictAgent(BaseAgent):
 
         # ── Regelbasierte Confidence-Kalibrierung ──────────────────────────────
         # LLM-Confidence wird NICHT direkt übernommen, sondern durch
-        # objektive Signale (Quellenlage, CoVe, Off-topic) korrigiert.
+        # objektive Pipeline-Signale korrigiert.
         raw_confidence = min(1.0, max(0.0, float(raw.get("confidence", 0.75))))
+
+        # Claim-Qualität einbeziehen (kommt aus ProcessedClaim wenn vorhanden)
+        from models.schemas import ProcessedClaim as _PC
+        claim_quality = 1.0
+        if isinstance(claim, _PC):
+            claim_quality = claim.claim_quality_score
+
         calibrated_confidence, calibration_reasons = _calibrate_confidence(
-            raw_confidence, pack, cove_trace
+            raw_confidence, pack, cove_trace,
+            claim_quality_score=claim_quality,
         )
 
         # Unsicherheitssignale aus Kalibrierung + eigenen Checks sammeln
@@ -245,6 +293,12 @@ class VerdictAgent(BaseAgent):
                 uncertainty_signals.append("Evidenzqualität niedrig")
             if pack.evidence_quality.source_consensus.value == "contradictory":
                 uncertainty_signals.append("Quellen widersprechen sich")
+            if pack.evidence_quality.off_topic_rate > 0.4:
+                uncertainty_signals.append(
+                    f"Hohe Off-topic-Rate: {pack.evidence_quality.off_topic_rate:.0%} der Top-Treffer irrelevant"
+                )
+        if claim_quality < 0.70:
+            uncertainty_signals.append(f"Claim-Qualität eingeschränkt ({claim_quality:.2f})")
 
         # FinalVerdictMeta
         confidence_reduction_reason = "; ".join(calibration_reasons) if calibration_reasons else ""

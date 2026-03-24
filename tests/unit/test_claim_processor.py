@@ -190,13 +190,22 @@ class TestClaimDecomposer:
         from models.schemas import ClaimType, ProcessedClaim
 
         mock_llm = mocker.MagicMock()
+        # Sub-Claims müssen mind. 40 Zeichen + Entity haben (Integrity-Filter)
         mock_llm.complete.return_value = {
             "decomposed": [
                 {
                     "original_id": "C1",
                     "atomic_claims": [
-                        {"id": "C1a", "text": "Claim Teil A", "type": "STATISTICAL"},
-                        {"id": "C1b", "text": "Claim Teil B", "type": "STATISTICAL"},
+                        {
+                            "id": "C1a",
+                            "text": "Die Zahl der Beschäftigten in Deutschland stieg um 20 Prozent.",
+                            "type": "STATISTICAL",
+                        },
+                        {
+                            "id": "C1b",
+                            "text": "Die Ausgaben der Bundesregierung sanken im gleichen Zeitraum um 15 Prozent.",
+                            "type": "STATISTICAL",
+                        },
                     ],
                 }
             ]

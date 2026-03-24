@@ -80,22 +80,90 @@ NIEMALS Blogs, Telegram, X/Twitter oder Parteiseiten als Primärquelle verwenden
 
 
 _QUERY_OPTIMIZER_PROMPT = """\
-Du bist ein Suchquery-Optimierer für Faktenprüfung. Deine Aufgabe: Generiere 3 optimierte, \
-kurze Suchqueries für eine Suchmaschine, um die gegebene Behauptung zu überprüfen.
+Du bist ein Suchquery-Optimierer für Faktenprüfung.
+Deine Aufgabe: Generiere 3-4 optimierte Suchqueries, um die gegebene Behauptung zu überprüfen.
 
 ## Regeln
-- Jede Query maximal 6-8 Wörter (kurz und präzise!)
 - Verwende Schlüsselbegriffe, KEINE ganzen Sätze
-- Query 1: Direkte Suche nach dem Kernfakt (z.B. "Studie 2016 Frauen Haushalt Glück Deutschland")
-- Query 2: Faktencheck-Suche (z.B. "Hausfrauen glücklicher Studie Faktencheck")
-- Query 3: Quellensuche nach Primärdaten (z.B. "Studie Frauen Zufriedenheit Haushalt 2016 Ergebnis")
-- Verwende die Sprache der Behauptung
+- Query 1 (entity/policy): Kernentitäten + Policy-Kontext + Zahlen (z.B. "Hannover Stadtrat 15-Minuten-Stadt 100 Autofahrten")
+- Query 2 (official-source): site:-Hint + Institution + Thema (z.B. "site:hannover.de Stadtrat Verkehr 15-Minuten-Stadt")
+- Query 3 (fact-check): Faktenchecker + Kernentität + Thema (z.B. "site:correctiv.org Hannover 15-Minuten-Stadt Faktencheck")
+- Query 4 (sanction/number): Entität + Zahl + Sanktion (z.B. "Hannover 250 Euro Bußgeld Kameraüberwachung")
+- Behalte IMMER den Kontext-Anker (Institution/Ort/Programm) in JEDER Query
+- Einzelne Zahlen ohne Kontext sind KEINE gültige Query
 - Entferne Füllwörter (der, die, das, und, ist, hat, etc.)
-- Behalte spezifische Zahlen, Jahreszahlen und Eigennamen bei
 
-Antworte NUR mit einem JSON-Array von 3 Strings. Beispiel:
-["query eins", "query zwei", "query drei"]
+## Wenn ein strukturierter Frame vorhanden ist, nutze dessen Felder
+Frame-Felder haben Vorrang vor freiem Claim-Text.
+
+Antworte NUR mit einem JSON-Array von 3-4 Strings. Beispiel:
+["Hannover Stadtrat 15-Minuten-Stadt 100 Autofahrten", "site:hannover.de Stadtrat Verkehr 15-Minuten-Stadt", "site:correctiv.org Hannover 15-Minuten-Stadt Faktencheck", "Hannover 250 Euro Bußgeld Kameraüberwachung"]
 """
+
+
+def _build_search_queries_from_profile(claim: "ProcessedClaim") -> list[str]:  # type: ignore[name-defined]
+    """Baue Suchqueries aus dem strukturierten ClaimSearchProfile.
+
+    Kein freier Claim-Text als primäre Basis. Verhindert Query-Kollaps
+    auf generische Einzelbegriffe wie "Höhe", "Bürger", "Bußgeld".
+
+    Query-Typen:
+        1. entity/policy   – Kernentitäten + Policy + Zahlen
+        2. official-source – site:-Hint + Institution + Thema
+        3. fact-check      – Faktenchecker + Kernentität + Policy
+        4. sanction/number – Entität + Zahlen + Sanktion (bei STATISTICAL)
+
+    Returns:
+        Liste von 2–4 kontextreichen Queries.
+    """
+    from models.schemas import ProcessedClaim as _PC
+    profile = claim.search_profile
+    if not profile:
+        return []
+
+    queries: list[str] = []
+
+    # ── Query 1: entity/policy ─────────────────────────────────────────────
+    q1_parts: list[str] = []
+    q1_parts.extend(profile.institutions[:1])
+    q1_parts.extend(profile.locations[:1])
+    q1_parts.extend(profile.policy_terms[:1])
+    q1_parts.extend(profile.number_terms[:1])
+    if q1_parts:
+        q1 = " ".join(p for p in q1_parts if p)
+        if len(q1.strip()) >= 6:
+            queries.append(q1.strip())
+
+    # ── Query 2: official-source ───────────────────────────────────────────
+    if profile.official_source_hints:
+        q2_parts = [profile.official_source_hints[0]]
+        q2_parts.extend(profile.institutions[:1])
+        q2_parts.extend(profile.action_terms[:2])
+        q2_parts.extend(profile.policy_terms[:1])
+        q2 = " ".join(p for p in q2_parts if p)
+        if q2.strip() not in queries:
+            queries.append(q2.strip())
+
+    # ── Query 3: fact-check ────────────────────────────────────────────────
+    if profile.fact_check_hints:
+        q3_parts = [profile.fact_check_hints[0]]
+        q3_parts.extend(profile.core_entities[:1])
+        q3_parts.extend(profile.policy_terms[:1])
+        q3 = " ".join(p for p in q3_parts if p)
+        if q3.strip() and q3.strip() not in queries:
+            queries.append(q3.strip())
+
+    # ── Query 4: sanction/number (nur bei konkreten Zahlen + Sanktionen) ──
+    if profile.sanction_terms and profile.number_terms:
+        q4_parts: list[str] = []
+        q4_parts.extend(profile.core_entities[:1])
+        q4_parts.extend(profile.number_terms[:1])
+        q4_parts.extend(profile.sanction_terms[:1])
+        q4 = " ".join(p for p in q4_parts if p)
+        if q4.strip() and q4.strip() not in queries:
+            queries.append(q4.strip())
+
+    return queries
 
 
 def _optimize_queries_with_llm(
@@ -103,12 +171,34 @@ def _optimize_queries_with_llm(
 ) -> list[str] | None:
     """Nutze das LLM um optimierte Suchqueries aus dem Claim zu generieren.
 
+    Wenn ein ClaimSearchProfile vorhanden ist, wird dessen Kontext an das
+    LLM übergeben. Damit entstehen frame-basierte Queries statt reine
+    Keyword-Extraktion aus freiem Text.
+
     Returns:
-        Liste von 3 optimierten Queries, oder None bei Fehler.
+        Liste von 3-4 optimierten Queries, oder None bei Fehler.
     """
     user_msg = f"Behauptung: {claim.text}\nTyp: {claim.type.value}"
     if original_text and len(original_text) > len(claim.text) + 30:
         user_msg += f"\nOriginaltext (Kontext): {original_text[:500]}"
+
+    # Frame-Kontext für bessere Query-Generierung mitgeben
+    from models.schemas import ProcessedClaim as _PC
+    if isinstance(claim, _PC) and claim.frame:
+        f = claim.frame
+        frame_summary_parts: list[str] = []
+        if f.institution:
+            frame_summary_parts.append(f"Institution: {f.institution}")
+        if f.location:
+            frame_summary_parts.append(f"Ort: {f.location}")
+        if f.policy_context:
+            frame_summary_parts.append(f"Kontext: {f.policy_context}")
+        if f.numbers:
+            frame_summary_parts.append(f"Zahlen: {', '.join(f.numbers)}")
+        if f.sanction:
+            frame_summary_parts.append(f"Sanktion: {f.sanction}")
+        if frame_summary_parts:
+            user_msg += "\n\n## Strukturierter Frame\n" + "\n".join(frame_summary_parts)
 
     try:
         raw = llm.complete(_QUERY_OPTIMIZER_PROMPT, user_msg, response_format="json")
@@ -127,15 +217,24 @@ def _optimize_queries_with_llm(
 
 
 def _build_search_queries(claim: Claim, original_text: str = "") -> list[str]:
-    """Generiere Suchbegriffe adaptiv basierend auf Claim-Typ und Kontext.
+    """Generiere Suchqueries adaptiv – bevorzuge frame-basierte Queries.
 
-    Die Anzahl und Art der Queries passt sich an die Komplexität an:
-      - OPINION:      0 Queries (wird nie aufgerufen)
-      - FACTUAL:      1-2 Queries (einfache Faktenlage)
-      - CONTEXTUAL:   2-3 Queries (Kontext-Suche wichtig)
-      - CAUSAL:       2-3 Queries (Kausalität + Faktencheck)
-      - STATISTICAL:  3-5 Queries (Daten + Faktencheck + Quellen + Kontext)
+    Strategie (Priorität):
+        1. ClaimSearchProfile (frame-basiert) → _build_search_queries_from_profile()
+        2. LLM-Query-Optimierung (wird in EvidenceBuilder aufgerufen)
+        3. Fallback: adaptive Typ-basierte Queries aus Claim-Text
+
+    Die Option "direkter Claim-Text als Query" bleibt als Fallback erhalten,
+    wird aber nicht mehr als primäre Strategie eingesetzt.
     """
+    from models.schemas import ProcessedClaim as _PC
+    # Priorität 1: Wenn ein SearchProfile vorhanden ist, nutze es primär
+    if isinstance(claim, _PC) and claim.search_profile:
+        profile_queries = _build_search_queries_from_profile(claim)
+        if profile_queries:
+            return profile_queries
+
+    # Fallback: adaptive Strategie basierend auf Claim-Typ
     text = claim.text
     claim_type = claim.type.value
 
