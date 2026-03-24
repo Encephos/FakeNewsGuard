@@ -29,6 +29,116 @@ from models.schemas import (
 from models.verdict_models import CoVeTrace, FinalVerdictMeta
 
 
+# ── Confidence Ceilings & Calibration ─────────────────────────────────────────
+
+# Maximale Confidence ohne Primärquelle
+_CEILING_NO_PRIMARY_SOURCE = 0.82
+# Maximale Confidence bei hohem Off-topic Anteil
+_CEILING_OFFTOPIC_CONTAMINATION = 0.75
+# Maximale Confidence bei schwacher Evidenzqualität
+_CEILING_WEAK_EVIDENCE = 0.70
+# Maximale Confidence bei insufficient consensus
+_CEILING_INSUFFICIENT_CONSENSUS = 0.65
+# Minimale Anzahl guter Quellen für hohe Confidence
+_MIN_GOOD_SOURCES_FOR_HIGH_CONF = 2
+
+
+def _calibrate_confidence(
+    raw_confidence: float,
+    pack: "EvidencePack",
+    cove_trace: "CoVeTrace | None",
+) -> tuple[float, list[str]]:
+    """Regelbasierter Confidence-Postprocessor.
+
+    Senkt die LLM-Confidence basierend auf objektiven Signalen.
+    Gibt (kalibrierte_confidence, gründe) zurück.
+
+    Ceiling-Regeln:
+        - Ohne Primärquelle: max 0.82
+        - Bei off-topic contamination: max 0.75
+        - Bei schwacher Evidenz: max 0.70
+        - Bei insufficient consensus: max 0.65
+
+    Penalty-Regeln:
+        - Zu wenige gute Quellen: -0.10
+        - Fehlende Primärquelle: -0.05
+        - Hoher off-topic Anteil: -0.10
+        - Unbeantwortete CoVe-Kernfragen: -0.05 pro Frage
+        - Schwache Claim-Validität: -0.10
+    """
+    confidence = raw_confidence
+    reasons: list[str] = []
+
+    quality = pack.evidence_quality
+
+    # ── Ceilings ──────────────────────────────────────────────────────────────
+
+    has_primary = quality.has_primary_sources if quality else False
+    has_fc = quality.has_fact_check_org_result if quality else False
+
+    # Ceiling: ohne Primärquelle oder Fact-Check
+    if not has_primary and not has_fc:
+        if confidence > _CEILING_NO_PRIMARY_SOURCE:
+            reasons.append(f"Keine Primärquelle/Fact-Check → Ceiling {_CEILING_NO_PRIMARY_SOURCE}")
+            confidence = min(confidence, _CEILING_NO_PRIMARY_SOURCE)
+
+    # Ceiling: schwache Evidenzqualität
+    if quality and quality.overall_quality < 0.3:
+        if confidence > _CEILING_WEAK_EVIDENCE:
+            reasons.append(f"Schwache Evidenzqualität ({quality.overall_quality:.2f}) → Ceiling {_CEILING_WEAK_EVIDENCE}")
+            confidence = min(confidence, _CEILING_WEAK_EVIDENCE)
+
+    # Ceiling: insufficient consensus
+    if quality and quality.source_consensus.value == "insufficient":
+        if confidence > _CEILING_INSUFFICIENT_CONSENSUS:
+            reasons.append(f"Unzureichender Quellen-Konsens → Ceiling {_CEILING_INSUFFICIENT_CONSENSUS}")
+            confidence = min(confidence, _CEILING_INSUFFICIENT_CONSENSUS)
+
+    # Ceiling: off-topic contamination (mehr als 50% der Top-Quellen irrelevant)
+    if pack.web_results:
+        top_results = pack.web_results[:5]
+        low_relevance_count = sum(1 for r in top_results if r.relevance_score < 0.2)
+        if low_relevance_count > len(top_results) / 2:
+            if confidence > _CEILING_OFFTOPIC_CONTAMINATION:
+                reasons.append(f"Off-topic Contamination ({low_relevance_count}/{len(top_results)} schwach) → Ceiling {_CEILING_OFFTOPIC_CONTAMINATION}")
+                confidence = min(confidence, _CEILING_OFFTOPIC_CONTAMINATION)
+
+    # ── Penalties ─────────────────────────────────────────────────────────────
+
+    # Penalty: zu wenige gute Quellen (Tier 1-3 oder Fact-Check)
+    good_sources = sum(
+        1 for r in pack.web_results
+        if r.source.domain_tier <= 3 or r.source.is_fact_check_org
+    )
+    if good_sources < _MIN_GOOD_SOURCES_FOR_HIGH_CONF:
+        penalty = 0.10
+        reasons.append(f"Nur {good_sources} gute Quellen → -{penalty}")
+        confidence -= penalty
+
+    # Penalty: CoVe-Widersprüche
+    if cove_trace and cove_trace.has_significant_contradictions():
+        delta = abs(min(0.0, cove_trace.confidence_delta))
+        if delta > 0:
+            reasons.append(f"CoVe-Widersprüche (delta={cove_trace.confidence_delta:.2f}) → -{delta:.2f}")
+            confidence -= delta
+
+    # Penalty: Unbeantwortete CoVe-Kernfragen
+    if cove_trace and cove_trace.unanswered_questions:
+        n_unanswered = len(cove_trace.unanswered_questions)
+        penalty = min(0.15, n_unanswered * 0.05)
+        reasons.append(f"{n_unanswered} unbeantwortete CoVe-Fragen → -{penalty:.2f}")
+        confidence -= penalty
+
+    # Penalty: Quellen widersprechen sich
+    if quality and quality.source_consensus.value == "contradictory":
+        penalty = 0.10
+        reasons.append(f"Quellen widersprechen sich → -{penalty}")
+        confidence -= penalty
+
+    confidence = max(0.0, min(1.0, confidence))
+    return confidence, reasons
+
+
 _VERDICT_SYSTEM_PROMPT = """\
 Du bist ein Fact-Checker. Deine EINZIGE Aufgabe: Fälle ein fundiertes Urteil
 über die gegebene Behauptung basierend auf den bereitgestellten Fakten.
@@ -60,6 +170,7 @@ Du erhältst strukturierte Evidenz (keine Webseiten-Rohtexte).
 {
   "claim_id": "C1",
   "rating": "MISLEADING",
+  "confidence": 0.75,
   "evidence": "Zusammenfassung der Fakten",
   "correction": "Was falsch oder irreführend ist",
   "missing_context": "Welcher Kontext fehlt",
@@ -108,14 +219,17 @@ class VerdictAgent(BaseAgent):
         except ValueError:
             rating = FactRating.UNVERIFIABLE
 
-        # Konfidenz aus CoVe-Trace ableiten (falls vorhanden)
-        if cove_trace and cove_trace.has_significant_contradictions():
-            confidence_reduction = abs(min(0.0, cove_trace.confidence_delta))
-        else:
-            confidence_reduction = 0.0
+        # ── Regelbasierte Confidence-Kalibrierung ──────────────────────────────
+        # LLM-Confidence wird NICHT direkt übernommen, sondern durch
+        # objektive Signale (Quellenlage, CoVe, Off-topic) korrigiert.
+        raw_confidence = min(1.0, max(0.0, float(raw.get("confidence", 0.75))))
+        calibrated_confidence, calibration_reasons = _calibrate_confidence(
+            raw_confidence, pack, cove_trace
+        )
 
-        # Unsicherheitssignale sammeln
-        uncertainty_signals = []
+        # Unsicherheitssignale aus Kalibrierung + eigenen Checks sammeln
+        uncertainty_signals = list(calibration_reasons)
+
         if cove_trace:
             if cove_trace.unanswered_questions:
                 uncertainty_signals.append(
@@ -133,14 +247,11 @@ class VerdictAgent(BaseAgent):
                 uncertainty_signals.append("Quellen widersprechen sich")
 
         # FinalVerdictMeta
+        confidence_reduction_reason = "; ".join(calibration_reasons) if calibration_reasons else ""
         verdict_meta = FinalVerdictMeta(
             cove_trace=cove_trace,
             uncertainty_signals=uncertainty_signals,
-            confidence_reduction_reason=(
-                f"CoVe-Widersprüche (delta={cove_trace.confidence_delta:.2f})"
-                if cove_trace and cove_trace.has_significant_contradictions()
-                else ""
-            ),
+            confidence_reduction_reason=confidence_reduction_reason,
             verdict_based_on_fact_check_org=bool(pack.google_fact_check_matches),
             primary_sources_consulted=(
                 pack.evidence_quality.has_primary_sources

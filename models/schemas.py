@@ -120,6 +120,22 @@ class ProcessedClaim(Claim):
         description="False wenn der Claim als nicht prüfenswert eingestuft wurde",
     )
 
+    # ── Validierung (ClaimValidator) ──────────────────────────────
+    is_valid_claim: bool = Field(
+        default=True,
+        description="False wenn der Claim kein echter, falsifizierbarer Claim ist (z.B. Meta-Claim, Recherche-Frage)",
+    )
+    invalid_reason: str = Field(
+        default="",
+        description="Grund warum der Claim ungültig ist (leer wenn valid)",
+    )
+    claim_quality_score: float = Field(
+        default=1.0,
+        ge=0.0,
+        le=1.0,
+        description="Qualitätsscore des Claims (1.0=perfekt falsifizierbar, 0.0=kein echter Claim)",
+    )
+
 
 class ClaimProcessingResult(BaseModel):
     """Ergebnis der mehrstufigen Claim-Processing-Pipeline.
@@ -354,6 +370,7 @@ FACT_CHECK_SCHEMA: dict = {
             "type": "string",
             "enum": ["TRUE", "MOSTLY_TRUE", "MISLEADING", "MOSTLY_FALSE", "FALSE", "UNVERIFIABLE"],
         },
+        "confidence": {"type": "number", "description": "0.0-1.0 Konfidenz in das Urteil"},
         "evidence": {"type": "string"},
         "correction": {"type": "string"},
         "missing_context": {"type": "string"},

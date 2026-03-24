@@ -18,7 +18,9 @@ Trust Boundary:
 from __future__ import annotations
 
 import asyncio
+import re
 import sys
+from datetime import datetime, timezone
 from typing import Any
 from urllib.parse import urlparse
 
@@ -107,15 +109,197 @@ def _is_fact_check_org(url: str) -> bool:
     return _domain_tier(url) == 4
 
 
+# ── Stopwords für Relevanz-Berechnung ─────────────────────────────────────────
+
+_RELEVANCE_STOPWORDS: set[str] = {
+    "diese", "dieser", "dieses", "einen", "einem", "einer", "eines",
+    "werden", "wurde", "worden", "haben", "hatte", "waren", "sind",
+    "nicht", "sich", "dass", "wenn", "weil", "also", "auch", "noch",
+    "schon", "immer", "durch", "nach", "über", "unter", "zwischen",
+    "gegen", "damit", "dabei", "mehr", "sehr", "andere", "anderen",
+    "the", "and", "for", "that", "this", "with", "from", "have", "been",
+}
+
+# Off-topic Signale: Domains/Muster die auf irrelevante Treffer hindeuten
+_OFFTOPIC_URL_PATTERNS: list[re.Pattern] = [
+    re.compile(r"(rezept|recipe|kochen|restaurant|essen)", re.IGNORECASE),
+    re.compile(r"(grammatik|duden|wörterbuch|dictionary|linguee|deepl)", re.IGNORECASE),
+    re.compile(r"(wetter|weather|horoskop|horoscope)", re.IGNORECASE),
+    re.compile(r"(shop|kaufen|bestellen|amazon|ebay)", re.IGNORECASE),
+    re.compile(r"(forum|reddit\.com/r/(?!de|europe|news|worldnews))", re.IGNORECASE),
+]
+
+
 # ── Evidence Ranking ──────────────────────────────────────────────────────────
 
+def _extract_entities(text: str) -> set[str]:
+    """Extrahiere potenzielle Entitäten (Eigennamen, Zahlen, Akronyme)."""
+    # Eigennamen (Großbuchstabe gefolgt von Kleinbuchstaben, min. 3 Zeichen)
+    names = set(re.findall(r"\b[A-ZÄÖÜ][a-zäöü]{2,}\b", text))
+    # Zahlen (inkl. Prozent, Dezimal)
+    numbers = set(re.findall(r"\d+[\.,]?\d*\s*%?", text))
+    # Akronyme (2+ Großbuchstaben)
+    acronyms = set(re.findall(r"\b[A-ZÄÖÜ]{2,}\b", text))
+    return names | numbers | acronyms
+
+
+def _entity_overlap(claim_text: str, result_text: str) -> float:
+    """Berechne den Anteil der Claim-Entitäten, die im Ergebnis vorkommen."""
+    claim_entities = _extract_entities(claim_text)
+    if not claim_entities:
+        return 0.5  # Kein Entitäts-Signal → neutral
+    result_lower = result_text.lower()
+    matched = sum(1 for e in claim_entities if e.lower() in result_lower)
+    return matched / len(claim_entities)
+
+
+def _is_offtopic_url(url: str) -> bool:
+    """Prüfe ob die URL auf eine typisch irrelevante Seite hinweist."""
+    for pattern in _OFFTOPIC_URL_PATTERNS:
+        if pattern.search(url):
+            return True
+    return False
+
+
+def _compute_freshness(publication_date: str) -> float:
+    """Berechne Freshness-Score basierend auf dem Publikationsdatum.
+
+    Returns:
+        1.0 = heute/gestern, 0.8 = letzte Woche, 0.5 = letzter Monat,
+        0.3 = letztes Jahr, 0.1 = älter, 0.5 = unbekannt (neutral)
+    """
+    if not publication_date:
+        return 0.5  # Unbekannt → neutral
+
+    # Versuche verschiedene Datumsformate zu parsen
+    for fmt in ("%Y-%m-%d", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M:%SZ",
+                "%d.%m.%Y", "%Y/%m/%d", "%B %d, %Y", "%d %B %Y"):
+        try:
+            dt = datetime.strptime(publication_date.strip()[:20], fmt)
+            break
+        except (ValueError, IndexError):
+            continue
+    else:
+        # Versuch: nur Jahreszahl
+        year_match = re.search(r"\b(20\d{2})\b", publication_date)
+        if year_match:
+            dt = datetime(int(year_match.group(1)), 6, 15)
+        else:
+            return 0.5
+
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    days_old = (now - dt).days
+
+    if days_old <= 1:
+        return 1.0
+    elif days_old <= 7:
+        return 0.9
+    elif days_old <= 30:
+        return 0.8
+    elif days_old <= 90:
+        return 0.7
+    elif days_old <= 365:
+        return 0.5
+    elif days_old <= 730:
+        return 0.3
+    else:
+        return 0.1
+
+
 def _relevance_score(result: SearchResult, claim_text: str) -> float:
-    """Einfache Relevanz-Heuristik: Keyword-Overlap zwischen Claim und Snippet."""
-    import re
-    claim_words = set(re.findall(r"\b[a-zäöüA-ZÄÖÜ]{4,}\b", claim_text.lower()))
+    """Multi-Signal Relevanz-Score: Keyword-Overlap + Entitäts-Match + Off-topic Penalty.
+
+    Signale:
+        - Keyword-Overlap (Gewicht 0.35)
+        - Entitäts-Match (Gewicht 0.40)
+        - Off-topic Penalty (Gewicht 0.25)
+    """
     combined = f"{result.title} {result.snippet}".lower()
-    matches = sum(1 for w in claim_words if w in combined)
-    return min(1.0, matches / max(len(claim_words), 1))
+
+    # Signal 1: Keyword-Overlap (ohne Stoppwörter)
+    claim_words = set(re.findall(r"\b[a-zäöüA-ZÄÖÜ]{4,}\b", claim_text.lower()))
+    claim_words -= _RELEVANCE_STOPWORDS
+    if claim_words:
+        kw_matches = sum(1 for w in claim_words if w in combined)
+        kw_score = min(1.0, kw_matches / len(claim_words))
+    else:
+        kw_score = 0.0
+
+    # Signal 2: Entitäts-Match (Eigennamen, Zahlen, Akronyme)
+    entity_score = _entity_overlap(claim_text, f"{result.title} {result.snippet}")
+
+    # Signal 3: Off-topic Penalty
+    offtopic_penalty = 0.0
+    if _is_offtopic_url(result.url):
+        offtopic_penalty = 0.6
+    # Schwache Überschneidung + generischer Titel → Penalty
+    if kw_score < 0.2 and entity_score < 0.2:
+        offtopic_penalty = max(offtopic_penalty, 0.4)
+
+    score = (
+        kw_score * 0.35
+        + entity_score * 0.40
+        + (1.0 - offtopic_penalty) * 0.25
+    )
+    return min(1.0, max(0.0, score))
+
+
+def _extract_best_excerpt(content: str, claim_text: str, max_chars: int = 800) -> str:
+    """Extrahiere die relevanteste Passage statt stumpf content[:800].
+
+    Strategie: Absätze scoren nach Entitäts- und Keyword-Overlap,
+    dann die besten Absätze bis max_chars zusammenfügen.
+    """
+    if not content:
+        return ""
+
+    # Wenn Content kurz genug, direkt verwenden
+    if len(content) <= max_chars:
+        return content.strip()
+
+    # Absätze splitten (an Doppel-Newlines oder Einzeln-Newlines bei langen Texten)
+    paragraphs = [p.strip() for p in re.split(r"\n\n+|\n(?=[A-ZÄÖÜ])", content) if len(p.strip()) >= 30]
+    if not paragraphs:
+        return content[:max_chars].strip()
+
+    claim_lower = claim_text.lower()
+    claim_words = set(re.findall(r"\b[a-zäöü]{4,}\b", claim_lower)) - _RELEVANCE_STOPWORDS
+    claim_entities = _extract_entities(claim_text)
+
+    scored: list[tuple[float, str]] = []
+    for para in paragraphs:
+        para_lower = para.lower()
+        # Keyword-Match
+        if claim_words:
+            kw_hits = sum(1 for w in claim_words if w in para_lower)
+            kw_score = kw_hits / len(claim_words)
+        else:
+            kw_score = 0.0
+        # Entity-Match
+        if claim_entities:
+            ent_hits = sum(1 for e in claim_entities if e.lower() in para_lower)
+            ent_score = ent_hits / len(claim_entities)
+        else:
+            ent_score = 0.0
+
+        total = kw_score * 0.4 + ent_score * 0.6
+        scored.append((total, para))
+
+    # Sortiere nach Score, wähle Top-Absätze
+    scored.sort(key=lambda x: -x[0])
+    selected: list[str] = []
+    total_len = 0
+    for score, para in scored:
+        if total_len + len(para) + 2 > max_chars:
+            break
+        selected.append(para)
+        total_len += len(para) + 2
+
+    if not selected:
+        # Kein guter Absatz → erster Absatz, abgeschnitten
+        return paragraphs[0][:max_chars].strip()
+
+    return " … ".join(selected)
 
 
 def _rank_evidence_items(
@@ -125,11 +309,14 @@ def _rank_evidence_items(
 ) -> list[EvidenceItem]:
     """Ranke Suchergebnisse zu strukturierten EvidenceItems.
 
-    Ranking-Kriterien (absteigend):
-        1. Faktencheck-Organisation (Tier 4)
-        2. Domain-Tier (1 = höchste Glaubwürdigkeit)
-        3. Claim-Relevanz (Keyword-Overlap)
-        4. Hat Google Fact Check Match für dieselbe Domain
+    Ranking-Kriterien:
+        1. Domain-Tier (0.30 Gewicht)
+        2. Claim-Relevanz inkl. Entitäten (0.30 Gewicht)
+        3. Faktenchecker-Bonus (0.15)
+        4. GFC-Match-Bonus (0.10)
+        5. Off-topic Penalty (0.15)
+
+    Treffer mit Relevanz < 0.10 und Tier 5 werden verworfen.
     """
     fact_check_domains = {_extract_domain(m.url) for m in google_matches}
 
@@ -140,12 +327,26 @@ def _rank_evidence_items(
         is_fc = _is_fact_check_org(r.url)
         has_gfc_match = _extract_domain(r.url) in fact_check_domains
 
-        # Gewichtung: Tier-Bonus + Relevanz + Faktenchecker-Bonus
+        # Off-topic Detection: verwerfe klar irrelevante Treffer
+        if _is_offtopic_url(r.url) and rel < 0.3:
+            continue  # Komplett verwerfen
+        if rel < 0.10 and tier == 5 and not is_fc and not has_gfc_match:
+            continue  # Irrelevanter Tier-5 Treffer → verwerfen
+
+        # Off-topic Penalty für schwache Treffer
+        offtopic_penalty = 0.0
+        if _is_offtopic_url(r.url):
+            offtopic_penalty = 0.4
+        elif rel < 0.15 and tier >= 4:
+            offtopic_penalty = 0.2
+
+        # Multi-Signal Score
         score = (
-            (5 - tier) / 4 * 0.4      # Tier: 0.4 Gewicht
-            + rel * 0.35               # Relevanz: 0.35 Gewicht
-            + (0.15 if is_fc else 0)   # Faktenchecker-Bonus
+            (5 - tier) / 4 * 0.30           # Tier-Bonus
+            + rel * 0.30                      # Relevanz
+            + (0.15 if is_fc else 0)          # Faktenchecker-Bonus
             + (0.10 if has_gfc_match else 0)  # GFC-Match-Bonus
+            + (1.0 - offtopic_penalty) * 0.15 # Off-topic Penalty
         )
 
         source = EvidenceSource(
@@ -155,8 +356,10 @@ def _rank_evidence_items(
             domain_tier=tier,
             is_fact_check_org=is_fc,
         )
+
+        # Bessere Excerpt-Extraktion
         content = r.content if r.content else r.snippet
-        excerpt = content[:800] if content else ""
+        excerpt = _extract_best_excerpt(content, claim_text, max_chars=800) if content else ""
 
         item = EvidenceItem(
             source=source,
@@ -221,7 +424,6 @@ def _compute_quality_signals(
     elif len(items) < 2:
         consensus = SourceConsensus.INSUFFICIENT
     else:
-        # Heuristisch: wenn es erkannte Widersprüche gibt → CONTRADICTORY/MIXED
         support = sum(1 for i in items if i.supports_claim is True)
         oppose = sum(1 for i in items if i.supports_claim is False)
         total_assessed = support + oppose
@@ -234,17 +436,31 @@ def _compute_quality_signals(
         else:
             consensus = SourceConsensus.MIXED
 
+    # Echte Freshness-Berechnung (Durchschnitt der Top-Quellen)
+    freshness_scores = [
+        _compute_freshness(i.source.publication_date)
+        for i in items[:6]
+        if i.source.publication_date
+    ]
+    freshness = sum(freshness_scores) / len(freshness_scores) if freshness_scores else 0.5
+
+    # Relevanz-Qualität: wie relevant sind die Top-Treffer?
+    top_relevance = [i.relevance_score for i in items[:5]]
+    avg_relevance = sum(top_relevance) / len(top_relevance) if top_relevance else 0.0
+
     overall = (
-        min(1.0, top_tier_count / 3) * 0.4
-        + (0.3 if has_primary else 0)
-        + (0.3 if has_fc else 0)
+        min(1.0, top_tier_count / 3) * 0.30
+        + (0.25 if has_primary else 0)
+        + (0.25 if has_fc else 0)
+        + avg_relevance * 0.10
+        + freshness * 0.10
     )
 
     return EvidenceQualitySignals(
         has_primary_sources=has_primary,
         has_fact_check_org_result=has_fc,
         source_consensus=consensus,
-        freshness_score=0.5,  # Ohne Datums-Parsing: neutral
+        freshness_score=freshness,
         overall_quality=overall,
         top_tier_count=top_tier_count,
     )
@@ -474,7 +690,7 @@ class EvidenceBuilderAgent(BaseAgent):
             tier = _domain_tier(url)
             domain = _extract_domain(url)
 
-            # Excerpt: bevorzuge gescrapten Passage, sonst Snippet (beide max. 800Z.)
+            # Excerpt: bevorzuge gescrapten Passage, sonst Snippet
             if sc and sc.fetch_success and sc.passage:
                 raw_excerpt = sc.passage
                 extraction_conf = 0.8
@@ -482,8 +698,8 @@ class EvidenceBuilderAgent(BaseAgent):
                 raw_excerpt = rs.result.snippet
                 extraction_conf = 0.3
 
-            # Trust Boundary: harter Cutoff bei 800 Zeichen
-            excerpt = raw_excerpt[:800] if raw_excerpt else ""
+            # Trust Boundary: relevante Passage statt stumpfem Cutoff
+            excerpt = _extract_best_excerpt(raw_excerpt, claim_text, max_chars=800) if raw_excerpt else ""
 
             source = EvidenceSource(
                 url=url,
