@@ -48,7 +48,7 @@ class LLMConfig:
     api_key: str = ""
     base_url: str | None = None  # Für Ollama / lokale Modelle
     temperature: float = 0.2  # Niedrig für Faktenprüfung
-    max_tokens: int = 8192
+    max_tokens: int = 16384 #8192
 
     def __post_init__(self) -> None:
         if not self.api_key:

@@ -141,8 +141,9 @@ class LLMClient:
             kwargs["response_format"] = {"type": "json_object"}
 
         if self.config.provider == "openrouter":
+            sort_pref = "throughput" if "gemma-3" in self.config.model.lower() else "price"
             kwargs["extra_body"] = {
-                "provider": {"sort": "price", "allow_fallbacks": True},
+                "provider": {"sort": sort_pref, "allow_fallbacks": True},
             }
 
         def _call():
@@ -219,8 +220,9 @@ class LLMClient:
         if response_format == "json" and self.config.provider in ("openai", "openrouter"):
             kwargs["response_format"] = {"type": "json_object"}
         if self.config.provider == "openrouter":
+            sort_pref = "throughput" if "gemma-3" in self.config.model.lower() else "price"
             kwargs["extra_body"] = {
-                "provider": {"sort": "price", "allow_fallbacks": True},
+                "provider": {"sort": sort_pref, "allow_fallbacks": True},
             }
 
         def _call():
@@ -358,8 +360,9 @@ class LLMClient:
 
         extra = {}
         if self.config.provider == "openrouter":
+            sort_pref = "throughput" if "gemma-3" in self.config.model.lower() else "price"
             extra["extra_body"] = {
-                "provider": {"sort": "price", "allow_fallbacks": True},
+                "provider": {"sort": sort_pref, "allow_fallbacks": True},
             }
 
         messages = self._build_messages(system_prompt, user_message)
