@@ -127,6 +127,7 @@ class Orchestrator:
     def _select_top_claims(self, result: ClaimProcessingResult) -> list[Claim]:
         """Wähle die Top-N Claims nach Priorität aus.
 
+        - Ungültige Claims (is_valid_claim=False) werden herausgefiltert
         - Meinungen werden immer herausgefiltert
         - Claims mit is_checkworthy=False werden herausgefiltert
         - Wenn top_n=0: alle verbleibenden Claims zurückgeben
@@ -134,11 +135,13 @@ class Orchestrator:
         """
         checkable = [
             c for c in result.claims
-            if c.type != ClaimType.OPINION and c.is_checkworthy
+            if c.type != ClaimType.OPINION and c.is_checkworthy and c.is_valid_claim
         ]
 
         for c in result.claims:
-            if c.type == ClaimType.OPINION:
+            if not c.is_valid_claim:
+                self._log(f"  ⏭ {c.id}: Ungültiger Claim ({c.invalid_reason}) – übersprungen")
+            elif c.type == ClaimType.OPINION:
                 self._log(f"  ⏭ {c.id}: Meinung – übersprungen")
             elif not c.is_checkworthy:
                 self._log(f"  ⏭ {c.id}: Nicht prüfenswert – übersprungen")

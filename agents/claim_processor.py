@@ -471,6 +471,114 @@ class ClaimDecomposer(_LLMStageMixin):
         return result if result else claims
 
 
+# ── Stufe 4.5: ClaimValidator ────────────────────────────────────────────────
+
+# Harte Filter-Muster für Meta-Claims / Recherche-Claims
+_META_CLAIM_PATTERNS: list[re.Pattern] = [
+    re.compile(r"^es\s+gibt\s+informationen\s+darüber", re.IGNORECASE),
+    re.compile(r"^es\s+gibt\s+hinweise", re.IGNORECASE),
+    re.compile(r"^es\s+wird\s+behauptet,?\s+dass", re.IGNORECASE),
+    re.compile(r"^es\s+gibt\s+berichte,?\s+dass", re.IGNORECASE),
+    re.compile(r"^es\s+gibt\s+quellen,?\s+die", re.IGNORECASE),
+    re.compile(r"^es\s+ist\s+bekannt,?\s+dass", re.IGNORECASE),
+    re.compile(r"^man\s+kann\s+herausfinden", re.IGNORECASE),
+    re.compile(r"^es\s+lässt\s+sich\s+(herausfinden|recherchieren|prüfen)", re.IGNORECASE),
+    re.compile(r"lässt\s+sich\s+(herausfinden|recherchieren|prüfen|feststellen)\s*\.?\s*$", re.IGNORECASE),
+    re.compile(r"^es\s+gibt\s+daten\s+(darüber|dazu)", re.IGNORECASE),
+    re.compile(r"^es\s+existieren\s+(studien|untersuchungen|berichte)", re.IGNORECASE),
+    # Suchdimensionen statt Behauptungen
+    re.compile(r"^(wie|wann|wo|warum|ob)\s+.{0,20}\s+(ist|war|wurde|hat|haben)", re.IGNORECASE),
+    re.compile(r"^informationen\s+(über|zu|darüber)", re.IGNORECASE),
+]
+
+# Weiche Signale für niedrige Claim-Qualität
+_WEAK_CLAIM_PATTERNS: list[re.Pattern] = [
+    re.compile(r"^(einige|manche|viele)\s+(leute|menschen|experten)\s+(sagen|meinen|glauben)", re.IGNORECASE),
+    re.compile(r"^(es\s+heißt|angeblich|vermutlich|möglicherweise)", re.IGNORECASE),
+    re.compile(r"^(die\s+frage\s+ist|zu\s+klären\s+ist|zu\s+prüfen\s+ist)", re.IGNORECASE),
+]
+
+
+class ClaimValidator:
+    """Stufe 4.5: Validiert Claims auf Falsifizierbarkeit und Qualität.
+
+    Filtert:
+    - Meta-Claims ("Es gibt Informationen darüber, dass …")
+    - Recherche-Claims / Suchdimensionen ("Wie/Wann/Wo …")
+    - Nicht-falsifizierbare Pseudo-Claims
+
+    Markiert ungültige Claims mit is_valid_claim=False und invalid_reason.
+    """
+
+    def validate(self, claims: list[ProcessedClaim]) -> list[ProcessedClaim]:
+        """Validiere alle Claims. Ungültige werden markiert, nicht entfernt."""
+        if not claims:
+            return claims
+
+        validated: list[ProcessedClaim] = []
+        for claim in claims:
+            is_valid, reason, quality = self._check_claim(claim)
+            validated.append(
+                claim.model_copy(update={
+                    "is_valid_claim": is_valid,
+                    "invalid_reason": reason,
+                    "claim_quality_score": quality,
+                })
+            )
+        return validated
+
+    def _check_claim(self, claim: ProcessedClaim) -> tuple[bool, str, float]:
+        """Prüfe einen einzelnen Claim.
+
+        Returns:
+            (is_valid, reason, quality_score)
+        """
+        text = claim.text.strip()
+
+        # Harter Filter: Meta-Claim-Muster
+        for pattern in _META_CLAIM_PATTERNS:
+            if pattern.search(text):
+                return False, f"Meta-/Recherche-Claim: '{text[:80]}…'", 0.0
+
+        # Harter Filter: Zu kurz für falsifizierbaren Claim
+        if len(text) < 15:
+            return False, "Claim zu kurz für Falsifizierbarkeit", 0.1
+
+        # Harter Filter: Nur Frage, kein Claim
+        if text.endswith("?") and not any(
+            kw in text.lower() for kw in ["stimmt es", "ist es wahr", "trifft es zu"]
+        ):
+            return False, "Frage statt Behauptung", 0.1
+
+        # Weiche Signale: Qualitätsabzüge
+        quality = 1.0
+
+        for pattern in _WEAK_CLAIM_PATTERNS:
+            if pattern.search(text):
+                quality -= 0.3
+                break
+
+        # Claim enthält keine konkreten Entitäten/Zahlen/Fakten?
+        has_specifics = bool(
+            re.search(r"\d", text)  # Zahlen
+            or re.search(r"[A-ZÄÖÜ][a-zäöü]{2,}", text)  # Eigennamen
+        )
+        if not has_specifics:
+            quality -= 0.15
+
+        # Claim ist sehr vage ("Es ist so, dass ...")
+        if text.lower().startswith(("es ist so", "es ist klar", "es stimmt")):
+            quality -= 0.2
+
+        quality = max(0.0, min(1.0, quality))
+
+        # Unter Schwellwert → ungültig
+        if quality < 0.3:
+            return False, "Claim-Qualität zu niedrig (vage/unspezifisch)", quality
+
+        return True, "", quality
+
+
 # ── Stufe 5: ClaimCanonicalizerAgent ─────────────────────────────────────────
 
 class ClaimCanonicalizerAgent(BaseAgent):
@@ -575,15 +683,16 @@ class ClaimPrioritizerAgent(BaseAgent):
 # ── ClaimProcessingPipeline ────────────────────────────────────────────────────
 
 class ClaimProcessingPipeline:
-    """Orchestriert alle 6 Claim-Processing-Stufen.
+    """Orchestriert alle 7 Claim-Processing-Stufen.
 
     Ablauf:
-        1. SentenceSplitter – Text → Segmente
-        2. ClaimSelector    – Segmente → prüfbare Claims (LLM)
-        3. Disambiguator    – Mehrdeutigkeiten markieren (LLM)
-        4. ClaimDecomposer  – Zusammengesetzte Claims zerlegen (LLM)
-        5. ClaimCanonicalizerAgent – Kanonisierung + Hash
-        6. ClaimPrioritizerAgent   – Priorisierung + Sortierung
+        1.   SentenceSplitter – Text → Segmente
+        2.   ClaimSelector    – Segmente → prüfbare Claims (LLM)
+        3.   Disambiguator    – Mehrdeutigkeiten markieren (LLM)
+        4.   ClaimDecomposer  – Zusammengesetzte Claims zerlegen (LLM)
+        4.5  ClaimValidator   – Meta-/Recherche-Claims filtern (regelbasiert)
+        5.   ClaimCanonicalizerAgent – Kanonisierung + Hash
+        6.   ClaimPrioritizerAgent   – Priorisierung + Sortierung
 
     Jede Stufe ist gracefully degradierbar – bei Fehler wird das
     bisherige Ergebnis weitergegeben.
@@ -602,6 +711,7 @@ class ClaimProcessingPipeline:
         self._selector = ClaimSelector(_llm_small)
         self._disambiguator = Disambiguator(_llm_small)
         self._decomposer = ClaimDecomposer(_llm_small)
+        self._validator = ClaimValidator()
         self._canonicalizer = ClaimCanonicalizerAgent(config, _llm_small, search)
         self._prioritizer = ClaimPrioritizerAgent(config, llm, search)
 
@@ -650,6 +760,19 @@ class ClaimProcessingPipeline:
             notes.append(f"Stufe 4: {len(claims)} Claims nach Zerlegung")
         except Exception as e:
             notes.append(f"Stufe 4: Zerlegung fehlgeschlagen ({type(e).__name__}) – übersprungen")
+
+        # Stufe 4.5: Claim Validation (regelbasiert, kein LLM)
+        try:
+            claims = self._validator.validate(claims)
+            valid_count = sum(1 for c in claims if c.is_valid_claim)
+            invalid_count = len(claims) - valid_count
+            notes.append(f"Stufe 4.5: {valid_count} gültige, {invalid_count} ungültige Claims")
+            if invalid_count > 0:
+                for c in claims:
+                    if not c.is_valid_claim:
+                        _log(f"  ✗ {c.id} ungültig: {c.invalid_reason}")
+        except Exception as e:
+            notes.append(f"Stufe 4.5: Validierung fehlgeschlagen ({type(e).__name__}) – übersprungen")
 
         # Stufe 5: Canonicalization (LLM-Agent)
         try:

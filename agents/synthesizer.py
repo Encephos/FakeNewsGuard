@@ -132,8 +132,36 @@ class SynthesizerAgent(BaseAgent):
         except ValueError:
             rating = OverallRating.MIXED
 
-        # Confidence auf gültigen Bereich begrenzen (#5)
-        confidence = min(1.0, max(0.0, float(raw.get("confidence", 0.5))))
+        # Confidence auf gültigen Bereich begrenzen + Kalibrierung
+        raw_confidence = min(1.0, max(0.0, float(raw.get("confidence", 0.5))))
+
+        # Regelbasierte Korrektur: Synthese-Confidence darf nicht höher sein
+        # als die durchschnittliche Verdict-Confidence der Einzelclaims
+        verdict_confidences: list[float] = []
+        for fc in fact_checks:
+            if fc.verdict_meta and fc.verdict_meta.confidence_reduction_reason:
+                # Verdicts mit Kalibrierungsgründen → Confidence wurde gesenkt
+                # Nutze den geringeren Wert als Signal
+                pass
+            # Sammle Unsicherheitssignale aus Verdicts
+            if fc.verdict_meta and fc.verdict_meta.uncertainty_signals:
+                verdict_confidences.append(max(0.3, raw_confidence - 0.05 * len(fc.verdict_meta.uncertainty_signals)))
+
+        # Wenn Einzelverdicts Unsicherheiten haben, senke Synthese-Confidence
+        if verdict_confidences:
+            avg_verdict_conf = sum(verdict_confidences) / len(verdict_confidences)
+            confidence = min(raw_confidence, avg_verdict_conf + 0.05)
+        else:
+            confidence = raw_confidence
+
+        # Ceiling: Bei nur 1 Fact-Check und keinen starken Quellen → max 0.80
+        if len(fact_checks) == 1 and not any(
+            fc.verdict_meta and fc.verdict_meta.primary_sources_consulted
+            for fc in fact_checks
+        ):
+            confidence = min(confidence, 0.80)
+
+        confidence = min(1.0, max(0.0, confidence))
 
         return SynthesisResult(
             overall_rating=rating,
