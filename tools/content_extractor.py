@@ -155,6 +155,46 @@ def _strip_html_tags(html: str) -> str:
     return text.strip()
 
 
+def _extract_article_text_with_date(html: str) -> tuple[str, str]:
+    """Artikel-Text + Publikationsdatum extrahieren.
+
+    Returns:
+        (text, publication_date) — publication_date ist "" wenn nicht gefunden.
+    """
+    pub_date = ""
+
+    # ── Strategie 1: trafilatura (beste Qualität + Metadaten) ──────
+    if _HAS_TRAFILATURA:
+        try:
+            result = trafilatura.extract(
+                html,
+                include_comments=False,
+                include_tables=True,
+                favor_precision=True,
+                output_format="python",  # gibt dict zurück mit Metadaten
+            )
+            if isinstance(result, dict):
+                text = result.get("text", "") or ""
+                pub_date = result.get("date", "") or ""
+                if text and len(text) > 100:
+                    return text, pub_date
+            elif result and len(result) > 100:
+                # Ältere trafilatura-Versionen geben String zurück
+                return result, pub_date
+        except Exception:
+            pass
+
+        # Fallback: Metadaten separat extrahieren
+        try:
+            metadata = trafilatura.extract_metadata(html)
+            if metadata and hasattr(metadata, "date"):
+                pub_date = metadata.date or ""
+        except Exception:
+            pass
+
+    return "", pub_date
+
+
 def _extract_article_text(html: str) -> str:
     """Artikel-Text extrahieren: trafilatura → BeautifulSoup Fallback.
 

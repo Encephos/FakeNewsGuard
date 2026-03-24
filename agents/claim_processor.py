@@ -560,6 +560,50 @@ def _build_search_profile(frame: ClaimFrame) -> ClaimSearchProfile:
     )
 
 
+def _derive_subclaim_frame(
+    sub_text: str,
+    parent_frame: ClaimFrame,
+) -> tuple[ClaimFrame, ClaimSearchProfile]:
+    """Leite einen fokussierten ClaimFrame für einen Teil-Claim ab.
+
+    Behält nur die Frame-Felder, die im Text des Teil-Claims wirklich
+    vorkommen. Verhindert, dass Teil-Claims irrelevante Kontext-Felder
+    des Eltern-Claims erben (z.B. Sanktions-Frame in einem Claim über
+    Fahrtenbegrenzung, der keine Sanktion erwähnt).
+
+    Strategie: ein Frame-Feld wird behalten, wenn mindestens ein
+    signifikantes Wort (> 3 Zeichen) daraus im Sub-Claim-Text auftaucht.
+    """
+    sub_lower = sub_text.lower()
+
+    def _field_present(val: str) -> bool:
+        if not val or len(val.strip()) < 3:
+            return False
+        words = [w for w in re.findall(r"[a-zäöüß]{4,}", val.lower())]
+        return bool(words) and any(w in sub_lower for w in words)
+
+    def _numbers_in_sub(numbers: list[str]) -> list[str]:
+        return [n for n in numbers if re.search(re.escape(n), sub_text)]
+
+    focused = ClaimFrame(
+        raw_text=sub_text,
+        subject=parent_frame.subject if _field_present(parent_frame.subject) else "",
+        predicate=parent_frame.predicate if _field_present(parent_frame.predicate) else "",
+        object=parent_frame.object if _field_present(parent_frame.object) else "",
+        institution=parent_frame.institution if _field_present(parent_frame.institution) else "",
+        location=parent_frame.location if _field_present(parent_frame.location) else "",
+        time_reference=parent_frame.time_reference,  # Zeitbezug meist geteilt
+        numbers=_numbers_in_sub(parent_frame.numbers),
+        sanction=parent_frame.sanction if _field_present(parent_frame.sanction) else "",
+        enforcement=parent_frame.enforcement if _field_present(parent_frame.enforcement) else "",
+        policy_context=parent_frame.policy_context if _field_present(parent_frame.policy_context) else "",
+        claim_type=parent_frame.claim_type,
+        canonical_text=sub_text,
+    )
+    profile = _build_search_profile(focused)
+    return focused, profile
+
+
 class ClaimFrameExtractor(_LLMStageMixin):
     """Stufe 2.5: Extrahiert strukturierte ClaimFrames und SearchProfiles.
 
@@ -692,6 +736,13 @@ class ClaimDecomposer(_LLMStageMixin):
                             f"'{candidate_text[:60]}…'"
                         )
                         continue
+                    # Fokussierten Frame ableiten statt Original zu erben
+                    sub_frame: ClaimFrame | None = None
+                    sub_profile: ClaimSearchProfile | None = None
+                    if original.frame:
+                        sub_frame, sub_profile = _derive_subclaim_frame(
+                            candidate_text, original.frame
+                        )
                     valid_atomics.append(
                         ProcessedClaim(
                             id=a["id"],
@@ -703,9 +754,8 @@ class ClaimDecomposer(_LLMStageMixin):
                             ambiguity_level=original.ambiguity_level,
                             ambiguity_reason=original.ambiguity_reason,
                             requires_more_context=original.requires_more_context,
-                            # Frame und SearchProfile vom Original erben
-                            frame=original.frame,
-                            search_profile=original.search_profile,
+                            frame=sub_frame,
+                            search_profile=sub_profile,
                         )
                     )
                 except (KeyError, ValueError) as e:
