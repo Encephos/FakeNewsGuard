@@ -38,6 +38,119 @@ class ClaimExtractionResult(BaseModel):
     )
 
 
+# ── Claim Processing (erweiterte Pipeline) ───────────────────────
+
+
+class AmbiguityLevel(str, Enum):
+    NONE = "NONE"
+    LOW = "LOW"
+    MEDIUM = "MEDIUM"
+    HIGH = "HIGH"
+
+
+class ProcessedClaim(Claim):
+    """Claim nach mehrstufiger Processing-Pipeline.
+
+    Erweitert Claim um Kanonisierung, Disambiguierung und Priorisierung.
+    Rückwärtskompatibel: alle Claim-Felder bleiben erhalten.
+    """
+
+    # ── Kanonisierung (ClaimCanonicalizerAgent) ──────────────────
+    canonical_text: str = Field(
+        default="",
+        description="Normalisierte, kanonische Form des Claims",
+    )
+    canonical_hash: str = Field(
+        default="",
+        description="SHA-256 des canonical_text – für cache-freundliche Keys",
+    )
+    normalized_entities: list[str] = Field(
+        default_factory=list,
+        description="Normalisierte Entitäten (z.B. 'Deutschland' statt 'DE')",
+    )
+    normalized_dates: list[str] = Field(
+        default_factory=list,
+        description="Normalisierte Datumsangaben (ISO-Format)",
+    )
+    normalized_numbers: list[str] = Field(
+        default_factory=list,
+        description="Normalisierte Zahlenangaben (z.B. '1500' statt '1.500')",
+    )
+
+    # ── Disambiguierung ──────────────────────────────────────────
+    ambiguity_level: AmbiguityLevel = AmbiguityLevel.NONE
+    ambiguity_reason: str = Field(
+        default="",
+        description="Warum der Claim mehrdeutig ist (leer wenn eindeutig)",
+    )
+    requires_more_context: bool = Field(
+        default=False,
+        description="True wenn der Claim ohne zusätzlichen Kontext nicht prüfbar ist",
+    )
+
+    # ── Priorisierung (ClaimPrioritizerAgent) ────────────────────
+    priority_score: float = Field(
+        default=0.5,
+        ge=0.0,
+        le=1.0,
+        description="Gesamtpriorität (1.0 = höchste Priorität)",
+    )
+    harm_score: float = Field(
+        default=0.0,
+        ge=0.0,
+        le=1.0,
+        description="Schadenspotenzial bei falscher Verbreitung",
+    )
+    checkworthiness_score: float = Field(
+        default=0.5,
+        ge=0.0,
+        le=1.0,
+        description="Wie prüfenswert der Claim ist",
+    )
+    priority_reason: str = Field(
+        default="",
+        description="Begründung der Prioritätseinstufung",
+    )
+    recommended_processing_order: int = Field(
+        default=0,
+        description="Empfohlene Reihenfolge (0 = zuerst prüfen)",
+    )
+    is_checkworthy: bool = Field(
+        default=True,
+        description="False wenn der Claim als nicht prüfenswert eingestuft wurde",
+    )
+
+
+class ClaimProcessingResult(BaseModel):
+    """Ergebnis der mehrstufigen Claim-Processing-Pipeline.
+
+    Ersetzt ClaimExtractionResult als primäres Ergebnis des ClaimProcessorAgent.
+    Rückwärtskompatibel: claims-Property liefert list[ProcessedClaim],
+    die als list[Claim] verwendbar sind.
+    """
+
+    claims: list[ProcessedClaim]
+    implicit_claims: list[str] = Field(
+        default_factory=list,
+        description="Implizite Behauptungen, die zwischen den Zeilen stehen",
+    )
+    processing_notes: list[str] = Field(
+        default_factory=list,
+        description="Log-Einträge aus der Processing-Pipeline",
+    )
+    total_segments: int = Field(
+        default=0,
+        description="Anzahl Sätze/Segmente im Originaltext",
+    )
+
+    def to_extraction_result(self) -> ClaimExtractionResult:
+        """Konvertiere zu ClaimExtractionResult für Abwärtskompatibilität."""
+        return ClaimExtractionResult(
+            claims=self.claims,
+            implicit_claims=self.implicit_claims,
+        )
+
+
 # ── Image Analyzer ───────────────────────────────────────────────
 
 
@@ -137,6 +250,20 @@ class FactCheckResult(BaseModel):
     source_consensus: str = Field(
         default="",
         description="Zusammenfassung des Quellen-Konsens (übereinstimmend/widersprüchlich/einseitig)",
+    )
+    # ── Neue Felder (optional, rückwärtskompatibel) ──────────────
+    # Werden von EvidenceBuilderAgent + VerdictAgent befüllt wenn aktiv
+    evidence_pack: Optional["EvidencePack"] = Field(
+        default=None,
+        description="Strukturiertes Evidence-Pack aus EvidenceBuilderAgent",
+    )
+    cove_trace: Optional["CoVeTrace"] = Field(
+        default=None,
+        description="Chain-of-Verification Trace (None wenn CoVe nicht aktiv)",
+    )
+    verdict_meta: Optional["FinalVerdictMeta"] = Field(
+        default=None,
+        description="Metadaten zum Urteil (Unsicherheitssignale etc.)",
     )
 
 
@@ -269,3 +396,26 @@ SYNTHESIS_SCHEMA: dict = {
     },
     "required": ["overall_rating", "confidence", "summary"],
 }
+
+
+# ── Lazy Imports für Forward References ──────────────────────────
+# Werden erst beim Zugriff aufgelöst, um Zirkelimporte zu vermeiden.
+# FactCheckResult nutzt EvidencePack, CoVeTrace, FinalVerdictMeta als
+# optionale Felder – diese kommen aus den neuen Modell-Modulen.
+
+def _rebuild_models() -> None:
+    """Löse Forward References in Pydantic-Modellen auf.
+
+    Muss einmalig nach allen Imports aufgerufen werden.
+    Wird automatisch beim Import von models.schemas ausgeführt.
+    """
+    from models.evidence_models import EvidencePack  # noqa: F401
+    from models.verdict_models import CoVeTrace, FinalVerdictMeta  # noqa: F401
+    FactCheckResult.model_rebuild()
+
+
+# Rebuild beim Import ausführen (best-effort, kein Fehler bei Importproblemen)
+try:
+    _rebuild_models()
+except Exception:
+    pass
