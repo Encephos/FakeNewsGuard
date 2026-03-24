@@ -11,7 +11,7 @@ from dataclasses import dataclass
 
 import httpx
 
-from tools.content_extractor import _HEADERS, _extract_article_text
+from tools.content_extractor import _HEADERS, _extract_article_text, _extract_article_text_with_date
 from tools.scrape_ranker import RankedSource, extract_relevant_passages
 
 
@@ -23,6 +23,7 @@ class ScrapedSource:
     low_relevance: bool     # Flag aus extract_relevant_passages
     fetch_success: bool
     error: str | None       # Falls fetch_success=False
+    publication_date: str = ""  # ISO-Datum oder Freitext, leer wenn unbekannt
 
 
 async def scrape_source(
@@ -53,8 +54,12 @@ async def scrape_source(
             error=f"{type(e).__name__}: {e}",
         )
 
-    # Artikeltext extrahieren
-    text = _extract_article_text(response.text)
+    # Artikeltext + Publikationsdatum extrahieren
+    text, pub_date = _extract_article_text_with_date(response.text)
+    if not text or len(text) < 100:
+        # Fallback: einfache Extraktion ohne Datum
+        text = _extract_article_text(response.text)
+        pub_date = ""
     if not text or len(text) < 100:
         return ScrapedSource(
             url=ranked.result.url,
@@ -75,6 +80,7 @@ async def scrape_source(
         low_relevance=low_relevance,
         fetch_success=True,
         error=None,
+        publication_date=pub_date,
     )
 
 
