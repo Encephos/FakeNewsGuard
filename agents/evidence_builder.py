@@ -41,7 +41,7 @@ from tools.llm import LLMClient
 from tools.scrape_ranker import RankedSource, rank_sources
 from tools.source_classifier import classify_source
 from tools.source_scraper import ScrapedSource, scrape_sources
-from tools.web_search import AsyncWebSearchClient, LangSearchClient, SearchResult, TavilyClient, WebSearchClient
+from tools.web_search import AsyncWebSearchClient, LangSearchClient, SearchResult, SearXNGClient, TavilyClient, WebSearchClient
 
 
 # ── Deduplication ─────────────────────────────────────────────────────────────
@@ -758,6 +758,8 @@ def _compute_quality_signals(
     items: list[EvidenceItem],
     google_matches: list[GoogleFactCheckMatch],
     low_trust_penalty_factor: float = 0.20,
+    stale_threshold: float = 0.35,
+    stale_penalty_factor: float = 0.15,
 ) -> EvidenceQualitySignals:
     """Berechne Qualitätssignale für das Evidence-Set."""
     has_primary = any(i.source.domain_tier <= 2 for i in items)
@@ -817,7 +819,10 @@ def _compute_quality_signals(
     # Low-Trust-Penalty: deckelt Confidence wenn überwiegend unzuverlässige Quellen
     # (konfigurierbar über low_trust_penalty_factor, Default 0.20)
     low_trust_penalty = low_trust_rate * low_trust_penalty_factor
-    freshness_term = freshness * 0.10 if items else 0.0
+    # Freshness: erhöhtes Gewicht (0.15) für aktuelle Claims
+    freshness_term = freshness * 0.15 if items else 0.0
+    # Stale-Penalty: wenn alle Quellen veraltet sind (avg_freshness < stale_threshold)
+    stale_penalty = stale_penalty_factor if (items and freshness < stale_threshold) else 0.0
 
     overall = (
         min(1.0, top_tier_count / 3) * 0.30
@@ -827,6 +832,7 @@ def _compute_quality_signals(
         + freshness_term
         - offtopic_penalty
         - low_trust_penalty
+        - stale_penalty
     )
     overall = max(0.0, min(1.0, overall))
 
@@ -1020,22 +1026,12 @@ class EvidenceBuilderAgent(BaseAgent):
             retry=self.config.retry,
         )
 
-        # ── Tavily-Doppelnutzung verhindern ────────────────────────────────────
-        # Wenn TavilyClient als eigener Layer aktiv ist, darf AsyncWebSearchClient
-        # nicht zusätzlich Tavily nutzen → auf SearXNG zwingen.
-        if self.config.tavily.enabled and self.config.search.provider == "tavily":
-            import warnings
-            warnings.warn(
-                "search.provider='tavily' bei aktivem TavilyClient → "
-                "AsyncWebSearchClient wird auf 'searxng' umgestellt, "
-                "um Tavily-Doppelnutzung zu vermeiden.",
-                stacklevel=2,
-            )
-            self.config.search.provider = "searxng"
-
-        # SearXNG Async Search Client (unterstützend – kostenlos, breite Abdeckung)
-        self._async_search = AsyncWebSearchClient(
-            self.config.search, self.config.retry
+        # SearXNG Client (unterstützend – kostenlos, alle Queries, self-hosted)
+        # Dedizierter Client: immer und ausschließlich SearXNG.
+        # Kein Provider-Routing, keine Abhängigkeit von search.provider.
+        self._searxng = SearXNGClient(
+            config=self.config.searxng,
+            retry=self.config.retry,
         )
 
         # ── Tavily-Budget-Tracking ────────────────────────────────────────────
@@ -1116,8 +1112,8 @@ class EvidenceBuilderAgent(BaseAgent):
         tavily_queries_list = queries[:tavily_primary_n] if tavily_primary_n > 0 else []
 
         # Parallele Tasks starten
-        searxng_task = self._async_search.multi_search_async(
-            queries, max_results=self.config.search.max_results, categories=categories,
+        searxng_task = self._searxng.multi_search_async(
+            queries, max_results=self.config.searxng.max_results, categories=categories,
         )
         langsearch_task = self._langsearch.multi_search_async(
             langsearch_queries, max_results=self.config.langsearch.max_results,
@@ -1267,6 +1263,8 @@ class EvidenceBuilderAgent(BaseAgent):
         quality = _compute_quality_signals(
             evidence_items, gfc_matches,
             low_trust_penalty_factor=retrieval_cfg.low_trust_confidence_penalty,
+            stale_threshold=retrieval_cfg.stale_sources_freshness_threshold,
+            stale_penalty_factor=retrieval_cfg.stale_sources_confidence_penalty,
         )
 
         # Retry wenn Qualität zu niedrig oder Off-topic-Rate hoch
@@ -1287,6 +1285,8 @@ class EvidenceBuilderAgent(BaseAgent):
             quality = _compute_quality_signals(
                 evidence_items, gfc_matches,
                 low_trust_penalty_factor=retrieval_cfg.low_trust_confidence_penalty,
+                stale_threshold=retrieval_cfg.stale_sources_freshness_threshold,
+                stale_penalty_factor=retrieval_cfg.stale_sources_confidence_penalty,
             )
             notes.append(f"Fallback: {len(evidence_items)} Evidence Items")
 
@@ -1408,7 +1408,7 @@ class EvidenceBuilderAgent(BaseAgent):
         ranked = rank_sources(
             results_by_query,
             claim.text,
-            max_scrape=self.config.search.scrape_top_n,
+            max_scrape=self.config.searxng.scrape_top_n,
             profile=profile,
         )
 
@@ -1434,8 +1434,8 @@ class EvidenceBuilderAgent(BaseAgent):
 
         scraped = await scrape_sources(
             ranked, claim.text,
-            max_concurrent=self.config.search.max_concurrent_searches,
-            timeout=self.config.search.scrape_timeout,
+            max_concurrent=self.config.searxng.max_concurrent_searches,
+            timeout=self.config.searxng.scrape_timeout,
         )
         success = sum(1 for s in scraped if s.fetch_success)
         self._log(f"Scraping: {success}/{len(scraped)} erfolgreich")
@@ -1558,8 +1558,8 @@ class EvidenceBuilderAgent(BaseAgent):
 
         # LangSearch und SearXNG parallel starten
         tasks: list = [
-            self._async_search.multi_search_async(
-                fallback_queries, max_results=self.config.search.max_results,
+            self._searxng.multi_search_async(
+                fallback_queries, max_results=self.config.searxng.max_results,
             )
         ]
         if self.config.langsearch.enabled:

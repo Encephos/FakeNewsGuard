@@ -5,7 +5,7 @@ Fact-Check-Datenbanken in Unit-Tests – Tests laufen dadurch sofort.
 
 Gemockte Schichten:
   - LangSearchClient.multi_search_async  → leere Ergebnisse
-  - AsyncWebSearchClient.multi_search_async → leere Ergebnisse
+  - SearXNGClient.multi_search_async     → leere Ergebnisse
   - FactCheckDatabaseClient.search_async  → leere Ergebnisse
   - scrape_sources                         → leere Ergebnisse
   - LLMClient.complete / complete_json / complete_structured → Dummy-JSON
@@ -34,9 +34,9 @@ def mock_network_calls(mocker):
         return_value={},
     )
 
-    # ── AsyncWebSearchClient: async multi-search → leere dict ────────────────
+    # ── SearXNGClient: async multi-search → leere dict ───────────────────────
     mocker.patch(
-        "agents.evidence_builder.AsyncWebSearchClient.multi_search_async",
+        "agents.evidence_builder.SearXNGClient.multi_search_async",
         return_value={},
     )
 
