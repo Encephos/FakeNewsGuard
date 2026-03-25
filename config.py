@@ -325,8 +325,8 @@ class EvidenceRetrievalConfig:
     und macht Schwellenwerte konfigurierbar statt hart codiert.
 
     Rollen:
-        Tavily     = breite, content-starke Suche (feste Query-Anzahl)
-        LangSearch = semantisch-präzise Suche (adaptiv je nach Claim-Komplexität)
+        Tavily     = breite, content-starke Suche (budgetiert, nicht pauschal)
+        LangSearch = semantisch-präzise Hauptsuche (adaptiv je nach Claim-Komplexität)
         SearXNG    = unterstützende Breitensuche (alle Queries)
         GFC        = strukturierter Shortcut-Layer (kein Query-Budget nötig)
 
@@ -334,19 +334,30 @@ class EvidenceRetrievalConfig:
         LANGSEARCH_QUERIES_SIMPLE     – Queries für einfache Claims (Default: 2)
         LANGSEARCH_QUERIES_COMPLEX    – Queries für komplexe/statistische Claims (Default: 4)
         LANGSEARCH_RETRY_ON_WEAK      – Zweite Runde bei schwacher erster Evidenz (Default: true)
-        TAVILY_RETRIEVAL_QUERIES      – Tavily-Queries pro Claim (Default: 2)
+        TAVILY_PRIMARY_QUERIES        – Tavily-Queries in Primärrunde (Default: 1)
+        TAVILY_MAX_QUERIES_PER_CLAIM  – Max. Tavily-Queries pro Claim inkl. Expansion (Default: 3)
+        TAVILY_EXPAND_ON_LOW_QUALITY  – Tavily-Expansion bei schwacher Evidenz (Default: true)
+        TAVILY_REQUEST_BUDGET         – Max. Tavily-Requests pro Analyse-Lauf (Default: 10)
         WEAK_EVIDENCE_THRESHOLD       – Avg-Relevanz-Schwelle für LangSearch-Retry (Default: 0.25)
         LOW_TRUST_CONFIDENCE_PENALTY  – Penalty-Faktor für Low-Trust-Rate in overall_quality (Default: 0.20)
         PRE_SCRAPE_OFFTOPIC_PENALTY   – Mindest-Penalty damit Kandidat vor Scraping entfernt wird (Default: 0.70)
+        CLAIM_SCOPE_MIN_DIRECT        – Min. claim_scope_score für direct evidence (Default: 0.60)
     """
 
     langsearch_queries_simple: int = 2      # Einfache FACTUAL Claims
     langsearch_queries_complex: int = 4     # STATISTICAL / CAUSAL / CONTEXTUAL Claims
     langsearch_retry_on_weak: bool = True   # Zweite LangSearch-Runde bei schwacher Evidenz
-    tavily_retrieval_queries: int = 2       # Tavily-Queries (breit, content-stark)
+    # ── Tavily-Budgetierung ───────────────────────────────────────────────────
+    tavily_primary_queries: int = 1         # Tavily-Queries in der Primärrunde (sparsam)
+    tavily_max_queries_per_claim: int = 3   # Max. Tavily-Queries pro Claim inkl. Expansion
+    tavily_expand_on_low_quality: bool = True  # Mehr Tavily nur bei schwacher Evidenz
+    tavily_request_budget: int = 10         # Max. Tavily-Requests pro Analyse-Lauf (0 = unbegrenzt)
+    # ── Schwellenwerte ────────────────────────────────────────────────────────
     weak_evidence_threshold: float = 0.25  # avg_relevance-Schwelle → LangSearch-Retry
     low_trust_confidence_penalty: float = 0.20  # Penalty-Faktor auf overall_quality
     pre_scrape_offtopic_penalty: float = 0.70   # Mindest-Penalty für Pre-Scrape-Filter
+    # ── Evidence-Typing ───────────────────────────────────────────────────────
+    claim_scope_min_direct: float = 0.60   # Min. claim_scope_score für "direct" evidence
 
     def __post_init__(self) -> None:
         if v := os.getenv("LANGSEARCH_QUERIES_SIMPLE", ""):
@@ -355,14 +366,22 @@ class EvidenceRetrievalConfig:
             self.langsearch_queries_complex = int(v)
         if v := os.getenv("LANGSEARCH_RETRY_ON_WEAK", ""):
             self.langsearch_retry_on_weak = v.lower() in ("true", "1", "yes")
-        if v := os.getenv("TAVILY_RETRIEVAL_QUERIES", ""):
-            self.tavily_retrieval_queries = int(v)
+        if v := os.getenv("TAVILY_PRIMARY_QUERIES", ""):
+            self.tavily_primary_queries = int(v)
+        if v := os.getenv("TAVILY_MAX_QUERIES_PER_CLAIM", ""):
+            self.tavily_max_queries_per_claim = int(v)
+        if v := os.getenv("TAVILY_EXPAND_ON_LOW_QUALITY", ""):
+            self.tavily_expand_on_low_quality = v.lower() in ("true", "1", "yes")
+        if v := os.getenv("TAVILY_REQUEST_BUDGET", ""):
+            self.tavily_request_budget = int(v)
         if v := os.getenv("WEAK_EVIDENCE_THRESHOLD", ""):
             self.weak_evidence_threshold = float(v)
         if v := os.getenv("LOW_TRUST_CONFIDENCE_PENALTY", ""):
             self.low_trust_confidence_penalty = float(v)
         if v := os.getenv("PRE_SCRAPE_OFFTOPIC_PENALTY", ""):
             self.pre_scrape_offtopic_penalty = float(v)
+        if v := os.getenv("CLAIM_SCOPE_MIN_DIRECT", ""):
+            self.claim_scope_min_direct = float(v)
 
 
 @dataclass

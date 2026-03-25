@@ -93,12 +93,13 @@ def _make_agent():
     agent = EvidenceBuilderAgent.__new__(EvidenceBuilderAgent)
     agent.config = config
     agent._log = lambda msg: None
+    agent._tavily_requests_used = 0
     return agent
 
 
 def _fake_rank_sources_capturing(captured_list):
     """Gibt eine fake rank_sources zurück, die gefilterte Kandidaten capturiert."""
-    def _inner(results_by_query, claim_text, max_scrape=5):
+    def _inner(results_by_query, claim_text, max_scrape=5, profile=None):
         from tools.scrape_ranker import RankedSource
         from tools.source_classifier import SourceTier
         items = results_by_query.get("_all", [])
@@ -423,7 +424,7 @@ class TestTavilyContentSkipsScraping:
             )
         ]
 
-        def fake_rank_sources(results_by_query, claim_text, max_scrape=5):
+        def fake_rank_sources(results_by_query, claim_text, max_scrape=5, profile=None):
             return ranked
 
         with patch("agents.evidence_builder.rank_sources", side_effect=fake_rank_sources):
@@ -468,7 +469,7 @@ class TestTavilyContentSkipsScraping:
             )
         ]
 
-        def fake_rank_sources(results_by_query, claim_text, max_scrape=5):
+        def fake_rank_sources(results_by_query, claim_text, max_scrape=5, profile=None):
             return ranked
 
         with patch("agents.evidence_builder.rank_sources", side_effect=fake_rank_sources):
@@ -592,6 +593,7 @@ class TestFallbackUsesLangSearch:
         config = AppConfig()
         config.langsearch.enabled = True
         config.langsearch.api_key = "fake-key"
+        config.tavily.enabled = False  # Tavily deaktiviert für diesen Test
 
         agent = _make_agent()
         agent.config = config
@@ -629,6 +631,7 @@ class TestFallbackUsesLangSearch:
 
         config = AppConfig()
         config.langsearch.enabled = False
+        config.tavily.enabled = False  # Tavily deaktiviert für diesen Test
         agent = _make_agent()
         agent.config = config
         claim = _make_claim("Test")
@@ -684,7 +687,9 @@ class TestEvidenceRetrievalConfigDefaults:
         assert cfg.langsearch_queries_simple == 2
         assert cfg.langsearch_queries_complex == 4
         assert cfg.langsearch_retry_on_weak is True
-        assert cfg.tavily_retrieval_queries == 2
+        assert cfg.tavily_primary_queries == 1
+        assert cfg.tavily_max_queries_per_claim == 3
+        assert cfg.tavily_request_budget == 10
         assert cfg.weak_evidence_threshold == 0.25
         assert cfg.low_trust_confidence_penalty == 0.20
         assert cfg.pre_scrape_offtopic_penalty == 0.70
