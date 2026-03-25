@@ -27,6 +27,20 @@ class SourceConsensus(str, Enum):
     INSUFFICIENT = "insufficient"  # Zu wenig Quellen für Aussage
 
 
+class EvidenceType(str, Enum):
+    """Klassifiziert die Evidenz-Stärke eines Treffers.
+
+    DIRECT: Offizieller Beschluss, Protokoll, Behördenseite oder direkter
+            journalistischer/faktencheckerischer Bericht mit genauem Claim-Bezug.
+    CONTEXTUAL: Allgemeiner Themenkontext (z.B. Seite über 15-Minuten-Stadt-Konzept),
+                erklärt Hintergrund, belegt aber nicht den konkreten Claim.
+    WEAK: Low-Trust, generische Hilfsseite oder nur entfernt thematisch verwandt.
+    """
+    DIRECT = "direct"
+    CONTEXTUAL = "contextual"
+    WEAK = "weak"
+
+
 class EvidenceSource(BaseModel):
     """Metadaten einer einzelnen Quelle (keine Inhalte)."""
 
@@ -68,6 +82,25 @@ class EvidenceItem(BaseModel):
     supports_claim: Optional[bool] = Field(
         default=None,
         description="True=stützt Claim, False=widerspricht, None=neutral/unklar",
+    )
+    evidence_type: EvidenceType = Field(
+        default=EvidenceType.CONTEXTUAL,
+        description=(
+            "DIRECT=belegt den konkreten Claim direkt, "
+            "CONTEXTUAL=thematischer Hintergrund, "
+            "WEAK=low-trust oder nur entfernt verwandt"
+        ),
+    )
+    claim_scope_score: float = Field(
+        default=0.0,
+        ge=0.0,
+        le=1.0,
+        description=(
+            "Wie genau deckt die Quelle die konkreten Claim-Details ab? "
+            "0.0=nur allgemeiner Kontext, 1.0=alle spezifischen Details belegt. "
+            "Prüft: institution, location, policy_context, action/regulation, "
+            "sanction/number_in_context."
+        ),
     )
 
 
@@ -123,6 +156,19 @@ class EvidenceQualitySignals(BaseModel):
         description=(
             "Anteil der Low-Trust-Seiten (Währungsrechner, Grammatik, Juraforen etc.) "
             "in den Top-5-Ergebnissen. Hoher Wert → Evidenz kaum belastbar."
+        ),
+    )
+    direct_evidence_count: int = Field(
+        default=0,
+        description="Anzahl der Quellen mit evidence_type=DIRECT in Top-5",
+    )
+    contextual_only_rate: float = Field(
+        default=0.0,
+        ge=0.0,
+        le=1.0,
+        description=(
+            "Anteil der Quellen die nur contextual/weak sind (kein direct evidence) "
+            "in den Top-5. Hoher Wert → Support Leakage-Risiko."
         ),
     )
 
@@ -230,9 +276,15 @@ class EvidencePack(BaseModel):
                     support = " [stützt Claim]"
                 elif item.supports_claim is False:
                     support = " [widerspricht Claim]"
+                ev_type_label = {
+                    EvidenceType.DIRECT: "DIREKT",
+                    EvidenceType.CONTEXTUAL: "KONTEXT",
+                    EvidenceType.WEAK: "SCHWACH",
+                }.get(item.evidence_type, "KONTEXT")
                 parts.append(
-                    f"[Quelle {i}] [{tier_label}] {item.source.title}{support}\n"
+                    f"[Quelle {i}] [{tier_label}] [{ev_type_label}] {item.source.title}{support}\n"
                     f"  URL: {item.source.url}\n"
+                    f"  Claim-Scope: {item.claim_scope_score:.2f}\n"
                     f"  Auszug: {item.excerpt}\n"
                 )
 
@@ -253,6 +305,8 @@ class EvidencePack(BaseModel):
                 f"  Qualitätsscore: {q.overall_quality:.2f}\n"
                 f"  Off-topic-Rate (Top-5): {q.off_topic_rate:.0%}\n"
                 f"  Ø Relevanz (Top-5): {q.avg_top5_relevance:.2f}\n"
+                f"  Direkte Evidenz (Top-5): {q.direct_evidence_count}\n"
+                f"  Nur-Kontext-Rate (Top-5): {q.contextual_only_rate:.0%}\n"
             )
 
         return "\n".join(parts) if parts else "Keine Evidenz gefunden."

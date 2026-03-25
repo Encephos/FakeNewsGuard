@@ -830,6 +830,22 @@ def _compute_quality_signals(
     )
     overall = max(0.0, min(1.0, overall))
 
+    # Evidence-Type-Statistiken für Top-5
+    from models.evidence_models import EvidenceType
+    direct_count = sum(
+        1 for i in top_5
+        if getattr(i, "evidence_type", None) == EvidenceType.DIRECT
+    )
+    contextual_or_weak = sum(
+        1 for i in top_5
+        if getattr(i, "evidence_type", None) in (EvidenceType.CONTEXTUAL, EvidenceType.WEAK)
+    )
+    contextual_only_rate = contextual_or_weak / len(top_5) if top_5 else 0.0
+
+    # Contextual-only-Penalty in overall_quality einrechnen
+    if contextual_only_rate > 0.6 and direct_count == 0:
+        overall = max(0.0, overall - 0.10)
+
     return EvidenceQualitySignals(
         has_primary_sources=has_primary,
         has_fact_check_org_result=has_fc,
@@ -840,7 +856,94 @@ def _compute_quality_signals(
         off_topic_rate=off_topic_rate,
         avg_top5_relevance=avg_relevance,
         low_trust_rate=low_trust_rate,
+        direct_evidence_count=direct_count,
+        contextual_only_rate=contextual_only_rate,
     )
+
+
+# ── Claim-Scope-Score + Evidence-Typing ──────────────────────────────────────
+
+
+def _compute_claim_scope_score(
+    excerpt: str,
+    profile: ClaimSearchProfile | None,
+) -> float:
+    """Berechne wie genau eine Quelle die konkreten Claim-Details abdeckt.
+
+    Prüft 5 Dimensionen (gewichtet):
+        - institution_match   (0.25) – z.B. "Stadtrat Hannover"
+        - location_match      (0.20) – z.B. "Hannover"
+        - policy_context      (0.20) – z.B. "15-Minuten-Stadt", "rechtlich bindend"
+        - action_regulation   (0.20) – z.B. "beschlossen", "Sitzung"
+        - sanction_number     (0.15) – z.B. "250 Euro Bußgeld"
+
+    Ohne Profil → 0.5 (neutral, kein Signal).
+    Allgemeiner Konzeptbezug ohne konkrete Maßnahme → niedriger Score.
+    """
+    if not profile:
+        return 0.5
+
+    combined = excerpt.lower()
+
+    dimensions: list[tuple[list[str], float]] = [
+        (profile.institutions, 0.25),
+        (profile.locations, 0.20),
+        (profile.policy_terms, 0.20),
+        (profile.action_terms if hasattr(profile, "action_terms") else [], 0.20),
+        (profile.sanction_terms, 0.15),
+    ]
+
+    total_weight = 0.0
+    hit_weight = 0.0
+    for terms, weight in dimensions:
+        if not terms:
+            continue
+        total_weight += weight
+        if any(t.lower() in combined for t in terms if t):
+            hit_weight += weight
+
+    if total_weight == 0:
+        return 0.5
+
+    return hit_weight / total_weight
+
+
+def _classify_evidence_type(
+    item_relevance: float,
+    claim_scope: float,
+    domain_tier: int,
+    is_fact_check: bool,
+    is_low_trust: bool,
+    min_direct_scope: float = 0.60,
+) -> "EvidenceType":
+    """Klassifiziere einen Treffer als DIRECT, CONTEXTUAL oder WEAK.
+
+    DIRECT: Hoher claim_scope_score + relevance → belegt den konkreten Claim.
+    CONTEXTUAL: Mittlerer Scope → erklärt Hintergrund, belegt nicht Details.
+    WEAK: Niedriger Scope oder Low-Trust → kaum verwertbar.
+    """
+    from models.evidence_models import EvidenceType
+
+    if is_low_trust:
+        return EvidenceType.WEAK
+
+    # Fact-Checker mit ausreichender Relevanz → immer DIRECT
+    if is_fact_check and item_relevance >= 0.30:
+        return EvidenceType.DIRECT
+
+    # Offizielle Quellen (Tier 1-2) mit gutem Scope → DIRECT
+    if domain_tier <= 2 and claim_scope >= min_direct_scope * 0.8:
+        return EvidenceType.DIRECT
+
+    # Hoher Scope + ausreichende Relevanz → DIRECT
+    if claim_scope >= min_direct_scope and item_relevance >= 0.35:
+        return EvidenceType.DIRECT
+
+    # Mittlerer Scope oder anständige Relevanz → CONTEXTUAL
+    if claim_scope >= 0.30 or item_relevance >= 0.25:
+        return EvidenceType.CONTEXTUAL
+
+    return EvidenceType.WEAK
 
 
 # ── Adaptive LangSearch Query Count ──────────────────────────────────────────
@@ -905,13 +1008,13 @@ class EvidenceBuilderAgent(BaseAgent):
             retry=self.config.retry,
         )
 
-        # LangSearch Client (primär – semantisch)
+        # LangSearch Client (primär – semantische Hauptsuche)
         self._langsearch = LangSearchClient(
             config=self.config.langsearch,
             retry=self.config.retry,
         )
 
-        # Tavily Client (primär – KI-optimiert)
+        # Tavily Client (budgetiert – content-stark, nicht pauschal)
         self._tavily = TavilyClient(
             config=self.config.tavily,
             retry=self.config.retry,
@@ -921,6 +1024,30 @@ class EvidenceBuilderAgent(BaseAgent):
         self._async_search = AsyncWebSearchClient(
             self.config.search, self.config.retry
         )
+
+        # ── Tavily-Budget-Tracking ────────────────────────────────────────────
+        # Wird pro Analyse-Lauf gezählt (nicht pro Claim).
+        # Muss vom Orchestrator bei jedem neuen analyze()-Aufruf zurückgesetzt werden
+        # über reset_tavily_budget().
+        self._tavily_requests_used: int = 0
+
+    def reset_tavily_budget(self) -> None:
+        """Setze Tavily-Budget-Zähler zurück (aufrufen zu Beginn jeder Analyse)."""
+        self._tavily_requests_used = 0
+
+    def _tavily_budget_remaining(self) -> int:
+        """Verbleibende Tavily-Requests im aktuellen Analyse-Lauf."""
+        budget = self.config.evidence_retrieval.tavily_request_budget
+        if budget <= 0:
+            return 999  # unbegrenzt
+        return max(0, budget - self._tavily_requests_used)
+
+    def _consume_tavily_budget(self, n_queries: int) -> int:
+        """Verbrauche bis zu n_queries aus dem Tavily-Budget. Gibt tatsächlich verfügbare zurück."""
+        remaining = self._tavily_budget_remaining()
+        actual = min(n_queries, remaining)
+        self._tavily_requests_used += actual
+        return actual
 
     def execute(self, input_data: Any, context: str = "") -> EvidencePack:
         """Synchrone Version – nutzt asyncio.run intern."""
@@ -960,24 +1087,35 @@ class EvidenceBuilderAgent(BaseAgent):
         notes.append(f"Queries: {queries}")
 
         # ── 2. Adaptives paralleles Retrieval ────────────────────────────────
+        # Rollen: LangSearch = semantische Hauptsuche, Tavily = budgetiert/content-stark,
+        #         SearXNG = breite kostenlose Ergänzung, GFC = Shortcut-Layer
         from agents.fact_checker import _categories_for_claim
         categories = _categories_for_claim(claim)
 
-        # Adaptive LangSearch-Query-Anzahl: einfache Claims = 2, komplexe = 3–4
         retrieval_cfg = self.config.evidence_retrieval
+
+        # LangSearch: adaptiv nach Claim-Komplexität (2–4 Queries)
         ls_count = _langsearch_query_count(claim, retrieval_cfg)
         langsearch_queries = queries[:ls_count]
-        # Tavily: feste Anzahl (breit/content-stark, nicht adaptiv nötig)
-        tavily_queries_list = queries[:retrieval_cfg.tavily_retrieval_queries]
 
+        # Tavily: budgetiert – nur primary_queries in Runde 1, Expansion nur bei Bedarf
+        tavily_primary_n = self._consume_tavily_budget(retrieval_cfg.tavily_primary_queries)
+        tavily_queries_list = queries[:tavily_primary_n] if tavily_primary_n > 0 else []
+
+        # Parallele Tasks starten
         searxng_task = self._async_search.multi_search_async(
             queries, max_results=self.config.search.max_results, categories=categories,
         )
         langsearch_task = self._langsearch.multi_search_async(
             langsearch_queries, max_results=self.config.langsearch.max_results,
         )
-        tavily_task = self._tavily.multi_search_async(
-            tavily_queries_list, max_results=self.config.tavily.max_results,
+        async def _empty_tavily() -> dict[str, list[SearchResult]]:
+            return {}
+
+        tavily_task = (
+            self._tavily.multi_search_async(
+                tavily_queries_list, max_results=self.config.tavily.max_results,
+            ) if tavily_queries_list else _empty_tavily()
         )
         gfc_task = self._gfc_client.search_async(claim.text)
 
@@ -985,6 +1123,8 @@ class EvidenceBuilderAgent(BaseAgent):
             searxng_task, langsearch_task, tavily_task, gfc_task,
             return_exceptions=False,
         )
+        if not isinstance(tavily_results, dict):
+            tavily_results = {}
 
         # ── 3. Tavily-Content-Map aufbauen (vor Dedup/Ranking verwendbar) ────
         # Enthält Volltext-Content aus Tavily – wird für Pre-Scraping-Bewertung
@@ -997,8 +1137,8 @@ class EvidenceBuilderAgent(BaseAgent):
         }
 
         # ── 4. LangSearch-Retry bei schwacher erster Evidenz ─────────────────
-        # Wenn avg. Relevanz der ersten LangSearch-Runde zu niedrig:
-        # weitere Queries aus dem Pool verwenden (adaptive Erweiterung)
+        # LangSearch ist die primäre semantische Suchquelle – bei schwacher
+        # erster Runde wird ZUERST LangSearch erweitert, nicht Tavily.
         if (
             retrieval_cfg.langsearch_retry_on_weak
             and self.config.langsearch.enabled
@@ -1016,13 +1156,47 @@ class EvidenceBuilderAgent(BaseAgent):
                     extra = await self._langsearch.multi_search_async(
                         extra_queries, max_results=self.config.langsearch.max_results,
                     )
-                    # Präfix vermeidet Key-Kollisionen mit Original-Queries
                     langsearch_results.update({f"retry_{q}": v for q, v in extra.items()})
                     notes.append(
                         f"LangSearch-Retry: avg_relevance={avg_ls:.2f} < "
                         f"{retrieval_cfg.weak_evidence_threshold}, "
                         f"{len(extra_queries)} zusätzliche Queries"
                     )
+
+        # ── 4b. Tavily-Expansion bei schwacher Evidenz (budgetiert) ──────────
+        # Nur wenn: (a) Evidenzqualität bisher schwach, (b) Budget verfügbar,
+        # (c) expand_on_low_quality aktiviert. Tavily soll NICHT pauschal fluten.
+        if (
+            retrieval_cfg.tavily_expand_on_low_quality
+            and self.config.tavily.enabled
+            and self._tavily_budget_remaining() > 0
+        ):
+            all_scores = [
+                _relevance_score(r, claim.text, profile)
+                for results_map in (langsearch_results, tavily_results)
+                for q_res in results_map.values()
+                for r in q_res
+            ]
+            avg_all = sum(all_scores) / len(all_scores) if all_scores else 0.0
+            if avg_all < retrieval_cfg.weak_evidence_threshold:
+                expand_n = self._consume_tavily_budget(
+                    retrieval_cfg.tavily_max_queries_per_claim - tavily_primary_n
+                )
+                if expand_n > 0:
+                    expand_queries = [
+                        q for q in queries[tavily_primary_n:tavily_primary_n + expand_n]
+                        if q not in tavily_queries_list
+                    ]
+                    if expand_queries:
+                        expand_results = await self._tavily.multi_search_async(
+                            expand_queries, max_results=self.config.tavily.max_results,
+                        )
+                        tavily_results.update({f"expand_{q}": v for q, v in expand_results.items()})
+                        notes.append(
+                            f"Tavily-Expansion: avg_relevance={avg_all:.2f}, "
+                            f"{len(expand_queries)} zusätzliche Queries "
+                            f"(Budget: {self._tavily_budget_remaining()} verbleibend)"
+                        )
 
         # ── 5. Ergebnisse zusammenführen + deduplizieren ──────────────────────
         # Reihenfolge: Tavily (content-stark) → LangSearch (semantisch) → SearXNG (breit)
@@ -1215,12 +1389,13 @@ class EvidenceBuilderAgent(BaseAgent):
                 if not r.content and r.url in tavily_content_map:
                     r.content = tavily_content_map[r.url]
 
-        # ── 3. Ranking ────────────────────────────────────────────────────────
+        # ── 3. Ranking (hybrid: BM25 + semantic + profile + low-trust) ─────
         results_by_query: dict[str, list[SearchResult]] = {"_all": filtered}
         ranked = rank_sources(
             results_by_query,
             claim.text,
             max_scrape=self.config.search.scrape_top_n,
+            profile=profile,
         )
 
         # ── 4. Scraping-Skip bei ausreichendem Tavily-Content ─────────────────
@@ -1308,12 +1483,29 @@ class EvidenceBuilderAgent(BaseAgent):
                 is_primary_source=(tier <= 2),
                 publication_date=pub_date,
             )
+
+            # Evidence-Typing: claim_scope_score + evidence_type
+            rel_score = _relevance_score(rs.result, claim_text, profile)
+            scope_text = excerpt if excerpt else f"{rs.result.title} {rs.result.snippet}"
+            scope_score = _compute_claim_scope_score(scope_text, profile)
+            is_low_trust = _is_low_trust_site(url, rs.result.title, rs.result.snippet)
+            ev_type = _classify_evidence_type(
+                item_relevance=rel_score,
+                claim_scope=scope_score,
+                domain_tier=tier,
+                is_fact_check=_is_fact_check_org(url),
+                is_low_trust=is_low_trust,
+                min_direct_scope=self.config.evidence_retrieval.claim_scope_min_direct,
+            )
+
             item = EvidenceItem(
                 source=source,
                 excerpt=excerpt,
-                relevance_score=_relevance_score(rs.result, claim_text, profile),
+                relevance_score=rel_score,
                 extraction_confidence=extraction_conf,
                 supports_claim=None,
+                evidence_type=ev_type,
+                claim_scope_score=scope_score,
             )
             items.append(item)
 
@@ -1336,17 +1528,21 @@ class EvidenceBuilderAgent(BaseAgent):
         claim: Claim,
         original_queries: list[str],
     ) -> list[SearchResult]:
-        """Fallback-Suche mit alternativen Queries – LangSearch + SearXNG parallel.
+        """Fallback-Suche mit alternativen Queries – LangSearch + SearXNG + ggf. Tavily.
 
-        LangSearch ist auch im Fallback aktiv: liefert semantisch andere Ergebnisse
-        als die reine Keyword-Suche von SearXNG und erhöht die Abdeckung.
+        Priorität im Fallback:
+            1. LangSearch (semantisch stark, immer aktiv wenn enabled)
+            2. SearXNG (breit, kostenlos)
+            3. Tavily nur wenn: Budget verfügbar UND Evidenzqualität niedrig
+
+        Tavily wird im Fallback budgetiert: max. 1 zusätzlicher Request.
         """
         from agents.fact_checker import _build_fallback_queries
         fallback_queries = _build_fallback_queries(claim, original_queries)
         if not fallback_queries:
             return []
 
-        # Beide Suchquellen parallel starten
+        # LangSearch und SearXNG parallel starten
         tasks: list = [
             self._async_search.multi_search_async(
                 fallback_queries, max_results=self.config.search.max_results,
@@ -1357,6 +1553,16 @@ class EvidenceBuilderAgent(BaseAgent):
                 self._langsearch.multi_search_async(
                     fallback_queries[:2],
                     max_results=self.config.langsearch.max_results,
+                )
+            )
+
+        # Tavily nur im Fallback wenn Budget vorhanden
+        tavily_fallback_n = self._consume_tavily_budget(1)
+        if tavily_fallback_n > 0 and self.config.tavily.enabled:
+            tasks.append(
+                self._tavily.multi_search_async(
+                    fallback_queries[:1],
+                    max_results=self.config.tavily.max_results,
                 )
             )
 

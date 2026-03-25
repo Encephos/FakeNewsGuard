@@ -49,6 +49,12 @@ _CEILING_VERY_LOW_AVG_RELEVANCE = 0.58
 _CEILING_HIGH_LOW_TRUST = 0.62
 # Ceiling bei fehlender offizieller Quelle für Regelungsclaims
 _CEILING_REGULATORY_NO_OFFICIAL = 0.72
+# Ceiling bei überwiegend contextual evidence (kein direct evidence in Top-5)
+_CEILING_CONTEXTUAL_ONLY = 0.65
+# Ceiling bei hoher weak evidence rate
+_CEILING_HIGH_WEAK_RATE = 0.60
+# Ceiling für Regelungsclaims ohne direkte Regelungsgrundlage (strenger als ohne offizielle Quelle)
+_CEILING_REGULATORY_NO_DIRECT_EVIDENCE = 0.55
 # Minimale Anzahl guter Quellen für hohe Confidence
 _MIN_GOOD_SOURCES_FOR_HIGH_CONF = 2
 
@@ -170,14 +176,16 @@ def _calibrate_confidence(
             confidence = min(confidence, _CEILING_LOW_AVG_RELEVANCE)
 
     # Ceiling: hoher Low-Trust-Anteil (Währungsrechner, Grammatik, Juraforen in Top-5)
+    # Verschärft: ab 20% Anteil greift das Ceiling (vorher 30%)
     _low_trust = quality.low_trust_rate if quality else 0.0
-    if quality and _low_trust > 0.3:
-        if confidence > _CEILING_HIGH_LOW_TRUST:
+    if quality and _low_trust > 0.2:
+        effective_ceiling = _CEILING_HIGH_LOW_TRUST if _low_trust > 0.3 else 0.70
+        if confidence > effective_ceiling:
             reasons.append(
                 f"Low-Trust-Quellen dominieren (Rate={_low_trust:.0%}) → "
-                f"Ceiling {_CEILING_HIGH_LOW_TRUST}"
+                f"Ceiling {effective_ceiling}"
             )
-            confidence = min(confidence, _CEILING_HIGH_LOW_TRUST)
+            confidence = min(confidence, effective_ceiling)
 
     # Ceiling: Regelungsclaim ohne offizielle Quelle (Tier 1-2)
     if is_regulatory_claim and not has_primary and not has_fc:
@@ -187,6 +195,28 @@ def _calibrate_confidence(
                 f"Ceiling {_CEILING_REGULATORY_NO_OFFICIAL}"
             )
             confidence = min(confidence, _CEILING_REGULATORY_NO_OFFICIAL)
+
+    # Ceiling: überwiegend contextual evidence (kein direct evidence in Top-5)
+    # Verhindert Support Leakage: allgemeiner Kontext darf Confidence nicht hochtreiben
+    _contextual_rate = quality.contextual_only_rate if quality else 0.0
+    _direct_count = quality.direct_evidence_count if quality else 0
+    if quality and _contextual_rate > 0.6 and _direct_count == 0:
+        if confidence > _CEILING_CONTEXTUAL_ONLY:
+            reasons.append(
+                f"Überwiegend Kontext-Evidenz ({_contextual_rate:.0%}, "
+                f"0 direkte Belege) → Ceiling {_CEILING_CONTEXTUAL_ONLY}"
+            )
+            confidence = min(confidence, _CEILING_CONTEXTUAL_ONLY)
+
+    # Ceiling: Regelungsclaim ohne direkte Regelungsgrundlage (strenger)
+    # Betrifft Claims über Beschlüsse, Bußgelder, Überwachung, rechtlich bindende Regeln
+    if is_regulatory_claim and _direct_count == 0:
+        if confidence > _CEILING_REGULATORY_NO_DIRECT_EVIDENCE:
+            reasons.append(
+                f"Regelungsclaim ohne direkte Evidenz (0 DIRECT in Top-5) → "
+                f"Ceiling {_CEILING_REGULATORY_NO_DIRECT_EVIDENCE}"
+            )
+            confidence = min(confidence, _CEILING_REGULATORY_NO_DIRECT_EVIDENCE)
 
     # ── Penalties ─────────────────────────────────────────────────────────────
 
@@ -270,6 +300,17 @@ Quelle diesen Sachverhalt bestätigt, dann:
 - Konkret: Wenn ein spezifisches Bußgeld, eine Überwachungsmaßnahme oder eine
   rechtlich bindende Regel behauptet wird und KEINE Regelungsgrundlage in den
   Quellen existiert, ist das Urteil FALSE – nicht MISLEADING
+
+## Evidenz-Typen beachten
+Jede Quelle ist als DIREKT, KONTEXT oder SCHWACH klassifiziert:
+- DIREKT: Belegt den konkreten Claim (offizielle Quelle, Faktenchecker, Bericht mit Claim-Bezug)
+- KONTEXT: Allgemeiner Hintergrund (erklärt das Thema, belegt aber NICHT den konkreten Claim)
+- SCHWACH: Low-Trust oder nur entfernt verwandt (keine Evidenz-Kraft)
+
+WICHTIG: KONTEXT-Quellen dürfen NICHT als Teilbeleg für konkrete Regelungsdetails zählen.
+Beispiel: Eine allgemeine Seite über „15-Minuten-Stadt" belegt NICHT eine geheime Sitzung
+oder ein spezifisches Bußgeld. Eine allgemeine Kameraüberwachungsseite belegt NICHT
+ein konkretes 250-Euro-Bußgeld.
 
 ## Quellen-Qualitätshinweis
 Wenn die Evidenzquellen überwiegend aus allgemeinen Hilfsseiten bestehen

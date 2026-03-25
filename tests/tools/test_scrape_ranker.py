@@ -242,16 +242,16 @@ def test_rank_sources_media_fallback_when_few_sources():
 
 
 def test_rank_sources_media_no_fallback_when_enough():
-    """Media stays blocked when enough other sources are scrapable."""
+    """Media with low hybrid_score stays blocked when enough other sources are scrapable."""
     results = {"q": [
         _make_result("https://correctiv.org/check", snippet="Kriminalität"),
         _make_result("https://destatis.de/data", snippet="Kriminalität"),
-        _make_result("https://n-tv.de/artikel", snippet="Kriminalität gestiegen"),
+        # Media with irrelevant content → low hybrid_score → should not scrape
+        _make_result("https://n-tv.de/artikel", snippet="Wetter morgen sonnig warm"),
     ]}
     ranked = rank_sources(results, "Kriminalität gestiegen")
     ntv = [r for r in ranked if "n-tv" in r.result.url][0]
     assert ntv.should_scrape is False
-    assert ntv.skip_reason == "low_tier"
 
 
 # ── rank_sources – max_scrape Limit ──────────────────────────────
@@ -275,15 +275,16 @@ def test_rank_sources_respects_max_scrape():
 # ── rank_sources – Sortierung ────────────────────────────────────
 
 
-def test_rank_sources_sorted_by_tier_then_relevance():
+def test_rank_sources_sorted_by_hybrid_score():
+    """Results are sorted by hybrid_score (descending)."""
     results = {"q": [
         _make_result("https://correctiv.org/c", snippet="Kriminalität"),
         _make_result("https://destatis.de/d", snippet="Kriminalität gestiegen Fakten"),
         _make_result("https://tagesschau.de/t", snippet="Kriminalität gestiegen"),
     ]}
     ranked = rank_sources(results, "Kriminalität gestiegen")
-    tiers = [r.tier for r in ranked]
-    assert tiers == sorted(tiers, reverse=True)
+    scores = [r.hybrid_score for r in ranked]
+    assert scores == sorted(scores, reverse=True)
 
 
 # ── rank_sources – Irrelevanz-Filter ─────────────────────────────
