@@ -228,3 +228,263 @@ class TestEvidencePackFormat:
         result = pack.format_for_verdict()
         assert isinstance(result, str)
         assert len(result) > 0
+
+
+# ── Unit Tests: Retrieval-Entkopplung ────────────────────────────────────────
+
+class TestRetrievalEntkopplung:
+    """Tests für saubere Trennung von Tavily, SearXNG und LangSearch."""
+
+    def test_tavily_not_double_used(self):
+        """Wenn TavilyClient aktiv ist, darf AsyncWebSearchClient nicht auch Tavily nutzen."""
+        import warnings
+        from config import AppConfig, SearchConfig, TavilyConfig
+
+        config = AppConfig()
+        config.tavily = TavilyConfig(api_key="test-key", enabled=True)
+        config.search = SearchConfig(provider="tavily", api_key="test-key")
+
+        from agents.evidence_builder import EvidenceBuilderAgent
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            agent = EvidenceBuilderAgent(config=config)
+            # Provider muss auf searxng umgestellt worden sein
+            assert agent._async_search.config.provider == "searxng"
+            # Warning muss ausgelöst worden sein
+            assert len(w) >= 1
+            assert "Doppelnutzung" in str(w[0].message)
+
+    def test_searxng_active_with_tavily(self):
+        """SearXNG bleibt aktiv auch wenn Tavily als eigener Layer aktiviert ist."""
+        from config import AppConfig, TavilyConfig
+
+        config = AppConfig()
+        config.tavily = TavilyConfig(api_key="test-key", enabled=True)
+        # search.provider default ist "searxng" → kein Konflikt
+        from agents.evidence_builder import EvidenceBuilderAgent
+
+        agent = EvidenceBuilderAgent(config=config)
+        assert agent._async_search.config.provider == "searxng"
+
+    def test_no_warning_when_provider_is_searxng(self):
+        """Kein Warning wenn search.provider bereits searxng ist."""
+        import warnings
+        from config import AppConfig, TavilyConfig
+
+        config = AppConfig()
+        config.tavily = TavilyConfig(api_key="test-key", enabled=True)
+
+        from agents.evidence_builder import EvidenceBuilderAgent
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            agent = EvidenceBuilderAgent(config=config)
+            tavily_warnings = [x for x in w if "Doppelnutzung" in str(x.message)]
+            assert len(tavily_warnings) == 0
+
+    def test_langsearch_gets_more_queries_than_tavily(self):
+        """LangSearch bekommt immer mindestens so viele Queries wie Tavily."""
+        from agents.evidence_builder import _langsearch_query_count
+        from config import EvidenceRetrievalConfig
+        from models.schemas import Claim
+
+        cfg = EvidenceRetrievalConfig()
+
+        # Einfacher Claim
+        simple = Claim(id="C1", text="Berlin hat 3,6 Millionen Einwohner.", type="FACTUAL")
+        ls_simple = _langsearch_query_count(simple, cfg)
+        assert ls_simple >= cfg.tavily_primary_queries
+        assert ls_simple == cfg.langsearch_queries_simple  # 3
+
+        # Komplexer Claim
+        complex_claim = Claim(
+            id="C2",
+            text="Die Kriminalitätsrate in Deutschland stieg 2023 statistisch signifikant an.",
+            type="STATISTICAL",
+        )
+        ls_complex = _langsearch_query_count(complex_claim, cfg)
+        assert ls_complex >= cfg.tavily_primary_queries
+        assert ls_complex == cfg.langsearch_queries_complex  # 5
+        assert ls_complex > ls_simple
+
+    def test_fusion_order_langsearch_first(self):
+        """Bei Duplikat-URLs bleibt die LangSearch-Version nach Dedup erhalten."""
+        from agents.evidence_builder import _dedup_results
+        from tools.web_search import SearchResult
+
+        shared_url = "https://example.com/article"
+        langsearch_result = SearchResult(
+            title="LangSearch-Version", url=shared_url, snippet="Semantisch gefunden"
+        )
+        searxng_result = SearchResult(
+            title="SearXNG-Version", url=shared_url, snippet="Breit gefunden"
+        )
+        tavily_result = SearchResult(
+            title="Tavily-Version", url=shared_url, snippet="Content-stark",
+            content="Voller Content",
+        )
+
+        # Fusion-Reihenfolge: LangSearch → SearXNG → Tavily
+        all_results = [langsearch_result, searxng_result, tavily_result]
+        unique = _dedup_results(all_results)
+
+        assert len(unique) == 1
+        assert unique[0].title == "LangSearch-Version"
+
+    def test_searxng_max_results_increased(self):
+        """SearXNG max_results ist auf 15 erhöht (self-hosted, keine Limits)."""
+        from config import SearchConfig
+
+        cfg = SearchConfig()
+        assert cfg.max_results == 15
+
+    def test_searxng_concurrent_increased(self):
+        """SearXNG max_concurrent_searches ist auf 8 erhöht."""
+        from config import SearchConfig
+
+        cfg = SearchConfig()
+        assert cfg.max_concurrent_searches == 8
+
+    def test_langsearch_queries_increased(self):
+        """LangSearch Query-Counts sind erhöht (simple=3, complex=5)."""
+        from config import EvidenceRetrievalConfig
+
+        cfg = EvidenceRetrievalConfig()
+        assert cfg.langsearch_queries_simple == 3
+        assert cfg.langsearch_queries_complex == 5
+
+
+# ── Unit Tests: Confidence-Ceilings (neue kombinierte Checks) ───────────────
+
+class TestConfidenceCeilingsNew:
+    """Tests für die neuen/verschärften Confidence-Ceilings."""
+
+    def test_ceiling_contextual_and_low_trust_combined(self):
+        """Confidence wird bei contextual + low-trust Kombination auf 0.55 gedeckelt."""
+        from agents.verdict_agent import _calibrate_confidence, _CEILING_CONTEXTUAL_AND_LOW_TRUST
+        from models.evidence_models import (
+            EvidenceItem, EvidencePack, EvidenceQualitySignals,
+            EvidenceSource, EvidenceType,
+        )
+
+        # Erstelle Pack mit hoher contextual_only_rate + low_trust_rate
+        items = [
+            EvidenceItem(
+                source=EvidenceSource(url=f"https://site{i}.de", domain=f"site{i}.de", domain_tier=5),
+                excerpt="Allgemeiner Kontext",
+                relevance_score=0.3,
+                evidence_type=EvidenceType.CONTEXTUAL,
+            )
+            for i in range(5)
+        ]
+        pack = EvidencePack(
+            claim_id="C1",
+            claim_text="Test",
+            web_results=items,
+            evidence_quality=EvidenceQualitySignals(
+                contextual_only_rate=0.8,
+                low_trust_rate=0.4,
+                direct_evidence_count=0,
+                overall_quality=0.5,
+            ),
+        )
+
+        conf, reasons = _calibrate_confidence(0.90, pack, None)
+        assert conf <= _CEILING_CONTEXTUAL_AND_LOW_TRUST
+        assert any("Kontext-Evidenz" in r and "Low-Trust" in r for r in reasons)
+
+    def test_ceiling_high_weak_rate(self):
+        """Confidence wird bei >60% WEAK-Evidenz auf 0.60 gedeckelt."""
+        from agents.verdict_agent import _calibrate_confidence, _CEILING_HIGH_WEAK_RATE
+        from models.evidence_models import (
+            EvidenceItem, EvidencePack, EvidenceQualitySignals,
+            EvidenceSource, EvidenceType,
+        )
+
+        # 4/5 Items sind WEAK
+        items = [
+            EvidenceItem(
+                source=EvidenceSource(url=f"https://weak{i}.de", domain=f"weak{i}.de", domain_tier=5),
+                excerpt="Schwache Quelle",
+                relevance_score=0.3,
+                evidence_type=EvidenceType.WEAK,
+            )
+            for i in range(4)
+        ] + [
+            EvidenceItem(
+                source=EvidenceSource(
+                    url="https://ok.de", domain="ok.de", domain_tier=3,
+                    is_primary_source=True,
+                ),
+                excerpt="Ordentliche Quelle",
+                relevance_score=0.6,
+                evidence_type=EvidenceType.CONTEXTUAL,
+            )
+        ]
+        pack = EvidencePack(
+            claim_id="C1",
+            claim_text="Test",
+            web_results=items,
+            evidence_quality=EvidenceQualitySignals(
+                has_primary_sources=True,
+                has_fact_check_org_result=True,
+                overall_quality=0.5,
+                source_consensus="agreeing",
+                avg_top5_relevance=0.4,
+                top_tier_count=1,
+            ),
+        )
+
+        conf, reasons = _calibrate_confidence(0.85, pack, None)
+        assert conf <= _CEILING_HIGH_WEAK_RATE
+        assert any("Weak-Evidence-Rate" in r for r in reasons)
+
+    def test_no_ceiling_with_good_evidence(self):
+        """Keine neuen Ceilings greifen bei guter Evidenz."""
+        from agents.verdict_agent import _calibrate_confidence
+        from models.evidence_models import (
+            EvidenceItem, EvidencePack, EvidenceQualitySignals,
+            EvidenceSource, EvidenceType,
+        )
+
+        items = [
+            EvidenceItem(
+                source=EvidenceSource(
+                    url="https://destatis.de/test", domain="destatis.de",
+                    domain_tier=1, is_primary_source=True,
+                ),
+                excerpt="Offizielle Statistik",
+                relevance_score=0.9,
+                evidence_type=EvidenceType.DIRECT,
+            ),
+            EvidenceItem(
+                source=EvidenceSource(
+                    url="https://tagesschau.de/test", domain="tagesschau.de",
+                    domain_tier=3,
+                ),
+                excerpt="Bericht",
+                relevance_score=0.8,
+                evidence_type=EvidenceType.DIRECT,
+            ),
+        ]
+        pack = EvidencePack(
+            claim_id="C1",
+            claim_text="Test",
+            web_results=items,
+            evidence_quality=EvidenceQualitySignals(
+                has_primary_sources=True,
+                has_fact_check_org_result=True,
+                overall_quality=0.85,
+                source_consensus="agreeing",
+                contextual_only_rate=0.0,
+                low_trust_rate=0.0,
+                direct_evidence_count=2,
+                top_tier_count=1,
+            ),
+        )
+
+        conf, reasons = _calibrate_confidence(0.85, pack, None)
+        # Keine der neuen Ceilings sollte greifen
+        assert not any("Weak-Evidence-Rate" in r for r in reasons)
+        assert not any("Kontext-Evidenz" in r and "Low-Trust" in r for r in reasons)

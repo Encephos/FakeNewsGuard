@@ -684,8 +684,8 @@ class TestEvidenceRetrievalConfigDefaults:
         from config import EvidenceRetrievalConfig
 
         cfg = EvidenceRetrievalConfig()
-        assert cfg.langsearch_queries_simple == 2
-        assert cfg.langsearch_queries_complex == 4
+        assert cfg.langsearch_queries_simple == 3
+        assert cfg.langsearch_queries_complex == 5
         assert cfg.langsearch_retry_on_weak is True
         assert cfg.tavily_primary_queries == 1
         assert cfg.tavily_max_queries_per_claim == 3

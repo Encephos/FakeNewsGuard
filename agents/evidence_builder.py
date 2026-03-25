@@ -1020,6 +1020,19 @@ class EvidenceBuilderAgent(BaseAgent):
             retry=self.config.retry,
         )
 
+        # ── Tavily-Doppelnutzung verhindern ────────────────────────────────────
+        # Wenn TavilyClient als eigener Layer aktiv ist, darf AsyncWebSearchClient
+        # nicht zusätzlich Tavily nutzen → auf SearXNG zwingen.
+        if self.config.tavily.enabled and self.config.search.provider == "tavily":
+            import warnings
+            warnings.warn(
+                "search.provider='tavily' bei aktivem TavilyClient → "
+                "AsyncWebSearchClient wird auf 'searxng' umgestellt, "
+                "um Tavily-Doppelnutzung zu vermeiden.",
+                stacklevel=2,
+            )
+            self.config.search.provider = "searxng"
+
         # SearXNG Async Search Client (unterstützend – kostenlos, breite Abdeckung)
         self._async_search = AsyncWebSearchClient(
             self.config.search, self.config.retry
@@ -1068,10 +1081,10 @@ class EvidenceBuilderAgent(BaseAgent):
     async def execute_async(self, input_data: Any, context: str = "") -> EvidencePack:
         """Async-Version – Retrieval läuft parallel.
 
-        Retrieval-Rollen (klar getrennt):
-            Tavily     = breite, content-starke Suche (konfigurierbar, Standard: 2 Queries)
-            LangSearch = semantisch-präzise Suche (adaptiv je nach Claim-Komplexität)
-            SearXNG    = unterstützende Breitensuche (alle Queries, kostenlos)
+        Retrieval-Rollen (klar getrennt, Priorität bei Fusion):
+            LangSearch = semantische Hauptsuche (adaptiv 3–5 Queries, Dedup-Priorität)
+            SearXNG    = unterstützende Breitensuche (alle Queries, kostenlos, self-hosted)
+            Tavily     = budgetierter Content-/Discovery-Layer (1 Query primary, max 3/Claim)
             GFC        = strukturierter Shortcut-Layer (höchste Priorität)
         """
         claim: Claim = input_data
@@ -1199,17 +1212,18 @@ class EvidenceBuilderAgent(BaseAgent):
                         )
 
         # ── 5. Ergebnisse zusammenführen + deduplizieren ──────────────────────
-        # Reihenfolge: Tavily (content-stark) → LangSearch (semantisch) → SearXNG (breit)
+        # Reihenfolge: LangSearch (semantisch) → SearXNG (breit) → Tavily (content-stark)
+        # _dedup_results() behält erstes Vorkommen → LangSearch hat Dedup-Priorität
         all_results: list[SearchResult] = []
         tavily_count = sum(len(v) for v in tavily_results.values())
         langsearch_count = sum(len(v) for v in langsearch_results.values())
         searxng_count = sum(len(v) for v in searxng_results.values())
 
-        for q_res in tavily_results.values():
-            all_results.extend(q_res)
         for q_res in langsearch_results.values():
             all_results.extend(q_res)
         for q_res in searxng_results.values():
+            all_results.extend(q_res)
+        for q_res in tavily_results.values():
             all_results.extend(q_res)
 
         unique_results = _dedup_results(all_results)
