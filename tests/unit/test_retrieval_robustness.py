@@ -617,7 +617,7 @@ class TestFallbackUsesLangSearch:
         mock_searxng = MagicMock()
         mock_searxng.multi_search_async = fake_searxng_search
         agent._langsearch = mock_langsearch
-        agent._async_search = mock_searxng
+        agent._searxng = mock_searxng
 
         with patch("agents.fact_checker._build_fallback_queries", return_value=["fallback query"]):
             _run_async(agent._fallback_retrieval(claim, ["original query"]))
@@ -651,7 +651,7 @@ class TestFallbackUsesLangSearch:
         mock_searxng = MagicMock()
         mock_searxng.multi_search_async = fake_searxng_search
         agent._langsearch = mock_langsearch
-        agent._async_search = mock_searxng
+        agent._searxng = mock_searxng
 
         with patch("agents.fact_checker._build_fallback_queries", return_value=["fallback"]):
             _run_async(agent._fallback_retrieval(claim, ["original"]))
@@ -668,7 +668,7 @@ class TestFallbackUsesLangSearch:
 
         mock_searxng = MagicMock()
         mock_searxng.multi_search_async = fake_searxng_search
-        agent._async_search = mock_searxng
+        agent._searxng = mock_searxng
 
         with patch("agents.fact_checker._build_fallback_queries", return_value=[]):
             result = _run_async(agent._fallback_retrieval(claim, ["original"]))

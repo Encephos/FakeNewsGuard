@@ -1,11 +1,13 @@
 """Web-Search-Abstraktionsschicht – unterstützt Tavily, LangSearch, SearXNG, Serper, Brave.
 
 Primäre Suchquellen für den EvidenceBuilderAgent:
-  - Tavily     (KI-optimierte Suche, primäre Quelle)
-  - LangSearch (semantische Websuche, primäre Quelle)
-  - SearXNG    (self-hosted, kostenlos, unterstützende Breiten-Suche)
+  - LangSearch (semantische Websuche, primäre Quelle – höchste Dedup-Priorität)
+  - SearXNG    (self-hosted, kostenlos, Breiten-Suche – via SearXNGClient)
 
-Legacy-Provider (weiter verfügbar, nicht primär empfohlen):
+Budgetierter Content-Layer:
+  - Tavily     (KI-optimierte Suche, budgetiert, nicht pauschal)
+
+Legacy-Provider (weiter verfügbar über WebSearchClient/AsyncWebSearchClient):
   - Serper, Brave
 """
 
@@ -18,7 +20,7 @@ from typing import Any
 
 import httpx
 
-from config import LangSearchConfig, RetryConfig, SearchConfig, TavilyConfig
+from config import LangSearchConfig, RetryConfig, SearchConfig, SearXNGConfig, TavilyConfig
 from tools.retry import retry_call, retry_call_async
 
 
@@ -446,6 +448,140 @@ class AsyncWebSearchClient:
             )
             for r in data.get("web", {}).get("results", [])
         ]
+
+
+# ── SearXNG Client ────────────────────────────────────────────────────────────
+
+
+class SearXNGClient:
+    """Dedizierter SearXNG-Client – explizit SearXNG-only, kein Provider-Routing.
+
+    Features:
+      - format=json zwingend (JSON-Ausgabe immer sichergestellt)
+      - Kategorien konfigurierbar (general, news, etc.)
+      - Engines konfigurierbar
+      - categories-Parameter: str ("news,general") oder list[str] werden normalisiert
+      - Retry-Robustheit via retry_call / retry_call_async (wie TavilyClient)
+    """
+
+    def __init__(self, config: SearXNGConfig, retry: RetryConfig | None = None) -> None:
+        self.config = config
+        self._retry = retry or RetryConfig()
+
+    def _build_params(
+        self,
+        query: str,
+        max_results: int,
+        categories: list[str] | str | None = None,
+    ) -> dict:
+        """Baue SearXNG-Request-Parameter. Normalisiert categories: str → list."""
+        if isinstance(categories, str):
+            cats = [c.strip() for c in categories.split(",") if c.strip()] or self.config.categories
+        else:
+            cats = categories or self.config.categories
+        params: dict = {
+            "q": query,
+            "format": "json",
+            "pageno": 1,
+            "language": self.config.language,
+            "categories": ",".join(cats),
+        }
+        if self.config.engines:
+            params["engines"] = ",".join(self.config.engines)
+        if self.config.time_range:
+            params["time_range"] = self.config.time_range
+        return params
+
+    @staticmethod
+    def _parse_response(data: dict, max_results: int) -> list[SearchResult]:
+        return [
+            SearchResult(
+                title=r.get("title", ""),
+                url=r.get("url", ""),
+                snippet=r.get("content", ""),
+            )
+            for r in data.get("results", [])[:max_results]
+        ]
+
+    def search(
+        self,
+        query: str,
+        max_results: int | None = None,
+        categories: list[str] | str | None = None,
+    ) -> list[SearchResult]:
+        """Synchrone SearXNG-Suche mit Retry."""
+        n = max_results or self.config.max_results
+        params = self._build_params(query, n, categories)
+
+        def _call():
+            resp = httpx.get(
+                f"{self.config.base_url}/search",
+                params=params,
+                timeout=30.0,
+            )
+            resp.raise_for_status()
+            return resp.json()
+
+        try:
+            data = retry_call(
+                _call,
+                max_attempts=self._retry.max_attempts,
+                base_delay=self._retry.base_delay_s,
+                max_delay=self._retry.max_delay_s,
+                backoff_factor=self._retry.backoff_factor,
+            )
+        except Exception as e:
+            print(f"  ⚠ SearXNG fehlgeschlagen: {type(e).__name__}: {e}", file=sys.stderr)
+            return []
+        return self._parse_response(data, n)
+
+    async def search_async(
+        self,
+        query: str,
+        max_results: int | None = None,
+        categories: list[str] | str | None = None,
+    ) -> list[SearchResult]:
+        """Asynchrone SearXNG-Suche mit Retry."""
+        n = max_results or self.config.max_results
+        params = self._build_params(query, n, categories)
+
+        async def _call():
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                resp = await client.get(
+                    f"{self.config.base_url}/search",
+                    params=params,
+                )
+                resp.raise_for_status()
+                return resp.json()
+
+        try:
+            data = await retry_call_async(
+                _call,
+                max_attempts=self._retry.max_attempts,
+                base_delay=self._retry.base_delay_s,
+                max_delay=self._retry.max_delay_s,
+                backoff_factor=self._retry.backoff_factor,
+            )
+        except Exception as e:
+            print(f"  ⚠ SearXNG async fehlgeschlagen: {type(e).__name__}: {e}", file=sys.stderr)
+            return []
+        return self._parse_response(data, n)
+
+    async def multi_search_async(
+        self,
+        queries: list[str],
+        max_results: int | None = None,
+        categories: list[str] | str | None = None,
+    ) -> dict[str, list[SearchResult]]:
+        """Mehrere SearXNG-Suchen parallel – Semaphore-kontrolliert."""
+        semaphore = asyncio.Semaphore(self.config.max_concurrent_searches)
+
+        async def _bounded(q: str) -> tuple[str, list[SearchResult]]:
+            async with semaphore:
+                return q, await self.search_async(q, max_results, categories)
+
+        pairs = await asyncio.gather(*[_bounded(q) for q in queries])
+        return dict(pairs)
 
 
 # ── LangSearch Client ────────────────────────────────────────────────────────

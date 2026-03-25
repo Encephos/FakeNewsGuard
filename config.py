@@ -97,6 +97,54 @@ class SearchConfig:
 
 
 @dataclass
+class SearXNGConfig:
+    """Konfiguration für den dedizierten SearXNG-Client.
+
+    SearXNG dient als unterstützende Breitensuche (self-hosted, kostenlos).
+    Kein Provider-Routing – explizit SearXNG-only.
+
+    Env-Vars:
+        SEARXNG_URL        – Basis-URL (Default: http://localhost:8888)
+        SEARXNG_ENGINES    – kommaseparierte Engine-Liste (Default: leer = SearXNG-Default)
+        SEARXNG_CATEGORIES – kommaseparierte Kategorien (Default: general)
+        SEARXNG_LANGUAGE   – Suchsprache (Default: de)
+        SEARXNG_TIME_RANGE – Zeitbereich: day/week/month/year/None (Default: leer)
+    """
+
+    base_url: str = ""
+    engines: list[str] = field(default_factory=list)
+    categories: list[str] = field(default_factory=lambda: ["general"])
+    language: str = "de"
+    time_range: str | None = None
+    max_results: int = 15
+    max_concurrent_searches: int = 8
+    scrape_top_n: int = 10
+    scrape_timeout: float = 10.0
+
+    def __post_init__(self) -> None:
+        if not self.base_url:
+            self.base_url = os.getenv("SEARXNG_URL", "http://localhost:8888")
+        env_engines = os.getenv("SEARXNG_ENGINES", "")
+        if env_engines and not self.engines:
+            self.engines = [e.strip() for e in env_engines.split(",") if e.strip()]
+        env_cats = os.getenv("SEARXNG_CATEGORIES", "")
+        if env_cats:
+            self.categories = [c.strip() for c in env_cats.split(",") if c.strip()]
+        env_lang = os.getenv("SEARXNG_LANGUAGE", "")
+        if env_lang:
+            self.language = env_lang
+        env_tr = os.getenv("SEARXNG_TIME_RANGE", "")
+        if env_tr:
+            self.time_range = env_tr
+        env_scrape_n = os.getenv("SCRAPE_TOP_N", "")
+        if env_scrape_n:
+            self.scrape_top_n = int(env_scrape_n)
+        env_scrape_timeout = os.getenv("SCRAPE_TIMEOUT", "")
+        if env_scrape_timeout:
+            self.scrape_timeout = float(env_scrape_timeout)
+
+
+@dataclass
 class LangSearchConfig:
     """Konfiguration für LangSearch – semantische Websuche.
 
@@ -358,6 +406,10 @@ class EvidenceRetrievalConfig:
     pre_scrape_offtopic_penalty: float = 0.70   # Mindest-Penalty für Pre-Scrape-Filter
     # ── Evidence-Typing ───────────────────────────────────────────────────────
     claim_scope_min_direct: float = 0.60   # Min. claim_scope_score für "direct" evidence
+    # ── Freshness / Recency ───────────────────────────────────────────────────
+    stale_sources_freshness_threshold: float = 0.35  # avg_freshness < Wert → Stale-Penalty
+    stale_sources_confidence_penalty: float = 0.15   # Abzug auf overall_quality bei alten Quellen
+    searxng_news_categories: list[str] = field(default_factory=lambda: ["news", "general"])
 
     def __post_init__(self) -> None:
         if v := os.getenv("LANGSEARCH_QUERIES_SIMPLE", ""):
@@ -388,6 +440,7 @@ class EvidenceRetrievalConfig:
 class AppConfig:
     llm: LLMConfig = field(default_factory=LLMConfig)
     search: SearchConfig = field(default_factory=SearchConfig)
+    searxng: SearXNGConfig = field(default_factory=SearXNGConfig)
     langsearch: LangSearchConfig = field(default_factory=LangSearchConfig)
     tavily: TavilyConfig = field(default_factory=TavilyConfig)
     google_fact_check: GoogleFactCheckConfig = field(default_factory=GoogleFactCheckConfig)
@@ -423,10 +476,11 @@ class AppConfig:
         if self.llm.provider in key_env and not self.llm.api_key:
             errors.append(f"Fehlender LLM API Key: {key_env[self.llm.provider]} nicht gesetzt")
 
-        if self.search.provider == "searxng":
-            if not self.search.base_url:
-                errors.append("Fehlende SearXNG URL: SEARXNG_URL nicht gesetzt")
-        elif not self.search.api_key:
+        # SearXNG hat immer einen Default (localhost:8888) → kein Hard-Fail, nur Info
+        if self.searxng.base_url == "http://localhost:8888":
+            print("  ℹ SearXNG nutzt Default-URL (localhost:8888) – via SEARXNG_URL anpassbar.", file=sys.stderr)
+        # Legacy-Provider (search.provider): nur prüfen wenn nicht searxng
+        if self.search.provider != "searxng" and not self.search.api_key:
             key_map = {"tavily": "TAVILY_API_KEY", "serper": "SERPER_API_KEY", "brave": "BRAVE_API_KEY"}
             env_var = key_map.get(self.search.provider, f"{self.search.provider.upper()}_API_KEY")
             errors.append(f"Fehlender Search API Key: {env_var} nicht gesetzt")

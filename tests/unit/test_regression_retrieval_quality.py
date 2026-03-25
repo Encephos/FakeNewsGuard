@@ -1324,3 +1324,138 @@ class TestRegulatoryClaimConfidence:
 
         assert not any("regelungsclaim" in r.lower() for r in reasons), \
             f"Nicht-Regulatory Claim soll kein Regulatory-Ceiling haben: {reasons}"
+
+
+# ── Regression: Aktuelle politische Claims (Recency / Freshness) ─────────────
+
+
+def _make_merz_claim() -> "ProcessedClaim":
+    """Aktuell-politischer Claim: Friedrich Merz als Bundeskanzler (ab Februar 2025)."""
+    from models.schemas import ClaimFrame, ClaimSearchProfile, ClaimType, ProcessedClaim
+
+    frame = ClaimFrame(
+        raw_text="Friedrich Merz ist Bundeskanzler von Deutschland.",
+        subject="Friedrich Merz",
+        predicate="ist",
+        object="Bundeskanzler",
+        institution="Bundesregierung",
+        location="Deutschland",
+        numbers=[],
+        sanction="",
+        enforcement="",
+        policy_context="Bundeskanzler Wahl 2025",
+    )
+    profile = ClaimSearchProfile(
+        core_entities=["Friedrich Merz", "Bundeskanzler"],
+        institutions=["Bundesregierung", "Bundestag"],
+        locations=["Deutschland"],
+        action_terms=["gewählt", "vereidigt"],
+        policy_terms=["Bundeskanzler 2025"],
+        number_terms=[],
+        sanction_terms=[],
+        exclusion_terms=["Scholz", "SPD-Kanzler"],
+        official_source_hints=["site:bundesregierung.de"],
+        fact_check_hints=["site:tagesschau.de"],
+    )
+    return ProcessedClaim(
+        id="C_MERZ",
+        text="Friedrich Merz ist Bundeskanzler von Deutschland.",
+        type=ClaimType.FACTUAL,
+        frame=frame,
+        search_profile=profile,
+    )
+
+
+class TestRecencyMerzClaim:
+    """Regression: Aktuelle politische Claims müssen frische Quellen bevorzugen.
+
+    Verhindert, dass alte Scholz-Ära-Quellen (2021-2024) einen Merz-Claim
+    fälschlich dominieren und die Confidence verzerren.
+    """
+
+    def test_freshness_scores_current_vs_stale(self):
+        """Aktuelle Quellen (2026) erhalten hohe Freshness, alte (2022) niedrige."""
+        from agents.evidence_builder import _compute_freshness
+        assert _compute_freshness("2026-03-01") >= 0.70   # aktuell (< 30 Tage)
+        assert _compute_freshness("2022-12-15") <= 0.30   # > 2 Jahre alt
+
+    def test_stale_only_sources_penalize_confidence(self):
+        """Nur alte Quellen (Scholz-Ära) → overall_quality wird durch Stale-Penalty gesenkt."""
+        from agents.evidence_builder import _compute_quality_signals
+        from tests.helpers import make_evidence_item_with_date
+
+        # Typische Scholz-Ära-Quellen (2021-2023)
+        items = [
+            make_evidence_item_with_date("2022-11-01", relevance=0.85, tier=2),
+            make_evidence_item_with_date("2021-09-26", relevance=0.80, tier=2),
+            make_evidence_item_with_date("2023-03-15", relevance=0.75, tier=3),
+        ]
+        signals = _compute_quality_signals(
+            items, google_matches=[],
+            stale_threshold=0.35,
+            stale_penalty_factor=0.15,
+        )
+        assert signals.freshness_score < 0.35, (
+            f"Scholz-Ära-Quellen müssen Freshness < 0.35 haben, hat: {signals.freshness_score:.2f}"
+        )
+        assert signals.overall_quality < 0.60, (
+            f"Nur alte Quellen → overall_quality < 0.60, hat: {signals.overall_quality:.2f}"
+        )
+
+    def test_fresh_merz_sources_maintain_quality(self):
+        """Frische 2026-Quellen (aktuell über Merz) → overall_quality bleibt hoch."""
+        from agents.evidence_builder import _compute_quality_signals
+        from tests.helpers import make_evidence_item_with_date
+
+        items = [
+            make_evidence_item_with_date("2026-02-28", relevance=0.90, tier=2),
+            make_evidence_item_with_date("2026-03-10", relevance=0.85, tier=2),
+            make_evidence_item_with_date("2026-01-15", relevance=0.75, tier=3),
+        ]
+        signals = _compute_quality_signals(
+            items, google_matches=[],
+            stale_threshold=0.35,
+            stale_penalty_factor=0.15,
+        )
+        assert signals.freshness_score >= 0.70, (
+            f"Frische 2026-Quellen müssen Freshness >= 0.70 haben, hat: {signals.freshness_score:.2f}"
+        )
+        assert signals.overall_quality >= 0.50, (
+            f"Frische Quellen sollen overall_quality >= 0.50 halten, hat: {signals.overall_quality:.2f}"
+        )
+
+    def test_fresh_beats_stale_in_quality(self):
+        """Frische aktuelle Quellen haben höhere overall_quality als alte Scholz-Quellen."""
+        from agents.evidence_builder import _compute_quality_signals
+        from tests.helpers import make_evidence_item_with_date
+
+        old_items = [
+            make_evidence_item_with_date("2022-11-01", relevance=0.85, tier=2),
+            make_evidence_item_with_date("2021-09-26", relevance=0.80, tier=2),
+        ]
+        fresh_items = [
+            make_evidence_item_with_date("2026-02-28", relevance=0.85, tier=2),
+            make_evidence_item_with_date("2026-03-01", relevance=0.80, tier=2),
+        ]
+        signals_old = _compute_quality_signals(old_items, google_matches=[])
+        signals_fresh = _compute_quality_signals(fresh_items, google_matches=[])
+        assert signals_fresh.overall_quality > signals_old.overall_quality, (
+            f"Frisch ({signals_fresh.overall_quality:.2f}) muss > veraltet ({signals_old.overall_quality:.2f}) sein"
+        )
+
+    def test_searxng_supports_news_category_for_current_claims(self):
+        """SearXNGConfig unterstützt News-Kategorie für zeitkritische Claims."""
+        from config import SearXNGConfig
+        cfg = SearXNGConfig(categories=["news", "general"])
+        assert "news" in cfg.categories
+
+    def test_merz_claim_queries_include_relevant_terms(self):
+        """Queries für Merz-Claim enthalten relevante Entitäten."""
+        from agents.fact_checker import _build_search_queries_from_profile
+        claim = _make_merz_claim()
+        queries = _build_search_queries_from_profile(claim)
+        assert len(queries) >= 1, "Mindestens eine Query muss generiert werden"
+        joined = " ".join(queries).lower()
+        assert any(term in joined for term in ["merz", "bundeskanzler", "bundesregierung"]), (
+            f"Queries müssen 'merz', 'bundeskanzler' oder 'bundesregierung' enthalten: {queries}"
+        )

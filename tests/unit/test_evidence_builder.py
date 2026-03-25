@@ -236,52 +236,39 @@ class TestRetrievalEntkopplung:
     """Tests für saubere Trennung von Tavily, SearXNG und LangSearch."""
 
     def test_tavily_not_double_used(self):
-        """Wenn TavilyClient aktiv ist, darf AsyncWebSearchClient nicht auch Tavily nutzen."""
-        import warnings
-        from config import AppConfig, SearchConfig, TavilyConfig
+        """SearXNGClient ist explizit SearXNG-only – Tavily-Doppelnutzung strukturell unmöglich."""
+        from config import AppConfig, TavilyConfig
+        from agents.evidence_builder import EvidenceBuilderAgent
+        from tools.web_search import SearXNGClient
 
         config = AppConfig()
         config.tavily = TavilyConfig(api_key="test-key", enabled=True)
-        config.search = SearchConfig(provider="tavily", api_key="test-key")
-
-        from agents.evidence_builder import EvidenceBuilderAgent
-
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
-            agent = EvidenceBuilderAgent(config=config)
-            # Provider muss auf searxng umgestellt worden sein
-            assert agent._async_search.config.provider == "searxng"
-            # Warning muss ausgelöst worden sein
-            assert len(w) >= 1
-            assert "Doppelnutzung" in str(w[0].message)
+        agent = EvidenceBuilderAgent(config=config)
+        # _searxng muss eine SearXNGClient-Instanz sein – kein generischer WebSearchClient
+        assert isinstance(agent._searxng, SearXNGClient)
+        # SearXNGConfig hat kein Tavily-Attribut (kein search_depth, kein api_key)
+        assert not hasattr(agent._searxng.config, "search_depth")
 
     def test_searxng_active_with_tavily(self):
-        """SearXNG bleibt aktiv auch wenn Tavily als eigener Layer aktiviert ist."""
+        """SearXNGClient ist immer aktiv, unabhängig von Tavily-Konfiguration."""
         from config import AppConfig, TavilyConfig
+        from agents.evidence_builder import EvidenceBuilderAgent
+        from tools.web_search import SearXNGClient
 
         config = AppConfig()
         config.tavily = TavilyConfig(api_key="test-key", enabled=True)
-        # search.provider default ist "searxng" → kein Konflikt
-        from agents.evidence_builder import EvidenceBuilderAgent
-
         agent = EvidenceBuilderAgent(config=config)
-        assert agent._async_search.config.provider == "searxng"
+        assert isinstance(agent._searxng, SearXNGClient)
+        assert agent._searxng.config.base_url  # hat immer eine URL
 
-    def test_no_warning_when_provider_is_searxng(self):
-        """Kein Warning wenn search.provider bereits searxng ist."""
-        import warnings
-        from config import AppConfig, TavilyConfig
-
-        config = AppConfig()
-        config.tavily = TavilyConfig(api_key="test-key", enabled=True)
-
+    def test_no_legacy_async_search_attribute(self):
+        """EvidenceBuilderAgent nutzt _searxng statt _async_search für SearXNG."""
+        from config import AppConfig
         from agents.evidence_builder import EvidenceBuilderAgent
 
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
-            agent = EvidenceBuilderAgent(config=config)
-            tavily_warnings = [x for x in w if "Doppelnutzung" in str(x.message)]
-            assert len(tavily_warnings) == 0
+        agent = EvidenceBuilderAgent(config=AppConfig())
+        assert hasattr(agent, "_searxng"), "_searxng muss vorhanden sein"
+        assert not hasattr(agent, "_async_search"), "_async_search wurde entfernt"
 
     def test_langsearch_gets_more_queries_than_tavily(self):
         """LangSearch bekommt immer mindestens so viele Queries wie Tavily."""
@@ -353,6 +340,126 @@ class TestRetrievalEntkopplung:
         cfg = EvidenceRetrievalConfig()
         assert cfg.langsearch_queries_simple == 3
         assert cfg.langsearch_queries_complex == 5
+
+
+# ── Unit Tests: SearXNG-Architektur-Invarianten ──────────────────────────────
+
+class TestSearXNGClientArchitecture:
+    """Tests für die architektonische Trennung via dediziertem SearXNGClient."""
+
+    def test_searxng_client_has_no_provider_routing(self):
+        """SearXNGClient hat keine Provider-Routing-Methoden."""
+        from tools.web_search import SearXNGClient
+        assert not hasattr(SearXNGClient, "_search_tavily")
+        assert not hasattr(SearXNGClient, "_search_serper")
+        assert not hasattr(SearXNGClient, "_search_brave")
+
+    def test_searxng_config_has_categories_list(self):
+        """SearXNGConfig.categories ist eine Liste mit 'general'."""
+        from config import SearXNGConfig
+        cfg = SearXNGConfig()
+        assert isinstance(cfg.categories, list)
+        assert "general" in cfg.categories
+
+    def test_searxng_config_engines_is_list(self):
+        """SearXNGConfig.engines ist eine Liste (kein String)."""
+        from config import SearXNGConfig
+        cfg = SearXNGConfig()
+        assert isinstance(cfg.engines, list)
+
+    def test_searxng_json_format_in_params(self):
+        """SearXNGClient setzt format=json immer zwingend."""
+        from config import SearXNGConfig
+        from tools.web_search import SearXNGClient
+        client = SearXNGClient(config=SearXNGConfig(base_url="http://localhost:8888"))
+        params = client._build_params("test", 10)
+        assert params["format"] == "json"
+
+    def test_searxng_categories_normalized_from_string(self):
+        """SearXNG categories als String wird korrekt in Liste normalisiert."""
+        from config import SearXNGConfig
+        from tools.web_search import SearXNGClient
+        client = SearXNGClient(config=SearXNGConfig(base_url="http://localhost:8888"))
+        params = client._build_params("test", 10, categories="news,general")
+        assert "news" in params["categories"]
+        assert "general" in params["categories"]
+
+    def test_evidence_builder_uses_searxng_client(self):
+        """EvidenceBuilderAgent verwendet SearXNGClient für den SearXNG-Layer."""
+        from config import AppConfig
+        from agents.evidence_builder import EvidenceBuilderAgent
+        from tools.web_search import SearXNGClient
+        agent = EvidenceBuilderAgent(config=AppConfig())
+        assert isinstance(agent._searxng, SearXNGClient)
+
+    def test_searxng_config_max_results(self):
+        """SearXNGConfig.max_results ist 15 (self-hosted, keine Limits)."""
+        from config import SearXNGConfig
+        assert SearXNGConfig().max_results == 15
+
+    def test_searxng_config_concurrent(self):
+        """SearXNGConfig.max_concurrent_searches ist 8."""
+        from config import SearXNGConfig
+        assert SearXNGConfig().max_concurrent_searches == 8
+
+    def test_langsearch_gets_more_queries_than_tavily(self):
+        """LangSearch-Query-Count übersteigt immer Tavily-Budget."""
+        from agents.evidence_builder import _langsearch_query_count
+        from config import EvidenceRetrievalConfig
+        from models.schemas import Claim
+        cfg = EvidenceRetrievalConfig()
+        claim = Claim(id="C1", text="Test.", type="FACTUAL")
+        assert _langsearch_query_count(claim, cfg) >= cfg.tavily_primary_queries
+
+    def test_fusion_priority_langsearch_over_tavily(self):
+        """Dedup-Priorität: LangSearch schlägt Tavily bei gleicher URL."""
+        from agents.evidence_builder import _dedup_results
+        from tools.web_search import SearchResult
+        url = "https://example.com/shared"
+        ls = SearchResult(title="LangSearch", url=url, snippet="")
+        tv = SearchResult(title="Tavily", url=url, snippet="", content="full")
+        unique = _dedup_results([ls, tv])
+        assert len(unique) == 1
+        assert unique[0].title == "LangSearch"
+
+    def test_stale_sources_reduce_quality(self):
+        """Nur alte Quellen → overall_quality wird durch Stale-Penalty gesenkt."""
+        from agents.evidence_builder import _compute_quality_signals
+        from models.evidence_models import EvidenceItem, EvidenceSource, EvidenceType
+
+        def _make_item(date: str) -> EvidenceItem:
+            src = EvidenceSource(
+                url=f"https://example.com/{date}",
+                title=f"Quelle {date}",
+                domain="example.com",
+                domain_tier=2,
+                publication_date=date,
+                is_fact_check_org=False,
+            )
+            return EvidenceItem(
+                source=src,
+                excerpt="",
+                relevance_score=0.8,
+                evidence_type=EvidenceType.CONTEXTUAL,
+                supports_claim=None,
+                claim_scope_score=0.5,
+            )
+
+        # Nur alte Quellen: Freshness << 0.35 → Penalty greift
+        old_items = [_make_item("2020-01-01"), _make_item("2019-06-15")]
+        signals_old = _compute_quality_signals(
+            old_items, google_matches=[],
+            stale_threshold=0.35, stale_penalty_factor=0.15,
+        )
+        # Frische Quellen (2026): kein Penalty
+        fresh_items = [_make_item("2026-03-01"), _make_item("2026-02-15")]
+        signals_fresh = _compute_quality_signals(
+            fresh_items, google_matches=[],
+            stale_threshold=0.35, stale_penalty_factor=0.15,
+        )
+        assert signals_old.freshness_score < 0.35
+        assert signals_fresh.freshness_score >= 0.70
+        assert signals_fresh.overall_quality > signals_old.overall_quality
 
 
 # ── Unit Tests: Confidence-Ceilings (neue kombinierte Checks) ───────────────
