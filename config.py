@@ -68,9 +68,9 @@ class SearchConfig:
     api_key: str = ""
     base_url: str = ""  # Für SearXNG: URL der Instanz (z.B. http://localhost:8888)
     engines: str = ""   # SearXNG: kommaseparierte Engine-Liste (z.B. "google,duckduckgo,bing")
-    max_results: int = 10
-    max_concurrent_searches: int = 5  # Für async Parallelisierung
-    scrape_top_n: int = 8           # Maximale Anzahl zu scrapender Quellen pro Claim
+    max_results: int = 15              # SearXNG ist self-hosted → großzügig
+    max_concurrent_searches: int = 8  # Für async Parallelisierung (self-hosted, keine Limits)
+    scrape_top_n: int = 10          # Maximale Anzahl zu scrapender Quellen pro Claim
     scrape_timeout: float = 10.0    # HTTP-Timeout pro Scrape-Request in Sekunden
 
     def __post_init__(self) -> None:
@@ -344,8 +344,8 @@ class EvidenceRetrievalConfig:
         CLAIM_SCOPE_MIN_DIRECT        – Min. claim_scope_score für direct evidence (Default: 0.60)
     """
 
-    langsearch_queries_simple: int = 2      # Einfache FACTUAL Claims
-    langsearch_queries_complex: int = 4     # STATISTICAL / CAUSAL / CONTEXTUAL Claims
+    langsearch_queries_simple: int = 3      # Einfache FACTUAL Claims (großzügige API-Limits)
+    langsearch_queries_complex: int = 5     # STATISTICAL / CAUSAL / CONTEXTUAL Claims
     langsearch_retry_on_weak: bool = True   # Zweite LangSearch-Runde bei schwacher Evidenz
     # ── Tavily-Budgetierung ───────────────────────────────────────────────────
     tavily_primary_queries: int = 1         # Tavily-Queries in der Primärrunde (sparsam)

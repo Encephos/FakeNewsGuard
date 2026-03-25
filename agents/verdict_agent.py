@@ -17,7 +17,7 @@ from __future__ import annotations
 from typing import Any
 
 from agents.base import BaseAgent
-from models.evidence_models import EvidencePack
+from models.evidence_models import EvidencePack, EvidenceType
 from models.schemas import (
     FACT_CHECK_SCHEMA,
     Claim,
@@ -51,8 +51,10 @@ _CEILING_HIGH_LOW_TRUST = 0.62
 _CEILING_REGULATORY_NO_OFFICIAL = 0.72
 # Ceiling bei überwiegend contextual evidence (kein direct evidence in Top-5)
 _CEILING_CONTEXTUAL_ONLY = 0.65
-# Ceiling bei hoher weak evidence rate
+# Ceiling bei hoher weak evidence rate (>60% WEAK in Top-5)
 _CEILING_HIGH_WEAK_RATE = 0.60
+# Ceiling bei Kombination aus contextual evidence UND low-trust Quellen
+_CEILING_CONTEXTUAL_AND_LOW_TRUST = 0.55
 # Ceiling für Regelungsclaims ohne direkte Regelungsgrundlage (strenger als ohne offizielle Quelle)
 _CEILING_REGULATORY_NO_DIRECT_EVIDENCE = 0.55
 # Minimale Anzahl guter Quellen für hohe Confidence
@@ -217,6 +219,27 @@ def _calibrate_confidence(
                 f"Ceiling {_CEILING_REGULATORY_NO_DIRECT_EVIDENCE}"
             )
             confidence = min(confidence, _CEILING_REGULATORY_NO_DIRECT_EVIDENCE)
+
+    # Ceiling: hohe weak evidence rate (>60% WEAK-Evidenz in Top-5)
+    if pack.web_results:
+        _top5 = pack.web_results[:5]
+        _weak_count = sum(1 for i in _top5 if i.evidence_type == EvidenceType.WEAK)
+        if _weak_count / max(1, len(_top5)) > 0.6:
+            if confidence > _CEILING_HIGH_WEAK_RATE:
+                reasons.append(
+                    f"Hohe Weak-Evidence-Rate ({_weak_count}/{len(_top5)} WEAK) → "
+                    f"Ceiling {_CEILING_HIGH_WEAK_RATE}"
+                )
+                confidence = min(confidence, _CEILING_HIGH_WEAK_RATE)
+
+    # Ceiling: contextual evidence + low-trust kombiniert (verschärft)
+    if quality and _contextual_rate > 0.5 and _low_trust > 0.2:
+        if confidence > _CEILING_CONTEXTUAL_AND_LOW_TRUST:
+            reasons.append(
+                f"Kontext-Evidenz ({_contextual_rate:.0%}) + Low-Trust ({_low_trust:.0%}) → "
+                f"Ceiling {_CEILING_CONTEXTUAL_AND_LOW_TRUST}"
+            )
+            confidence = min(confidence, _CEILING_CONTEXTUAL_AND_LOW_TRUST)
 
     # ── Penalties ─────────────────────────────────────────────────────────────
 

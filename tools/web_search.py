@@ -556,7 +556,7 @@ class LangSearchClient:
         max_results: int | None = None,
     ) -> dict[str, list[SearchResult]]:
         """Mehrere Suchen parallel."""
-        semaphore = asyncio.Semaphore(3)
+        semaphore = asyncio.Semaphore(5)  # LangSearch hat großzügige API-Limits
 
         async def _bounded(query: str) -> tuple[str, list[SearchResult]]:
             async with semaphore:
