@@ -2,7 +2,7 @@
 
 Verantwortlichkeiten:
     1. Query-Erstellung (LLM-optimiert)
-    2. Retrieval via LangSearch + SearXNG (parallel)
+    2. Retrieval via Tavily + LangSearch (primär) + SearXNG (unterstützend, parallel)
     3. Google Fact Check API (separate Priority-Schicht)
     4. Deduplication + Quality-Aware Ranking
     5. Scraping der Top-K Quellen
@@ -25,7 +25,7 @@ from typing import Any
 from urllib.parse import urlparse
 
 from agents.base import BaseAgent
-from config import AppConfig
+from config import AppConfig, EvidenceRetrievalConfig
 from models.evidence_models import (
     EvidenceContradiction,
     EvidenceItem,
@@ -41,7 +41,7 @@ from tools.llm import LLMClient
 from tools.scrape_ranker import RankedSource, rank_sources
 from tools.source_classifier import classify_source
 from tools.source_scraper import ScrapedSource, scrape_sources
-from tools.web_search import AsyncWebSearchClient, LangSearchClient, SearchResult, WebSearchClient
+from tools.web_search import AsyncWebSearchClient, LangSearchClient, SearchResult, TavilyClient, WebSearchClient
 
 
 # ── Deduplication ─────────────────────────────────────────────────────────────
@@ -757,6 +757,7 @@ def _detect_contradictions(items: list[EvidenceItem]) -> list[EvidenceContradict
 def _compute_quality_signals(
     items: list[EvidenceItem],
     google_matches: list[GoogleFactCheckMatch],
+    low_trust_penalty_factor: float = 0.20,
 ) -> EvidenceQualitySignals:
     """Berechne Qualitätssignale für das Evidence-Set."""
     has_primary = any(i.source.domain_tier <= 2 for i in items)
@@ -813,6 +814,9 @@ def _compute_quality_signals(
 
     # Off-topic-Penalty in overall_quality einrechnen
     offtopic_penalty = off_topic_rate * 0.15
+    # Low-Trust-Penalty: deckelt Confidence wenn überwiegend unzuverlässige Quellen
+    # (konfigurierbar über low_trust_penalty_factor, Default 0.20)
+    low_trust_penalty = low_trust_rate * low_trust_penalty_factor
     freshness_term = freshness * 0.10 if items else 0.0
 
     overall = (
@@ -822,6 +826,7 @@ def _compute_quality_signals(
         + avg_relevance * 0.10
         + freshness_term
         - offtopic_penalty
+        - low_trust_penalty
     )
     overall = max(0.0, min(1.0, overall))
 
@@ -836,6 +841,38 @@ def _compute_quality_signals(
         avg_top5_relevance=avg_relevance,
         low_trust_rate=low_trust_rate,
     )
+
+
+# ── Adaptive LangSearch Query Count ──────────────────────────────────────────
+
+
+def _langsearch_query_count(claim: "Claim", cfg: EvidenceRetrievalConfig) -> int:
+    """Bestimme adaptive LangSearch-Query-Anzahl basierend auf Claim-Komplexität.
+
+    Einfache FACTUAL Claims → cfg.langsearch_queries_simple  (Default: 2)
+    Komplexe/statistische/politische Claims → cfg.langsearch_queries_complex (Default: 4)
+
+    Komplexitätssignale (kein Hardcoding auf einzelne Wörter):
+        - Claim-Typ: STATISTICAL, CAUSAL, CONTEXTUAL
+        - Claim-Länge: > 100 Zeichen
+        - Reichhaltiges SearchProfile: ≥3 Institutionen/Policy-Terms
+    """
+    from models.schemas import ClaimType
+    _COMPLEX_TYPES = {ClaimType.STATISTICAL, ClaimType.CAUSAL, ClaimType.CONTEXTUAL}
+
+    is_complex_type = hasattr(claim, "type") and claim.type in _COMPLEX_TYPES
+    is_long = len(claim.text) > 100
+    has_rich_profile = (
+        isinstance(claim, ProcessedClaim)
+        and claim.search_profile is not None
+        and (
+            len(claim.search_profile.institutions)
+            + len(claim.search_profile.policy_terms)
+        ) >= 3
+    )
+    if is_complex_type or is_long or has_rich_profile:
+        return cfg.langsearch_queries_complex
+    return cfg.langsearch_queries_simple
 
 
 # ── EvidenceBuilderAgent ──────────────────────────────────────────────────────
@@ -868,13 +905,19 @@ class EvidenceBuilderAgent(BaseAgent):
             retry=self.config.retry,
         )
 
-        # LangSearch Client
+        # LangSearch Client (primär – semantisch)
         self._langsearch = LangSearchClient(
             config=self.config.langsearch,
             retry=self.config.retry,
         )
 
-        # Async Search Clients
+        # Tavily Client (primär – KI-optimiert)
+        self._tavily = TavilyClient(
+            config=self.config.tavily,
+            retry=self.config.retry,
+        )
+
+        # SearXNG Async Search Client (unterstützend – kostenlos, breite Abdeckung)
         self._async_search = AsyncWebSearchClient(
             self.config.search, self.config.retry
         )
@@ -896,54 +939,114 @@ class EvidenceBuilderAgent(BaseAgent):
             return _asyncio.run(self.execute_async(input_data, context))
 
     async def execute_async(self, input_data: Any, context: str = "") -> EvidencePack:
-        """Async-Version – Retrieval läuft parallel."""
+        """Async-Version – Retrieval läuft parallel.
+
+        Retrieval-Rollen (klar getrennt):
+            Tavily     = breite, content-starke Suche (konfigurierbar, Standard: 2 Queries)
+            LangSearch = semantisch-präzise Suche (adaptiv je nach Claim-Komplexität)
+            SearXNG    = unterstützende Breitensuche (alle Queries, kostenlos)
+            GFC        = strukturierter Shortcut-Layer (höchste Priorität)
+        """
         claim: Claim = input_data
         notes: list[str] = []
+
+        # Profil FRÜH extrahieren – wird für adaptives Retrieval + Pre-Scraping-Filter benötigt
+        profile: ClaimSearchProfile | None = None
+        if isinstance(claim, ProcessedClaim) and claim.search_profile:
+            profile = claim.search_profile
 
         # ── 1. Query-Optimierung ──────────────────────────────────────────────
         queries = await self._build_queries_async(claim, context)
         notes.append(f"Queries: {queries}")
 
-        # ── 2. Paralleles Retrieval ───────────────────────────────────────────
-        # Strategie: LangSearch = semantische Hauptsuche (Primär-Queries)
-        #            SearXNG = Breite/Fallback/Discovery (alle Queries)
-        # Google Fact Check = strukturierter Shortcut-Layer (höchste Priorität)
+        # ── 2. Adaptives paralleles Retrieval ────────────────────────────────
         from agents.fact_checker import _categories_for_claim
         categories = _categories_for_claim(claim)
 
-        # LangSearch bekommt nur die ersten 2 Queries (semantisch präziser)
-        langsearch_primary_queries = queries[:2] if len(queries) >= 2 else queries
+        # Adaptive LangSearch-Query-Anzahl: einfache Claims = 2, komplexe = 3–4
+        retrieval_cfg = self.config.evidence_retrieval
+        ls_count = _langsearch_query_count(claim, retrieval_cfg)
+        langsearch_queries = queries[:ls_count]
+        # Tavily: feste Anzahl (breit/content-stark, nicht adaptiv nötig)
+        tavily_queries_list = queries[:retrieval_cfg.tavily_retrieval_queries]
 
         searxng_task = self._async_search.multi_search_async(
-            queries, max_results=self.config.search.max_results,
-            categories=categories,
+            queries, max_results=self.config.search.max_results, categories=categories,
         )
         langsearch_task = self._langsearch.multi_search_async(
-            langsearch_primary_queries,
-            max_results=self.config.langsearch.max_results,
+            langsearch_queries, max_results=self.config.langsearch.max_results,
+        )
+        tavily_task = self._tavily.multi_search_async(
+            tavily_queries_list, max_results=self.config.tavily.max_results,
         )
         gfc_task = self._gfc_client.search_async(claim.text)
 
-        searxng_results, langsearch_results, gfc_raw = await asyncio.gather(
-            searxng_task, langsearch_task, gfc_task, return_exceptions=False
+        searxng_results, langsearch_results, tavily_results, gfc_raw = await asyncio.gather(
+            searxng_task, langsearch_task, tavily_task, gfc_task,
+            return_exceptions=False,
         )
 
-        # ── 3. Ergebnisse zusammenführen + deduplizieren ──────────────────────
-        # LangSearch-Ergebnisse zuerst einfügen (semantisch priorisiert)
+        # ── 3. Tavily-Content-Map aufbauen (vor Dedup/Ranking verwendbar) ────
+        # Enthält Volltext-Content aus Tavily – wird für Pre-Scraping-Bewertung
+        # und als Excerpt-Fallback genutzt (reduziert unnötiges Scraping)
+        tavily_content_map: dict[str, str] = {
+            r.url: r.content
+            for q_res in tavily_results.values()
+            for r in q_res
+            if r.content
+        }
+
+        # ── 4. LangSearch-Retry bei schwacher erster Evidenz ─────────────────
+        # Wenn avg. Relevanz der ersten LangSearch-Runde zu niedrig:
+        # weitere Queries aus dem Pool verwenden (adaptive Erweiterung)
+        if (
+            retrieval_cfg.langsearch_retry_on_weak
+            and self.config.langsearch.enabled
+            and ls_count < len(queries)
+        ):
+            ls_scores = [
+                _relevance_score(r, claim.text, profile)
+                for q_res in langsearch_results.values()
+                for r in q_res
+            ]
+            avg_ls = sum(ls_scores) / len(ls_scores) if ls_scores else 0.0
+            if avg_ls < retrieval_cfg.weak_evidence_threshold:
+                extra_queries = queries[ls_count:ls_count + 2]
+                if extra_queries:
+                    extra = await self._langsearch.multi_search_async(
+                        extra_queries, max_results=self.config.langsearch.max_results,
+                    )
+                    # Präfix vermeidet Key-Kollisionen mit Original-Queries
+                    langsearch_results.update({f"retry_{q}": v for q, v in extra.items()})
+                    notes.append(
+                        f"LangSearch-Retry: avg_relevance={avg_ls:.2f} < "
+                        f"{retrieval_cfg.weak_evidence_threshold}, "
+                        f"{len(extra_queries)} zusätzliche Queries"
+                    )
+
+        # ── 5. Ergebnisse zusammenführen + deduplizieren ──────────────────────
+        # Reihenfolge: Tavily (content-stark) → LangSearch (semantisch) → SearXNG (breit)
         all_results: list[SearchResult] = []
-        for q_results in langsearch_results.values():
-            all_results.extend(q_results)
-        for q_results in searxng_results.values():
-            all_results.extend(q_results)
+        tavily_count = sum(len(v) for v in tavily_results.values())
+        langsearch_count = sum(len(v) for v in langsearch_results.values())
+        searxng_count = sum(len(v) for v in searxng_results.values())
+
+        for q_res in tavily_results.values():
+            all_results.extend(q_res)
+        for q_res in langsearch_results.values():
+            all_results.extend(q_res)
+        for q_res in searxng_results.values():
+            all_results.extend(q_res)
 
         unique_results = _dedup_results(all_results)
         notes.append(
             f"Retrieval: {len(all_results)} Treffer → {len(unique_results)} unique "
-            f"(LangSearch: {sum(len(v) for v in langsearch_results.values())} primär, "
-            f"SearXNG: {sum(len(v) for v in searxng_results.values())} breit)"
+            f"(Tavily: {tavily_count} content-stark, "
+            f"LangSearch: {langsearch_count} semantisch [{ls_count} Queries], "
+            f"SearXNG: {searxng_count} breit)"
         )
 
-        # ── 4. Google Fact Check Matches aufbereiten ──────────────────────────
+        # ── 6. Google Fact Check Matches aufbereiten ──────────────────────────
         gfc_matches = [
             GoogleFactCheckMatch(
                 claim_reviewed=fc.claim_reviewed,
@@ -958,35 +1061,45 @@ class EvidenceBuilderAgent(BaseAgent):
         if gfc_matches:
             notes.append(f"Google Fact Check: {len(gfc_matches)} Treffer")
 
-        # ── 5. Source Ranking + Scraping ──────────────────────────────────────
-        ranked, scraped = await self._rank_and_scrape(unique_results, claim)
+        # ── 7. Candidate Selection + Scraping ────────────────────────────────
+        # Profile + Low-Trust-Signale fließen VOR dem Scraping ein:
+        # Nur die wirklich besten Kandidaten werden gescraped.
+        ranked, scraped = await self._rank_and_scrape(
+            unique_results, claim,
+            profile=profile,
+            tavily_content_map=tavily_content_map,
+        )
 
-        # Profil aus ProcessedClaim für strukturiertes Anchor-Scoring + Off-topic
-        profile: ClaimSearchProfile | None = None
-        if isinstance(claim, ProcessedClaim) and claim.search_profile:
-            profile = claim.search_profile
-
-        # ── 6. EvidenceItems aus gescrapten Quellen bauen ─────────────────────
+        # ── 8. EvidenceItems aus gescrapten Quellen bauen ─────────────────────
         evidence_items = self._build_evidence_items(ranked, scraped, claim.text, gfc_matches, profile)
         notes.append(f"Evidence Items: {len(evidence_items)} (mit Scraping)")
 
-        # ── 7. Qualität, Widersprüche, Pack zusammenstellen ───────────────────
+        # ── 9. Qualität, Widersprüche, Pack zusammenstellen ───────────────────
         contradictions = _detect_contradictions(evidence_items[:6])
-        quality = _compute_quality_signals(evidence_items, gfc_matches)
+        quality = _compute_quality_signals(
+            evidence_items, gfc_matches,
+            low_trust_penalty_factor=retrieval_cfg.low_trust_confidence_penalty,
+        )
 
         # Retry wenn Qualität zu niedrig oder Off-topic-Rate hoch
         high_offtopic = quality.off_topic_rate > 0.6
         low_quality = quality.overall_quality < 0.2
-        if (low_quality or high_offtopic) and not any(
-            r.content for results_map in langsearch_results.values() for r in results_map
-        ):
+        has_primary_content = bool(tavily_content_map) or any(
+            r.content for q_res in langsearch_results.values() for r in q_res
+        )
+        if (low_quality or high_offtopic) and not has_primary_content:
             reason = "Off-topic-Rate hoch" if high_offtopic else "Qualität niedrig"
             notes.append(f"{reason} – Fallback-Suche mit alternativen Queries")
             fallback_results = await self._fallback_retrieval(claim, queries)
             unique_results = _dedup_results(all_results + fallback_results)
-            ranked, scraped = await self._rank_and_scrape(unique_results, claim)
+            ranked, scraped = await self._rank_and_scrape(
+                unique_results, claim, profile=profile, tavily_content_map=tavily_content_map,
+            )
             evidence_items = self._build_evidence_items(ranked, scraped, claim.text, gfc_matches, profile)
-            quality = _compute_quality_signals(evidence_items, gfc_matches)
+            quality = _compute_quality_signals(
+                evidence_items, gfc_matches,
+                low_trust_penalty_factor=retrieval_cfg.low_trust_confidence_penalty,
+            )
             notes.append(f"Fallback: {len(evidence_items)} Evidence Items")
 
         selected_sources = [item.source for item in evidence_items[:5]]
@@ -1054,16 +1167,79 @@ class EvidenceBuilderAgent(BaseAgent):
         self,
         results: list[SearchResult],
         claim: Claim,
+        profile: ClaimSearchProfile | None = None,
+        tavily_content_map: dict[str, str] | None = None,
     ) -> tuple[list[RankedSource], list[ScrapedSource]]:
-        """Ranke und scrape die relevantesten Quellen."""
-        # Ergebnisse nach Queries gruppieren (für rank_sources Interface)
-        results_by_query: dict[str, list[SearchResult]] = {"_all": results}
+        """Ranke und scrape – Profile/Low-Trust-Filter greifen VOR dem Scraping.
 
+        Ablauf:
+            1. Low-Trust-Seiten und klar off-topic Kandidaten entfernen (Pre-Filter)
+            2. Tavily-Content in SearchResults einsetzen (Content-Anreicherung)
+            3. rank_sources() auf gefilterten Kandidaten
+            4. Scraping-Skip für Kandidaten mit ausreichendem Tavily-Content
+            5. Eigentliches Scraping nur noch für verbliebene Kandidaten
+        """
+        retrieval_cfg = self.config.evidence_retrieval
+
+        # ── 1. Pre-Scraping-Filter ────────────────────────────────────────────
+        # Low-Trust-Seiten und klar off-topic Kandidaten BEVOR rank_sources() entfernen.
+        # Fact-Checker sind immer durchgelassen (tier 4 Bonus bleibt erhalten).
+        filtered: list[SearchResult] = []
+        removed = 0
+        for r in results:
+            # Low-Trust-Seitentypen (Grammatik, Währungsrechner, Juraforen …)
+            if _is_low_trust_site(r.url, r.title, r.snippet) and not _is_fact_check_org(r.url):
+                removed += 1
+                continue
+            # Profil-basierte Off-topic-Filterung: nur bei starker Penalty + geringer Relevanz
+            if profile:
+                is_ot, penalty = _is_offtopic_content(r.title, r.snippet, profile)
+                if (
+                    is_ot
+                    and penalty >= retrieval_cfg.pre_scrape_offtopic_penalty
+                    and _relevance_score(r, claim.text, profile) < 0.25
+                    and not _is_fact_check_org(r.url)
+                ):
+                    removed += 1
+                    continue
+            filtered.append(r)
+
+        if removed:
+            self._log(f"Pre-Scraping-Filter: {removed}/{len(results)} Low-Trust/Off-topic Kandidaten entfernt")
+
+        # ── 2. Tavily-Content-Anreicherung ────────────────────────────────────
+        # Tavily-Volltext in SearchResults einsetzen – wird in rank_sources und
+        # _build_evidence_items als Excerpt-Quelle genutzt.
+        if tavily_content_map:
+            for r in filtered:
+                if not r.content and r.url in tavily_content_map:
+                    r.content = tavily_content_map[r.url]
+
+        # ── 3. Ranking ────────────────────────────────────────────────────────
+        results_by_query: dict[str, list[SearchResult]] = {"_all": filtered}
         ranked = rank_sources(
             results_by_query,
             claim.text,
             max_scrape=self.config.search.scrape_top_n,
         )
+
+        # ── 4. Scraping-Skip bei ausreichendem Tavily-Content ─────────────────
+        # Wenn Tavily bereits gut-relevanten Volltext geliefert hat,
+        # kein redundantes Scraping nötig → spart Zeit und API-Requests.
+        if tavily_content_map:
+            content_skipped = 0
+            for rs in ranked:
+                if not rs.should_scrape or not rs.result.content:
+                    continue
+                if len(rs.result.content) > 300:
+                    tavily_rel = _relevance_score(rs.result, claim.text, profile)
+                    if tavily_rel > 0.30:
+                        rs.should_scrape = False
+                        rs.skip_reason = "tavily_content_sufficient"
+                        content_skipped += 1
+            if content_skipped:
+                self._log(f"Tavily-Content ausreichend: {content_skipped} Scraping-Requests eingespart")
+
         scrape_count = sum(1 for rs in ranked if rs.should_scrape)
         self._log(f"Scraping {scrape_count} von {len(ranked)} Quellen...")
 
@@ -1101,10 +1277,16 @@ class EvidenceBuilderAgent(BaseAgent):
             tier = _domain_tier(url)
             domain = _extract_domain(url)
 
-            # Excerpt: bevorzuge gescrapten Passage, sonst Snippet
+            # Excerpt-Priorisierung:
+            # 1. Gescrapte Passage (höchste Qualität)
+            # 2. Tavily/LangSearch-Volltext aus SearchResult.content (gut strukturiert)
+            # 3. Snippet (Fallback)
             if sc and sc.fetch_success and sc.passage:
                 raw_excerpt = sc.passage
                 extraction_conf = 0.8
+            elif rs.result.content:
+                raw_excerpt = rs.result.content
+                extraction_conf = 0.6
             else:
                 raw_excerpt = rs.result.snippet
                 extraction_conf = 0.3
@@ -1154,14 +1336,33 @@ class EvidenceBuilderAgent(BaseAgent):
         claim: Claim,
         original_queries: list[str],
     ) -> list[SearchResult]:
-        """Fallback-Suche mit alternativen Queries bei niedriger Qualität."""
+        """Fallback-Suche mit alternativen Queries – LangSearch + SearXNG parallel.
+
+        LangSearch ist auch im Fallback aktiv: liefert semantisch andere Ergebnisse
+        als die reine Keyword-Suche von SearXNG und erhöht die Abdeckung.
+        """
         from agents.fact_checker import _build_fallback_queries
         fallback_queries = _build_fallback_queries(claim, original_queries)
         if not fallback_queries:
             return []
 
-        results_map = await self._async_search.multi_search_async(
-            fallback_queries,
-            max_results=self.config.search.max_results,
-        )
-        return [r for results in results_map.values() for r in results]
+        # Beide Suchquellen parallel starten
+        tasks: list = [
+            self._async_search.multi_search_async(
+                fallback_queries, max_results=self.config.search.max_results,
+            )
+        ]
+        if self.config.langsearch.enabled:
+            tasks.append(
+                self._langsearch.multi_search_async(
+                    fallback_queries[:2],
+                    max_results=self.config.langsearch.max_results,
+                )
+            )
+
+        result_maps = await asyncio.gather(*tasks, return_exceptions=True)
+        combined: list[SearchResult] = []
+        for rm in result_maps:
+            if isinstance(rm, dict):
+                combined.extend(r for results in rm.values() for r in results)
+        return combined
