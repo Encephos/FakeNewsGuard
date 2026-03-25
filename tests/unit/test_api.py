@@ -10,10 +10,22 @@ from fastapi.testclient import TestClient
 
 @pytest.fixture
 def client():
-    """TestClient für die FastAPI-App mit frischem Rate-Limiter pro Test."""
+    """TestClient für die FastAPI-App mit frischem Rate-Limiter pro Test.
+
+    _run_job wird gemockt – kein echter Analyse-Job wird gestartet,
+    Tests laufen dadurch sofort statt nach 10+ Minuten.
+    """
     import api
-    api._rate_limiter = None  # Singleton zurücksetzen → neuer Bucket pro Test
-    return TestClient(api.app)
+
+    async def _instant_job(job_id: str, text: str, url: str = "", **kwargs) -> None:
+        """Simuliert sofortigen Job-Abschluss ohne echte Pipeline."""
+        if job_id in api._jobs:
+            api._jobs[job_id]["status"] = "done"
+            api._jobs[job_id]["result"] = {"claims": [], "verdict": "UNVERIFIABLE"}
+
+    with patch("api._run_job", side_effect=_instant_job):
+        api._rate_limiter = None
+        yield TestClient(api.app)
 
 
 # ── Health Endpoint ──────────────────────────────────────────────

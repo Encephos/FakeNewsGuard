@@ -130,6 +130,41 @@ class LangSearchConfig:
 
 
 @dataclass
+class TavilyConfig:
+    """Konfiguration für Tavily – KI-optimierte Websuche.
+
+    Tavily wird im EvidenceBuilderAgent parallel zu LangSearch als primäre
+    Suchquelle genutzt. SearXNG ergänzt als kostenlose Breiten-Suche.
+
+    Env-Vars:
+        TAVILY_API_KEY     – API-Key (Pflicht wenn enabled)
+        TAVILY_ENABLED     – "true"/"false" (Default: true wenn Key vorhanden)
+        TAVILY_MAX_RESULTS – Max. Ergebnisse pro Query (Default: 5)
+        TAVILY_SEARCH_DEPTH – "basic" oder "advanced" (Default: advanced)
+    """
+
+    api_key: str = ""
+    enabled: bool = True
+    max_results: int = 5
+    search_depth: str = "advanced"
+
+    def __post_init__(self) -> None:
+        if not self.api_key:
+            self.api_key = os.getenv("TAVILY_API_KEY", "")
+        env_enabled = os.getenv("TAVILY_ENABLED", "")
+        if env_enabled:
+            self.enabled = env_enabled.lower() in ("true", "1", "yes")
+        elif not self.api_key:
+            self.enabled = False
+        env_max = os.getenv("TAVILY_MAX_RESULTS", "")
+        if env_max:
+            self.max_results = int(env_max)
+        env_depth = os.getenv("TAVILY_SEARCH_DEPTH", "")
+        if env_depth:
+            self.search_depth = env_depth
+
+
+@dataclass
 class GoogleFactCheckConfig:
     """Konfiguration für die Google Fact Check Tools API.
 
@@ -283,10 +318,59 @@ class RateLimitConfig:
 
 
 @dataclass
+class EvidenceRetrievalConfig:
+    """Konfiguration für das adaptive Retrieval im EvidenceBuilderAgent.
+
+    Trennt die Rollen von Tavily (breit/content-stark) und LangSearch (semantisch)
+    und macht Schwellenwerte konfigurierbar statt hart codiert.
+
+    Rollen:
+        Tavily     = breite, content-starke Suche (feste Query-Anzahl)
+        LangSearch = semantisch-präzise Suche (adaptiv je nach Claim-Komplexität)
+        SearXNG    = unterstützende Breitensuche (alle Queries)
+        GFC        = strukturierter Shortcut-Layer (kein Query-Budget nötig)
+
+    Env-Vars:
+        LANGSEARCH_QUERIES_SIMPLE     – Queries für einfache Claims (Default: 2)
+        LANGSEARCH_QUERIES_COMPLEX    – Queries für komplexe/statistische Claims (Default: 4)
+        LANGSEARCH_RETRY_ON_WEAK      – Zweite Runde bei schwacher erster Evidenz (Default: true)
+        TAVILY_RETRIEVAL_QUERIES      – Tavily-Queries pro Claim (Default: 2)
+        WEAK_EVIDENCE_THRESHOLD       – Avg-Relevanz-Schwelle für LangSearch-Retry (Default: 0.25)
+        LOW_TRUST_CONFIDENCE_PENALTY  – Penalty-Faktor für Low-Trust-Rate in overall_quality (Default: 0.20)
+        PRE_SCRAPE_OFFTOPIC_PENALTY   – Mindest-Penalty damit Kandidat vor Scraping entfernt wird (Default: 0.70)
+    """
+
+    langsearch_queries_simple: int = 2      # Einfache FACTUAL Claims
+    langsearch_queries_complex: int = 4     # STATISTICAL / CAUSAL / CONTEXTUAL Claims
+    langsearch_retry_on_weak: bool = True   # Zweite LangSearch-Runde bei schwacher Evidenz
+    tavily_retrieval_queries: int = 2       # Tavily-Queries (breit, content-stark)
+    weak_evidence_threshold: float = 0.25  # avg_relevance-Schwelle → LangSearch-Retry
+    low_trust_confidence_penalty: float = 0.20  # Penalty-Faktor auf overall_quality
+    pre_scrape_offtopic_penalty: float = 0.70   # Mindest-Penalty für Pre-Scrape-Filter
+
+    def __post_init__(self) -> None:
+        if v := os.getenv("LANGSEARCH_QUERIES_SIMPLE", ""):
+            self.langsearch_queries_simple = int(v)
+        if v := os.getenv("LANGSEARCH_QUERIES_COMPLEX", ""):
+            self.langsearch_queries_complex = int(v)
+        if v := os.getenv("LANGSEARCH_RETRY_ON_WEAK", ""):
+            self.langsearch_retry_on_weak = v.lower() in ("true", "1", "yes")
+        if v := os.getenv("TAVILY_RETRIEVAL_QUERIES", ""):
+            self.tavily_retrieval_queries = int(v)
+        if v := os.getenv("WEAK_EVIDENCE_THRESHOLD", ""):
+            self.weak_evidence_threshold = float(v)
+        if v := os.getenv("LOW_TRUST_CONFIDENCE_PENALTY", ""):
+            self.low_trust_confidence_penalty = float(v)
+        if v := os.getenv("PRE_SCRAPE_OFFTOPIC_PENALTY", ""):
+            self.pre_scrape_offtopic_penalty = float(v)
+
+
+@dataclass
 class AppConfig:
     llm: LLMConfig = field(default_factory=LLMConfig)
     search: SearchConfig = field(default_factory=SearchConfig)
     langsearch: LangSearchConfig = field(default_factory=LangSearchConfig)
+    tavily: TavilyConfig = field(default_factory=TavilyConfig)
     google_fact_check: GoogleFactCheckConfig = field(default_factory=GoogleFactCheckConfig)
     claim_processing: ClaimProcessingConfig = field(default_factory=ClaimProcessingConfig)
     cove: CoVeConfig = field(default_factory=CoVeConfig)
@@ -297,6 +381,7 @@ class AppConfig:
     telegram: TelegramConfig = field(default_factory=TelegramConfig)
     rate_limit: RateLimitConfig = field(default_factory=RateLimitConfig)
     graph: GraphConfig = field(default_factory=GraphConfig)
+    evidence_retrieval: EvidenceRetrievalConfig = field(default_factory=EvidenceRetrievalConfig)
     tier: ScoutTier = ScoutTier.PRO  # Scout-Stufe (lite / pro / max)
     verbose: bool = True  # Zeige Agent-Wechsel und Zwischenergebnisse
     language: str = "de"  # Primärsprache der Analyse
@@ -327,7 +412,11 @@ class AppConfig:
             env_var = key_map.get(self.search.provider, f"{self.search.provider.upper()}_API_KEY")
             errors.append(f"Fehlender Search API Key: {env_var} nicht gesetzt")
 
-        # LangSearch und Google Fact Check sind optional – nur warnen, nicht abbrechen
+        # Tavily, LangSearch und Google Fact Check sind optional – nur warnen, nicht abbrechen
+        if self.tavily.enabled and not self.tavily.api_key:
+            print("  ⚠ Tavily aktiviert aber kein TAVILY_API_KEY – wird deaktiviert.", file=sys.stderr)
+            self.tavily.enabled = False
+
         if self.langsearch.enabled and not self.langsearch.api_key:
             print("  ⚠ LangSearch aktiviert aber kein LANGSEARCH_API_KEY – wird deaktiviert.", file=sys.stderr)
             self.langsearch.enabled = False
