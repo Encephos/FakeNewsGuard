@@ -6,6 +6,8 @@ Testet:
     - Weiche Qualitätssignale
     - Durchlass gültiger Claims
     - Qualitätsscoring
+    - Abstrakte Qualitätssignale (missing_artifact_evidence, underspecified_actor,
+      extraordinary_claim, elevated_burden_of_proof)
 """
 
 from __future__ import annotations
@@ -13,7 +15,8 @@ from __future__ import annotations
 import pytest
 
 from agents.claim_processor import ClaimValidator
-from models.schemas import AmbiguityLevel, ClaimType, ProcessedClaim
+from config import ClaimQualitySignalConfig
+from models.schemas import AmbiguityLevel, ClaimFrame, ClaimType, ProcessedClaim
 
 
 def _make_claim(text: str, claim_type: ClaimType = ClaimType.FACTUAL) -> ProcessedClaim:
@@ -153,3 +156,351 @@ class TestClaimValidatorNoFalsePositives:
         claim = _make_claim(text)
         result = self.validator.validate([claim])
         assert result[0].is_valid_claim is True
+
+
+# ── Hilfsfunktionen für Signal-Tests ──────────────────────────────────────────
+
+def _make_claim_with_frame(
+    text: str,
+    claim_type: ClaimType = ClaimType.FACTUAL,
+    *,
+    subject: str = "",
+    institution: str = "",
+    time_reference: str = "",
+    numbers: list[str] | None = None,
+    sanction: str = "",
+    enforcement: str = "",
+) -> ProcessedClaim:
+    """ProcessedClaim mit befülltem ClaimFrame für Signal-Tests."""
+    frame = ClaimFrame(
+        raw_text=text,
+        subject=subject,
+        institution=institution,
+        time_reference=time_reference,
+        numbers=numbers or [],
+        sanction=sanction,
+        enforcement=enforcement,
+    )
+    return ProcessedClaim(
+        id="C_sig",
+        text=text,
+        type=claim_type,
+        context="",
+        is_checkworthy=True,
+        frame=frame,
+    )
+
+
+# ── Signal-Tests ───────────────────────────────────────────────────────────────
+
+class TestMissingArtifactEvidence:
+    """Signal: missing_artifact_evidence.
+
+    Feuert wenn alle Frame-Anker (Akteur, Institution, Zeit, Zahlen) fehlen.
+    Keine Prüfung auf Artefakttyp-Wörter – rein strukturell.
+    """
+
+    def setup_method(self):
+        self.validator = ClaimValidator()
+
+    def test_fires_when_all_anchors_empty(self):
+        """Leerer Frame → Signal wird erkannt."""
+        claim = _make_claim_with_frame(
+            "Es wurde ein Beschluss gefasst.",
+            subject="", institution="", time_reference="", numbers=[],
+        )
+        result = self.validator.validate([claim])[0]
+        assert "missing_artifact_evidence" in result.quality_signals
+
+    def test_does_not_fire_when_subject_present(self):
+        """Subject vorhanden → Signal nicht ausgelöst."""
+        claim = _make_claim_with_frame(
+            "Der Stadtrat hat einen Beschluss gefasst.",
+            subject="Stadtrat",
+        )
+        result = self.validator.validate([claim])[0]
+        assert "missing_artifact_evidence" not in result.quality_signals
+
+    def test_does_not_fire_when_institution_present(self):
+        """Institution vorhanden → Signal nicht ausgelöst."""
+        claim = _make_claim_with_frame(
+            "Die WHO hat eine Studie veröffentlicht.",
+            institution="Weltgesundheitsorganisation",
+        )
+        result = self.validator.validate([claim])[0]
+        assert "missing_artifact_evidence" not in result.quality_signals
+
+    def test_does_not_fire_when_numbers_present(self):
+        """Zahlen vorhanden → Signal nicht ausgelöst."""
+        claim = _make_claim_with_frame(
+            "Es wurden 500 Fälle gemeldet.",
+            numbers=["500"],
+        )
+        result = self.validator.validate([claim])[0]
+        assert "missing_artifact_evidence" not in result.quality_signals
+
+    def test_does_not_fire_without_frame(self):
+        """Kein Frame → Signal nicht auslösbar."""
+        claim = _make_claim("Eine Entscheidung wurde getroffen.")
+        result = self.validator.validate([claim])[0]
+        assert "missing_artifact_evidence" not in result.quality_signals
+
+    def test_lowers_quality_score(self):
+        """Signal senkt den claim_quality_score."""
+        anchored = _make_claim_with_frame(
+            "Die Bundesregierung hat 2023 entschieden.",
+            subject="Bundesregierung", time_reference="2023",
+        )
+        unanchored = _make_claim_with_frame(
+            "Es wurde eine Entscheidung getroffen.",
+        )
+        r_anchored = self.validator.validate([anchored])[0]
+        r_unanchored = self.validator.validate([unanchored])[0]
+        assert r_unanchored.claim_quality_score < r_anchored.claim_quality_score
+
+
+class TestUnderspecifiedActor:
+    """Signal: underspecified_actor.
+
+    Feuert wenn weder subject noch institution die konfigurierte Mindestlänge
+    überschreiten. Keine Prüfung auf bestimmte Wörter.
+    """
+
+    def setup_method(self):
+        self.validator = ClaimValidator()
+
+    def test_fires_when_both_actor_fields_too_short(self):
+        """Beide Felder kürzer als min_actor_length → Signal."""
+        claim = _make_claim_with_frame(
+            "Sie haben die Preise erhöht.",
+            subject="sie",  # < 6 chars
+            institution="",
+        )
+        result = self.validator.validate([claim])[0]
+        assert "underspecified_actor" in result.quality_signals
+
+    def test_does_not_fire_when_subject_long_enough(self):
+        """Langes subject → kein Signal."""
+        claim = _make_claim_with_frame(
+            "Die Bundesregierung hat die Preise erhöht.",
+            subject="Bundesregierung",
+        )
+        result = self.validator.validate([claim])[0]
+        assert "underspecified_actor" not in result.quality_signals
+
+    def test_does_not_fire_when_institution_long_enough(self):
+        """Lange institution → kein Signal."""
+        claim = _make_claim_with_frame(
+            "Behörden haben die Preise erhöht.",
+            subject="",
+            institution="Bundesnetzagentur",
+        )
+        result = self.validator.validate([claim])[0]
+        assert "underspecified_actor" not in result.quality_signals
+
+    def test_configurable_min_actor_length(self):
+        """min_actor_length ist konfigurierbar."""
+        # Mit sehr kleiner Schwelle feuert das Signal nicht mehr
+        cfg = ClaimQualitySignalConfig(min_actor_length=2)
+        validator = ClaimValidator(cfg)
+        claim = _make_claim_with_frame(
+            "Sie haben gehandelt.",
+            subject="sie",  # 3 chars ≥ 2 → kein Signal
+        )
+        result = validator.validate([claim])[0]
+        assert "underspecified_actor" not in result.quality_signals
+
+    def test_does_not_fire_without_frame(self):
+        """Kein Frame → Signal nicht auslösbar."""
+        claim = _make_claim("Behörden haben reagiert.")
+        result = self.validator.validate([claim])[0]
+        assert "underspecified_actor" not in result.quality_signals
+
+
+class TestExtraordinaryClaim:
+    """Signal: extraordinary_claim.
+
+    Feuert bei Absolutheitssprache (konfigurierbar) oder Extremprozentwerten
+    (>= Schwellwert). Keine Themenbindung.
+    """
+
+    def setup_method(self):
+        self.validator = ClaimValidator()
+
+    @pytest.mark.parametrize("text", [
+        "Alle Impfungen führen zu schweren Nebenwirkungen.",
+        "Niemand aus dieser Gruppe hat überlebt.",
+        "Das System versagt niemals.",
+        "Vollständig alle Befragten stimmten zu.",
+        "Jeder Bürger ist davon betroffen.",
+    ])
+    def test_fires_on_absolute_quantifiers(self, text: str):
+        """Absolutheitsquantoren lösen das Signal aus."""
+        claim = _make_claim(text)
+        result = self.validator.validate([claim])[0]
+        assert "extraordinary_claim" in result.quality_signals
+
+    @pytest.mark.parametrize("text", [
+        "Die Kriminalität stieg um 95%.",
+        "100% der Fälle wurden nachgewiesen.",
+        "Die Kosten stiegen um 99,5%.",
+    ])
+    def test_fires_on_extreme_percentage(self, text: str):
+        """Extremprozentwerte (>= 90%) lösen das Signal aus."""
+        claim = _make_claim(text)
+        result = self.validator.validate([claim])[0]
+        assert "extraordinary_claim" in result.quality_signals
+
+    @pytest.mark.parametrize("text", [
+        "Die Kriminalität stieg um 15%.",
+        "Ein Teil der Bevölkerung ist betroffen.",
+        "Die meisten Studien zeigen Verbesserungen.",
+    ])
+    def test_does_not_fire_on_moderate_claims(self, text: str):
+        """Moderate Claims ohne Absolutheitssprache → kein Signal."""
+        claim = _make_claim(text)
+        result = self.validator.validate([claim])[0]
+        assert "extraordinary_claim" not in result.quality_signals
+
+    def test_configurable_percentage_threshold(self):
+        """Prozentwert-Schwellwert ist konfigurierbar."""
+        cfg = ClaimQualitySignalConfig(extraordinary_percentage_threshold=50.0)
+        validator = ClaimValidator(cfg)
+        claim = _make_claim("Die Kosten stiegen um 60%.")
+        result = validator.validate([claim])[0]
+        assert "extraordinary_claim" in result.quality_signals
+
+    def test_configurable_absolute_pattern(self):
+        """Absolut-Muster ist konfigurierbar."""
+        cfg = ClaimQualitySignalConfig(
+            extraordinary_absolute_pattern=r"\b(immer)\b"
+        )
+        validator = ClaimValidator(cfg)
+        # "alle" ist nicht im Pattern → kein Signal
+        claim_alle = _make_claim("Alle Bürger sind betroffen.")
+        result = validator.validate([claim_alle])[0]
+        assert "extraordinary_claim" not in result.quality_signals
+        # "immer" ist im Pattern → Signal
+        claim_immer = _make_claim("Das passiert immer wieder.")
+        result2 = validator.validate([claim_immer])[0]
+        assert "extraordinary_claim" in result2.quality_signals
+
+
+class TestElevatedBurdenOfProof:
+    """Signal: elevated_burden_of_proof.
+
+    Feuert bei CAUSAL-Claims oder wenn Sanktions-/Durchsetzungskontext
+    im Frame vorliegt. Keine Themenbindung.
+    """
+
+    def setup_method(self):
+        self.validator = ClaimValidator()
+
+    def test_fires_on_causal_claim_type(self):
+        """CAUSAL-Claim löst das Signal aus."""
+        claim = _make_claim(
+            "Die neue Regelung führt zu steigenden Mieten.",
+            claim_type=ClaimType.CAUSAL,
+        )
+        result = self.validator.validate([claim])[0]
+        assert "elevated_burden_of_proof" in result.quality_signals
+
+    def test_fires_when_sanction_in_frame(self):
+        """frame.sanction nicht leer → Signal."""
+        claim = _make_claim_with_frame(
+            "Verstöße werden mit 500 Euro bestraft.",
+            sanction="500 Euro Bußgeld",
+        )
+        result = self.validator.validate([claim])[0]
+        assert "elevated_burden_of_proof" in result.quality_signals
+
+    def test_fires_when_enforcement_in_frame(self):
+        """frame.enforcement nicht leer → Signal."""
+        claim = _make_claim_with_frame(
+            "Die Einhaltung wird per Kameraüberwachung kontrolliert.",
+            enforcement="Kameraüberwachung",
+        )
+        result = self.validator.validate([claim])[0]
+        assert "elevated_burden_of_proof" in result.quality_signals
+
+    def test_does_not_fire_on_factual_without_frame_context(self):
+        """Reiner FACTUAL-Claim ohne Frame-Kontext → kein Signal."""
+        claim = _make_claim_with_frame(
+            "Deutschland hat 83 Millionen Einwohner.",
+            subject="Deutschland",
+            numbers=["83 Millionen"],
+        )
+        result = self.validator.validate([claim])[0]
+        assert "elevated_burden_of_proof" not in result.quality_signals
+
+    def test_does_not_fire_without_frame_and_factual(self):
+        """FACTUAL ohne Frame → kein Signal."""
+        claim = _make_claim("Die Erde ist 4,5 Milliarden Jahre alt.")
+        result = self.validator.validate([claim])[0]
+        assert "elevated_burden_of_proof" not in result.quality_signals
+
+
+class TestSignalCombination:
+    """Kombinationsverhalten: mehrere Signale senken Score stärker
+    und können requires_more_context auslösen."""
+
+    def setup_method(self):
+        self.validator = ClaimValidator()
+
+    def test_multiple_signals_accumulate_penalties(self):
+        """Zwei Signale → stärkerer Score-Abzug als eines allein."""
+        # Nur extraordinary_claim
+        claim_one = _make_claim("Alle Bürger sind betroffen.")
+        # extraordinary_claim + elevated_burden (CAUSAL)
+        claim_two = _make_claim(
+            "Alle Bürger erkranken durch diese Maßnahme.",
+            claim_type=ClaimType.CAUSAL,
+        )
+        r_one = self.validator.validate([claim_one])[0]
+        r_two = self.validator.validate([claim_two])[0]
+        assert r_two.claim_quality_score < r_one.claim_quality_score
+
+    def test_requires_more_context_set_at_threshold(self):
+        """Ab requires_context_signal_threshold aktiven Signalen → requires_more_context=True."""
+        cfg = ClaimQualitySignalConfig(requires_context_signal_threshold=2)
+        validator = ClaimValidator(cfg)
+
+        # Claim der extraordinary_claim + elevated_burden auslöst (CAUSAL + Absolut)
+        claim = _make_claim(
+            "Alle Bürger erkranken durch diese Maßnahme.",
+            claim_type=ClaimType.CAUSAL,
+        )
+        result = validator.validate([claim])[0]
+        assert len(result.quality_signals) >= 2
+        assert result.requires_more_context is True
+
+    def test_requires_more_context_not_set_below_threshold(self):
+        """Unter der Schwelle → requires_more_context bleibt False."""
+        cfg = ClaimQualitySignalConfig(requires_context_signal_threshold=3)
+        validator = ClaimValidator(cfg)
+
+        # Nur ein Signal: extraordinary_claim
+        claim = _make_claim("Alle Bürger sind betroffen.")
+        result = validator.validate([claim])[0]
+        assert len(result.quality_signals) < 3
+        assert result.requires_more_context is False
+
+    def test_quality_signals_field_populated(self):
+        """quality_signals-Feld wird im Ergebnis-Claim gesetzt."""
+        claim = _make_claim("Alle Impfungen sind gefährlich.", claim_type=ClaimType.CAUSAL)
+        result = self.validator.validate([claim])[0]
+        assert isinstance(result.quality_signals, list)
+        assert "extraordinary_claim" in result.quality_signals
+        assert "elevated_burden_of_proof" in result.quality_signals
+
+    def test_valid_claim_has_empty_signals(self):
+        """Vollständig spezifizierter, moderater Claim hat keine Signale."""
+        claim = _make_claim_with_frame(
+            "Die Bundesregierung hat 2023 das Klimapaket verabschiedet.",
+            subject="Bundesregierung",
+            institution="Bundesregierung",
+            time_reference="2023",
+            numbers=[],
+        )
+        result = self.validator.validate([claim])[0]
+        assert result.quality_signals == []
