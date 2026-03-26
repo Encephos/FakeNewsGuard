@@ -243,6 +243,73 @@ class GoogleFactCheckConfig:
 
 
 @dataclass
+class ClaimQualitySignalConfig:
+    """Konfiguration für abstrakte Qualitätssignale im ClaimValidator.
+
+    Die vier Signale werden rein über strukturelle und statistische Merkmale
+    erkannt – kein Hardcoding einzelner Wörter, Personen oder Testfälle.
+
+    Signale:
+        missing_artifact_evidence  – Claim referenziert ein Artefakt (Beschluss,
+                                      Studie, …), aber keine verifizierbaren Anker
+                                      (Akteur, Institution, Zeit, Zahl).
+        underspecified_actor       – Akteur/Subject zu generisch um prüfbar zu sein
+                                      (leeres frame.subject + frame.institution).
+        extraordinary_claim        – Absolutheitssprache oder extreme Prozentwerte.
+        elevated_burden_of_proof   – Kausaler Claim oder Sanktions-/Durchsetzungs-
+                                      kontext → höhere Beweislast.
+
+    Alle Schwellenwerte und Muster sind konfigurierbar (Env-Vars oder Instantiierung).
+
+    Env-Vars:
+        QUALITY_MISSING_ARTIFACT_PENALTY    – Penalty für missing_artifact_evidence (Default: 0.25)
+        QUALITY_UNDERSPECIFIED_ACTOR_PENALTY – Penalty für underspecified_actor (Default: 0.20)
+        QUALITY_EXTRAORDINARY_CLAIM_PENALTY  – Penalty für extraordinary_claim (Default: 0.20)
+        QUALITY_ELEVATED_BURDEN_PENALTY      – Penalty für elevated_burden_of_proof (Default: 0.10)
+        QUALITY_REQUIRES_CONTEXT_THRESHOLD   – Anzahl Signale → requires_more_context=True (Default: 2)
+        QUALITY_EXTRAORDINARY_PCT_THRESHOLD  – Prozentwert ab dem extraordinary_claim feuert (Default: 90.0)
+        QUALITY_MIN_ACTOR_LENGTH             – Mindestlänge von frame.subject/institution (Default: 6)
+    """
+
+    # ── Penalty-Gewichte ──────────────────────────────────────────────────────
+    missing_artifact_penalty: float = 0.25
+    underspecified_actor_penalty: float = 0.20
+    extraordinary_claim_penalty: float = 0.20
+    elevated_burden_penalty: float = 0.10
+
+    # Ab dieser Anzahl aktiver Signale → requires_more_context=True
+    requires_context_signal_threshold: int = 2
+
+    # Regex für Absolutheitssprache (konfigurierbar, kein Themen-Hardcoding)
+    extraordinary_absolute_pattern: str = (
+        r"\b(alle|jeder|jede|jedes|niemand|niemals|immer|stets|"
+        r"vollständig|ausnahmslos|grundsätzlich|pauschal|generell)\b"
+    )
+
+    # Prozentwert (0–100), ab dem extraordinary_claim feuert
+    extraordinary_percentage_threshold: float = 90.0
+
+    # Mindestlänge von frame.subject bzw. frame.institution für spezifischen Akteur
+    min_actor_length: int = 6
+
+    def __post_init__(self) -> None:
+        if v := os.getenv("QUALITY_MISSING_ARTIFACT_PENALTY", ""):
+            self.missing_artifact_penalty = float(v)
+        if v := os.getenv("QUALITY_UNDERSPECIFIED_ACTOR_PENALTY", ""):
+            self.underspecified_actor_penalty = float(v)
+        if v := os.getenv("QUALITY_EXTRAORDINARY_CLAIM_PENALTY", ""):
+            self.extraordinary_claim_penalty = float(v)
+        if v := os.getenv("QUALITY_ELEVATED_BURDEN_PENALTY", ""):
+            self.elevated_burden_penalty = float(v)
+        if v := os.getenv("QUALITY_REQUIRES_CONTEXT_THRESHOLD", ""):
+            self.requires_context_signal_threshold = int(v)
+        if v := os.getenv("QUALITY_EXTRAORDINARY_PCT_THRESHOLD", ""):
+            self.extraordinary_percentage_threshold = float(v)
+        if v := os.getenv("QUALITY_MIN_ACTOR_LENGTH", ""):
+            self.min_actor_length = int(v)
+
+
+@dataclass
 class ClaimProcessingConfig:
     """Konfiguration für die mehrstufige Claim-Processing-Pipeline.
 
@@ -255,6 +322,9 @@ class ClaimProcessingConfig:
     use_canonical_cache: bool = False
     # Minimale Checkworthiness-Score um einen Claim zu verarbeiten (0 = alle)
     min_checkworthiness: float = 0.0
+    quality_signals: ClaimQualitySignalConfig = field(
+        default_factory=ClaimQualitySignalConfig
+    )
 
     def __post_init__(self) -> None:
         env_n = os.getenv("CLAIM_TOP_N", "")

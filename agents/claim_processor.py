@@ -28,7 +28,7 @@ import sys
 from typing import Any
 
 from agents.base import BaseAgent
-from config import AppConfig
+from config import AppConfig, ClaimQualitySignalConfig
 from i18n import t
 from models.schemas import (
     AmbiguityLevel,
@@ -818,8 +818,35 @@ class ClaimValidator:
     - Recherche-Claims / Suchdimensionen ("Wie/Wann/Wo …")
     - Nicht-falsifizierbare Pseudo-Claims
 
+    Erkennt zusätzlich vier abstrakte Qualitätssignale (keine Sonderregeln für
+    einzelne Personen, Wörter oder Testfälle – rein strukturell/statistisch):
+
+    - missing_artifact_evidence:  Claim verweist auf ein Artefakt ohne
+      verifizierbaren Anker (leerer Frame: kein Akteur, keine Institution,
+      kein Zeitbezug, keine Zahlen).
+    - underspecified_actor:       Akteur zu generisch – frame.subject und
+      frame.institution sind kürzer als min_actor_length.
+    - extraordinary_claim:        Absolutheitssprache oder Extremprozentwerte
+      (konfigurierbare Schwellen, kein Themen-Hardcoding).
+    - elevated_burden_of_proof:   Kausale Claims oder solche mit Sanktions-/
+      Durchsetzungskontext erfordern mehr Evidenz.
+
     Markiert ungültige Claims mit is_valid_claim=False und invalid_reason.
+    Aktive Signale senken claim_quality_score und setzen ggf. requires_more_context.
     """
+
+    def __init__(self, signal_cfg: ClaimQualitySignalConfig | None = None) -> None:
+        self._cfg = signal_cfg or ClaimQualitySignalConfig()
+        # Kompiliere den absolut-Muster nur einmal
+        self._extraordinary_abs_re: re.Pattern = re.compile(
+            self._cfg.extraordinary_absolute_pattern, re.IGNORECASE
+        )
+        # Regex zum Erkennen von Prozentzahlen (z.B. "95 %", "100%", "99,5%")
+        self._pct_re: re.Pattern = re.compile(
+            r"(\d+(?:[.,]\d+)?)\s*%"
+        )
+
+    # ── öffentliche API ───────────────────────────────────────────────────────
 
     def validate(self, claims: list[ProcessedClaim]) -> list[ProcessedClaim]:
         """Validiere alle Claims. Ungültige werden markiert, nicht entfernt."""
@@ -828,40 +855,46 @@ class ClaimValidator:
 
         validated: list[ProcessedClaim] = []
         for claim in claims:
-            is_valid, reason, quality = self._check_claim(claim)
+            is_valid, reason, quality, signals, more_ctx = self._check_claim(claim)
             validated.append(
                 claim.model_copy(update={
                     "is_valid_claim": is_valid,
                     "invalid_reason": reason,
                     "claim_quality_score": quality,
+                    "quality_signals": signals,
+                    "requires_more_context": claim.requires_more_context or more_ctx,
                 })
             )
         return validated
 
-    def _check_claim(self, claim: ProcessedClaim) -> tuple[bool, str, float]:
+    # ── interne Prüflogik ─────────────────────────────────────────────────────
+
+    def _check_claim(
+        self, claim: ProcessedClaim
+    ) -> tuple[bool, str, float, list[str], bool]:
         """Prüfe einen einzelnen Claim.
 
         Returns:
-            (is_valid, reason, quality_score)
+            (is_valid, invalid_reason, quality_score, quality_signals, requires_more_context)
         """
         text = claim.text.strip()
 
-        # Harter Filter: Meta-Claim-Muster
+        # ── Harte Filter ─────────────────────────────────────────────────────
+
         for pattern in _META_CLAIM_PATTERNS:
             if pattern.search(text):
-                return False, f"Meta-/Recherche-Claim: '{text[:80]}…'", 0.0
+                return False, f"Meta-/Recherche-Claim: '{text[:80]}…'", 0.0, [], False
 
-        # Harter Filter: Zu kurz für falsifizierbaren Claim
         if len(text) < 15:
-            return False, "Claim zu kurz für Falsifizierbarkeit", 0.1
+            return False, "Claim zu kurz für Falsifizierbarkeit", 0.1, [], False
 
-        # Harter Filter: Nur Frage, kein Claim
         if text.endswith("?") and not any(
             kw in text.lower() for kw in ["stimmt es", "ist es wahr", "trifft es zu"]
         ):
-            return False, "Frage statt Behauptung", 0.1
+            return False, "Frage statt Behauptung", 0.1, [], False
 
-        # Weiche Signale: Qualitätsabzüge
+        # ── Weiche Signale (bisherige Logik) ─────────────────────────────────
+
         quality = 1.0
 
         for pattern in _WEAK_CLAIM_PATTERNS:
@@ -869,30 +902,126 @@ class ClaimValidator:
                 quality -= 0.3
                 break
 
-        # Stärkerer Abzug: kontextlose Betrag-/Zahl-Aussagen ohne Akteur
-        # z.B. "Die Höhe des Bußgeldes beträgt 250 Euro." – typische Mini-Claims
         if _CONTEXTLESS_NUMBER_PATTERN.search(text):
             quality -= 0.40
 
-        # Claim enthält keine konkreten Entitäten/Zahlen/Fakten?
         has_specifics = bool(
-            re.search(r"\d", text)  # Zahlen
-            or re.search(r"[A-ZÄÖÜ][a-zäöü]{2,}", text)  # Eigennamen
+            re.search(r"\d", text)
+            or re.search(r"[A-ZÄÖÜ][a-zäöü]{2,}", text)
         )
         if not has_specifics:
             quality -= 0.15
 
-        # Claim ist sehr vage ("Es ist so, dass ...")
         if text.lower().startswith(("es ist so", "es ist klar", "es stimmt")):
             quality -= 0.2
 
+        # ── Abstrakte Qualitätssignale ────────────────────────────────────────
+
+        signals: list[str] = []
+        cfg = self._cfg
+
+        if self._is_missing_artifact_evidence(claim):
+            signals.append("missing_artifact_evidence")
+            quality -= cfg.missing_artifact_penalty
+
+        if self._is_underspecified_actor(claim):
+            signals.append("underspecified_actor")
+            quality -= cfg.underspecified_actor_penalty
+
+        if self._is_extraordinary_claim(text):
+            signals.append("extraordinary_claim")
+            quality -= cfg.extraordinary_claim_penalty
+
+        if self._is_elevated_burden_of_proof(claim):
+            signals.append("elevated_burden_of_proof")
+            quality -= cfg.elevated_burden_penalty
+
         quality = max(0.0, min(1.0, quality))
 
-        # Unter Schwellwert → ungültig
-        if quality < 0.3:
-            return False, "Claim-Qualität zu niedrig (vage/unspezifisch)", quality
+        requires_more_context = (
+            len(signals) >= cfg.requires_context_signal_threshold
+        )
 
-        return True, "", quality
+        if quality < 0.3:
+            return False, "Claim-Qualität zu niedrig (vage/unspezifisch)", quality, signals, requires_more_context
+
+        return True, "", quality, signals, requires_more_context
+
+    # ── Signaldetektoren ──────────────────────────────────────────────────────
+
+    def _is_missing_artifact_evidence(self, claim: ProcessedClaim) -> bool:
+        """True wenn der Claim keine verifizierbaren Frame-Anker enthält.
+
+        Generalisierungsprinzip: Nicht auf bestimmte Artefakttypen (Beschluss,
+        Studie, …) geprüft, sondern auf das Fehlen aller strukturellen Anker
+        (Akteur, Institution, Zeitbezug, Zahlen). Ein Claim ohne jeden Anker
+        ist für keine Suchstrategie auflösbar.
+        """
+        frame = claim.frame
+        if frame is None:
+            return False  # Kein Frame → Signal nicht auslösbar
+        anchor_present = (
+            bool(frame.subject.strip())
+            or bool(frame.institution.strip())
+            or bool(frame.time_reference.strip())
+            or bool(frame.numbers)
+        )
+        return not anchor_present
+
+    def _is_underspecified_actor(self, claim: ProcessedClaim) -> bool:
+        """True wenn weder Akteur noch Institution ausreichend spezifisch ist.
+
+        Generalisierungsprinzip: Keine Liste von "schlechten" Akteur-Namen,
+        stattdessen rein längenbasiert. Ein sehr kurzes oder leeres subject +
+        institution deutet auf generische Formulierungen hin ("Die Behörden",
+        "Der Staat"), die nicht auf eine konkrete prüfbare Entität verweisen.
+        """
+        frame = claim.frame
+        if frame is None:
+            return False
+        subject_ok = len(frame.subject.strip()) >= self._cfg.min_actor_length
+        institution_ok = len(frame.institution.strip()) >= self._cfg.min_actor_length
+        return not subject_ok and not institution_ok
+
+    def _is_extraordinary_claim(self, text: str) -> bool:
+        """True bei Absolutheitssprache oder extremen Prozentwerten.
+
+        Generalisierungsprinzip: Keine Themenwörter – nur zwei universelle
+        strukturelle Merkmale:
+        1. Absolutheitsquantoren (konfigurierbar via extraordinary_absolute_pattern)
+        2. Prozentwerte >= extraordinary_percentage_threshold (konfigurierbar)
+        Beide deuten auf Claims hin, die empirisch selten wahr und schwer
+        falsifizierbar sind, unabhängig vom Thema.
+        """
+        if self._extraordinary_abs_re.search(text):
+            return True
+        threshold = self._cfg.extraordinary_percentage_threshold
+        for m in self._pct_re.finditer(text):
+            val_str = m.group(1).replace(",", ".")
+            try:
+                if float(val_str) >= threshold:
+                    return True
+            except ValueError:
+                pass
+        return False
+
+    def _is_elevated_burden_of_proof(self, claim: ProcessedClaim) -> bool:
+        """True bei Kausalclaims oder wenn Sanktions-/Durchsetzungskontext vorliegt.
+
+        Generalisierungsprinzip: Kein Themen-Hardcoding – stattdessen zwei
+        strukturelle Indikatoren:
+        1. ClaimType.CAUSAL → behauptete Ursache-Wirkung braucht mehr Evidenz.
+        2. frame.sanction oder frame.enforcement nicht leer → behördlicher
+           Durchsetzungskontext mit hohem Schadenspotenzial bei falscher Verbreitung.
+        """
+        if claim.type == ClaimType.CAUSAL:
+            return True
+        frame = claim.frame
+        if frame is not None and (
+            bool(frame.sanction.strip()) or bool(frame.enforcement.strip())
+        ):
+            return True
+        return False
 
 
 # ── Stufe 5: ClaimCanonicalizerAgent ─────────────────────────────────────────
@@ -1028,7 +1157,7 @@ class ClaimProcessingPipeline:
         self._frame_extractor = ClaimFrameExtractor(_llm_small)  # Stage 2.5
         self._disambiguator = Disambiguator(_llm_small)
         self._decomposer = ClaimDecomposer(_llm_small)
-        self._validator = ClaimValidator()
+        self._validator = ClaimValidator(config.claim_processing.quality_signals)
         self._canonicalizer = ClaimCanonicalizerAgent(config, _llm_small, search)
         self._prioritizer = ClaimPrioritizerAgent(config, llm, search)
 

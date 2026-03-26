@@ -218,6 +218,13 @@ class ProcessedClaim(Claim):
         le=1.0,
         description="Qualitätsscore des Claims (1.0=perfekt falsifizierbar, 0.0=kein echter Claim)",
     )
+    quality_signals: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Erkannte abstrakte Qualitätssignale, z.B. 'missing_artifact_evidence', "
+            "'underspecified_actor', 'extraordinary_claim', 'elevated_burden_of_proof'."
+        ),
+    )
 
 
 class ClaimProcessingResult(BaseModel):
