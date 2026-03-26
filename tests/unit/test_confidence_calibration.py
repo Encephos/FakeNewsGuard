@@ -243,3 +243,136 @@ class TestConfidenceNoFalseReduction:
         pack = _make_evidence_pack(has_fc=True, gfc_matches=gfc)
         confidence, _ = _calibrate_confidence(0.85, pack, None)
         assert confidence >= 0.70
+
+
+class TestFreshnessCeilings:
+    """Tests für Freshness-basierte Confidence Ceilings."""
+
+    def test_stale_sources_ceiling(self):
+        """Veraltete Quellen → Ceiling auf 0.72."""
+        from agents.verdict_agent import _CEILING_STALE_SOURCES
+        pack = _make_evidence_pack(
+            has_primary=True, has_fc=False, overall_quality=0.85,
+        )
+        # Freshness manuell auf veraltet setzen
+        pack.evidence_quality.freshness_score = 0.20
+        confidence, reasons = _calibrate_confidence(
+            0.90, pack, None,
+            stale_freshness_threshold=0.40,
+        )
+        assert confidence <= _CEILING_STALE_SOURCES
+        assert any("Veraltete Quellen" in r for r in reasons)
+
+    def test_current_state_claim_stale_ceiling(self):
+        """Aktuell-Zustand-Claim + veraltete Quellen → strengerer Ceiling 0.55.
+
+        freshness_score=0.50 simuliert Quellen ohne Datum (default 0.5),
+        die mit dem neuen Threshold von 0.60 als veraltet gelten.
+        """
+        from agents.verdict_agent import _CEILING_CURRENT_STATE_NO_FRESH
+        pack = _make_evidence_pack(
+            has_primary=True, has_fc=False, overall_quality=0.85,
+        )
+        pack.evidence_quality.freshness_score = 0.50
+        confidence, reasons = _calibrate_confidence(
+            0.90, pack, None,
+            is_current_state_claim=True,
+            stale_freshness_threshold=0.60,
+        )
+        assert confidence <= _CEILING_CURRENT_STATE_NO_FRESH  # 0.55
+        assert any("Aktuell-Zustand-Claim" in r for r in reasons)
+
+    def test_fresh_sources_no_stale_ceiling(self):
+        """Frische Quellen (0.80) → kein Stale-Ceiling für current-state angewandt."""
+        pack = _make_evidence_pack(
+            has_primary=True, has_fc=True, overall_quality=0.90,
+        )
+        pack.evidence_quality.freshness_score = 0.80
+        confidence, reasons = _calibrate_confidence(
+            0.85, pack, None,
+            is_current_state_claim=True,
+            stale_freshness_threshold=0.60,
+        )
+        assert not any("Veraltete Quellen" in r for r in reasons)
+        assert not any("Aktuell-Zustand-Claim" in r for r in reasons)
+
+    def test_current_state_fresh_sources_no_ceiling(self):
+        """Aktuell-Zustand-Claim MIT frischen Quellen (0.70) → kein Freshness-Ceiling."""
+        from agents.verdict_agent import _CEILING_CURRENT_STATE_NO_FRESH
+        pack = _make_evidence_pack(
+            has_primary=True, has_fc=True, overall_quality=0.90,
+        )
+        pack.evidence_quality.freshness_score = 0.70
+        confidence, _ = _calibrate_confidence(
+            0.85, pack, None,
+            is_current_state_claim=True,
+            stale_freshness_threshold=0.60,
+        )
+        assert confidence > _CEILING_CURRENT_STATE_NO_FRESH  # 0.55
+
+    def test_current_state_moderate_freshness_hits_stale_ceiling(self):
+        """Freshness 0.50 (unbekannte Daten) für current-state → beide Ceilings greifen.
+
+        Simuliert den realen Fall: Quellen ohne Datumsinformation (default 0.5)
+        gelten bei current-state Claims mit Threshold 0.60 als veraltet.
+        """
+        from agents.verdict_agent import _CEILING_STALE_SOURCES, _CEILING_CURRENT_STATE_NO_FRESH
+        pack = _make_evidence_pack(
+            has_primary=True, has_fc=False, overall_quality=0.85,
+        )
+        pack.evidence_quality.freshness_score = 0.50
+        confidence, reasons = _calibrate_confidence(
+            0.85, pack, None,
+            is_current_state_claim=True,
+            stale_freshness_threshold=0.60,
+        )
+        assert confidence <= _CEILING_STALE_SOURCES        # 0.72
+        assert confidence <= _CEILING_CURRENT_STATE_NO_FRESH  # 0.55
+
+
+class TestZeroUsefulEvidenceCeiling:
+    """Ceiling für den Fall, dass keinerlei brauchbare Evidenz vorliegt."""
+
+    def test_zero_useful_evidence_ceiling(self):
+        """Kein DIRECT, kein Primary, kein FC, Konsens insufficient → max 0.50."""
+        from agents.verdict_agent import _CEILING_ZERO_USEFUL_EVIDENCE
+
+        pack = _make_evidence_pack(
+            has_primary=False,
+            has_fc=False,
+            overall_quality=0.1,
+            consensus=SourceConsensus.INSUFFICIENT,
+        )
+        # Stelle sicher, dass kein DIRECT evidence vorhanden
+        pack.evidence_quality.direct_evidence_count = 0
+        confidence, reasons = _calibrate_confidence(0.95, pack, None)
+        assert confidence <= _CEILING_ZERO_USEFUL_EVIDENCE
+        assert any("brauchbare Evidenz" in r for r in reasons)
+
+    def test_zero_evidence_ceiling_not_triggered_with_direct_evidence(self):
+        """Mit DIRECT evidence soll das Zero-Ceiling NICHT greifen."""
+        from agents.verdict_agent import _CEILING_ZERO_USEFUL_EVIDENCE
+
+        pack = _make_evidence_pack(
+            has_primary=False,
+            has_fc=False,
+            overall_quality=0.4,
+            consensus=SourceConsensus.INSUFFICIENT,
+        )
+        pack.evidence_quality.direct_evidence_count = 2
+        confidence, reasons = _calibrate_confidence(0.80, pack, None)
+        assert not any("brauchbare Evidenz" in r for r in reasons)
+
+    def test_zero_evidence_ceiling_not_triggered_with_fc(self):
+        """Mit Fact-Check-Ergebnis soll das Zero-Ceiling NICHT greifen."""
+        from agents.verdict_agent import _CEILING_ZERO_USEFUL_EVIDENCE
+
+        pack = _make_evidence_pack(
+            has_primary=False,
+            has_fc=True,
+            overall_quality=0.3,
+            consensus=SourceConsensus.INSUFFICIENT,
+        )
+        pack.evidence_quality.direct_evidence_count = 0
+        confidence, reasons = _calibrate_confidence(0.80, pack, None)
+        assert not any("brauchbare Evidenz" in r for r in reasons)

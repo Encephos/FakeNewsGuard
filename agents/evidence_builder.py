@@ -167,6 +167,9 @@ _LOW_TRUST_DOMAINS: frozenset[str] = frozenset({
     # Allgemeine Hilfs-/Erklärseiten
     "gutefrage.net", "wer-weiss-was.de", "helpster.de",
     "haushaltstipps.net", "tipps.net",
+    # Generische Q&A / Erklärungs-Seiten
+    "alleantworten.de", "praxistipps.focus.de", "praxistipps.chip.de",
+    "ratgeber.focus.de",
 })
 
 # Low-Trust Titel/Snippet-Muster: erkennt generische Hilfsseiten anhand Inhalt
@@ -194,6 +197,12 @@ _LOW_TRUST_CONTENT_PATTERNS: list[re.Pattern] = [
     re.compile(
         r"\b(rechtslexikon|jura\s*lexikon|rechts(begriffe|w[öo]rterbuch))\b"
         r"|\b(definition|begriff)\b.{0,30}\b(jura|recht|gesetz)\b",
+        re.IGNORECASE,
+    ),
+    # Generische "Was ist/verdient/kostet" Erklärungs-Seiten
+    re.compile(
+        r"\bwas\s+(ist|sind|verdient|kostet|bedeutet)\s+(ein|eine|der|die|das)\s+\w+"
+        r".*\b(aufgaben|definition|gehalt|bedeutung|[üu]berblick)\b",
         re.IGNORECASE,
     ),
 ]
@@ -229,6 +238,26 @@ def _is_low_trust_site(url: str, title: str, snippet: str) -> bool:
         return True
 
     return False
+
+
+def _is_generic_reference(url: str, profile: "ClaimSearchProfile | None") -> bool:
+    """Erkennt generische Wikipedia/Lexikon-Artikel ohne spezifischen Claim-Bezug.
+
+    Ein Wikipedia-Artikel über einen generischen Begriff (z.B. "Stadtrat")
+    ist keine Evidenz für einen spezifischen Claim (z.B. "Stadtrat von Hannover
+    beschließt 15-Minuten-Stadt"). Die Erkennung prüft, ob der Artikel-Titel
+    mindestens eine Location aus dem Profil enthält.
+
+    Returns:
+        True wenn der Artikel generisch ist (keine Location-Spezifik).
+    """
+    if "wikipedia.org/wiki/" not in url:
+        return False
+    if not profile or not profile.locations:
+        return True  # Ohne Profil/Location: konservativ als generisch werten
+    wiki_title = url.split("/wiki/")[-1].replace("_", " ").lower()
+    return not any(loc.lower() in wiki_title for loc in profile.locations if loc)
+
 
 # Kommerzielle Content-Signale (Snippets/Titel)
 _COMMERCIAL_SNIPPET_PATTERNS: list[re.Pattern] = [
@@ -435,6 +464,39 @@ def _profile_anchor_score(
     return hit_weight / normalizer if normalizer > 0 else 0.0
 
 
+def _count_anchor_hits(result_text: str, profile: ClaimSearchProfile) -> int:
+    """Zähle wie viele Anchor-Gruppen im Ergebnis tatsächlich matchen."""
+    combined = result_text.lower()
+    hits = 0
+    if profile.institutions and any(i.lower() in combined for i in profile.institutions if i):
+        hits += 1
+    if profile.locations and any(loc.lower() in combined for loc in profile.locations if loc):
+        hits += 1
+    if profile.policy_terms and any(t.lower() in combined for t in profile.policy_terms if t):
+        hits += 1
+    if profile.number_terms and any(n in combined for n in profile.number_terms if n):
+        hits += 1
+    if profile.sanction_terms and any(s.lower() in combined for s in profile.sanction_terms if s):
+        hits += 1
+    return hits
+
+
+def _count_active_anchors(profile: ClaimSearchProfile) -> int:
+    """Zähle wie viele Anchor-Gruppen im Profil befüllt sind."""
+    count = 0
+    if profile.institutions:
+        count += 1
+    if profile.locations:
+        count += 1
+    if profile.policy_terms:
+        count += 1
+    if profile.number_terms:
+        count += 1
+    if profile.sanction_terms:
+        count += 1
+    return count
+
+
 def _compute_freshness(publication_date: str) -> float:
     """Berechne Freshness-Score basierend auf dem Publikationsdatum.
 
@@ -517,6 +579,9 @@ def _relevance_score(
     # Low-Trust-Seitentyp: starke Penalty (Währungsrechner, Grammatik, Juraforen etc.)
     if _is_low_trust_site(result.url, result.title, result.snippet):
         offtopic_penalty = 0.75
+    elif _is_generic_reference(result.url, profile):
+        # Generischer Wikipedia-/Lexikon-Artikel ohne Location-Spezifik
+        offtopic_penalty = 0.6
     elif _is_offtopic_url(result.url):
         offtopic_penalty = 0.6
     elif profile:
@@ -535,6 +600,15 @@ def _relevance_score(
             + anchor_score * 0.35
             + (1.0 - offtopic_penalty) * 0.20
         )
+        # Spezifitäts-Penalty: Wenn das Profil ≥3 Anker-Gruppen hat, aber nur
+        # 1 davon matcht UND der Entity-Score niedrig ist, ist das Ergebnis
+        # wahrscheinlich generisch (z.B. Wikipedia "Stadtrat" für einen Claim
+        # über "Stadtrat von Hannover + 15-Minuten-Stadt + 250€ Bußgeld").
+        total_anchors = _count_active_anchors(profile)
+        if total_anchors >= 3:
+            anchor_hits = _count_anchor_hits(combined, profile)
+            if anchor_hits <= 1 and entity_score < 0.20:
+                score *= 0.4
     else:
         score = (
             kw_score * 0.35
@@ -608,6 +682,7 @@ def _rank_evidence_items(
     claim_text: str,
     google_matches: list[GoogleFactCheckMatch],
     profile: ClaimSearchProfile | None = None,
+    is_current_state: bool = False,
 ) -> list[EvidenceItem]:
     """Ranke Suchergebnisse zu strukturierten EvidenceItems.
 
@@ -693,6 +768,15 @@ def _rank_evidence_items(
             + (1.0 - offtopic_penalty) * 0.05 # Off-topic Penalty
         )
 
+        # Current-state Claims: Nachrichten-/Behördenquellen (Tier 1-3) boosten,
+        # allgemeine Hintergrundseiten leicht abwerten – frische Primärquellen
+        # sollen alte Kontextseiten im Ranking überholen.
+        if is_current_state:
+            if tier <= 3:
+                score += 0.12
+            else:
+                score -= 0.05
+
         source = EvidenceSource(
             url=r.url,
             title=r.title,
@@ -760,6 +844,7 @@ def _compute_quality_signals(
     low_trust_penalty_factor: float = 0.20,
     stale_threshold: float = 0.35,
     stale_penalty_factor: float = 0.15,
+    is_current_state: bool = False,
 ) -> EvidenceQualitySignals:
     """Berechne Qualitätssignale für das Evidence-Set."""
     has_primary = any(i.source.domain_tier <= 2 for i in items)
@@ -784,9 +869,11 @@ def _compute_quality_signals(
             consensus = SourceConsensus.MIXED
 
     # Off-topic-Rate: Anteil schwach-relevanter Treffer in den Top-5
+    # Threshold 0.30 (statt 0.20): Generische Treffer, die nur einen einzelnen
+    # Keyword-Match haben (z.B. Wikipedia "Stadtrat"), entwischen sonst der Erkennung.
     top_5 = items[:5]
     if top_5:
-        offtopic_count = sum(1 for i in top_5 if i.relevance_score < 0.2)
+        offtopic_count = sum(1 for i in top_5 if i.relevance_score < 0.30)
         off_topic_rate = offtopic_count / len(top_5)
     else:
         off_topic_rate = 0.0
@@ -807,8 +894,11 @@ def _compute_quality_signals(
         for i in items[:6]
         if i.source.publication_date
     ]
-    # 0.0 wenn keine Items (nicht 0.5 neutral) – verhindert künstliche overall_quality-Inflation
-    freshness = sum(freshness_scores) / len(freshness_scores) if freshness_scores else (0.5 if items else 0.0)
+    # Bei current-state Claims: Quellen ohne Datum konservativ mit 0.3 werten (statt 0.5 neutral),
+    # da fehlende Datumsinfo bei zeitkritischen Claims ein Warnsignal ist.
+    unknown_date_default = 0.3 if is_current_state else 0.5
+    # 0.0 wenn keine Items (nicht neutral) – verhindert künstliche overall_quality-Inflation
+    freshness = sum(freshness_scores) / len(freshness_scores) if freshness_scores else (unknown_date_default if items else 0.0)
 
     # Relevanz-Qualität: wie relevant sind die Top-Treffer?
     top_relevance = [i.relevance_score for i in items[:5]]
@@ -819,8 +909,9 @@ def _compute_quality_signals(
     # Low-Trust-Penalty: deckelt Confidence wenn überwiegend unzuverlässige Quellen
     # (konfigurierbar über low_trust_penalty_factor, Default 0.20)
     low_trust_penalty = low_trust_rate * low_trust_penalty_factor
-    # Freshness: erhöhtes Gewicht (0.15) für aktuelle Claims
-    freshness_term = freshness * 0.15 if items else 0.0
+    # Freshness: bei current-state Claims stärker gewichten (0.25 statt 0.15)
+    freshness_weight = 0.25 if is_current_state else 0.15
+    freshness_term = freshness * freshness_weight if items else 0.0
     # Stale-Penalty: wenn alle Quellen veraltet sind (avg_freshness < stale_threshold)
     stale_penalty = stale_penalty_factor if (items and freshness < stale_threshold) else 0.0
 
@@ -1098,10 +1189,30 @@ class EvidenceBuilderAgent(BaseAgent):
         # ── 2. Adaptives paralleles Retrieval ────────────────────────────────
         # Rollen: LangSearch = semantische Hauptsuche, Tavily = budgetiert/content-stark,
         #         SearXNG = breite kostenlose Ergänzung, GFC = Shortcut-Layer
-        from agents.fact_checker import _categories_for_claim
+        from agents.fact_checker import _categories_for_claim, _is_current_state_claim
         categories = _categories_for_claim(claim)
 
         retrieval_cfg = self.config.evidence_retrieval
+
+        # Recency-Override: Aktuell-Zustand-Claims (z.B. Amtsinhaber) brauchen frische Quellen
+        is_current_state = _is_current_state_claim(claim.text)
+        if is_current_state:
+            _current_year = str(datetime.now(timezone.utc).year)
+            news_cats = ",".join(retrieval_cfg.searxng_news_categories)
+            if categories != news_cats:
+                categories = news_cats
+            # Alle Queries mit aktuellem Jahr anreichern (nicht nur erste 2)
+            queries = [
+                f"{q} {_current_year}" if _current_year not in q else q
+                for q in queries
+            ]
+            # Ersten Query zusätzlich mit "aktuell" versehen (stärkstes Recency-Signal)
+            if queries and "aktuell" not in queries[0].lower() and "current" not in queries[0].lower():
+                queries[0] = f"{queries[0]} aktuell"
+            notes.append(
+                f"Recency-Override: News-Kategorien ({categories}), "
+                f"Jahr {_current_year} + 'aktuell' ergänzt für Aktuell-Zustand-Claim"
+            )
 
         # LangSearch: adaptiv nach Claim-Komplexität (2–4 Queries)
         ls_count = _langsearch_query_count(claim, retrieval_cfg)
@@ -1255,7 +1366,7 @@ class EvidenceBuilderAgent(BaseAgent):
         )
 
         # ── 8. EvidenceItems aus gescrapten Quellen bauen ─────────────────────
-        evidence_items = self._build_evidence_items(ranked, scraped, claim.text, gfc_matches, profile)
+        evidence_items = self._build_evidence_items(ranked, scraped, claim.text, gfc_matches, profile, is_current_state=is_current_state)
         notes.append(f"Evidence Items: {len(evidence_items)} (mit Scraping)")
 
         # ── 9. Qualität, Widersprüche, Pack zusammenstellen ───────────────────
@@ -1265,6 +1376,7 @@ class EvidenceBuilderAgent(BaseAgent):
             low_trust_penalty_factor=retrieval_cfg.low_trust_confidence_penalty,
             stale_threshold=retrieval_cfg.stale_sources_freshness_threshold,
             stale_penalty_factor=retrieval_cfg.stale_sources_confidence_penalty,
+            is_current_state=is_current_state,
         )
 
         # Retry wenn Qualität zu niedrig oder Off-topic-Rate hoch
@@ -1273,7 +1385,10 @@ class EvidenceBuilderAgent(BaseAgent):
         has_primary_content = bool(tavily_content_map) or any(
             r.content for q_res in langsearch_results.values() for r in q_res
         )
-        if (low_quality or high_offtopic) and not has_primary_content:
+        # Fallback immer bei schlechter Qualität — has_primary_content prüft nur ob
+        # Content existiert, nicht ob er relevant ist. Irrelevanter Tavily/LangSearch-Content
+        # darf Fallback-Retrieval nicht blockieren.
+        if low_quality or high_offtopic:
             reason = "Off-topic-Rate hoch" if high_offtopic else "Qualität niedrig"
             notes.append(f"{reason} – Fallback-Suche mit alternativen Queries")
             fallback_results = await self._fallback_retrieval(claim, queries)
@@ -1281,12 +1396,13 @@ class EvidenceBuilderAgent(BaseAgent):
             ranked, scraped = await self._rank_and_scrape(
                 unique_results, claim, profile=profile, tavily_content_map=tavily_content_map,
             )
-            evidence_items = self._build_evidence_items(ranked, scraped, claim.text, gfc_matches, profile)
+            evidence_items = self._build_evidence_items(ranked, scraped, claim.text, gfc_matches, profile, is_current_state=is_current_state)
             quality = _compute_quality_signals(
                 evidence_items, gfc_matches,
                 low_trust_penalty_factor=retrieval_cfg.low_trust_confidence_penalty,
                 stale_threshold=retrieval_cfg.stale_sources_freshness_threshold,
                 stale_penalty_factor=retrieval_cfg.stale_sources_confidence_penalty,
+                is_current_state=is_current_state,
             )
             notes.append(f"Fallback: {len(evidence_items)} Evidence Items")
 
@@ -1448,6 +1564,7 @@ class EvidenceBuilderAgent(BaseAgent):
         claim_text: str,
         gfc_matches: list[GoogleFactCheckMatch],
         profile: ClaimSearchProfile | None = None,
+        is_current_state: bool = False,
     ) -> list[EvidenceItem]:
         """Baue EvidenceItems aus gescrapten Quellen.
 
@@ -1533,6 +1650,7 @@ class EvidenceBuilderAgent(BaseAgent):
             claim_text,
             gfc_matches,
             profile=profile,
+            is_current_state=is_current_state,
         )
 
         return items

@@ -11,6 +11,7 @@ from agents.fact_checker import (
     _build_search_queries,
     _categories_for_claim,
     _evaluate_scrape_quality,
+    _is_current_state_claim,
 )
 from models.schemas import Claim, ClaimType, FactRating
 from tools.scrape_ranker import RankedSource
@@ -361,3 +362,40 @@ def test_fallback_queries_contains_faktencheck():
 
     combined = " ".join(fallback).lower()
     assert "faktencheck" in combined
+
+
+class TestIsCurrentStateClaim:
+    """Tests für _is_current_state_claim() – Erkennung zeitkritischer Amts-Claims."""
+
+    def test_bundeskanzler_ist(self):
+        assert _is_current_state_claim("Friedrich Merz ist Bundeskanzler von Deutschland.")
+
+    def test_praesident_ist(self):
+        assert _is_current_state_claim("Joe Biden ist Präsident der USA.")
+
+    def test_buergermeister_ist_aktuell(self):
+        assert _is_current_state_claim("Peter Tschentscher ist aktuell Bürgermeister von Hamburg.")
+
+    def test_ceo_leitet(self):
+        assert _is_current_state_claim("Elon Musk leitet Tesla als CEO.")
+
+    def test_kanzler_wurde_zum(self):
+        assert _is_current_state_claim("Olaf Scholz wurde zum Bundeskanzler gewählt.")
+
+    def test_no_match_generic_ist(self):
+        """Generisches 'ist' ohne Positionsbegriff → kein Match."""
+        assert not _is_current_state_claim("Berlin ist die Hauptstadt Deutschlands.")
+
+    def test_no_match_position_without_verb(self):
+        """Positionsbegriff ohne Zustandsverb → kein Match."""
+        assert not _is_current_state_claim("Der Bundeskanzler hat das Gesetz unterzeichnet.")
+
+    def test_no_match_historical_description(self):
+        """Historische Beschreibung ohne eindeutiges Zustandsverb → kein Match."""
+        assert not _is_current_state_claim("Konrad Adenauer gründete die CDU.")
+
+    def test_minister_ist(self):
+        assert _is_current_state_claim("Karl Lauterbach ist Gesundheitsminister.")
+
+    def test_vorsitzender_bleibt(self):
+        assert _is_current_state_claim("Friedrich Merz bleibt Parteivorsitzender.")

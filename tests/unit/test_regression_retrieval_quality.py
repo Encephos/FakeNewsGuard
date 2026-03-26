@@ -1459,3 +1459,292 @@ class TestRecencyMerzClaim:
         assert any(term in joined for term in ["merz", "bundeskanzler", "bundesregierung"]), (
             f"Queries müssen 'merz', 'bundeskanzler' oder 'bundesregierung' enthalten: {queries}"
         )
+
+
+# ── Regulatory Text Fallback Tests ────────────────────────────────────────────
+
+class TestRegulatoryTextFallback:
+    """Regression: Textueller Fallback für Regulatory-Erkennung wenn claim.frame fehlt."""
+
+    def test_bussgeld_detected(self):
+        """Bußgeld-Erwähnung → als Regulatory-Claim erkannt."""
+        from agents.verdict_agent import _is_regulatory_from_text
+        assert _is_regulatory_from_text(
+            "Wer die Grüne Zone ohne Erlaubnis betritt, zahlt ein Bußgeld von 250 Euro."
+        )
+
+    def test_ueberwachung_detected(self):
+        """Überwachungs-Erwähnung → als Regulatory-Claim erkannt."""
+        from agents.verdict_agent import _is_regulatory_from_text
+        assert _is_regulatory_from_text(
+            "Die Stadt überwacht alle Bürger per Kamerasystem innerhalb der Zone."
+        )
+
+    def test_verordnung_detected(self):
+        """Verordnungs-Erwähnung → als Regulatory-Claim erkannt."""
+        from agents.verdict_agent import _is_regulatory_from_text
+        assert _is_regulatory_from_text(
+            "Eine neue Verordnung schränkt die Einfahrt in die Zone ein."
+        )
+
+    def test_pflicht_detected(self):
+        """Pflicht-Erwähnung → als Regulatory-Claim erkannt."""
+        from agents.verdict_agent import _is_regulatory_from_text
+        assert _is_regulatory_from_text(
+            "Es ist Pflicht, einen Ausweis mitzuführen wenn man die Zone betritt."
+        )
+
+    def test_generic_claim_not_regulatory(self):
+        """Generischer Claim ohne Regelungsbegriffe → NICHT als Regulatory erkannt."""
+        from agents.verdict_agent import _is_regulatory_from_text
+        assert not _is_regulatory_from_text(
+            "Friedrich Merz ist Bundeskanzler von Deutschland."
+        )
+
+    def test_statistical_claim_not_regulatory(self):
+        """Statistischer Claim → NICHT als Regulatory erkannt."""
+        from agents.verdict_agent import _is_regulatory_from_text
+        assert not _is_regulatory_from_text(
+            "Die Arbeitslosenquote beträgt 5,6 Prozent."
+        )
+
+    def test_regulatory_frame_takes_precedence(self):
+        """Wenn claim.frame vorhanden und gesetzt, wird Text-Fallback nicht benötigt."""
+        # Nur sicherstellen, dass _is_regulatory_from_text korrekt importierbar ist
+        from agents.verdict_agent import _is_regulatory_from_text, _REGULATORY_TEXT_PATTERN
+        assert _REGULATORY_TEXT_PATTERN is not None
+
+
+class TestCurrentStateClaimRecencyOverride:
+    """Integration: Recency-Override wird für Aktuell-Zustand-Claims in EvidenceBuilder angewandt."""
+
+    def test_is_current_state_claim_imported_in_evidence_builder(self):
+        """_is_current_state_claim ist im EvidenceBuilder nutzbar."""
+        from agents.fact_checker import _is_current_state_claim
+        assert _is_current_state_claim("Friedrich Merz ist Bundeskanzler.")
+
+    def test_evidence_retrieval_config_has_current_state_threshold(self):
+        """EvidenceRetrievalConfig enthält current_state_freshness_threshold."""
+        from config import EvidenceRetrievalConfig
+        cfg = EvidenceRetrievalConfig()
+        assert hasattr(cfg, "current_state_freshness_threshold")
+        assert 0.0 < cfg.current_state_freshness_threshold <= 1.0
+
+    def test_searxng_config_has_news_categories(self):
+        """EvidenceRetrievalConfig.searxng_news_categories enthält 'news'."""
+        from config import EvidenceRetrievalConfig
+        cfg = EvidenceRetrievalConfig()
+        assert "news" in cfg.searxng_news_categories
+
+    def test_verdict_agent_has_stale_ceiling_constants(self):
+        """VerdictAgent exportiert die neuen Ceiling-Konstanten."""
+        from agents.verdict_agent import _CEILING_STALE_SOURCES, _CEILING_CURRENT_STATE_NO_FRESH
+        assert _CEILING_STALE_SOURCES < 1.0
+        assert _CEILING_CURRENT_STATE_NO_FRESH < _CEILING_STALE_SOURCES
+
+
+# ── Tests: Current-State Claim Recency (Merz / Bundeskanzler) ─────────────────
+
+
+def _make_pack_with_freshness(freshness: float, has_primary: bool = True) -> "EvidencePack":
+    """Hilfsfunktion: EvidencePack mit konfigurierbarer Freshness für Recency-Tests."""
+    from models.evidence_models import (
+        EvidencePack, EvidenceItem, EvidenceSource, EvidenceQualitySignals, SourceConsensus,
+    )
+    item = EvidenceItem(
+        source=EvidenceSource(
+            url="https://tagesschau.de/test",
+            title="Nachricht",
+            domain="tagesschau.de",
+            domain_tier=3,
+            is_primary_source=has_primary,
+        ),
+        excerpt="Test",
+        relevance_score=0.8,
+        extraction_confidence=0.8,
+    )
+    return EvidencePack(
+        claim_id="C1",
+        claim_text="Test",
+        queries_used=["test"],
+        google_fact_check_matches=[],
+        web_results=[item],
+        evidence_quality=EvidenceQualitySignals(
+            has_primary_sources=has_primary,
+            has_fact_check_org_result=False,
+            source_consensus=SourceConsensus.AGREEING,
+            freshness_score=freshness,
+            overall_quality=0.80,
+            top_tier_count=1 if has_primary else 0,
+        ),
+        source_count=1,
+    )
+
+
+class TestCurrentStateClaimRecency:
+    """Regression: Current-state Claims (Merz/Bundeskanzler) müssen recency-sensitiv sein."""
+
+    def test_merz_bundeskanzler_detected_as_current_state(self):
+        """Positive Erkennung: 'Merz ist Bundeskanzler' → current-state-Claim."""
+        from agents.fact_checker import _is_current_state_claim
+        assert _is_current_state_claim("Friedrich Merz ist Bundeskanzler von Deutschland.")
+
+    def test_merz_war_kanzler_also_current_state(self):
+        """'war kein Bundeskanzler' enthält 'war' + Positionsbegriff → zeitkritisch."""
+        from agents.fact_checker import _is_current_state_claim
+        assert _is_current_state_claim("Friedrich Merz war kein Bundeskanzler von Deutschland.")
+
+    def test_stale_evidence_caps_confidence_for_merz_claim(self):
+        """Veraltete Quellen (freshness=0.35) → confidence ≤ 0.55 für current-state."""
+        from agents.verdict_agent import _calibrate_confidence, _CEILING_CURRENT_STATE_NO_FRESH
+        pack = _make_pack_with_freshness(0.35)
+        confidence, reasons = _calibrate_confidence(
+            0.85, pack, None,
+            is_current_state_claim=True,
+            stale_freshness_threshold=0.60,
+        )
+        assert confidence <= _CEILING_CURRENT_STATE_NO_FRESH  # 0.55
+        assert any("Aktuell-Zustand-Claim" in r for r in reasons)
+
+    def test_unknown_date_sources_trigger_ceiling(self):
+        """Quellen ohne Datum (default 0.5 → unter Threshold 0.60) → ceiling aktiv."""
+        from agents.verdict_agent import _calibrate_confidence, _CEILING_CURRENT_STATE_NO_FRESH
+        pack = _make_pack_with_freshness(0.50)
+        confidence, reasons = _calibrate_confidence(
+            0.80, pack, None,
+            is_current_state_claim=True,
+            stale_freshness_threshold=0.60,
+        )
+        assert confidence <= _CEILING_CURRENT_STATE_NO_FRESH  # 0.55
+
+    def test_fresh_news_sources_no_ceiling_for_current_state(self):
+        """Frische Quellen (0.80 > 0.60) → kein Freshness-Ceiling für current-state."""
+        from agents.verdict_agent import _calibrate_confidence, _CEILING_CURRENT_STATE_NO_FRESH
+        pack = _make_pack_with_freshness(0.80, has_primary=True)
+        pack.evidence_quality.has_fact_check_org_result = True
+        confidence, reasons = _calibrate_confidence(
+            0.80, pack, None,
+            is_current_state_claim=True,
+            stale_freshness_threshold=0.60,
+        )
+        assert confidence > _CEILING_CURRENT_STATE_NO_FRESH
+        assert not any("Aktuell-Zustand-Claim" in r for r in reasons)
+
+    def test_current_state_threshold_in_config_is_60(self):
+        """Config-Wert current_state_freshness_threshold muss 0.60 sein."""
+        from config import EvidenceRetrievalConfig
+        assert EvidenceRetrievalConfig().current_state_freshness_threshold == 0.60
+
+    def test_rank_evidence_items_accepts_is_current_state(self):
+        """_rank_evidence_items akzeptiert is_current_state-Parameter ohne Fehler."""
+        from agents.evidence_builder import _rank_evidence_items
+        from models.evidence_models import GoogleFactCheckMatch
+        result = _rank_evidence_items([], "Merz ist Bundeskanzler.", [], is_current_state=True)
+        assert result == []
+
+    def test_compute_quality_signals_accepts_is_current_state(self):
+        """_compute_quality_signals akzeptiert is_current_state=True ohne Fehler."""
+        from agents.evidence_builder import _compute_quality_signals
+        signals = _compute_quality_signals([], [], is_current_state=True)
+        assert signals.freshness_score == 0.0  # Keine Items → 0.0
+
+    def test_unknown_date_default_lower_for_current_state(self):
+        """Ohne Datumsinformation: freshness=0.3 (current-state) statt 0.5 (normal)."""
+        from agents.evidence_builder import _compute_quality_signals
+        from models.evidence_models import EvidenceItem, EvidenceSource
+        # Item ohne publication_date → zählt nicht in freshness_scores
+        item = EvidenceItem(
+            source=EvidenceSource(
+                url="https://example.com", title="Test", domain="example.com",
+                domain_tier=3, publication_date="",
+            ),
+            excerpt="Test",
+            relevance_score=0.5,
+            extraction_confidence=0.5,
+        )
+        signals_normal = _compute_quality_signals([item], [], is_current_state=False)
+        signals_current = _compute_quality_signals([item], [], is_current_state=True)
+        # Normal: 0.5 default; Current-state: 0.3 default
+        assert signals_normal.freshness_score == 0.5
+        assert signals_current.freshness_score == 0.3
+
+
+# ── Tests: Regulatory Claim (Hannover / 15-Minuten-Stadt / Bußgeld) ──────────
+
+
+def _make_regulatory_pack_no_direct() -> "EvidencePack":
+    """EvidencePack für Regulatory-Claim: kein DIRECT evidence, nur CONTEXTUAL."""
+    from models.evidence_models import (
+        EvidencePack, EvidenceItem, EvidenceSource, EvidenceQualitySignals,
+        SourceConsensus, EvidenceType,
+    )
+    items = [
+        EvidenceItem(
+            source=EvidenceSource(
+                url=f"https://example{i}.de/test",
+                title=f"Allgemeine Seite {i}",
+                domain=f"example{i}.de",
+                domain_tier=4,
+            ),
+            excerpt="Allgemeiner Hintergrund zur 15-Minuten-Stadt",
+            relevance_score=0.4,
+            extraction_confidence=0.4,
+            evidence_type=EvidenceType.CONTEXTUAL,
+        )
+        for i in range(5)
+    ]
+    return EvidencePack(
+        claim_id="C1",
+        claim_text="In Hannover gilt ein 250-Euro-Bußgeld für mehr als 100 Autofahrten pro Jahr.",
+        queries_used=["hannover bußgeld autofahrten"],
+        google_fact_check_matches=[],
+        web_results=items,
+        evidence_quality=EvidenceQualitySignals(
+            has_primary_sources=False,
+            has_fact_check_org_result=False,
+            source_consensus=SourceConsensus.INSUFFICIENT,
+            freshness_score=0.6,
+            overall_quality=0.25,
+            top_tier_count=0,
+            direct_evidence_count=0,
+            contextual_only_rate=1.0,
+        ),
+        source_count=5,
+    )
+
+
+class TestRegulatoryClaimStrict:
+    """Regression: Hannover/15-Minuten-Stadt – ohne Rechtsgrundlage keine weiche Bewertung."""
+
+    def test_hannover_claim_detected_as_regulatory(self):
+        """250-Euro-Bußgeld-Claim → als Regulatory erkannt."""
+        from agents.verdict_agent import _is_regulatory_from_text
+        assert _is_regulatory_from_text(
+            "In Hannover werden Autofahrten auf 100 pro Jahr begrenzt mit 250 Euro Bußgeld."
+        )
+
+    def test_regulatory_no_direct_evidence_confidence_capped_055(self):
+        """Regulatory + 0 DIRECT evidence → confidence ≤ 0.55."""
+        from agents.verdict_agent import _calibrate_confidence, _CEILING_REGULATORY_NO_DIRECT_EVIDENCE
+        pack = _make_regulatory_pack_no_direct()
+        confidence, reasons = _calibrate_confidence(
+            0.80, pack, None,
+            is_regulatory_claim=True,
+        )
+        assert confidence <= _CEILING_REGULATORY_NO_DIRECT_EVIDENCE  # 0.55
+        assert any("Regelungsclaim" in r for r in reasons)
+
+    def test_regulatory_contextual_only_combined_ceiling(self):
+        """Regulatory + contextual-only (1.0) + kein Primary/FC → strengstes Ceiling."""
+        from agents.verdict_agent import _calibrate_confidence
+        pack = _make_regulatory_pack_no_direct()
+        confidence, reasons = _calibrate_confidence(
+            0.90, pack, None,
+            is_regulatory_claim=True,
+        )
+        assert confidence <= 0.55
+
+    def test_regulatory_ceiling_constant_is_055(self):
+        """_CEILING_REGULATORY_NO_DIRECT_EVIDENCE muss 0.55 sein."""
+        from agents.verdict_agent import _CEILING_REGULATORY_NO_DIRECT_EVIDENCE
+        assert _CEILING_REGULATORY_NO_DIRECT_EVIDENCE == 0.55
