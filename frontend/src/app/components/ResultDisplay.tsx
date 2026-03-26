@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { AnalysisResult, ClaimResult, FactRating, RhetoricTechnique } from "../lib/types";
 
 const OVERALL_STYLE: Record<string, { color: string; label: string }> = {
@@ -25,8 +26,50 @@ const SEVERITY_STYLE: Record<string, { text: string; bg: string }> = {
   HIGH:   { text: "text-error",    bg: "bg-error/10" },
 };
 
-export default function ResultDisplay({ result }: { result: AnalysisResult }) {
+interface ResultDisplayProps {
+  result: AnalysisResult;
+  archiveId?: string;
+  sourceUrl?: string;
+}
+
+export default function ResultDisplay({ result, archiveId, sourceUrl }: ResultDisplayProps) {
   const rs = OVERALL_STYLE[result.overall_rating] ?? OVERALL_STYLE["Irreführend"];
+  const [pdfLoading, setPdfLoading] = useState(false);
+
+  const handlePdfExport = async () => {
+    setPdfLoading(true);
+    try {
+      if (archiveId) {
+        // Archive-based export — simple GET, browser handles download
+        window.open(`/api/export/pdf/${archiveId}`, "_blank");
+      } else {
+        // Direct result export via POST
+        const res = await fetch("/api/export/pdf", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            result,
+            title: result.summary?.slice(0, 80) || "Faktencheck-Report",
+            source_url: sourceUrl || "",
+          }),
+        });
+        if (!res.ok) throw new Error("PDF-Export fehlgeschlagen");
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "faktencheck_report.pdf";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
+    } catch (err) {
+      console.error("PDF export error:", err);
+    } finally {
+      setPdfLoading(false);
+    }
+  };
 
   return (
     <div className="w-full space-y-3 animate-fade-in">
@@ -37,9 +80,30 @@ export default function ResultDisplay({ result }: { result: AnalysisResult }) {
           <span className={`font-mono text-xl font-bold leading-tight ${rs.color}`}>
             {rs.label}
           </span>
-          <span className="glass-badge px-2.5 py-0.5 font-mono text-[11px] text-text-tertiary shrink-0">
-            {result.confidence}% Konfidenz
-          </span>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={handlePdfExport}
+              disabled={pdfLoading}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-mono text-text-tertiary border border-[var(--glass-inner-border)] rounded-lg hover:bg-text-tertiary/10 hover:text-text-secondary transition-all disabled:opacity-40 disabled:cursor-wait"
+              title="Als PDF exportieren"
+            >
+              {pdfLoading ? (
+                <svg className="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="12" cy="12" r="10" strokeDasharray="32" strokeDashoffset="12" />
+                </svg>
+              ) : (
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="7 10 12 15 17 10" />
+                  <line x1="12" y1="15" x2="12" y2="3" />
+                </svg>
+              )}
+              PDF
+            </button>
+            <span className="glass-badge px-2.5 py-0.5 font-mono text-[11px] text-text-tertiary">
+              {result.confidence}% Konfidenz
+            </span>
+          </div>
         </div>
         <p className="text-sm leading-relaxed text-text-secondary">{result.summary}</p>
       </Card>

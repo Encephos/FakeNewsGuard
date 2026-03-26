@@ -95,3 +95,37 @@ export type AnalysisState =
   | { status: "analyzing"; steps: Step[]; currentPhase: string; extractedContent?: ExtractedContent }
   | { status: "done"; steps: Step[]; result: AnalysisResult; extractedContent?: ExtractedContent }
   | { status: "error"; message: string };
+
+// ── Graph types ─────────────────────────────────────────────────
+
+export type GraphNodeType = "CLAIM" | "SOURCE" | "ACTOR";
+
+export interface GraphNode {
+  id: string;
+  type: GraphNodeType;
+  label: string;
+  properties?: Record<string, string>;
+}
+
+export interface GraphEdge {
+  source: string;
+  target: string;
+  relation: string;
+}
+
+export interface GraphStats {
+  total_nodes: number;
+  total_edges: number;
+  nodes_by_type: Record<string, number>;
+  edges_by_relation: Record<string, number>;
+}
+
+export interface GraphNodeDetail {
+  node: GraphNode;
+  edges: GraphEdge[];
+  neighbors: GraphNode[];
+}
+
+export interface GraphSearchResult {
+  nodes: GraphNode[];
+}

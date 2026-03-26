@@ -82,6 +82,16 @@ export default function Header() {
             >
               {t("nav.archive")}
             </Link>
+            <Link
+              href="/netzwerk"
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                isActive("/netzwerk")
+                  ? "bg-surface-hover text-text-primary"
+                  : "text-text-tertiary hover:text-text-secondary hover:bg-surface-hover/50"
+              }`}
+            >
+              {t("graph.title")}
+            </Link>
             {user?.admin && (
               <Link
                 href="/admin"

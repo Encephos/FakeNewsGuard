@@ -32,6 +32,14 @@ interface ArchiveDetail extends ArchiveItem {
   result: AnalysisResult;
 }
 
+interface ArchiveStats {
+  enabled: boolean;
+  total_entries: number;
+  rating_distribution: Record<string, number>;
+  average_confidence: number;
+  max_entries: number;
+}
+
 // ── Helpers ─────────────────────────────────────────────────────
 
 const RATING_STYLES: Record<string, { bg: string; text: string }> = {
@@ -82,6 +90,7 @@ export default function ArchivePage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<ArchiveDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [stats, setStats] = useState<ArchiveStats | null>(null);
 
   const LIMIT = 20;
 
@@ -109,6 +118,14 @@ export default function ArchivePage() {
   useEffect(() => {
     fetchList();
   }, [fetchList]);
+
+  // Fetch stats once on mount
+  useEffect(() => {
+    fetch("/api/archive-stats")
+      .then((res) => res.json())
+      .then((data) => setStats(data))
+      .catch((err) => console.error("Archive stats error:", err));
+  }, []);
 
   // Reset offset when filter changes
   useEffect(() => {
@@ -179,12 +196,26 @@ export default function ArchivePage() {
                   )}
                 </p>
               </div>
-              <button
-                onClick={() => handleDelete(detail.id)}
-                className="text-xs text-text-tertiary hover:text-error transition-colors"
-              >
-                Löschen
-              </button>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => window.open(`/api/export/pdf/${detail.id}`, "_blank")}
+                  className="inline-flex items-center gap-1.5 text-xs text-text-tertiary hover:text-text-secondary transition-colors"
+                  title="Als PDF exportieren"
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <polyline points="7 10 12 15 17 10" />
+                    <line x1="12" y1="15" x2="12" y2="3" />
+                  </svg>
+                  PDF
+                </button>
+                <button
+                  onClick={() => handleDelete(detail.id)}
+                  className="text-xs text-text-tertiary hover:text-error transition-colors"
+                >
+                  Löschen
+                </button>
+              </div>
             </div>
             {detail.source_url && (
               <a
@@ -204,7 +235,7 @@ export default function ArchivePage() {
           </div>
 
           {/* Full result */}
-          <ResultDisplay result={detail.result} />
+          <ResultDisplay result={detail.result} archiveId={detail.id} sourceUrl={detail.source_url || undefined} />
         </div>
       </div>
     );
@@ -233,6 +264,49 @@ export default function ArchivePage() {
             Neue Analyse
           </Link>
         </div>
+
+        {/* Stats Dashboard */}
+        {stats && stats.enabled && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+            <div className="glass-inner rounded-xl px-4 py-3 border-l-[3px] border-l-text-tertiary/30">
+              <div className="text-[10px] font-medium uppercase tracking-wider text-text-tertiary mb-1">
+                Einträge
+              </div>
+              <div className="text-2xl font-semibold text-text-primary tracking-tight leading-none">
+                {stats.total_entries}
+                <span className="text-xs font-normal text-text-tertiary ml-1">
+                  / {stats.max_entries}
+                </span>
+              </div>
+            </div>
+            <div className="glass-inner rounded-xl px-4 py-3 border-l-[3px] border-l-success">
+              <div className="text-[10px] font-medium uppercase tracking-wider text-text-tertiary mb-1">
+                Ø Konfidenz
+              </div>
+              <div className="text-2xl font-semibold text-text-primary tracking-tight leading-none text-success">
+                {stats.average_confidence.toFixed(1)}%
+              </div>
+            </div>
+            <div className="glass-inner rounded-xl px-4 py-3 border-l-[3px] border-l-accent col-span-2">
+              <div className="text-[10px] font-medium uppercase tracking-wider text-text-tertiary mb-2">
+                Verteilung
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                {Object.entries(stats.rating_distribution)
+                  .sort((a, b) => b[1] - a[1])
+                  .map(([rating, count]) => {
+                    const rs = RATING_STYLES[rating] ?? { bg: "bg-surface-hover/50", text: "text-text-primary" };
+                    return (
+                      <div key={rating} className={`flex items-center gap-1.5 px-2 py-1 rounded-md ${rs.bg}`}>
+                        <span className={`text-[10px] font-bold font-mono ${rs.text}`}>{rating}</span>
+                        <span className="text-[10px] font-medium text-text-primary">{count}</span>
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Filters */}
         <div className="flex flex-col sm:flex-row gap-2 mb-5">
@@ -286,6 +360,7 @@ export default function ArchivePage() {
                 item={item}
                 onClick={() => fetchDetail(item.id)}
                 onDelete={() => handleDelete(item.id)}
+                onPdfExport={() => window.open(`/api/export/pdf/${item.id}`, "_blank")}
               />
             ))}
           </div>
@@ -324,10 +399,12 @@ function ArchiveCard({
   item,
   onClick,
   onDelete,
+  onPdfExport,
 }: {
   item: ArchiveItem;
   onClick: () => void;
   onDelete: () => void;
+  onPdfExport: () => void;
 }) {
   const rs = RATING_STYLES[item.overall_rating] ?? { bg: "bg-text-tertiary/10", text: "text-text-tertiary" };
 
@@ -382,17 +459,31 @@ function ArchiveCard({
           </div>
         </div>
 
-        {/* Delete button (shown on hover) */}
-        <button
-          onClick={(e) => { e.stopPropagation(); onDelete(); }}
-          className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity p-1 text-text-tertiary hover:text-error"
-          aria-label="Löschen"
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-            <polyline points="3 6 5 6 21 6" />
-            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-          </svg>
-        </button>
+        {/* Quick actions (shown on hover) */}
+        <div className="shrink-0 flex items-center gap-1">
+          <button
+            onClick={(e) => { e.stopPropagation(); onPdfExport(); }}
+            className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity p-1 text-text-tertiary hover:text-text-secondary"
+            aria-label="Als PDF exportieren"
+            title="Als PDF exportieren"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); onDelete(); }}
+            className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity p-1 text-text-tertiary hover:text-error"
+            aria-label="Löschen"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <polyline points="3 6 5 6 21 6" />
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+            </svg>
+          </button>
+        </div>
       </div>
     </div>
   );

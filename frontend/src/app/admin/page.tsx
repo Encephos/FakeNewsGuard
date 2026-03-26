@@ -21,6 +21,14 @@ interface UserRow {
   last_analysis: number | null;
 }
 
+interface UsageEntry {
+  tier_used: string;
+  created_at: number;
+  claims: number;
+  rating: string | null;
+  source: string;
+}
+
 interface Stats {
   total_users: number;
   total_analyses: number;
@@ -418,6 +426,11 @@ export default function AdminPage() {
   const [userSearch, setUserSearch] = useState("");
   const [userSourceFilter, setUserSourceFilter] = useState<"all" | "telegram" | "web">("all");
 
+  // Usage Modal state
+  const [selectedUsageUser, setSelectedUsageUser] = useState<UserRow | null>(null);
+  const [usageData, setUsageData] = useState<UsageEntry[] | null>(null);
+  const [usageLoading, setUsageLoading] = useState(false);
+
   // System tab state
   const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [logs, setLogs] = useState<LogEntry[]>([]);
@@ -431,6 +444,23 @@ export default function AdminPage() {
     }),
     [token],
   );
+
+  const openUsageModal = useCallback(async (u: UserRow) => {
+    setSelectedUsageUser(u);
+    setUsageData(null);
+    setUsageLoading(true);
+    try {
+      const res = await fetch(`/api/admin/users/${u.id}/usage`, { headers: headers() });
+      if (res.ok) {
+        const data = await res.json();
+        setUsageData(data.usage || []);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setUsageLoading(false);
+    }
+  }, [headers]);
 
   // ── Fetch users + stats ──────────────────────────────────────────
   const fetchUsersData = useCallback(async () => {
@@ -706,6 +736,9 @@ export default function AdminPage() {
                     <th className="text-left px-4 py-3 font-medium text-[10px] uppercase tracking-wider text-text-tertiary hidden md:table-cell">
                       {t("admin.registered")}
                     </th>
+                    <th className="text-right px-4 py-3 font-medium text-[10px] uppercase tracking-wider text-text-tertiary">
+                      Aktionen
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -786,6 +819,15 @@ export default function AdminPage() {
                       <td className="px-4 py-3 text-text-tertiary hidden md:table-cell">
                         {formatDate(u.created_at)}
                       </td>
+                      <td className="px-4 py-3 text-right">
+                        <button
+                          onClick={() => openUsageModal(u)}
+                          className="p-1.5 rounded-lg text-text-tertiary hover:text-accent hover:bg-accent/10 transition-colors"
+                          title="Nutzungshistorie"
+                        >
+                          <IconActivity />
+                        </button>
+                      </td>
                     </tr>
                   ))}
                   {filteredUsers.length === 0 && (
@@ -799,6 +841,74 @@ export default function AdminPage() {
               </table>
             </div>
           </div>
+
+          {/* Usage Modal */}
+          {selectedUsageUser && (
+            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+              <div className="glass-card rounded-2xl w-full max-w-2xl max-h-[80vh] flex flex-col overflow-hidden animate-fade-in shadow-2xl">
+                <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+                  <div>
+                    <h3 className="text-sm font-semibold text-text-primary">
+                      Nutzungshistorie: {selectedUsageUser.display_name || selectedUsageUser.email}
+                    </h3>
+                    <p className="text-[10px] text-text-tertiary mt-1">
+                      Letzte 30 Tage
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setSelectedUsageUser(null)}
+                    className="p-1.5 rounded-lg text-text-tertiary hover:text-text-primary hover:bg-surface-hover transition-colors"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                      <line x1="18" y1="6" x2="6" y2="18" />
+                      <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                  </button>
+                </div>
+                
+                <div className="flex-1 overflow-y-auto p-6">
+                  {usageLoading ? (
+                    <div className="flex justify-center py-8">
+                      <IconRefresh spinning={true} />
+                    </div>
+                  ) : usageData && usageData.length > 0 ? (
+                    <div className="divide-y divide-border/20">
+                      {usageData.map((entry, idx) => (
+                        <div key={idx} className="flex items-center justify-between py-3">
+                          <div className="flex items-center gap-3">
+                            <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase ${
+                              TIER_STYLES[entry.tier_used] || TIER_STYLES.lite
+                            }`}>
+                              {entry.tier_used}
+                            </span>
+                            <div className="flex flex-col">
+                              <span className="text-xs font-medium text-text-primary">
+                                {formatDate(entry.created_at)}
+                              </span>
+                              <span className="text-[10px] text-text-tertiary">
+                                {entry.source} · {entry.claims} Claims
+                              </span>
+                            </div>
+                          </div>
+                          <span className={`text-[10px] font-bold px-2 py-1 rounded-md bg-surface-hover ${
+                            entry.rating === "Wahr" || entry.rating === "Größtenteils wahr" ? "text-success" :
+                            entry.rating === "Falsch" || entry.rating === "Größtenteils falsch" ? "text-error" : 
+                            "text-warning"
+                          }`}>
+                            {entry.rating || "Unbekannt"}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-xs text-text-tertiary">
+                      Keine Nutzungen in den letzten 30 Tagen.
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
