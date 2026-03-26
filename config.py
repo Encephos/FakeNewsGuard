@@ -106,14 +106,14 @@ class SearXNGConfig:
     Env-Vars:
         SEARXNG_URL        – Basis-URL (Default: http://localhost:8888)
         SEARXNG_ENGINES    – kommaseparierte Engine-Liste (Default: leer = SearXNG-Default)
-        SEARXNG_CATEGORIES – kommaseparierte Kategorien (Default: general)
+        SEARXNG_CATEGORIES – kommaseparierte Kategorien (Default: general,news)
         SEARXNG_LANGUAGE   – Suchsprache (Default: de)
         SEARXNG_TIME_RANGE – Zeitbereich: day/week/month/year/None (Default: leer)
     """
 
     base_url: str = ""
     engines: list[str] = field(default_factory=list)
-    categories: list[str] = field(default_factory=lambda: ["general"])
+    categories: list[str] = field(default_factory=lambda: ["general", "news"])
     language: str = "de"
     time_range: str | None = None
     max_results: int = 15
@@ -410,6 +410,7 @@ class EvidenceRetrievalConfig:
     stale_sources_freshness_threshold: float = 0.35  # avg_freshness < Wert → Stale-Penalty
     stale_sources_confidence_penalty: float = 0.15   # Abzug auf overall_quality bei alten Quellen
     searxng_news_categories: list[str] = field(default_factory=lambda: ["news", "general"])
+    current_state_freshness_threshold: float = 0.60  # Min. avg_freshness für Aktuell-Zustand-Claims
 
     def __post_init__(self) -> None:
         if v := os.getenv("LANGSEARCH_QUERIES_SIMPLE", ""):

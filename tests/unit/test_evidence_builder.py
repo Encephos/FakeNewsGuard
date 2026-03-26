@@ -595,3 +595,127 @@ class TestConfidenceCeilingsNew:
         # Keine der neuen Ceilings sollte greifen
         assert not any("Weak-Evidence-Rate" in r for r in reasons)
         assert not any("Kontext-Evidenz" in r and "Low-Trust" in r for r in reasons)
+
+
+# ── Unit Tests: Spezifitäts-Penalty & Wikipedia-Generik ──────────────────────
+
+
+class TestSpecificityPenalty:
+    """Generische Treffer die nur 1 Profil-Anker matchen werden abgewertet."""
+
+    def _make_profile(self):
+        from models.schemas import ClaimSearchProfile
+        return ClaimSearchProfile(
+            institutions=["Stadtrat von Hannover"],
+            locations=["Hannover"],
+            policy_terms=["15-Minuten-Stadt"],
+            number_terms=["100", "2027", "250"],
+            sanction_terms=["250 Euro Bußgeld"],
+        )
+
+    def test_generic_wikipedia_stadtrat_low_relevance(self):
+        """Wikipedia 'Stadtrat' sollte nach Spezifitäts-Penalty niedrige Relevanz haben."""
+        from agents.evidence_builder import _relevance_score
+        from tools.web_search import SearchResult
+
+        profile = self._make_profile()
+        result = SearchResult(
+            title="Stadtrat – Wikipedia",
+            url="https://de.wikipedia.org/wiki/Stadtrat",
+            snippet="Ein Stadtrat ist ein kommunales Gremium. Die Mitglieder werden gewählt.",
+        )
+        score = _relevance_score(result, "Der Stadtrat von Hannover hat die 15-Minuten-Stadt beschlossen", profile)
+        # Generischer Treffer: Wikipedia-Penalty + wenige Anker → unter neuem Off-topic Threshold 0.30
+        assert score < 0.30, f"Generischer Wikipedia-Treffer sollte < 0.30 sein, ist {score:.2f}"
+
+    def test_specific_article_keeps_high_relevance(self):
+        """Artikel mit mehreren Profil-Ankern behält hohe Relevanz."""
+        from agents.evidence_builder import _relevance_score
+        from tools.web_search import SearchResult
+
+        profile = self._make_profile()
+        result = SearchResult(
+            title="Hannover: Stadtrat diskutiert 15-Minuten-Stadt-Konzept",
+            url="https://haz.de/hannover-15-minuten-stadt",
+            snippet="Der Stadtrat von Hannover berät über die Umsetzung des 15-Minuten-Stadt-Konzepts ab 2027.",
+        )
+        score = _relevance_score(result, "Der Stadtrat von Hannover hat die 15-Minuten-Stadt beschlossen", profile)
+        assert score > 0.40, f"Spezifischer Artikel sollte > 0.40 sein, ist {score:.2f}"
+
+    def test_count_anchor_hits_all_match(self):
+        """Alle Anchor-Gruppen matchen → 5 hits."""
+        from agents.evidence_builder import _count_anchor_hits
+        profile = self._make_profile()
+        text = "Stadtrat von Hannover 15-Minuten-Stadt 250 Euro Bußgeld 100 2027"
+        assert _count_anchor_hits(text, profile) == 5
+
+    def test_count_anchor_hits_partial_match(self):
+        """Nur Institution 'Stadtrat von Hannover' (exakt) und Location 'Hannover' matchen → 2 hits."""
+        from agents.evidence_builder import _count_anchor_hits
+        profile = self._make_profile()
+        # "Stadtrat von Hannover" muss als Ganzes enthalten sein (substring-match)
+        text = "Der Stadtrat von Hannover diskutiert."
+        assert _count_anchor_hits(text, profile) == 2  # institution + location
+
+    def test_count_active_anchors(self):
+        """Profil mit allen Feldern → 5 aktive Anker."""
+        from agents.evidence_builder import _count_active_anchors
+        profile = self._make_profile()
+        assert _count_active_anchors(profile) == 5
+
+
+class TestGenericReferenceDetection:
+    """Wikipedia-Generik-Erkennung."""
+
+    def test_generic_wikipedia_detected(self):
+        """de.wikipedia.org/wiki/Stadtrat ohne Location → generisch."""
+        from agents.evidence_builder import _is_generic_reference
+        from models.schemas import ClaimSearchProfile
+
+        profile = ClaimSearchProfile(
+            locations=["Hannover"],
+            institutions=["Stadtrat"],
+        )
+        assert _is_generic_reference("https://de.wikipedia.org/wiki/Stadtrat", profile) is True
+
+    def test_specific_wikipedia_not_detected(self):
+        """de.wikipedia.org/wiki/Hannover → enthält Location → nicht generisch."""
+        from agents.evidence_builder import _is_generic_reference
+        from models.schemas import ClaimSearchProfile
+
+        profile = ClaimSearchProfile(locations=["Hannover"])
+        assert _is_generic_reference("https://de.wikipedia.org/wiki/Hannover", profile) is False
+
+    def test_non_wikipedia_not_detected(self):
+        """Nicht-Wikipedia-URL → False."""
+        from agents.evidence_builder import _is_generic_reference
+        from models.schemas import ClaimSearchProfile
+
+        profile = ClaimSearchProfile(locations=["Hannover"])
+        assert _is_generic_reference("https://tagesschau.de/article", profile) is False
+
+    def test_no_profile_conservative(self):
+        """Ohne Profil → konservativ als generisch werten."""
+        from agents.evidence_builder import _is_generic_reference
+        assert _is_generic_reference("https://de.wikipedia.org/wiki/Stadtrat", None) is True
+
+
+class TestLowTrustDomains:
+    """Neue Low-Trust-Domains werden erkannt."""
+
+    def test_alleantworten_is_low_trust(self):
+        from agents.evidence_builder import _is_low_trust_site
+        assert _is_low_trust_site("https://alleantworten.de/was-ist-der-stadtrat", "", "") is True
+
+    def test_praxistipps_focus_is_low_trust(self):
+        from agents.evidence_builder import _is_low_trust_site
+        assert _is_low_trust_site("https://praxistipps.focus.de/was-verdient-ein-stadtrat", "", "") is True
+
+    def test_generic_explainer_content_pattern(self):
+        """'Was verdient ein Stadtrat - Überblick über Gehalt und Aufgaben' → Low-Trust."""
+        from agents.evidence_builder import _is_low_trust_site
+        assert _is_low_trust_site(
+            "https://example.com/artikel",
+            "Was verdient ein Stadtrat - Überblick über Gehalt und Aufgaben",
+            "",
+        ) is True

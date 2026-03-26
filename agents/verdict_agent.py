@@ -14,6 +14,7 @@ Wichtig:
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from agents.base import BaseAgent
@@ -57,8 +58,32 @@ _CEILING_HIGH_WEAK_RATE = 0.60
 _CEILING_CONTEXTUAL_AND_LOW_TRUST = 0.55
 # Ceiling für Regelungsclaims ohne direkte Regelungsgrundlage (strenger als ohne offizielle Quelle)
 _CEILING_REGULATORY_NO_DIRECT_EVIDENCE = 0.55
+# Ceiling bei veralteten Quellen (avg_freshness < Schwellwert)
+_CEILING_STALE_SOURCES = 0.72
+# Ceiling bei Aktuell-Zustand-Claims ohne frische Quellen
+_CEILING_CURRENT_STATE_NO_FRESH = 0.55
+# Ceiling wenn keinerlei brauchbare Evidenz vorliegt (kein DIRECT, kein Primary, kein FC, kein Konsens)
+_CEILING_ZERO_USEFUL_EVIDENCE = 0.50
 # Minimale Anzahl guter Quellen für hohe Confidence
 _MIN_GOOD_SOURCES_FOR_HIGH_CONF = 2
+
+# Textuelles Muster für Regulatory-Claims (Fallback wenn claim.frame fehlt)
+_REGULATORY_TEXT_PATTERN = re.compile(
+    r"\b("
+    r"bu[sß]geld|geldbu[sß]e|strafe|straf(?:zahlung|gebühr)|"
+    r"beschluss|beschlossen|verordnung|gesetz(?:lich|gebung)?|regelung|"
+    r"[üu]berwachung|kontrolliert|[üu]berwacht|kamera(?:system)?|"
+    r"pflicht|verpflichtend|verboten|verbiet|untersagt|erlaubt\s+nicht|"
+    r"beh[öo]rde|amt|amtlich|offiziell\s+vorgeschrieben|"
+    r"sanktion|sanktioniert|zwang|zwangsgeld|bußgeldkatalog"
+    r")\b",
+    re.IGNORECASE,
+)
+
+
+def _is_regulatory_from_text(claim_text: str) -> bool:
+    """Textueller Fallback zur Regulatory-Erkennung wenn claim.frame fehlt."""
+    return bool(_REGULATORY_TEXT_PATTERN.search(claim_text))
 
 
 def _calibrate_confidence(
@@ -67,6 +92,8 @@ def _calibrate_confidence(
     cove_trace: "CoVeTrace | None",
     claim_quality_score: float = 1.0,
     is_regulatory_claim: bool = False,
+    is_current_state_claim: bool = False,
+    stale_freshness_threshold: float = 0.40,
 ) -> tuple[float, list[str]]:
     """Regelbasierter Confidence-Postprocessor.
 
@@ -81,6 +108,8 @@ def _calibrate_confidence(
         - Insufficient source consensus: max 0.65
         - Hoher Low-Trust-Anteil in Top-5: max 0.62
         - Regelungsclaim ohne offizielle Quelle: max 0.72
+        - Veraltete Quellen (avg_freshness < Schwellwert): max 0.72
+        - Aktuell-Zustand-Claim ohne frische Quellen: max 0.62
 
     Penalty-Regeln:
         - Zu wenige gute Quellen (Tier 1-3 oder Fact-Check): -0.10
@@ -97,6 +126,10 @@ def _calibrate_confidence(
                              aus ProcessedClaim.claim_quality_score
         is_regulatory_claim: True wenn der Claim Beschlüsse, Bußgelder,
                              Überwachung oder rechtlich bindende Regeln behauptet
+        is_current_state_claim: True wenn der Claim einen aktuellen Amtsinhaber oder
+                                Rolleninhaber beschreibt (zeitkritisch)
+        stale_freshness_threshold: Schwellwert für avg_freshness unterhalb dessen
+                                   Quellen als veraltet gelten (Default: 0.40)
     """
     confidence = raw_confidence
     reasons: list[str] = []
@@ -138,7 +171,7 @@ def _calibrate_confidence(
     elif pack.web_results:
         # Fallback: inline berechnen wenn off_topic_rate nicht gesetzt
         top_results = pack.web_results[:5]
-        low_rel = sum(1 for r in top_results if r.relevance_score < 0.2)
+        low_rel = sum(1 for r in top_results if r.relevance_score < 0.3)
         if low_rel > len(top_results) / 2:
             if confidence > _CEILING_OFFTOPIC_CONTAMINATION:
                 reasons.append(
@@ -241,6 +274,39 @@ def _calibrate_confidence(
             )
             confidence = min(confidence, _CEILING_CONTEXTUAL_AND_LOW_TRUST)
 
+    # Ceiling: veraltete Quellen (avg_freshness unter Schwellwert)
+    _freshness = quality.freshness_score if quality else 1.0
+    if quality and _freshness < stale_freshness_threshold:
+        if confidence > _CEILING_STALE_SOURCES:
+            reasons.append(
+                f"Veraltete Quellen (Freshness Ø={_freshness:.2f} < {stale_freshness_threshold}) → "
+                f"Ceiling {_CEILING_STALE_SOURCES}"
+            )
+            confidence = min(confidence, _CEILING_STALE_SOURCES)
+
+    # Ceiling: Aktuell-Zustand-Claim ohne frische Quellen (zeitkritisch)
+    if is_current_state_claim and quality and _freshness < stale_freshness_threshold:
+        if confidence > _CEILING_CURRENT_STATE_NO_FRESH:
+            reasons.append(
+                f"Aktuell-Zustand-Claim mit veralteten Quellen (Freshness Ø={_freshness:.2f}) → "
+                f"Ceiling {_CEILING_CURRENT_STATE_NO_FRESH}"
+            )
+            confidence = min(confidence, _CEILING_CURRENT_STATE_NO_FRESH)
+
+    # Ceiling: keinerlei brauchbare Evidenz
+    # Greift wenn KEIN DIRECT-Evidence, keine Primärquelle, kein Fact-Check
+    # UND Konsens insufficient → System hat de facto nichts Brauchbares gefunden.
+    if (not has_primary and not has_fc
+            and _direct_count == 0
+            and quality
+            and quality.source_consensus.value == "insufficient"):
+        if confidence > _CEILING_ZERO_USEFUL_EVIDENCE:
+            reasons.append(
+                f"Keine brauchbare Evidenz (0 DIRECT, keine Primärquelle, "
+                f"kein Fact-Check, Konsens insufficient) → Ceiling {_CEILING_ZERO_USEFUL_EVIDENCE}"
+            )
+            confidence = min(confidence, _CEILING_ZERO_USEFUL_EVIDENCE)
+
     # ── Penalties ─────────────────────────────────────────────────────────────
 
     # Penalty: zu wenige gute Quellen (Tier 1-3 oder Fact-Check)
@@ -335,6 +401,18 @@ Beispiel: Eine allgemeine Seite über „15-Minuten-Stadt" belegt NICHT eine geh
 oder ein spezifisches Bußgeld. Eine allgemeine Kameraüberwachungsseite belegt NICHT
 ein konkretes 250-Euro-Bußgeld.
 
+## Sonderregel: Aktuell-Zustand-Claims (Amtsinhaber, Rolleninhaber)
+Wenn ein Claim einen aktuellen Amts- oder Rolleninhaber beschreibt
+(z.B. „X ist Bundeskanzler", „Y ist Präsident", „Z ist CEO"):
+- Diese Claims sind zeitkritisch – nur Quellen aus der jüngsten Zeit zählen
+- Alte Quellen (> 1–2 Jahre) können einen früheren Zustand beschreiben und
+  dürfen NICHT als Beleg für den aktuellen Zustand gewertet werden
+- Wenn ausschließlich veraltete Quellen vorliegen und keine aktuellen Quellen den
+  behaupteten Zustand bestätigen: Wähle UNVERIFIABLE, nicht TRUE
+- Wenn veraltete Quellen einen anderen Amtsinhaber nennen: Wähle MISLEADING oder FALSE
+- Wichtig: „Quelle von 2022 nennt Person X als Kanzler" ist KEIN Beleg für
+  „Person X ist aktuell (2025/2026) Kanzler"
+
 ## Quellen-Qualitätshinweis
 Wenn die Evidenzquellen überwiegend aus allgemeinen Hilfsseiten bestehen
 (Währungsrechner, Grammatikseiten, Juraforen ohne Claim-Bezug, Bußgeldrechner):
@@ -342,6 +420,20 @@ Wenn die Evidenzquellen überwiegend aus allgemeinen Hilfsseiten bestehen
 - Behandle solche Quellen als Nicht-Evidenz (weder stützend noch widerlegend)
 - Ziehe dein Urteil AUS DEM FEHLEN belastbarer Quellen, nicht aus dem Inhalt
   irrelevanter Seiten
+
+## Evidenz-Provenienz-Pflicht
+Dein Urteil MUSS sich auf die bereitgestellten Quellen stützen.
+Du darfst dein eigenes Vorwissen NICHT als Ersatz für fehlende Evidenz verwenden.
+
+Wenn die bereitgestellten Quellen keine relevante Information zum Claim enthalten:
+- Setze das Rating auf UNVERIFIABLE
+- Setze die Confidence auf maximal 0.50
+- Erkläre im evidence-Feld ehrlich, dass keine belastbaren Quellen gefunden wurden
+- Einzige Ausnahme: Wenn der Claim eine nachweislich UNMÖGLICHE Behauptung enthält
+  (physikalisch unmöglich, logischer Widerspruch), darf FALSE gesetzt werden.
+
+Im sources-Feld dürfen NUR URLs erscheinen, die tatsächlich in der bereitgestellten
+Evidenz vorkommen. Erfinde KEINE URLs.
 
 ## Output-Format (JSON)
 {
@@ -402,23 +494,35 @@ class VerdictAgent(BaseAgent):
         raw_confidence = min(1.0, max(0.0, float(raw.get("confidence", 0.75))))
 
         # Claim-Qualität einbeziehen (kommt aus ProcessedClaim wenn vorhanden)
+        from agents.fact_checker import _is_current_state_claim
         from models.schemas import ProcessedClaim as _PC
         claim_quality = 1.0
         is_regulatory = False
         if isinstance(claim, _PC):
             claim_quality = claim.claim_quality_score
-            # Regulatory-Claim-Erkennung aus Frame-Feldern
+            # Regulatory-Claim-Erkennung: primär aus Frame-Feldern
             if claim.frame:
                 f = claim.frame
                 is_regulatory = bool(
                     f.sanction or f.enforcement
                     or (f.policy_context and f.institution)
                 )
+            # Textueller Fallback wenn kein Frame vorhanden
+            if not is_regulatory:
+                is_regulatory = _is_regulatory_from_text(claim.text)
+
+        is_current_state = _is_current_state_claim(claim.text)
+
+        # Current-state Claims brauchen frischere Quellen (Threshold 0.60 statt 0.40).
+        # Damit triggern Quellen ohne Datum (default 0.5) ebenfalls das Stale-Ceiling.
+        stale_threshold = 0.60 if is_current_state else 0.40
 
         calibrated_confidence, calibration_reasons = _calibrate_confidence(
             raw_confidence, pack, cove_trace,
             claim_quality_score=claim_quality,
             is_regulatory_claim=is_regulatory,
+            is_current_state_claim=is_current_state,
+            stale_freshness_threshold=stale_threshold,
         )
 
         # Unsicherheitssignale aus Kalibrierung + eigenen Checks sammeln
@@ -510,6 +614,15 @@ class VerdictAgent(BaseAgent):
             f"Typ: {claim.type.value}\n"
             f"Kontext-Hinweis: {claim.context}\n",
         ]
+
+        # Warnung bei sehr niedriger Evidenzqualität
+        if pack.evidence_quality and pack.evidence_quality.overall_quality < 0.3:
+            parts.append(
+                "\n## WARNUNG: Evidenzqualität sehr niedrig\n\n"
+                "Die bereitgestellten Quellen sind überwiegend irrelevant oder generisch. "
+                "Stütze dein Urteil NICHT auf eigenes Vorwissen. "
+                "Wenn keine belastbaren Quellen vorliegen, wähle UNVERIFIABLE mit niedriger Confidence.\n"
+            )
 
         # Strukturierte Evidenz (Trust-Boundary-gefiltert)
         parts.append(f"\n## Strukturierte Evidenz\n\n{pack.format_for_verdict()}")

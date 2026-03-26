@@ -249,6 +249,24 @@ def _build_search_queries_from_profile(claim: "ProcessedClaim") -> list[str]:  #
         if q3.strip() and q3.strip() not in queries:
             queries.append(q3.strip())
 
+    # ── Query 3b: fact-check ohne site:-Operator ─────────────────────────
+    # SearXNG leitet site:-Operatoren nicht zuverlässig an alle Engines weiter.
+    # Parallele Query mit expliziten Faktencheck-Keywords statt site:-Prefix.
+    q3b_parts: list[str] = list(profile.core_entities[:2])
+    q3b_parts.extend(profile.policy_terms[:1])
+    q3b_parts.append("Faktencheck")
+    q3b = " ".join(p for p in q3b_parts if p)
+    if q3b.strip() and q3b.strip() not in queries:
+        queries.append(q3b.strip())
+
+    # ── Query 3c: Falschmeldung-Query für virale Claims ──────────────────
+    q3c_parts = list(profile.core_entities[:2])
+    q3c_parts.extend(profile.policy_terms[:1])
+    q3c_parts.append("Falschmeldung")
+    q3c = " ".join(p for p in q3c_parts if p)
+    if q3c.strip() and q3c.strip() not in queries:
+        queries.append(q3c.strip())
+
     # ── Query 4: sanction/number (nur bei konkreten Zahlen + Sanktionen) ──
     # Ort + Policy immer mitführen, damit Treffer wie "Bußgeld 250" ohne Kontext vermieden werden
     if profile.sanction_terms and profile.number_terms:
@@ -513,6 +531,40 @@ def _categories_for_claim(claim: Claim) -> str:
         "CONTEXTUAL": "general,news",
     }
     return mapping.get(claim.type.value, "general")
+
+
+def _is_current_state_claim(claim_text: str) -> bool:
+    """Erkennt Claims über aktuelle Amts-/Rolleninhaber (zeitkritisch).
+
+    Prüft zwei Bedingungen:
+      1. Ein Zustandsverb (ist, war, bleibt, wurde) → beschreibt aktuellen Zustand
+      2. Ein Positionsbegriff (Bundeskanzler, Präsident, CEO, ...) → eine Rolle/Amt
+
+    Beide Bedingungen müssen erfüllt sein, um False-Positives auf generische
+    „ist"-Sätze zu vermeiden.
+    """
+    import re
+
+    _STATE_VERBS = (
+        r"\b(ist|war|ist\s+derzeit|ist\s+aktuell|ist\s+seit|bleibt|wurde\s+zum?|"
+        r"amtiert|fungiert|dient|steht\s+vor|leitet)\b"
+    )
+    _POSITION_KEYWORDS = (
+        r"\b(bundeskanzler|kanzler|pr[äa]sident|vizepr[äa]sident|"
+        # Compound-fähig: (?:\w+)? erlaubt Präfix wie "Gesundheits-", "Partei-"
+        r"(?:\w+)?minister(?:in)?|senator(?:in)?|"
+        r"b[üu]rgermeister(?:in)?|oberbürgermeister(?:in)?|"
+        r"(?:\w+)?premier(?:minister(?:in)?)?|(?:\w+)?vorsitzende[rn]?|"
+        r"ceo|(?:\w+)?vorstandsvorsitzende[rn]?|(?:\w+)?vorstandschef(?:in)?|"
+        r"(?:\w+)?gesch[äa]ftsf[üu]hrer(?:in)?|generalsekret[äa]r(?:in)?|"
+        r"chef(?:in)?|direktor(?:in)?|leiter(?:in)?|"
+        r"papst|k[öo]nig(?:in)?|monarch(?:in)?|"
+        r"regierungschef(?:in)?|staatschef(?:in)?|staatsoberhaup[t]?)\b"
+    )
+    text_lower = claim_text.lower()
+    return bool(re.search(_STATE_VERBS, text_lower, re.IGNORECASE)) and bool(
+        re.search(_POSITION_KEYWORDS, text_lower, re.IGNORECASE)
+    )
 
 
 def _build_enriched_context(
