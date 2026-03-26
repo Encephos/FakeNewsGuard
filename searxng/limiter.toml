@@ -1,6 +1,10 @@
+[botdetection]
+ipv4_prefix = 32
+ipv6_prefix = 48
+
 [botdetection.ip_limit]
-# Kein Rate-Limiting fuer interne Nutzung
 link_token = false
 
 [botdetection.ip_lists]
-pass_ip = ["0.0.0.0/0"]
+# Docker-interne Netzwerke: Backend-Container dürfen ohne Rate-Limit suchen
+pass_ip = ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"]

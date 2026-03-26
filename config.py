@@ -505,3 +505,12 @@ class AppConfig:
                 print(f"   • {err}", file=sys.stderr)
             print("\n   Tipp: Kopiere .env.example → .env und trage deine API Keys ein.", file=sys.stderr)
             sys.exit(1)
+
+
+# ── SearXNG Query-Routing-Konstanten ─────────────────────────────────────────
+# Engine-Sets für claim-typ-gesteuertes Routing.
+# Passen zu den in searxng/settings.yml konfigurierten Engines.
+
+SEARXNG_WEB_ENGINES: list[str] = ["duckduckgo", "brave", "qwant"]
+SEARXNG_NEWS_ENGINES: list[str] = ["duckduckgo", "brave", "tagesschau"]
+SEARXNG_REFERENCE_ENGINES: list[str] = ["wikipedia", "wikidata"]

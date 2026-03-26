@@ -153,6 +153,12 @@ class FinalVerdictMeta(BaseModel):
         default="",
         description="Begründung wenn Konfidenz durch CoVe oder Widersprüche gesenkt wurde",
     )
+    calibrated_confidence: float = Field(
+        default=-1.0,
+        ge=-1.0,
+        le=1.0,
+        description="Kalibrierte Konfidenz aus VerdictAgent (0.0–1.0). -1.0 = nicht gesetzt.",
+    )
 
     # ── Urteilsqualität ──────────────────────────────────────────────────────
     verdict_based_on_fact_check_org: bool = Field(

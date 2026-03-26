@@ -453,6 +453,22 @@ class AsyncWebSearchClient:
 # ── SearXNG Client ────────────────────────────────────────────────────────────
 
 
+@dataclass
+class SearXNGQuery:
+    """SearXNG-Query mit optionalen Per-Query-Overrides für Engine- und Zeitraum-Routing.
+
+    Ermöglicht gezieltes Routing:
+      - Faktencheck-Queries → Nachrichten-Engines
+      - Aktualitäts-sensitive Queries → time_range="year"
+      - Referenz-Queries → wikipedia, wikidata
+    """
+
+    query: str
+    categories: list[str] | str | None = None
+    engines: list[str] | None = None
+    time_range: str | None = None
+
+
 class SearXNGClient:
     """Dedizierter SearXNG-Client – explizit SearXNG-only, kein Provider-Routing.
 
@@ -473,8 +489,13 @@ class SearXNGClient:
         query: str,
         max_results: int,
         categories: list[str] | str | None = None,
+        engines: list[str] | None = None,
+        time_range: str | None = None,
     ) -> dict:
-        """Baue SearXNG-Request-Parameter. Normalisiert categories: str → list."""
+        """Baue SearXNG-Request-Parameter. Normalisiert categories: str → list.
+
+        Per-Query-Overrides (engines, time_range) haben Vorrang vor Config-Defaults.
+        """
         if isinstance(categories, str):
             cats = [c.strip() for c in categories.split(",") if c.strip()] or self.config.categories
         else:
@@ -486,10 +507,14 @@ class SearXNGClient:
             "language": self.config.language,
             "categories": ",".join(cats),
         }
-        if self.config.engines:
-            params["engines"] = ",".join(self.config.engines)
-        if self.config.time_range:
-            params["time_range"] = self.config.time_range
+        # Per-Query-Engines überschreiben Config-Engines
+        effective_engines = engines or (self.config.engines if self.config.engines else None)
+        if effective_engines:
+            params["engines"] = ",".join(effective_engines)
+        # Per-Query-Zeitraum überschreibt Config-Zeitraum
+        effective_time_range = time_range or self.config.time_range
+        if effective_time_range:
+            params["time_range"] = effective_time_range
         return params
 
     @staticmethod
@@ -540,10 +565,12 @@ class SearXNGClient:
         query: str,
         max_results: int | None = None,
         categories: list[str] | str | None = None,
+        engines: list[str] | None = None,
+        time_range: str | None = None,
     ) -> list[SearchResult]:
         """Asynchrone SearXNG-Suche mit Retry."""
         n = max_results or self.config.max_results
-        params = self._build_params(query, n, categories)
+        params = self._build_params(query, n, categories, engines=engines, time_range=time_range)
 
         async def _call():
             async with httpx.AsyncClient(timeout=30.0) as client:
@@ -569,18 +596,34 @@ class SearXNGClient:
 
     async def multi_search_async(
         self,
-        queries: list[str],
+        queries: list[str] | list[SearXNGQuery],
         max_results: int | None = None,
         categories: list[str] | str | None = None,
     ) -> dict[str, list[SearchResult]]:
-        """Mehrere SearXNG-Suchen parallel – Semaphore-kontrolliert."""
+        """Mehrere SearXNG-Suchen parallel – Semaphore-kontrolliert.
+
+        Akzeptiert sowohl list[str] (rückwärtskompatibel) als auch list[SearXNGQuery]
+        für per-Query-Engine- und Zeitraum-Routing.
+        """
         semaphore = asyncio.Semaphore(self.config.max_concurrent_searches)
 
-        async def _bounded(q: str) -> tuple[str, list[SearchResult]]:
-            async with semaphore:
-                return q, await self.search_async(q, max_results, categories)
+        # Normalisiere str → SearXNGQuery für einheitliche Verarbeitung
+        normalized: list[SearXNGQuery] = [
+            q if isinstance(q, SearXNGQuery) else SearXNGQuery(query=q, categories=categories)
+            for q in queries
+        ]
 
-        pairs = await asyncio.gather(*[_bounded(q) for q in queries])
+        async def _bounded(sq: SearXNGQuery) -> tuple[str, list[SearchResult]]:
+            async with semaphore:
+                return sq.query, await self.search_async(
+                    sq.query,
+                    max_results,
+                    sq.categories or categories,
+                    engines=sq.engines,
+                    time_range=sq.time_range,
+                )
+
+        pairs = await asyncio.gather(*[_bounded(sq) for sq in normalized])
         return dict(pairs)
 
 

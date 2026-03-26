@@ -350,6 +350,12 @@ class FactCheckResult(BaseModel):
         default="",
         description="Zusammenfassung des Quellen-Konsens (übereinstimmend/widersprüchlich/einseitig)",
     )
+    confidence: float = Field(
+        default=-1.0,
+        ge=-1.0,
+        le=1.0,
+        description="Kalibrierte Einzelclaim-Konfidenz aus VerdictAgent. -1.0 = nicht gesetzt.",
+    )
     # ── Neue Felder (optional, rückwärtskompatibel) ──────────────
     # Werden von EvidenceBuilderAgent + VerdictAgent befüllt wenn aktiv
     evidence_pack: Optional["EvidencePack"] = Field(

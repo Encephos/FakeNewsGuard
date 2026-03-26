@@ -81,12 +81,17 @@ class SynthesizerAgent(BaseAgent):
         if fact_checks:
             parts.append("## Fact-Check-Ergebnisse\n")
             for fc in fact_checks:
+                conf_hint = (
+                    f"  Kalibrierte Konfidenz: {fc.confidence:.0%}\n"
+                    if fc.confidence >= 0.0 else ""
+                )
                 parts.append(
                     f"- Claim {fc.claim_id}: **{fc.rating.value}**\n"
                     f"  Evidenz: {fc.evidence}\n"
                     f"  Korrektur: {fc.correction}\n"
                     f"  Fehlender Kontext: {fc.missing_context}\n"
                     f"  Quellen: {', '.join(fc.sources)}\n"
+                    + conf_hint
                 )
 
         if number_audits:
@@ -132,29 +137,25 @@ class SynthesizerAgent(BaseAgent):
         except ValueError:
             rating = OverallRating.MIXED
 
-        # Confidence auf gültigen Bereich begrenzen + Kalibrierung
+        # Confidence: Kalibrierte Per-Claim-Confidences aus VerdictAgent verwenden.
+        # Das LLM kann nicht wissen welche Ceilings VerdictAgent gesetzt hat.
         raw_confidence = min(1.0, max(0.0, float(raw.get("confidence", 0.5))))
 
-        # Regelbasierte Korrektur: Synthese-Confidence darf nicht höher sein
-        # als die durchschnittliche Verdict-Confidence der Einzelclaims
-        verdict_confidences: list[float] = []
-        for fc in fact_checks:
-            if fc.verdict_meta and fc.verdict_meta.confidence_reduction_reason:
-                # Verdicts mit Kalibrierungsgründen → Confidence wurde gesenkt
-                # Nutze den geringeren Wert als Signal
-                pass
-            # Sammle Unsicherheitssignale aus Verdicts
-            if fc.verdict_meta and fc.verdict_meta.uncertainty_signals:
-                verdict_confidences.append(max(0.3, raw_confidence - 0.05 * len(fc.verdict_meta.uncertainty_signals)))
+        claim_confidences: list[float] = [
+            fc.confidence for fc in fact_checks if fc.confidence >= 0.0
+        ]
 
-        # Wenn Einzelverdicts Unsicherheiten haben, senke Synthese-Confidence
-        if verdict_confidences:
-            avg_verdict_conf = sum(verdict_confidences) / len(verdict_confidences)
-            confidence = min(raw_confidence, avg_verdict_conf + 0.05)
+        if claim_confidences:
+            avg_claim_conf = sum(claim_confidences) / len(claim_confidences)
+            min_claim_conf = min(claim_confidences)
+            # Synthese-Confidence ≤ Durchschnitt und ≤ niedrigster Claim + 0.10
+            # und ≤ LLM-Rohwert (Belt-and-Suspenders)
+            confidence = min(raw_confidence, avg_claim_conf, min_claim_conf + 0.10)
         else:
+            # Fallback für Altdaten ohne kalibrierte Per-Claim-Confidences
             confidence = raw_confidence
 
-        # Ceiling: Bei nur 1 Fact-Check und keinen starken Quellen → max 0.80
+        # Ceiling: Bei nur 1 Fact-Check ohne starke Quellen → max 0.80
         if len(fact_checks) == 1 and not any(
             fc.verdict_meta and fc.verdict_meta.primary_sources_consulted
             for fc in fact_checks

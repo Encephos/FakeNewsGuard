@@ -556,6 +556,7 @@ class VerdictAgent(BaseAgent):
             cove_trace=cove_trace,
             uncertainty_signals=uncertainty_signals,
             confidence_reduction_reason=confidence_reduction_reason,
+            calibrated_confidence=calibrated_confidence,
             verdict_based_on_fact_check_org=bool(pack.google_fact_check_matches),
             primary_sources_consulted=(
                 pack.evidence_quality.has_primary_sources
@@ -583,6 +584,7 @@ class VerdictAgent(BaseAgent):
         result = FactCheckResult(
             claim_id=claim.id,
             rating=rating,
+            confidence=calibrated_confidence,
             evidence=raw.get("evidence", ""),
             correction=raw.get("correction", ""),
             missing_context=raw.get("missing_context", ""),
