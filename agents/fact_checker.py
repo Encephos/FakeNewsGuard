@@ -227,8 +227,13 @@ def _build_search_queries_from_profile(claim: "ProcessedClaim") -> list[str]:  #
                 queries.append(q1.strip())
 
     # ── Query 2: official-source ───────────────────────────────────────────
+    # site:-Operator wird entfernt: SearXNG reicht ihn nicht zuverlässig an alle
+    # Engines weiter. Stattdessen Domain als Keyword verwenden.
     if profile.official_source_hints:
-        q2_parts = [profile.official_source_hints[0]]
+        hint = profile.official_source_hints[0]
+        if hint.startswith("site:"):
+            hint = hint[5:]  # "site:hannover.de" → "hannover.de"
+        q2_parts = [hint]
         q2_parts.extend(profile.institutions[:1])
         q2_parts.extend(profile.policy_terms[:1])
         # Ergänze Ort wenn noch nicht durch Institution abgedeckt
@@ -241,8 +246,12 @@ def _build_search_queries_from_profile(claim: "ProcessedClaim") -> list[str]:  #
             queries.append(q2.strip())
 
     # ── Query 3: fact-check ────────────────────────────────────────────────
+    # site:-Operator wird entfernt: Faktencheck-Organisation als Keyword stattdessen.
     if profile.fact_check_hints:
-        q3_parts = [profile.fact_check_hints[0]]
+        hint = profile.fact_check_hints[0]
+        if hint.startswith("site:"):
+            hint = hint[5:]  # "site:correctiv.org" → "correctiv.org"
+        q3_parts = [hint]
         q3_parts.extend(profile.core_entities[:1])
         q3_parts.extend(profile.policy_terms[:1])
         q3 = " ".join(p for p in q3_parts if p)

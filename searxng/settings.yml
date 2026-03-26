@@ -1,52 +1,93 @@
-use_default_settings: true
+use_default_settings:
+  engines:
+    keep_only:
+      - duckduckgo
+      - brave
+      - qwant
+      - wikipedia
+      - wikidata
+      - tagesschau
+
+general:
+  debug: false
+  instance_name: "FakeNewsGuard Search"
+  enable_metrics: true
 
 search:
   safe_search: 0
   autocomplete: ""
+  favicon_resolver: ""
   default_lang: "de"
+  languages:
+    - all
+    - de
+    - en
+    - en-US
   formats:
     - html
     - json
+  ban_time_on_fail: 5
+  max_ban_time_on_fail: 60
+  suspended_times:
+    SearxEngineTooManyRequests: 900
+    SearxEngineAccessDenied: 3600
+    SearxEngineCaptcha: 3600
+    cf_SearxEngineAccessDenied: 3600
+    cf_SearxEngineCaptcha: 7200
 
 server:
   secret_key: "fakeguard-searxng-secret-change-me"
-  limiter: false
+  limiter: true
+  public_instance: false
   image_proxy: false
   port: 8080
   bind_address: "0.0.0.0"
+  method: "GET"
+
+redis:
+  url: "redis://valkey:6379/0"
+
+outgoing:
+  request_timeout: 3.0
+  max_request_timeout: 8.0
+  useragent_suffix: "FakeNewsGuard"
+  pool_connections: 100
+  pool_maxsize: 30
+  enable_http2: true
+
+plugins: {}
 
 engines:
-  - name: google
-    engine: google
-    shortcut: g
-    disabled: false
-
   - name: duckduckgo
-    engine: duckduckgo
-    shortcut: ddg
     disabled: false
+    timeout: 3.0
+    weight: 1.1
+    send_accept_language_header: true
 
-  - name: bing
-    engine: bing
-    shortcut: b
+  - name: brave
     disabled: false
+    timeout: 3.0
+    weight: 1.0
+    send_accept_language_header: true
+
+  - name: qwant
+    disabled: false
+    timeout: 3.0
+    weight: 0.9
+    send_accept_language_header: true
 
   - name: wikipedia
-    engine: wikipedia
-    shortcut: wp
     disabled: false
-
-  - name: google news
-    engine: google_news
-    shortcut: gn
-    disabled: false
+    weight: 0.7
 
   - name: wikidata
-    engine: wikidata
-    shortcut: wd
     disabled: false
+    weight: 0.6
 
-  - name: google scholar
-    engine: google_scholar
-    shortcut: gsc
+  - name: tagesschau
     disabled: false
+    categories:
+      - news
+      - general
+    timeout: 3.0
+    weight: 1.1

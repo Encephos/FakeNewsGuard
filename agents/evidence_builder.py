@@ -25,7 +25,7 @@ from typing import Any
 from urllib.parse import urlparse
 
 from agents.base import BaseAgent
-from config import AppConfig, EvidenceRetrievalConfig
+from config import AppConfig, EvidenceRetrievalConfig, SEARXNG_WEB_ENGINES, SEARXNG_NEWS_ENGINES
 from models.evidence_models import (
     EvidenceContradiction,
     EvidenceItem,
@@ -41,7 +41,7 @@ from tools.llm import LLMClient
 from tools.scrape_ranker import RankedSource, rank_sources
 from tools.source_classifier import classify_source
 from tools.source_scraper import ScrapedSource, scrape_sources
-from tools.web_search import AsyncWebSearchClient, LangSearchClient, SearchResult, SearXNGClient, TavilyClient, WebSearchClient
+from tools.web_search import AsyncWebSearchClient, LangSearchClient, SearchResult, SearXNGClient, SearXNGQuery, TavilyClient, WebSearchClient
 
 
 # ── Deduplication ─────────────────────────────────────────────────────────────
@@ -1223,8 +1223,21 @@ class EvidenceBuilderAgent(BaseAgent):
         tavily_queries_list = queries[:tavily_primary_n] if tavily_primary_n > 0 else []
 
         # Parallele Tasks starten
+        # SearXNG: Per-Query-Routing – Faktencheck/Falschmeldung-Queries durch News-Engines,
+        # Regulatory/Current-State-Claims mit time_range="year"
+        searxng_queries: list[SearXNGQuery] = []
+        for q in queries:
+            sq = SearXNGQuery(query=q, categories=categories)
+            if "Faktencheck" in q or "Falschmeldung" in q:
+                sq.engines = SEARXNG_NEWS_ENGINES
+            elif is_current_state:
+                sq.engines = SEARXNG_NEWS_ENGINES
+                sq.time_range = "year"
+            else:
+                sq.engines = SEARXNG_WEB_ENGINES
+            searxng_queries.append(sq)
         searxng_task = self._searxng.multi_search_async(
-            queries, max_results=self.config.searxng.max_results, categories=categories,
+            searxng_queries, max_results=self.config.searxng.max_results,
         )
         langsearch_task = self._langsearch.multi_search_async(
             langsearch_queries, max_results=self.config.langsearch.max_results,
