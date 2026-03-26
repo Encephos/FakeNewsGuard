@@ -240,6 +240,45 @@ const de = {
     accepted: "Datenverarbeitung zugestimmt",
   },
 
+  // ── Graph Explorer ────────────────────────────────────────────
+  graph: {
+    title: "Netzwerk",
+    description: "Interaktive Visualisierung der Beziehungen zwischen überprüften Claims, Quellen und erwähnten Akteuren.",
+    stats: {
+      nodes: "Knoten",
+      edges: "Verbindungen",
+      claims: "Claims",
+      sources: "Quellen",
+      actors: "Akteure",
+    },
+    searchPlaceholder: "Suche im Graphen…",
+    typeFilterFilter: "Alle Typen",
+    loading: "Graph wird geladen…",
+    noData: "Keine Netzwerkdaten verfügbar.",
+    nodeTypes: {
+      CLAIM: "Claim",
+      SOURCE: "Quelle",
+      ACTOR: "Akteur",
+    },
+    detail: {
+      neighbors: "Verbundene Knoten ({count})",
+      relation: "Beziehung",
+      noNeighbors: "Keine Verbindungen",
+      rating: "Bewertung",
+      claimType: "Art des Claims",
+      totalReferences: "Erwähnungen gesamt",
+      viewAnalysis: "Analyse ansehen",
+      relationLabels: {
+        supported_by: "Gestützt von",
+        contradicted_by: "Widersprochen von",
+        mentions: "Erwähnt",
+        related_to: "Verwandt mit",
+        cites: "Zitiert",
+        referenced_by: "Referenziert von",
+      },
+    },
+  },
+
   // ── Metadata ──────────────────────────────────────────────────
   meta: {
     description: "KI-gestützter Faktencheck für Nachrichten und Behauptungen",

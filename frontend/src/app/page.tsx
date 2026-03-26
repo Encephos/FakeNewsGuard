@@ -7,7 +7,7 @@ import ResultDisplay from "./components/ResultDisplay";
 import NeuralBrain from "./components/NeuralBrain";
 import LeftPanel from "./components/LeftPanel";
 import RightPanel from "./components/RightPanel";
-import { analyzeArticle, resumeJob, setAuthToken } from "./lib/api";
+import { analyzeArticle, resumeJob, setAuthToken, AnalysisJobResult } from "./lib/api";
 import { useAuth } from "./lib/auth";
 import { AnalysisState, Step, AnalysisResult, ExtractedContent, ScoutTier } from "./lib/types";
 import { useI18n } from "./lib/i18n";
@@ -19,8 +19,12 @@ const CONSENT_STORAGE_KEY = "fng_consent";
 
 export default function Home() {
   const [state, setState] = useState<AnalysisState>({ status: "idle" });
+  const [archiveId, setArchiveId] = useState<string | undefined>(undefined);
+  const [sourceUrl, setSourceUrl] = useState<string | undefined>(undefined);
   const [tier, setTier] = useState<ScoutTier>("max");
   const [consent, setConsent] = useState<boolean>(false);
+  const [isMobileHeaderOpen, setIsMobileHeaderOpen] = useState(true);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const resultRef = useRef<HTMLDivElement>(null);
   const { user, token } = useAuth();
   const { t } = useI18n();
@@ -121,14 +125,16 @@ export default function Home() {
     });
   }, []);
 
-  const finishWithResult = useCallback((result: AnalysisResult) => {
+  const finishWithResult = useCallback((jobResult: AnalysisJobResult) => {
     localStorage.removeItem(STORAGE_KEY);
+    setArchiveId(jobResult.archiveId);
     setState((prev) => ({
       status: "done",
       steps: prev.status === "analyzing" ? prev.steps : [],
-      result,
+      result: jobResult.result,
       extractedContent: (prev as { extractedContent?: ExtractedContent }).extractedContent,
     }));
+    setIsMobileHeaderOpen(false);
   }, []);
 
   const finishWithError = useCallback((message: string) => {
@@ -153,9 +159,12 @@ export default function Home() {
   const handleSubmit = useCallback(
     async (text: string, url?: string, selectedTier?: ScoutTier) => {
       const useTier = selectedTier ?? tier;
+      setSourceUrl(url);
+      setArchiveId(undefined);
       setState({ status: "analyzing", steps: [], currentPhase: url ? "Phase 0" : "Phase 1" });
+      setIsMobileHeaderOpen(true);
       try {
-        const result = await analyzeArticle(
+        const jobResult = await analyzeArticle(
           text,
           onStep,
           (jobId) => {
@@ -168,7 +177,7 @@ export default function Home() {
           url,
           useTier,
         );
-        finishWithResult(result);
+        finishWithResult(jobResult);
       } catch (err: unknown) {
         const message =
           err instanceof Error ? err.message : "Analyse fehlgeschlagen. Bitte erneut versuchen.";
@@ -232,15 +241,41 @@ export default function Home() {
 
         {/* Main content */}
         <div className="min-w-0 px-1 lg:px-8 py-5">
+          {/* Mobile Collapsible Header */}
           {(state.status === "analyzing" || state.status === "done") && (
-            <ReasoningSteps steps={steps} isActive={isAnalyzing} />
+            <div className="lg:hidden glass-card mb-5 overflow-hidden animate-fade-in relative">
+              <button 
+                onClick={() => setIsMobileHeaderOpen((o) => !o)} 
+                className="w-full px-4 py-3 flex items-center justify-between text-xs font-semibold text-text-secondary hover:text-text-primary transition-colors bg-white/5 active:bg-white/10"
+              >
+                <span>{state.status === "analyzing" ? "Analyse läuft..." : "Resultate & Metriken"}</span>
+                <span className="text-[10px] transform transition-transform duration-200" style={{ transform: isMobileHeaderOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>
+                  ▼
+                </span>
+              </button>
+              
+              {isMobileHeaderOpen && (
+                <div className="border-t border-[var(--glass-inner-border)] animate-fade-in">
+                  {isAnalyzing && <NeuralBrain />}
+                  <RightPanel steps={steps} result={result} isAnalyzing={isAnalyzing} />
+                </div>
+              )}
+            </div>
           )}
 
-          {isAnalyzing && <NeuralBrain />}
+          {(state.status === "analyzing" || state.status === "done") && (
+            <div className="hidden lg:block">
+              <ReasoningSteps steps={steps} isActive={isAnalyzing} />
+            </div>
+          )}
+
+          <div className="hidden lg:block">
+            {isAnalyzing && <NeuralBrain />}
+          </div>
 
           {state.status === "done" && (
             <div ref={resultRef}>
-              <ResultDisplay result={state.result} />
+              <ResultDisplay result={state.result} archiveId={archiveId} sourceUrl={sourceUrl} />
             </div>
           )}
 
@@ -267,11 +302,58 @@ export default function Home() {
       </div>
 
       {/* Input bar – floating glass at bottom */}
-      <div className="sticky bottom-3 mx-4 glass-bar rounded-2xl px-4 py-2.5 shadow-lg">
-        <div className="max-w-3xl mx-auto">
-          <ChatInput onSubmit={handleSubmit} disabled={isAnalyzing} tier={tier} onTierChange={handleTierChange} />
+      <div className="sticky bottom-3 mx-4 z-40">
+        {(state.status === "analyzing" || state.status === "done") && (
+          <div className="flex justify-center mb-3 lg:hidden">
+            <button
+              onClick={() => setIsDrawerOpen(true)}
+              className="glass-button rounded-full px-5 py-2.5 shadow-lg flex items-center gap-2.5 text-xs font-medium border border-[var(--glass-inner-border)] backdrop-blur-md"
+            >
+              <span className={`h-2 w-2 rounded-full ${state.status === "analyzing" ? "bg-warning animate-pulse-dot" : "bg-success"}`} />
+              {state.status === "analyzing" ? "Fortschritt anzeigen" : "Analyse-Details ansehen"}
+            </button>
+          </div>
+        )}
+        <div className="glass-bar rounded-2xl px-4 py-2.5 shadow-lg">
+          <div className="max-w-3xl mx-auto">
+            <ChatInput onSubmit={handleSubmit} disabled={isAnalyzing} tier={tier} onTierChange={handleTierChange} />
+          </div>
         </div>
       </div>
+
+      {/* Mobile Drawer (Bottom Sheet) */}
+      {isDrawerOpen && (
+        <div className="fixed inset-0 z-[100] lg:hidden flex flex-col justify-end animate-fade-in">
+          {/* Backdrop */}
+          <div 
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm" 
+            onClick={() => setIsDrawerOpen(false)}
+          />
+          {/* Sheet */}
+          <div className="relative bg-[#111] border-t border-[var(--glass-inner-border)] rounded-t-3xl w-full max-h-[85vh] flex flex-col shadow-2xl">
+            {/* Handle for visual dragging metaphor */}
+            <div className="w-full flex justify-center py-3 cursor-pointer" onClick={() => setIsDrawerOpen(false)}>
+              <div className="w-12 h-1.5 rounded-full bg-text-tertiary/40" />
+            </div>
+            
+            <div className="px-5 pb-4 border-b border-[var(--glass-inner-border)] flex justify-between items-center">
+              <h3 className="text-sm font-semibold tracking-wide text-text-primary">Analyse-Details</h3>
+              <button onClick={() => setIsDrawerOpen(false)} className="p-2 -mr-2 text-text-tertiary hover:text-text-primary transition-colors">
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M1 1L13 13M1 13L13 1" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              <div className="glass-card rounded-2xl overflow-hidden bg-white/5">
+                <LeftPanel steps={steps} result={result} isAnalyzing={isAnalyzing} />
+              </div>
+              <ReasoningSteps steps={steps} isActive={isAnalyzing} />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

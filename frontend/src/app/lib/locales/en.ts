@@ -248,6 +248,45 @@ const en = {
     accepted: "Data processing accepted",
   },
 
+  // ── Graph Explorer ────────────────────────────────────────────
+  graph: {
+    title: "Network",
+    description: "Interactive visualization of relationships between checked claims, sources, and mentioned actors.",
+    stats: {
+      nodes: "Nodes",
+      edges: "Connections",
+      claims: "Claims",
+      sources: "Sources",
+      actors: "Actors",
+    },
+    searchPlaceholder: "Search graph…",
+    typeFilterFilter: "All Types",
+    loading: "Loading graph…",
+    noData: "No network data available.",
+    nodeTypes: {
+      CLAIM: "Claim",
+      SOURCE: "Source",
+      ACTOR: "Actor",
+    },
+    detail: {
+      neighbors: "Connected Nodes ({count})",
+      relation: "Relation",
+      noNeighbors: "No connections",
+      rating: "Rating",
+      claimType: "Claim Type",
+      totalReferences: "Total references",
+      viewAnalysis: "View Analysis",
+      relationLabels: {
+        supported_by: "Supported by",
+        contradicted_by: "Contradicted by",
+        mentions: "Mentions",
+        related_to: "Related to",
+        cites: "Cites",
+        referenced_by: "Referenced by",
+      },
+    },
+  },
+
   // ── Metadata ──────────────────────────────────────────────────
   meta: {
     description: "AI-powered fact-checking for news and claims",

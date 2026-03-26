@@ -1,4 +1,9 @@
-import { Step, AnalysisResult, ExtractedContent, ScoutTier } from "./types";
+import { Step, AnalysisResult, ExtractedContent, ScoutTier, GraphStats, GraphSearchResult, GraphNodeDetail } from "./types";
+
+export interface AnalysisJobResult {
+  result: AnalysisResult;
+  archiveId?: string;
+}
 
 const BASE_URL = "/api";
 const POLL_INTERVAL_MS = 2000;
@@ -129,7 +134,7 @@ export async function resumeJob(
   jobId: string,
   onStep: (step: Step) => void,
   onExtractedContent?: (content: ExtractedContent) => void,
-): Promise<AnalysisResult> {
+): Promise<AnalysisJobResult> {
   const seenStepIds = new Set<string>();
   let extractedContentEmitted = false;
 
@@ -158,7 +163,10 @@ export async function resumeJob(
 
     if (data.status === "done") {
       if (!data.result) throw new Error("Kein Ergebnis vom Server erhalten.");
-      return data.result as AnalysisResult;
+      return {
+        result: data.result as AnalysisResult,
+        archiveId: data.archive_id as string | undefined,
+      };
     }
     if (data.status === "error") {
       throw new Error(data.error ?? "Analyse fehlgeschlagen.");
@@ -181,10 +189,54 @@ export async function analyzeArticle(
   onExtractedContent?: (content: ExtractedContent) => void,
   url?: string,
   tier: ScoutTier = "max",
-): Promise<AnalysisResult> {
+): Promise<AnalysisJobResult> {
   const jobId = await submitJob(text, url, tier);
   onJobId?.(jobId);
   return resumeJob(jobId, onStep, onExtractedContent);
+}
+
+// ── Graph API ────────────────────────────────────────────────────
+
+export async function fetchGraphStats(): Promise<GraphStats> {
+  const res = await fetch(`${BASE_URL}/graph/stats`);
+  if (!res.ok) throw new Error(`Graph stats error: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchGraphSearch(
+  type?: string,
+  q?: string,
+  limit = 50,
+): Promise<GraphSearchResult> {
+  const params = new URLSearchParams();
+  if (type) params.set("type", type);
+  if (q) params.set("q", q);
+  params.set("limit", String(limit));
+  const res = await fetch(`${BASE_URL}/graph/search?${params}`);
+  if (!res.ok) throw new Error(`Graph search error: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchGraphNode(nodeId: string): Promise<GraphNodeDetail> {
+  const res = await fetch(`${BASE_URL}/graph/node/${encodeURIComponent(nodeId)}`);
+  if (!res.ok) throw new Error(`Graph node error: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchGraphActor(
+  actorName: string,
+): Promise<{ actor: string; claims: { id: string; text: string; rating: string }[] }> {
+  const res = await fetch(`${BASE_URL}/graph/actor/${encodeURIComponent(actorName)}`);
+  if (!res.ok) throw new Error(`Graph actor error: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchGraphSource(
+  domain: string,
+): Promise<{ domain: string; total_references: number; claims: { claim: string; relation: string; rating: string }[] }> {
+  const res = await fetch(`${BASE_URL}/graph/source/${encodeURIComponent(domain)}`);
+  if (!res.ok) throw new Error(`Graph source error: ${res.status}`);
+  return res.json();
 }
 
 function sleep(ms: number): Promise<void> {
