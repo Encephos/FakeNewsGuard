@@ -23,7 +23,7 @@ from agents.evidence_builder import (
     _relevance_score,
     _rank_evidence_items,
 )
-from models.evidence_models import GoogleFactCheckMatch
+from models.evidence_models import EvidenceItem, EvidenceSource, GoogleFactCheckMatch
 from tools.web_search import SearchResult
 
 
@@ -187,20 +187,17 @@ class TestRankingOffTopicFiltering:
     def test_offtopic_tier5_results_removed(self):
         """Irrelevante Tier-5 Treffer mit niedrigem Score werden verworfen."""
         results = [
-            SearchResult(
-                title="PKS 2023 Kriminalstatistik Deutschland",
-                url="https://bka.de/pks",
-                snippet="Kriminalität Deutschland 2023 stieg um 5,5%",
+            EvidenceItem(
+                source=EvidenceSource(url="https://bka.de/pks", title="PKS 2023 Kriminalstatistik Deutschland"),
+                excerpt="Kriminalität Deutschland 2023 stieg um 5,5%",
             ),
-            SearchResult(
-                title="Die besten Pasta-Rezepte",
-                url="https://chefkoch.de/rezepte",
-                snippet="Leckere Pasta für den Sommer kochen",
+            EvidenceItem(
+                source=EvidenceSource(url="https://chefkoch.de/rezepte", title="Die besten Pasta-Rezepte"),
+                excerpt="Leckere Pasta für den Sommer kochen",
             ),
-            SearchResult(
-                title="Grammatik-Übungen Deutsch",
-                url="https://duden.de/grammatik/uebungen",
-                snippet="Übungen zur deutschen Grammatik für Anfänger",
+            EvidenceItem(
+                source=EvidenceSource(url="https://duden.de/grammatik/uebungen", title="Grammatik-Übungen Deutsch"),
+                excerpt="Übungen zur deutschen Grammatik für Anfänger",
             ),
         ]
         claim = "Die Kriminalität in Deutschland ist 2023 um 50% gestiegen."

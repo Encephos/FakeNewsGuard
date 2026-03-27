@@ -118,20 +118,17 @@ class TestRegressionOffTopicEvidence:
     def test_case_grammar_pages_filtered(self):
         """Fall: Grammatikseiten in Suchtreffer bei Kriminalitäts-Claim."""
         results = [
-            SearchResult(
-                title="PKS 2023: Polizeiliche Kriminalstatistik",
-                url="https://bka.de/pks-2023",
-                snippet="Die Kriminalität in Deutschland stieg 2023 um 5,5%.",
+            EvidenceItem(
+                source=EvidenceSource(url="https://bka.de/pks-2023", title="PKS 2023: Polizeiliche Kriminalstatistik"),
+                excerpt="Die Kriminalität in Deutschland stieg 2023 um 5,5%.",
             ),
-            SearchResult(
-                title="Grammatik: Konjugation 'steigen'",
-                url="https://duden.de/konjugation/steigen",
-                snippet="Das Verb steigen wird wie folgt konjugiert...",
+            EvidenceItem(
+                source=EvidenceSource(url="https://duden.de/konjugation/steigen", title="Grammatik: Konjugation 'steigen'"),
+                excerpt="Das Verb steigen wird wie folgt konjugiert...",
             ),
-            SearchResult(
-                title="Restaurant 'Zum Kriminellen' in Berlin",
-                url="https://restaurant-berlin.de/zum-kriminellen",
-                snippet="Genießen Sie unsere Spezialitäten in gemütlicher Atmosphäre.",
+            EvidenceItem(
+                source=EvidenceSource(url="https://restaurant-berlin.de/zum-kriminellen", title="Restaurant 'Zum Kriminellen' in Berlin"),
+                excerpt="Genießen Sie unsere Spezialitäten in gemütlicher Atmosphäre.",
             ),
         ]
         claim = "Die Kriminalität in Deutschland ist 2023 um 50% gestiegen."
@@ -145,15 +142,13 @@ class TestRegressionOffTopicEvidence:
     def test_case_bussgeld_pages_deprioritized(self):
         """Fall: Bußgeld-Seiten bei Geschwindigkeits-Claim."""
         results = [
-            SearchResult(
-                title="Tempolimit-Debatte: Faktencheck",
-                url="https://correctiv.org/tempolimit-faktencheck",
-                snippet="Correctiv prüft die Behauptung zum Tempolimit auf deutschen Autobahnen.",
+            EvidenceItem(
+                source=EvidenceSource(url="https://correctiv.org/tempolimit-faktencheck", title="Tempolimit-Debatte: Faktencheck"),
+                excerpt="Correctiv prüft die Behauptung zum Tempolimit auf deutschen Autobahnen.",
             ),
-            SearchResult(
-                title="Bußgeldkatalog 2024: Alle Strafen",
-                url="https://bussgeldkatalog.de/geschwindigkeit",
-                snippet="Hier finden Sie alle Bußgelder für Geschwindigkeitsüberschreitungen.",
+            EvidenceItem(
+                source=EvidenceSource(url="https://bussgeldkatalog.de/geschwindigkeit", title="Bußgeldkatalog 2024: Alle Strafen"),
+                excerpt="Hier finden Sie alle Bußgelder für Geschwindigkeitsüberschreitungen.",
             ),
         ]
         claim = "Ein Tempolimit von 130 km/h würde die CO2-Emissionen um 5% senken."
@@ -332,11 +327,11 @@ class TestRegressionEndToEnd:
     def test_no_offtopic_in_top_evidence(self):
         """Off-topic Treffer dürfen nicht in den Top-5 Evidence Items sein."""
         results = [
-            SearchResult(title="BKA PKS 2023", url="https://bka.de/pks", snippet="Kriminalstatistik 2023 Deutschland Straftaten gestiegen 5,5%"),
-            SearchResult(title="Correctiv Faktencheck", url="https://correctiv.org/faktencheck/kriminalitaet", snippet="Faktencheck: Kriminalität Deutschland 2023"),
-            SearchResult(title="Pasta-Rezepte", url="https://chefkoch.de/pasta-rezepte", snippet="Die besten Nudel-Rezepte für jeden Tag"),
-            SearchResult(title="Duden Grammatik", url="https://duden.de/grammatik/dativ", snippet="Der Dativ ist dem Genitiv sein Tod"),
-            SearchResult(title="Amazon Buch", url="https://amazon.de/shop/buch-kriminalitaet", snippet="Kaufen Sie das Buch über Kriminalität"),
+            EvidenceItem(source=EvidenceSource(url="https://bka.de/pks", title="BKA PKS 2023"), excerpt="Kriminalstatistik 2023 Deutschland Straftaten gestiegen 5,5%"),
+            EvidenceItem(source=EvidenceSource(url="https://correctiv.org/faktencheck/kriminalitaet", title="Correctiv Faktencheck"), excerpt="Faktencheck: Kriminalität Deutschland 2023"),
+            EvidenceItem(source=EvidenceSource(url="https://chefkoch.de/pasta-rezepte", title="Pasta-Rezepte"), excerpt="Die besten Nudel-Rezepte für jeden Tag"),
+            EvidenceItem(source=EvidenceSource(url="https://duden.de/grammatik/dativ", title="Duden Grammatik"), excerpt="Der Dativ ist dem Genitiv sein Tod"),
+            EvidenceItem(source=EvidenceSource(url="https://amazon.de/shop/buch-kriminalitaet", title="Amazon Buch"), excerpt="Kaufen Sie das Buch über Kriminalität"),
         ]
         claim = "Die Kriminalität in Deutschland ist 2023 um 50% gestiegen."
         ranked = _rank_evidence_items(results, claim, [])
