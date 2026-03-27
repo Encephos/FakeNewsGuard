@@ -751,7 +751,6 @@ class SourceLayerConfig:
 
 
 @dataclass
-@dataclass
 class SourceClientsConfig:
     """Konfiguration für institutionelle Data Source Clients (Eurostat, openFDA, etc.).
 
@@ -796,6 +795,7 @@ class SourceClientsConfig:
             self.static_source_ttl_hours = int(v)
 
 
+@dataclass
 class AppConfig:
     llm: LLMConfig = field(default_factory=LLMConfig)
     search: SearchConfig = field(default_factory=SearchConfig)
