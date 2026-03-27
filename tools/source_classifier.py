@@ -2,6 +2,12 @@
 
 Klassifiziert Suchergebnis-URLs nach Glaubwürdigkeitsstufen und
 berechnet einen Quellen-Konsens-Score.
+
+Die statische ``_TIER_PATTERNS``-Liste wird beim Modulimport automatisch
+um Domain-Muster aus der SourceRegistry (tools.sources) ergänzt.
+Dadurch ist die Source Registry die einzige Pflegestelle für neue
+institutionelle Quellen – source_classifier.py muss nicht manuell
+erweitert werden.
 """
 
 from __future__ import annotations
@@ -25,6 +31,7 @@ class SourceTier(IntEnum):
 
 
 # Domain → Tier Mapping (Substring-Matching auf Hostname)
+# Hinweis: Wird nach Klassendefinition durch _extend_from_registry() ergänzt.
 _TIER_PATTERNS: list[tuple[SourceTier, list[str]]] = [
     (SourceTier.OFFICIAL, [
         "destatis.de", "eurostat.ec.europa.eu", "ec.europa.eu/eurostat",
@@ -183,3 +190,53 @@ def compute_source_consensus(classified: list[ClassifiedSource]) -> dict:
         "highest_tier": highest.tier_label,
         "diversity": diversity,
     }
+
+
+# ── Registry-Integration ──────────────────────────────────────────────────────
+
+
+def _extend_from_registry() -> None:
+    """Ergänzt _TIER_PATTERNS um Domain-Muster aus der SourceRegistry.
+
+    Wird einmalig beim Modulimport aufgerufen. Quellen mit domain_tier() <= 2
+    (authority_weight >= 0.75) werden als SourceTier.OFFICIAL eingestuft;
+    Quellen mit domain_tier() == 3 als SourceTier.QUALITY_JOURNALISM.
+
+    Bereits in _TIER_PATTERNS enthaltene Domains werden nicht doppelt hinzugefügt.
+    Import-Fehler (Registry nicht verfügbar) werden still ignoriert, damit
+    source_classifier.py unabhängig von tools.sources verwendbar bleibt.
+    """
+    try:
+        from tools.sources.registry import SourceRegistry  # noqa: PLC0415
+    except ImportError:
+        return
+
+    # Bereits bekannte Domain-Muster sammeln (für Deduplizierung)
+    existing: set[str] = set()
+    for _, patterns in _TIER_PATTERNS:
+        existing.update(patterns)
+
+    # Tier-Mapping: domain_tier() → SourceTier
+    tier_map = {
+        1: SourceTier.OFFICIAL,
+        2: SourceTier.OFFICIAL,
+        3: SourceTier.QUALITY_JOURNALISM,
+    }
+
+    additions: dict[SourceTier, list[str]] = {}
+    for source in SourceRegistry.all():
+        st = tier_map.get(source.domain_tier())
+        if st is None:
+            continue
+        for domain in source.classifier_domains:
+            if domain not in existing:
+                additions.setdefault(st, []).append(domain)
+                existing.add(domain)
+
+    # Neue Einträge vorne einfügen (vor MEDIA/USER_GENERATED, nach bestehenden OFFICIAL)
+    for source_tier, domains in additions.items():
+        if domains:
+            _TIER_PATTERNS.insert(0, (source_tier, domains))
+
+
+_extend_from_registry()

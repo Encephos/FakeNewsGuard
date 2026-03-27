@@ -291,6 +291,18 @@ class EvidencePack(BaseModel):
         description="Kanonisierte Form des Claims (leer = nicht kanonisiert)",
     )
 
+    # ── Institutionelle API-Quellen (OfficialEvidenceItem) ───────────────────
+    official_results: list["OfficialEvidenceItem"] = Field(
+        default_factory=list,
+        description=(
+            "Normalisierte Evidence-Items aus institutionellen API-Quellen "
+            "(World Bank, Eurostat, EUR-Lex, GLEIF, openFDA, ClinicalTrials, "
+            "DailyMed, USPTO, Companies House, OpenAlex, Crossref, arXiv, PubMed). "
+            "Wird vom OfficialSourceAgent befüllt, bevor EvidenceBuilderAgent "
+            "die Items via to_evidence_item() in web_results integriert."
+        ),
+    )
+
     # ── Retrieval-Metadaten ──────────────────────────────────────────────────
     queries_used: list[str] = Field(
         default_factory=list,
@@ -411,3 +423,18 @@ class EvidencePack(BaseModel):
             )
 
         return "\n".join(parts) if parts else "Keine Evidenz gefunden."
+
+
+# ── Forward-Reference-Auflösung ──────────────────────────────────────────────
+# EvidencePack.official_results referenziert OfficialEvidenceItem als String.
+# model_rebuild() muss nach dem Import von source_evidence ausgeführt werden.
+
+def _rebuild_evidence_models() -> None:
+    from models.source_evidence import OfficialEvidenceItem  # noqa: F401
+    EvidencePack.model_rebuild()
+
+
+try:
+    _rebuild_evidence_models()
+except Exception:
+    pass
