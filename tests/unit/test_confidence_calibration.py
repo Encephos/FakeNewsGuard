@@ -76,8 +76,10 @@ def _make_evidence_pack(
         google_fact_check_matches=gfc_matches or [],
         web_results=web_results,
         evidence_quality=EvidenceQualitySignals(
-            has_primary_sources=has_primary,
-            has_fact_check_org_result=has_fc,
+            has_primary_source_any=has_primary,
+            has_fact_check_any=has_fc,
+            has_primary_sources=has_primary,      # deprecated alias
+            has_fact_check_org_result=has_fc,     # deprecated alias
             source_consensus=consensus,
             freshness_score=0.8,
             overall_quality=overall_quality,

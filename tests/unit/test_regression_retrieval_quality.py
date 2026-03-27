@@ -1420,8 +1420,12 @@ class TestRecencyMerzClaim:
         assert signals.freshness_score >= 0.70, (
             f"Frische 2026-Quellen müssen Freshness >= 0.70 haben, hat: {signals.freshness_score:.2f}"
         )
-        assert signals.overall_quality >= 0.50, (
-            f"Frische Quellen sollen overall_quality >= 0.50 halten, hat: {signals.overall_quality:.2f}"
+        # Kontextuelle Tier-2-Quellen tragen nur 0.10 zum primary_contribution bei
+        # (nicht 0.25), da sie keinen direkten Claim-Bezug haben. Der Threshold
+        # spiegelt die neue Stufenlogik wider: frische offizielle Kontextquellen
+        # haben meaningful Quality, aber nicht so hoch wie direkte Evidenz.
+        assert signals.overall_quality >= 0.35, (
+            f"Frische Quellen sollen overall_quality >= 0.35 halten, hat: {signals.overall_quality:.2f}"
         )
 
     def test_fresh_beats_stale_in_quality(self):

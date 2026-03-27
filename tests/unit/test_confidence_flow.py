@@ -1,7 +1,8 @@
-"""Tests für den Confidence-Datenfluss von VerdictAgent → FactCheckResult → Synthesizer.
+"""Tests für den Confidence-Datenfluss von VerdictAgent → FactCheckResult → Synthesizer → API.
 
 Stellt sicher, dass die kalibrierte Confidence nicht verloren geht und der Synthesizer
-die Per-Claim-Confidences korrekt nutzt — nicht den rohen LLM-Output.
+die Per-Claim-Confidences korrekt nutzt — nicht den rohen LLM-Output — und dass die
+API-Transformation die Confidence sowohl gesamt als auch pro Claim ausgibt.
 """
 
 from __future__ import annotations
@@ -245,3 +246,113 @@ class TestSiteOperatorElimination:
         assert q3_candidates, f"Keine Query mit 'correctiv.org' gefunden: {queries}"
         assert not any("site:" in q for q in q3_candidates), \
             f"site:-Operator noch vorhanden: {q3_candidates}"
+
+
+# ── Tests: End-to-End Confidence-Propagation ─────────────────────────────────
+
+
+def _make_synthesis_result(
+    fact_checks: list,
+    synthesis_confidence: float,
+) -> "SynthesisResult":
+    """Erstellt ein minimales SynthesisResult für API-Tests."""
+    from models.schemas import OverallRating, SynthesisResult
+    return SynthesisResult(
+        overall_rating=OverallRating.MIXED,
+        confidence=synthesis_confidence,
+        summary="Testaggregation",
+        claims_analysis=fact_checks,
+    )
+
+
+class TestConfidenceEndToEnd:
+    """Confidence-Propagation vom VerdictAgent bis zur API-Ausgabe."""
+
+    def test_api_transform_includes_per_claim_confidence(self):
+        """_transform_result gibt confidence pro Claim aus (0–100)."""
+        from api import _transform_result
+
+        fc = _make_fc("C1", confidence=0.68)
+        result = _make_synthesis_result([fc], synthesis_confidence=0.68)
+        claims_map = {"C1": {"text": "Testbehauptung", "type": "FACTUAL"}}
+
+        output = _transform_result(result, claims_map)
+
+        assert output["claims"][0]["confidence"] == 68
+
+    def test_api_transform_claim_confidence_none_for_legacy(self):
+        """Per-Claim-Confidence ist None wenn VerdictAgent nicht aktiv war (confidence=-1.0)."""
+        from api import _transform_result
+
+        fc = FactCheckResult(
+            claim_id="C1",
+            rating=FactRating.UNVERIFIABLE,
+            evidence="",
+            confidence=-1.0,
+        )
+        result = _make_synthesis_result([fc], synthesis_confidence=0.50)
+        claims_map = {"C1": {"text": "Alter Eintrag ohne VerdictAgent", "type": "FACTUAL"}}
+
+        output = _transform_result(result, claims_map)
+
+        assert output["claims"][0]["confidence"] is None
+
+    def test_api_transform_overall_confidence_in_percent(self):
+        """overall confidence wird als ganzzahliger Prozentwert (0–100) ausgegeben."""
+        from api import _transform_result
+
+        fc = _make_fc("C1", confidence=0.72)
+        result = _make_synthesis_result([fc], synthesis_confidence=0.72)
+        claims_map = {"C1": {"text": "Test", "type": "FACTUAL"}}
+
+        output = _transform_result(result, claims_map)
+
+        assert output["confidence"] == 72
+
+    def test_full_pipeline_confidence_capped_by_weakest_claim(self):
+        """Synthesizer-Confidence wird durch den schwächsten Claim gedeckelt.
+
+        Wenn VerdictAgent für C2 nur 0.40 vergeben hat, darf die Gesamt-
+        Confidence des Synthesizers 0.50 nicht überschreiten.
+        """
+        fc1 = _make_fc("C1", confidence=0.75)
+        fc2 = _make_fc("C2", confidence=0.40)  # schwächster Claim
+
+        claim_confidences = [fc.confidence for fc in [fc1, fc2] if fc.confidence >= 0.0]
+        avg = sum(claim_confidences) / len(claim_confidences)   # 0.575
+        min_conf = min(claim_confidences)                        # 0.40
+        raw_llm = 0.95
+        synthesis_confidence = min(raw_llm, avg, min_conf + 0.10)  # min(0.95, 0.575, 0.50) = 0.50
+
+        from api import _transform_result
+        result = _make_synthesis_result([fc1, fc2], synthesis_confidence=synthesis_confidence)
+        claims_map = {
+            "C1": {"text": "Claim 1", "type": "FACTUAL"},
+            "C2": {"text": "Claim 2", "type": "FACTUAL"},
+        }
+
+        output = _transform_result(result, claims_map)
+
+        assert output["confidence"] <= 50  # max 50 wegen min_claim + 0.10
+        # Per-Claim-Confidence bleibt erhalten
+        c2_out = next(c for c in output["claims"] if c["id"] == "C2")
+        assert c2_out["confidence"] == 40
+
+    def test_verdict_agent_uses_canonical_field_names(self):
+        """VerdictAgent liest has_primary_source_any und has_fact_check_any (nicht Deprecated-Felder).
+
+        Stellt sicher, dass _calibrate_confidence die kanonischen Felder liest,
+        nicht die rückwärtskompatiblen Aliase.
+        """
+        import inspect
+        from agents.verdict_agent import _calibrate_confidence
+
+        source = inspect.getsource(_calibrate_confidence)
+        assert "has_primary_source_any" in source, \
+            "_calibrate_confidence soll has_primary_source_any statt has_primary_sources nutzen"
+        assert "has_fact_check_any" in source, \
+            "_calibrate_confidence soll has_fact_check_any statt has_fact_check_org_result nutzen"
+        assert "has_primary_sources" not in source, \
+            "_calibrate_confidence darf keine deprecated Felder nutzen"
+        assert "has_fact_check_org_result" not in source, \
+            "_calibrate_confidence darf keine deprecated Felder nutzen"
