@@ -65,6 +65,9 @@ _CEILING_STALE_SOURCES = 0.72
 _CEILING_CURRENT_STATE_NO_FRESH = 0.55
 # Ceiling wenn keinerlei brauchbare Evidenz vorliegt (kein DIRECT, kein Primary, kein FC, kein Konsens)
 _CEILING_ZERO_USEFUL_EVIDENCE = 0.50
+# Ceiling für Regelungsclaim mit überwiegend thematisch ähnlicher (nicht direkter) Evidenz
+# und ohne Primärquelle: verrauschte Evidenz darf Confidence nicht künstlich hochhalten.
+_CEILING_REGULATORY_NOISY_CONTEXTUAL = 0.45
 # Minimale Anzahl guter Quellen für hohe Confidence
 _MIN_GOOD_SOURCES_FOR_HIGH_CONF = 2
 
@@ -143,6 +146,7 @@ def _calibrate_rating(
     raw_rating: "FactRating",
     pack: "EvidencePack",
     config: VerdictRatingCalibrationConfig | None = None,
+    is_regulatory_claim: bool = False,
 ) -> tuple["FactRating", list[str]]:
     """Regelbasierter Rating-Postprocessor.
 
@@ -236,6 +240,23 @@ def _calibrate_rating(
                 f"MOSTLY_FALSE ohne jegliches Widerlegungssignal → {new_rating.value}"
             )
             rating = new_rating
+
+    # ── Regelungsclaim: MISLEADING ohne jedes Evidenz-Signal → UNVERIFIABLE ────
+    # Bei konkreten Sanktions-/Überwachungs-/Beschlussclaims darf allgemeiner
+    # thematischer Kontext keine MISLEADING-Einstufung erzeugen, wenn:
+    #   a) kein Widerlegungssignal vorliegt (kein REFUTES, kein Faktenchecker, kein Konsens)
+    #   b) keine direkten Belege vorhanden sind (0 DIRECT in Top-5)
+    # In diesem Fall ist die Datenlage zu dünn für eine qualitative Einschätzung.
+    if (
+        is_regulatory_claim
+        and rating == FactRating.MISLEADING
+        and not has_any_refutation_signal
+        and direct_count == 0
+    ):
+        reasons.append(
+            "Regelungsclaim: MISLEADING ohne Widerlegungssignal + 0 direkte Belege → UNVERIFIABLE"
+        )
+        rating = FactRating.UNVERIFIABLE
 
     return rating, reasons
 
@@ -406,6 +427,24 @@ def _calibrate_confidence(
                 f"Ceiling {_CEILING_REGULATORY_NO_DIRECT_EVIDENCE}"
             )
             confidence = min(confidence, _CEILING_REGULATORY_NO_DIRECT_EVIDENCE)
+
+    # Ceiling: Regelungsclaim + überwiegend Kontext-Evidenz + keine Primärquelle/FC
+    # Wenn Top-Treffer zwar thematisch ähnlich, aber nicht claim-direkt sind (z.B.
+    # allgemeine Überwachungsseiten, DSGVO-Artikel ohne konkreten Fallbezug),
+    # darf die Confidence nicht künstlich hochbleiben.
+    if (
+        is_regulatory_claim
+        and _direct_count == 0
+        and _contextual_rate > 0.5
+        and not has_primary
+        and not has_fc
+    ):
+        if confidence > _CEILING_REGULATORY_NOISY_CONTEXTUAL:
+            reasons.append(
+                f"Regelungsclaim: überwiegend Kontext-Evidenz ({_contextual_rate:.0%}), "
+                f"keine Primärquelle → Ceiling {_CEILING_REGULATORY_NOISY_CONTEXTUAL}"
+            )
+            confidence = min(confidence, _CEILING_REGULATORY_NOISY_CONTEXTUAL)
 
     # Ceiling: hohe weak evidence rate (>60% WEAK-Evidenz in Top-5)
     if pack.web_results:
@@ -667,7 +706,23 @@ class VerdictAgent(BaseAgent):
         # Verhindert, dass fehlendes Beweis automatisch zu FALSE führt.
         # Konfiguration kann über data["rating_calibration_config"] übergeben werden.
         rating_config: VerdictRatingCalibrationConfig | None = data.get("rating_calibration_config")
-        rating, rating_calibration_reasons = _calibrate_rating(rating, pack, rating_config)
+        # is_regulatory wird weiter unten bestimmt; für die Rating-Kalibrierung
+        # brauchen wir es bereits hier → vorab ermitteln.
+        from models.schemas import ProcessedClaim as _PC_pre
+        _is_regulatory_pre = False
+        if isinstance(claim, _PC_pre):
+            if claim.frame:
+                _f_pre = claim.frame
+                _is_regulatory_pre = bool(
+                    _f_pre.sanction
+                    or _f_pre.enforcement
+                    or (_f_pre.policy_context and _f_pre.institution)
+                )
+            if not _is_regulatory_pre:
+                _is_regulatory_pre = _is_regulatory_from_text(claim.text)
+        rating, rating_calibration_reasons = _calibrate_rating(
+            rating, pack, rating_config, is_regulatory_claim=_is_regulatory_pre
+        )
 
         # ── Regelbasierte Confidence-Kalibrierung ──────────────────────────────
         # LLM-Confidence wird NICHT direkt übernommen, sondern durch

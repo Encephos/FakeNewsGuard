@@ -400,6 +400,20 @@ def _is_offtopic_content(
     # Policy-sensitiver Filter: Bei Regelungsclaims (Sanktion/Policy vorhanden)
     # müssen strukturelle Claim-Fit-Merkmale stärker greifen.
     is_regulatory = has_sanction_anchor or (has_policy_anchor and has_inst_anchor)
+
+    # Verschärfter Filter: vollständige Regelungsclaims (Sanktion + Policy + Institution)
+    # benötigen mindestens 2 von 3 Kernanker (Institution, Ort, Policy).
+    # Dies verhindert, dass thematisch ähnliche Seiten (z.B. allgemeine DSGVO-Seiten,
+    # generische Videoüberwachungsartikel) als brauchbare Evidenz verbleiben,
+    # wenn sie den konkreten Claim-Kontext nicht treffen.
+    is_fully_regulatory = has_sanction_anchor and has_policy_anchor and has_inst_anchor
+    if is_fully_regulatory:
+        key_hits = sum([inst_hit, loc_hit, policy_hit])
+        if key_hits < 2:
+            # Weniger als 2 Kernanker → für konkrete Regelungsclaims nicht brauchbar
+            penalty = 0.80 if key_hits == 0 else 0.70
+            return True, penalty
+
     if is_regulatory:
         # Für Regelungsclaims: ohne Institution ODER Ort → stärkere Abwertung
         if not inst_hit and not loc_hit:
