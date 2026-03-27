@@ -134,6 +134,10 @@ class VerdictRatingCalibrationConfig:
     # Kontextquellen simulieren keine aktive Widerlegung.
     contextual_only_caps_false_at_misleading: bool = True
 
+    # Mindestanzahl DIRECT-Evidence-Items damit FALSE als aktiv belegt gilt.
+    # Bei direct_count < Schwelle greift contextual_only_caps_false_at_misleading.
+    direct_evidence_min_for_strong_false: int = 1
+
 
 def _calibrate_rating(
     raw_rating: "FactRating",
@@ -215,7 +219,7 @@ def _calibrate_rating(
     if (
         rating == FactRating.FALSE
         and config.contextual_only_caps_false_at_misleading
-        and direct_count == 0
+        and direct_count < config.direct_evidence_min_for_strong_false
         and not has_fc_direct
         and not has_direct_refutation
     ):

@@ -34,14 +34,6 @@ _SEVERITY_WEIGHT: dict[str, float] = {
     Severity.LOW.value: 1.0,
 }
 
-# FABRICATED-Schwelle: mindestens so viele direkt widerlegte Claims
-_FABRICATED_MIN_REFUTED_RATIO = 0.5
-# Rhetorik-Score-Schwellen für Mindestbewertungs-Floors
-_RHETORIC_FLOOR_MISLEADING = 0.5     # ab hier: min MISLEADING wenn unverified_ratio >= 0.4
-_RHETORIC_FLOOR_HIGHLY = 0.7         # ab hier: min HIGHLY_MISLEADING wenn unverified_ratio >= 0.5
-# Normalisierungsbasis für Rhetorik-Score (≙ 3 HIGH-Techniken = 1.0)
-_RHETORIC_NORM_BASE = 9.0
-
 
 @dataclass
 class AggregationSignals:
@@ -148,19 +140,24 @@ class SynthesizerAgent(BaseAgent):
             fc.confidence for fc in fact_checks if fc.confidence >= 0.0
         ]
 
+        synth_cfg = self.config.synthesizer
         if claim_confidences:
             avg_claim_conf = sum(claim_confidences) / len(claim_confidences)
             min_claim_conf = min(claim_confidences)
-            confidence = min(raw_confidence, avg_claim_conf, min_claim_conf + 0.10)
+            confidence = min(
+                raw_confidence,
+                avg_claim_conf,
+                min_claim_conf + synth_cfg.claim_confidence_buffer,
+            )
         else:
             confidence = raw_confidence
 
-        # Ceiling: Bei nur 1 Fact-Check ohne starke Quellen → max 0.80
+        # Ceiling: Bei nur 1 Fact-Check ohne starke Quellen
         if len(fact_checks) == 1 and not any(
             fc.verdict_meta and fc.verdict_meta.primary_sources_consulted
             for fc in fact_checks
         ):
-            confidence = min(confidence, 0.80)
+            confidence = min(confidence, synth_cfg.extraordinary_claim_confidence_ceiling)
 
         confidence = min(1.0, max(0.0, confidence))
 
@@ -213,7 +210,9 @@ class SynthesizerAgent(BaseAgent):
                 _SEVERITY_WEIGHT.get(tech.severity.value, 1.0)
                 for tech in rhetoric.techniques
             )
-            signals.rhetoric_score = min(1.0, weighted_sum / _RHETORIC_NORM_BASE)
+            signals.rhetoric_score = min(
+                1.0, weighted_sum / self.config.synthesizer.rhetoric_norm_base
+            )
             signals.n_high_rhetoric = sum(
                 1 for tech in rhetoric.techniques
                 if tech.severity == Severity.HIGH
@@ -232,21 +231,22 @@ class SynthesizerAgent(BaseAgent):
         Keine Hardcoding einzelner Narrativtypen – nur signalbasierte Regeln.
         """
         rating = llm_rating
+        cfg = self.config.synthesizer
 
         # Regel 1: FABRICATED nur bei ausreichend starker Evidenzbasis
-        # → braucht: ≥50 % direkt widerlegte Claims UND Primärquellen vorhanden
+        # → braucht: ≥ fabricated_min_refuted_ratio direkt widerlegte Claims UND Primärquellen
         if rating == OverallRating.FABRICATED:
             if (
                 not signals.high_quality_evidence
-                or signals.refuted_ratio < _FABRICATED_MIN_REFUTED_RATIO
+                or signals.refuted_ratio < cfg.fabricated_min_refuted_ratio
             ):
                 rating = OverallRating.HIGHLY_MISLEADING
 
         # Regel 2: Hohe Rhetorik-Manipulation + hoher Anteil unbelegter Claims
         # → mindestens MISLEADING, auch wenn LLM MIXED oder besser vergeben hat
         if (
-            signals.rhetoric_score >= _RHETORIC_FLOOR_MISLEADING
-            and signals.unverified_ratio >= 0.4
+            signals.rhetoric_score >= cfg.rhetoric_floor_misleading
+            and signals.unverified_ratio >= cfg.misleading_unverified_min
             and signals.n_claims > 0
         ):
             if _RATING_ORDER[rating] < _RATING_ORDER[OverallRating.MISLEADING]:
@@ -255,9 +255,9 @@ class SynthesizerAgent(BaseAgent):
         # Regel 3: Sehr starke Rhetorik + überwiegend unbelegt + kaum widerlegt
         # → Text ist stark irreführend auch ohne direkte Widerlegung
         if (
-            signals.rhetoric_score >= _RHETORIC_FLOOR_HIGHLY
-            and signals.unverified_ratio >= 0.5
-            and signals.refuted_ratio < 0.3
+            signals.rhetoric_score >= cfg.rhetoric_floor_highly
+            and signals.unverified_ratio >= cfg.highly_misleading_unverified_min
+            and signals.refuted_ratio < cfg.highly_misleading_refuted_max
             and signals.n_claims > 0
         ):
             if _RATING_ORDER[rating] < _RATING_ORDER[OverallRating.HIGHLY_MISLEADING]:
