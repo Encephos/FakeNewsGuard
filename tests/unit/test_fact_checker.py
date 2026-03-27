@@ -6,8 +6,10 @@ import pytest
 
 from agents.fact_checker import (
     FactCheckerAgent,
+    _ARTIFACT_TERMS,
     _build_enriched_context,
     _build_fallback_queries,
+    _build_queries_for_underspecified_claim,
     _build_search_queries,
     _categories_for_claim,
     _evaluate_scrape_quality,
@@ -399,3 +401,158 @@ class TestIsCurrentStateClaim:
 
     def test_vorsitzender_bleibt(self):
         assert _is_current_state_claim("Friedrich Merz bleibt Parteivorsitzender.")
+
+
+# ── _build_queries_for_underspecified_claim ──────────────────────
+
+
+class TestBuildQueriesForUnderspecifiedClaim:
+    """Tests für _build_queries_for_underspecified_claim()."""
+
+    def _make_claim(self, text: str, type_: "ClaimType" = None) -> "Claim":
+        from models.schemas import Claim, ClaimType
+        return Claim(
+            id="C_test",
+            text=text,
+            type=type_ or ClaimType.FACTUAL,
+        )
+
+    def test_always_includes_direct_family(self):
+        """Familie 1 (direct claim) ist immer enthalten."""
+        claim = self._make_claim("Geheimes Regierungsdokument belegt Massenüberwachung")
+        queries = _build_queries_for_underspecified_claim(claim, ["underspecified_actor"])
+        assert len(queries) >= 1
+        # Erste Query enthält Claim-Keywords, kein voller Satz
+        combined = queries[0].lower()
+        assert "überwachung" in combined or "regierungsdokument" in combined or "geheimes" in combined
+
+    def test_includes_factcheck_family(self):
+        """Familie 3 (fact-check) enthält Faktencheck-Suffix."""
+        claim = self._make_claim("Eine Behörde hat geheime Überwachung angeordnet")
+        queries = _build_queries_for_underspecified_claim(claim, ["underspecified_actor"])
+        combined = " ".join(queries).lower()
+        assert "faktencheck" in combined
+
+    def test_includes_official_response_family(self):
+        """Familie 4 (official response) enthält Stellungnahme-Suffix."""
+        claim = self._make_claim("Eine Behörde hat geheime Überwachung angeordnet")
+        queries = _build_queries_for_underspecified_claim(claim, ["underspecified_actor"])
+        combined = " ".join(queries).lower()
+        assert "stellungnahme" in combined
+
+    def test_artifact_family_included_when_signal_present(self):
+        """Familie 2 (document/artifact) erscheint bei missing_artifact_evidence."""
+        claim = self._make_claim(
+            "Ein geleaktes Dokument zeigt staatliche Zensur"
+        )
+        queries = _build_queries_for_underspecified_claim(
+            claim, ["missing_artifact_evidence"]
+        )
+        # Mindestens eine Query sollte Artefakt-Begriff enthalten
+        combined = " ".join(queries).lower()
+        assert "dokument" in combined or "geleakt" in combined
+
+    def test_artifact_family_absent_without_signal(self):
+        """Familie 2 erscheint NICHT wenn missing_artifact_evidence fehlt."""
+        claim = self._make_claim("Eine Behörde überwacht alle Bürger heimlich")
+        queries = _build_queries_for_underspecified_claim(claim, ["underspecified_actor"])
+        # Kein Artefakt-Query ohne Signal – "Dokument" darf nicht isoliert auftauchen
+        # (es sei denn, es steckt im Claim-Text)
+        assert "dokument" not in claim.text.lower()
+        assert not any(q.lower() == "dokument" for q in queries)
+
+    def test_no_hallucinated_actors_underspec(self):
+        """Keine Länder, Behörden oder Akteure die nicht im Claim stehen."""
+        # Vage Claim ohne spezifische Institution
+        claim = self._make_claim("Regierungen überwachen heimlich alle Bürger")
+        queries = _build_queries_for_underspecified_claim(claim, ["underspecified_actor"])
+        combined = " ".join(queries).lower()
+        # Erfundene Akteure dürfen nicht auftauchen
+        invented = ["bfv", "bka", "bamf", "bmi", "verfassungsschutz", "bundestag"]
+        for actor in invented:
+            assert actor not in combined, f"Halluzinierter Akteur '{actor}' gefunden"
+
+    def test_no_hallucinated_actors_artifact(self):
+        """Kein erfundenes Land/keine Behörde bei Artefakt-Claim."""
+        claim = self._make_claim(
+            "Ein internes Dokument beweist Korruption in der Verwaltung"
+        )
+        queries = _build_queries_for_underspecified_claim(
+            claim, ["missing_artifact_evidence", "underspecified_actor"]
+        )
+        combined = " ".join(queries).lower()
+        invented = ["usa", "deutschland", "frankreich", "fbi", "cia", "bfv"]
+        for actor in invented:
+            assert actor not in combined, f"Halluzinierter Akteur '{actor}' gefunden"
+
+    def test_empty_keywords_returns_empty(self):
+        """Claim mit nur Stoppwörtern → leere Liste (kein Crash)."""
+        claim = self._make_claim("Das ist es")
+        queries = _build_queries_for_underspecified_claim(claim, ["underspecified_actor"])
+        assert queries == []
+
+    def test_both_signals_produces_four_families(self):
+        """Beide Signale → alle vier Familien vorhanden."""
+        claim = self._make_claim(
+            "Ein geleaktes Geheimprotokoll belegt staatliche Überwachung von Bürgern"
+        )
+        queries = _build_queries_for_underspecified_claim(
+            claim, ["missing_artifact_evidence", "underspecified_actor"]
+        )
+        combined = " ".join(queries).lower()
+        assert "faktencheck" in combined
+        assert "stellungnahme" in combined
+        # Artifact-family ebenfalls vorhanden
+        assert "protokoll" in combined or "geleakt" in combined or "geheimprotokoll" in combined
+        assert len(queries) == 4
+
+    def test_queries_are_compact_not_full_sentences(self):
+        """Queries sollen Keyword-Kompakt-Formen sein, kein unveränderter Claim-Satz."""
+        claim = self._make_claim(
+            "Ein anonymer Insider hat enthüllt dass Behörden systematisch lügen"
+        )
+        queries = _build_queries_for_underspecified_claim(claim, ["underspecified_actor"])
+        # Keine Query darf identisch mit dem rohen Claim-Text sein
+        for q in queries:
+            assert q != claim.text, f"Query ist identischer Claim-Satz: {q!r}"
+        # Stoppwörter (die, das, ist, hat, …) sollen herausgefiltert sein
+        stop_markers = {"ein ", "hat ", "dass "}
+        for q in queries:
+            q_lower = q.lower()
+            for stop in stop_markers:
+                assert stop not in q_lower, (
+                    f"Stoppwort {stop!r} in kompakter Query: {q!r}"
+                )
+
+    def test_build_search_queries_uses_families_for_underspecified(self):
+        """_build_search_queries() delegiert für underspecified ProcessedClaims."""
+        from models.schemas import ClaimType, ProcessedClaim
+
+        claim = ProcessedClaim(
+            id="C_us",
+            text="Eine Behörde überwacht heimlich alle Mobiltelefone",
+            type=ClaimType.FACTUAL,
+            quality_signals=["underspecified_actor"],
+        )
+        queries = _build_search_queries(claim)
+        combined = " ".join(queries).lower()
+        # Soll Faktencheck-Familie enthalten
+        assert "faktencheck" in combined
+        # Kein voller Claim-Satz als Query (Direktsuche entfällt bei underspecified)
+        assert "eine behörde überwacht heimlich alle mobiltelefone" not in combined
+
+    def test_build_search_queries_unaffected_for_normal_claim(self):
+        """Normale Claims (ohne quality_signals) behalten Direktsuche."""
+        from models.schemas import Claim, ClaimType
+
+        claim = Claim(
+            id="C_norm",
+            text="Die Bundesregierung hat 2023 das Gebäudeenergiegesetz verabschiedet",
+            type=ClaimType.FACTUAL,
+        )
+        queries = _build_search_queries(claim)
+        # Volltextsuche soll erhalten bleiben für klar spezifizierte Claims
+        assert any(
+            "gebäudeenergiegesetz" in q.lower() or claim.text in q
+            for q in queries
+        )
