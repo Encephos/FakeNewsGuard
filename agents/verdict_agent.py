@@ -147,6 +147,7 @@ def _calibrate_rating(
     pack: "EvidencePack",
     config: VerdictRatingCalibrationConfig | None = None,
     is_regulatory_claim: bool = False,
+    is_current_state_claim: bool = False,
 ) -> tuple["FactRating", list[str]]:
     """Regelbasierter Rating-Postprocessor.
 
@@ -255,6 +256,24 @@ def _calibrate_rating(
     ):
         reasons.append(
             "Regelungsclaim: MISLEADING ohne Widerlegungssignal + 0 direkte Belege → UNVERIFIABLE"
+        )
+        rating = FactRating.UNVERIFIABLE
+
+    # ── Aktuell-Zustand-Claim: keine frischen direkten Belege → UNVERIFIABLE ──
+    # Veraltete Quellen (z.B. Artikel 2022 über Amtsinhaber) dürfen einen
+    # aktuellen Zustandsclaim nicht widerlegen.  Wenn kein direkter Beweis
+    # (DIRECT-Evidence, Faktenchecker) vorliegt, ist UNVERIFIABLE das korrekte
+    # Urteil – nicht FALSE oder MISLEADING.
+    if (
+        is_current_state_claim
+        and rating in (FactRating.FALSE, FactRating.MOSTLY_FALSE, FactRating.MISLEADING)
+        and direct_count == 0
+        and not has_fc_direct
+        and not has_direct_refutation
+    ):
+        reasons.append(
+            f"Aktuell-Zustand-Claim: {rating.value} ohne direkte Belege "
+            "(0 DIRECT, kein FC-Match, kein aktiver Widerruf) → UNVERIFIABLE"
         )
         rating = FactRating.UNVERIFIABLE
 
@@ -720,8 +739,12 @@ class VerdictAgent(BaseAgent):
                 )
             if not _is_regulatory_pre:
                 _is_regulatory_pre = _is_regulatory_from_text(claim.text)
+        from agents.fact_checker import _is_current_state_claim as _is_cs_pre
+        _is_current_state_pre = _is_cs_pre(claim.text)
         rating, rating_calibration_reasons = _calibrate_rating(
-            rating, pack, rating_config, is_regulatory_claim=_is_regulatory_pre
+            rating, pack, rating_config,
+            is_regulatory_claim=_is_regulatory_pre,
+            is_current_state_claim=_is_current_state_pre,
         )
 
         # ── Regelbasierte Confidence-Kalibrierung ──────────────────────────────

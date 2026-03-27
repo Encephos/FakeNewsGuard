@@ -1457,7 +1457,7 @@ class EvidenceBuilderAgent(BaseAgent):
                 sq.engines = SEARXNG_NEWS_ENGINES
             elif is_current_state:
                 sq.engines = SEARXNG_NEWS_ENGINES
-                sq.time_range = "year"
+                sq.time_range = retrieval_cfg.current_state_time_range
             else:
                 sq.engines = SEARXNG_WEB_ENGINES
             searxng_queries.append(sq)

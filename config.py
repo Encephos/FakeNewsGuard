@@ -32,11 +32,23 @@ class RetryConfig:
 
 @dataclass
 class CacheConfig:
-    """Konfiguration für den SQLite-Claim-Cache."""
+    """Konfiguration für den SQLite-Claim-Cache.
+
+    Env-Vars:
+        CACHE_DB_PATH – Pfad zur Cache-Datenbank (Default: .fakeguard_cache.db)
+                        In Produktion/Docker auf /app/data/... setzen.
+        CACHE_TTL_HOURS – TTL für Cache-Einträge in Stunden (Default: 24)
+    """
 
     enabled: bool = True
     db_path: str = ".fakeguard_cache.db"
     ttl_hours: int = 24  # Wie lange gecachte Ergebnisse gültig sind
+
+    def __post_init__(self) -> None:
+        if env_path := os.getenv("CACHE_DB_PATH", ""):
+            self.db_path = env_path
+        if env_ttl := os.getenv("CACHE_TTL_HOURS", ""):
+            self.ttl_hours = int(env_ttl)
 
 
 @dataclass
@@ -181,18 +193,18 @@ class LangSearchConfig:
 class TavilyConfig:
     """Konfiguration für Tavily – KI-optimierte Websuche.
 
-    Tavily wird im EvidenceBuilderAgent parallel zu LangSearch als primäre
-    Suchquelle genutzt. SearXNG ergänzt als kostenlose Breiten-Suche.
+    Standardmäßig deaktiviert. SearXNG ist die primäre Suchquelle.
+    Tavily kann als optionaler Content-Layer explizit zugeschaltet werden.
 
     Env-Vars:
-        TAVILY_API_KEY     – API-Key (Pflicht wenn enabled)
-        TAVILY_ENABLED     – "true"/"false" (Default: true wenn Key vorhanden)
-        TAVILY_MAX_RESULTS – Max. Ergebnisse pro Query (Default: 5)
+        TAVILY_API_KEY      – API-Key (erforderlich wenn enabled)
+        TAVILY_ENABLED      – "true" um Tavily zu aktivieren (Default: false)
+        TAVILY_MAX_RESULTS  – Max. Ergebnisse pro Query (Default: 5)
         TAVILY_SEARCH_DEPTH – "basic" oder "advanced" (Default: advanced)
     """
 
     api_key: str = ""
-    enabled: bool = True
+    enabled: bool = False  # Standardmäßig deaktiviert – explizit via TAVILY_ENABLED=true aktivieren
     max_results: int = 5
     search_depth: str = "advanced"
 
@@ -202,8 +214,6 @@ class TavilyConfig:
         env_enabled = os.getenv("TAVILY_ENABLED", "")
         if env_enabled:
             self.enabled = env_enabled.lower() in ("true", "1", "yes")
-        elif not self.api_key:
-            self.enabled = False
         env_max = os.getenv("TAVILY_MAX_RESULTS", "")
         if env_max:
             self.max_results = int(env_max)
@@ -509,9 +519,9 @@ class EvidenceRetrievalConfig:
     und macht Schwellenwerte konfigurierbar statt hart codiert.
 
     Rollen:
-        Tavily     = breite, content-starke Suche (budgetiert, nicht pauschal)
-        LangSearch = semantisch-präzise Hauptsuche (adaptiv je nach Claim-Komplexität)
-        SearXNG    = unterstützende Breitensuche (alle Queries)
+        SearXNG    = primäre Breitensuche (self-hosted, kostenlos, alle Queries)
+        LangSearch = semantisch-präzise Ergänzung (adaptiv je nach Claim-Komplexität)
+        Tavily     = optionaler Content-Layer (standardmäßig deaktiviert, budgetiert)
         GFC        = strukturierter Shortcut-Layer (kein Query-Budget nötig)
 
     Env-Vars:
@@ -526,6 +536,7 @@ class EvidenceRetrievalConfig:
         LOW_TRUST_CONFIDENCE_PENALTY  – Penalty-Faktor für Low-Trust-Rate in overall_quality (Default: 0.20)
         PRE_SCRAPE_OFFTOPIC_PENALTY   – Mindest-Penalty damit Kandidat vor Scraping entfernt wird (Default: 0.70)
         CLAIM_SCOPE_MIN_DIRECT        – Min. claim_scope_score für direct evidence (Default: 0.60)
+        CURRENT_STATE_TIME_RANGE      – SearXNG time_range für Aktuell-Zustand-Claims (Default: month)
     """
 
     langsearch_queries_simple: int = 3      # Einfache FACTUAL Claims (großzügige API-Limits)
@@ -547,6 +558,11 @@ class EvidenceRetrievalConfig:
     stale_sources_confidence_penalty: float = 0.15   # Abzug auf overall_quality bei alten Quellen
     searxng_news_categories: list[str] = field(default_factory=lambda: ["news", "general"])
     current_state_freshness_threshold: float = 0.60  # Min. avg_freshness für Aktuell-Zustand-Claims
+    # SearXNG time_range für Aktuell-Zustand-Claims (Amtsinhaber, CEO, etc.)
+    # "month" ist konservativ genug um Jahr-alte Artikel auszuschließen,
+    # aber breit genug damit offizielle Seiten gefunden werden.
+    # Mögliche Werte: "day" | "week" | "month" | "year" | None
+    current_state_time_range: str = "month"
 
     def __post_init__(self) -> None:
         if v := os.getenv("LANGSEARCH_QUERIES_SIMPLE", ""):
@@ -571,6 +587,8 @@ class EvidenceRetrievalConfig:
             self.pre_scrape_offtopic_penalty = float(v)
         if v := os.getenv("CLAIM_SCOPE_MIN_DIRECT", ""):
             self.claim_scope_min_direct = float(v)
+        if v := os.getenv("CURRENT_STATE_TIME_RANGE", ""):
+            self.current_state_time_range = v
 
 
 @dataclass
