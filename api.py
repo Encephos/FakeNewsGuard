@@ -30,9 +30,8 @@ from pydantic import BaseModel, EmailStr
 from config import AppConfig, RateLimitConfig, ScoutTier
 from i18n import set_default_locale, t
 from orchestrator import InputValidationError, Orchestrator
-from tools.archive import AnalysisArchive
 from tools.content_extractor import ContentExtractor, ExtractedContent, detect_platform, extract_urls, is_url
-from tools.cross_reference import CrossReferenceGraph
+from tools.db.factory import create_archive, create_graph, create_user_db
 from tools.logger import (
     get_logger,
     get_metrics_snapshot,
@@ -42,7 +41,7 @@ from tools.logger import (
     setup_logging,
 )
 from tools.rate_limiter import RateLimiter
-from tools.user_db import UserDB, create_access_token, create_refresh_token, decode_token
+from tools.user_db import create_access_token, create_refresh_token, decode_token
 
 # ── Logging einrichten ─────────────────────────────────────────────
 setup_logging()
@@ -116,45 +115,46 @@ def _get_rate_limiter() -> RateLimiter:
 
 
 # ── Archive (singleton, erstellt bei erstem Zugriff) ──────────────
-_archive: AnalysisArchive | None = None
+_archive = None
 
 
-def _get_archive() -> AnalysisArchive:
+def _get_archive():
     global _archive
     if _archive is None:
         config = AppConfig()
-        _archive = AnalysisArchive(config.archive)
+        _archive = create_archive(config)
     return _archive
 
 # ── Cross-Reference Graph (singleton) ────────────────────────────
-_graph: CrossReferenceGraph | None = None
+_graph = None
 
 
-def _get_graph() -> CrossReferenceGraph:
+def _get_graph():
     global _graph
     if _graph is None:
         config = AppConfig()
-        _graph = CrossReferenceGraph(config.graph.db_path)
+        _graph = create_graph(config)
     return _graph
 
 
 # ── User Database (singleton) ───────────────────────────────────
-_user_db: UserDB | None = None
+_user_db = None
 
 
-def _get_user_db() -> UserDB:
+def _get_user_db():
     global _user_db
     if _user_db is None:
         config = AppConfig()
-        _user_db = UserDB(config.user_db)
-        # Auto-migrate from old users.json on first access
-        import pathlib
-        json_path = pathlib.Path(__file__).parent / "users.json"
-        if json_path.exists():
-            imported = _user_db.migrate_from_json(str(json_path))
-            if imported > 0:
-                import logging
-                logging.getLogger("fng-api").info("Migrated %d users from users.json", imported)
+        _user_db = create_user_db(config)
+        # Auto-migrate from old users.json on first access (SQLite backend only)
+        if hasattr(_user_db, "migrate_from_json"):
+            import pathlib
+            json_path = pathlib.Path(__file__).parent / "users.json"
+            if json_path.exists():
+                imported = _user_db.migrate_from_json(str(json_path))
+                if imported > 0:
+                    import logging
+                    logging.getLogger("fng-api").info("Migrated %d users from users.json", imported)
     return _user_db
 
 

@@ -1,6 +1,24 @@
 version: '3.8'
 
 services:
+  # ── Infrastruktur ─────────────────────────────────────────────────────────
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: fakenewsguard-postgres
+    environment:
+      POSTGRES_DB: fakeguard
+      POSTGRES_USER: fakeguard
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fakeguard"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
   valkey:
     image: valkey/valkey:8-alpine
     container_name: fakenewsguard-valkey
@@ -20,6 +38,8 @@ services:
       - valkey
     restart: unless-stopped
 
+  # ── Anwendung ─────────────────────────────────────────────────────────────
+
   backend:
     build:
       context: .
@@ -31,11 +51,19 @@ services:
       - .env
     environment:
       - SEARXNG_URL=http://searxng:8080
-    # Gemountetes Volume, damit der SQLite-Cache Neustarts überlebt
+      - VALKEY_URL=redis://valkey:6379/0
+      - POSTGRES_HOST=postgres
+      - POSTGRES_DB=fakeguard
+      - POSTGRES_USER=fakeguard
+      # DB_BACKEND=postgres und CACHE_BACKEND=valkey in .env setzen
     volumes:
+      # Fallback-Volume falls SQLite-Mode aktiv (Dev/Migration)
       - fng_data:/app/data
     depends_on:
-      - searxng
+      postgres:
+        condition: service_healthy
+      searxng:
+        condition: service_started
     restart: unless-stopped
 
   frontend:
@@ -62,12 +90,46 @@ services:
     environment:
       - BACKEND_URL=http://backend:8000
       - SEARXNG_URL=http://searxng:8080
+      - VALKEY_URL=redis://valkey:6379/0
+      - POSTGRES_HOST=postgres
+      - POSTGRES_DB=fakeguard
+      - POSTGRES_USER=fakeguard
     volumes:
       - fng_data:/app/data
     depends_on:
-      - backend
+      postgres:
+        condition: service_healthy
+      backend:
+        condition: service_started
     restart: unless-stopped
+
+  # ── Migration (einmaliger Job) ────────────────────────────────────────────
+  # docker compose run --rm migrate
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: fakenewsguard-migrate
+    command: python tools/migrate.py
+    env_file:
+      - .env
+    environment:
+      - POSTGRES_HOST=postgres
+      - VALKEY_URL=redis://valkey:6379/0
+      # Pfade zu alten SQLite-Dateien (aus fng_data-Volume)
+      - SQLITE_CACHE_PATH=/app/data/.fakeguard_cache.db
+      - SQLITE_USERS_PATH=/app/data/.fakeguard_users.db
+      - SQLITE_ARCHIVE_PATH=/app/data/.fakeguard_archive.db
+      - SQLITE_GRAPH_PATH=/app/data/.fakeguard_graph.db
+    volumes:
+      - fng_data:/app/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+    profiles:
+      - migration
 
 volumes:
   fng_data:
   valkey_data:
+  pg_data:

@@ -43,21 +43,22 @@ log = logging.getLogger("fng-telegram")
 
 # ── User Database (SQLite) ───────────────────────────────────────
 
-from config import UserDBConfig
-from tools.user_db import UserDB
+from config import AppConfig as _AppConfig
+from tools.db.factory import create_user_db as _create_user_db
 
-_user_db: UserDB | None = None
+_user_db = None
 
 
-def _get_db() -> UserDB:
+def _get_db():
     global _user_db
     if _user_db is None:
-        _user_db = UserDB(UserDBConfig())
-        # Auto-migrate from old users.json on first access
-        json_path = str(Path(__file__).parent / "users.json")
-        imported = _user_db.migrate_from_json(json_path)
-        if imported > 0:
-            log.info("Migrated %d users from users.json to SQLite", imported)
+        _cfg = _AppConfig()
+        _user_db = _create_user_db(_cfg)
+        if hasattr(_user_db, "migrate_from_json"):
+            json_path = str(Path(__file__).parent / "users.json")
+            imported = _user_db.migrate_from_json(json_path)
+            if imported > 0:
+                log.info("Migrated %d users from users.json to SQLite", imported)
     return _user_db
 
 

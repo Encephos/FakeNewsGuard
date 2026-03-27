@@ -42,7 +42,7 @@ from agents.image_analyzer import ImageAnalyzerAgent
 from agents.number_auditor import NumberAuditorAgent
 from agents.rhetoric_analyzer import RhetoricAnalyzerAgent
 from agents.synthesizer import SynthesizerAgent
-from tools.cache import ClaimCache
+from tools.db.factory import create_cache
 from tools.claim_router import ClaimRouter
 from tools.llm import LLMClient
 from tools.web_search import WebSearchClient
@@ -144,7 +144,7 @@ class Orchestrator:
             llm_powerful = LLMClient(config.llm, config.retry)
 
         search = WebSearchClient(config.search, config.retry)
-        cache = ClaimCache(config.cache)
+        cache = create_cache(config)
 
         self.image_analyzer = ImageAnalyzerAgent(config, llm_fast, search)
         self.claim_extractor = ClaimExtractorAgent(config, llm_fast, search, llm_small=llm_small)
