@@ -617,6 +617,8 @@ class EvidenceRetrievalConfig:
     langsearch_queries_simple: int = 3      # Einfache FACTUAL Claims (großzügige API-Limits)
     langsearch_queries_complex: int = 5     # STATISTICAL / CAUSAL / CONTEXTUAL Claims
     langsearch_retry_on_weak: bool = True   # Zweite LangSearch-Runde bei schwacher Evidenz
+    # ── Query Expansion ────────────────────────────────────────────────────────
+    query_expansion_enabled: bool = True    # Enable QueryExpansionEngine für 6–8 diverse Queries
     # ── Tavily-Budgetierung ───────────────────────────────────────────────────
     tavily_primary_queries: int = 1         # Tavily-Queries in der Primärrunde (sparsam)
     tavily_max_queries_per_claim: int = 3   # Max. Tavily-Queries pro Claim inkl. Expansion
@@ -646,6 +648,8 @@ class EvidenceRetrievalConfig:
             self.langsearch_queries_complex = int(v)
         if v := os.getenv("LANGSEARCH_RETRY_ON_WEAK", ""):
             self.langsearch_retry_on_weak = v.lower() in ("true", "1", "yes")
+        if v := os.getenv("QUERY_EXPANSION_ENABLED", ""):
+            self.query_expansion_enabled = v.lower() in ("true", "1", "yes")
         if v := os.getenv("TAVILY_PRIMARY_QUERIES", ""):
             self.tavily_primary_queries = int(v)
         if v := os.getenv("TAVILY_MAX_QUERIES_PER_CLAIM", ""):
@@ -747,6 +751,51 @@ class SourceLayerConfig:
 
 
 @dataclass
+@dataclass
+class SourceClientsConfig:
+    """Konfiguration für institutionelle Data Source Clients (Eurostat, openFDA, etc.).
+
+    14 high-authority source clients (authority weight 0.70–0.97) are available:
+    - Eurostat, EUR-Lex (EU statistical/legal)
+    - openFDA, DailyMed, ClinicalTrials (US pharmaceutical/medical)
+    - USPTO, Companies House, GLEIF (corporate/patent)
+    - World Bank, OpenAlex, PubMed, Crossref, arXiv, CERN OpenData (scientific/economic)
+
+    Source clients are instantiated per-claim if routing confidence >= min_confidence.
+    Results are cached (24h default, 168h for static sources) and rate-limited per source.
+
+    Env-Vars:
+        SOURCE_CLIENTS_ENABLED – Enable source client retrieval (Default: true)
+        SOURCE_CLIENTS_MIN_CONFIDENCE – Min routing confidence [0.0–1.0] (Default: 0.5)
+        SOURCE_CLIENTS_MAX_PER_CLAIM – Max sources to query per claim (Default: 6)
+        SOURCE_CLIENTS_MAX_RESULTS – Max results per source (Default: 3)
+        SOURCE_CLIENTS_CACHE_TTL – Cache TTL in hours (Default: 24)
+        SOURCE_CLIENTS_STATIC_TTL – Static source cache TTL in hours (Default: 168)
+    """
+
+    enabled: bool = True
+    min_confidence: float = 0.5
+    max_sources_per_claim: int = 6
+    max_results_per_source: int = 3
+    cache_ttl_hours: int = 24
+    static_source_ttl_hours: int = 168
+    circuit_breaker_failure_threshold: int = 5
+
+    def __post_init__(self) -> None:
+        if v := os.getenv("SOURCE_CLIENTS_ENABLED", ""):
+            self.enabled = v.lower() in ("true", "1", "yes")
+        if v := os.getenv("SOURCE_CLIENTS_MIN_CONFIDENCE", ""):
+            self.min_confidence = float(v)
+        if v := os.getenv("SOURCE_CLIENTS_MAX_PER_CLAIM", ""):
+            self.max_sources_per_claim = int(v)
+        if v := os.getenv("SOURCE_CLIENTS_MAX_RESULTS", ""):
+            self.max_results_per_source = int(v)
+        if v := os.getenv("SOURCE_CLIENTS_CACHE_TTL", ""):
+            self.cache_ttl_hours = int(v)
+        if v := os.getenv("SOURCE_CLIENTS_STATIC_TTL", ""):
+            self.static_source_ttl_hours = int(v)
+
+
 class AppConfig:
     llm: LLMConfig = field(default_factory=LLMConfig)
     search: SearchConfig = field(default_factory=SearchConfig)
@@ -766,6 +815,7 @@ class AppConfig:
     evidence_retrieval: EvidenceRetrievalConfig = field(default_factory=EvidenceRetrievalConfig)
     synthesizer: SynthesizerConfig = field(default_factory=SynthesizerConfig)
     source_layer: SourceLayerConfig = field(default_factory=SourceLayerConfig)
+    source_clients: SourceClientsConfig = field(default_factory=SourceClientsConfig)
     # ── Produktions-Backends ──────────────────────────────────────────────────
     valkey: ValkeyConfig = field(default_factory=ValkeyConfig)
     postgres: PostgreSQLConfig = field(default_factory=PostgreSQLConfig)
