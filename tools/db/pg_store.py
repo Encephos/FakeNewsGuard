@@ -778,6 +778,43 @@ class PgCrossReferenceGraph:
             for r in rows
         ]
 
+    def find_nodes(
+        self,
+        node_type: str | None = None,
+        label_search: str | None = None,
+        limit: int = 50,
+    ) -> list:
+        """Suche nach Knoten."""
+        from tools.cross_reference import GraphNode
+
+        clauses = []
+        params: list[Any] = []
+
+        if node_type:
+            clauses.append("type = %s")
+            params.append(node_type)
+        if label_search:
+            clauses.append("label ILIKE %s")
+            params.append(f"%{label_search}%")
+
+        where = " AND ".join(clauses) if clauses else "1=1"
+        params.append(limit)
+
+        with self._conn() as conn:
+            cur = conn.execute(
+                f"SELECT id, type, label, properties FROM graph_nodes WHERE {where} ORDER BY updated_at DESC LIMIT %s",
+                params,
+            )
+            rows = cur.fetchall()
+
+        return [
+            GraphNode(
+                id=r[0], type=r[1], label=r[2],
+                properties=r[3] if isinstance(r[3], dict) else json.loads(r[3]),
+            )
+            for r in rows
+        ]
+
     def find_related_claims(self, claim_id: str) -> list:
         return self.get_neighbors(claim_id, relation="related_to")
 

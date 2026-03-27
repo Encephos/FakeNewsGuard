@@ -1673,21 +1673,54 @@ class EvidenceBuilderAgent(BaseAgent):
         return pack
 
     async def _build_queries_async(self, claim: Claim, context: str) -> list[str]:
-        """Queries aufbauen: Profile-basiert primär, LLM nur als Ergänzung.
+        """Queries aufbauen: Profile-basiert → QueryExpansionEngine → erweitert zu 6–8.
 
         Priorität:
-            1. ClaimSearchProfile (strukturiert, deterministisch, schnell)
-            2. LLM nur wenn Profil weniger als 3 Queries liefert (kein Profil vorhanden)
+            1. QueryExpansionEngine (wenn enabled) – 6–8 diverse Queries
+            2. Fallback: Profile-basierte Queries (3–4)
+            3. LLM nur wenn Profil weniger als 3 Queries liefert
+
+        QueryExpansionEngine nutzt ClaimRouter für domain/jurisdiction-aware Expansion.
         """
         import asyncio as _asyncio
         loop = _asyncio.get_event_loop()
 
         from agents.fact_checker import _build_search_queries, _optimize_queries_with_llm
+        from tools.claim_router import ClaimRouter
+        from tools.query_expansion import QueryExpansionEngine
 
-        # Priorität 1: Profile-basierte Queries (strukturiert, frame-verankert)
+        # Phase 1: Profile-basierte Queries (wie zuvor)
         profile_queries = _build_search_queries(claim, context)
 
-        # Wenn Profil 3-4 gute Queries liefert → direkt verwenden, kein LLM nötig
+        # Phase 2: QueryExpansionEngine (NEW – wenn Claim strukturiert und enabled)
+        if self.config.evidence_retrieval.query_expansion_enabled:
+            try:
+                # Nur wenn claim eine ProcessedClaim mit SearchProfile ist
+                if isinstance(claim, ProcessedClaim) and claim.search_profile:
+                    # Route claim für Domain/Jurisdiction-aware expansion
+                    router = ClaimRouter()
+                    route_result, _ = router.route_and_apply(claim)
+
+                    # Expand queries via QueryExpansionEngine
+                    expander = QueryExpansionEngine()
+                    query_variants = expander.expand(claim, route_result, claim.search_profile)
+
+                    # Extrahiere Text aus Variants (6–8 diverse Queries)
+                    expanded_queries = [v.text for v in query_variants]
+
+                    if expanded_queries:
+                        self._log(
+                            f"QueryExpansionEngine: {len(expanded_queries)} diverse Queries "
+                            f"(domains: {[d.value for d in route_result.domains]}, "
+                            f"jurisdiction: {route_result.jurisdiction})"
+                        )
+                        # Return expanded queries (6–8 instead of 4)
+                        return expanded_queries
+            except Exception as e:
+                # Fallback zu Profile-Queries wenn Expansion fehlschlägt
+                self._log(f"QueryExpansionEngine Fehler, fallback zu Profile-Queries: {type(e).__name__}")
+
+        # Fallback Phase 3: Profile-Queries (wie zuvor)
         if len(profile_queries) >= 3:
             return profile_queries[:4]
 

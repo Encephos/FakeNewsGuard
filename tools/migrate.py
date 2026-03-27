@@ -146,8 +146,7 @@ def migrate_users(config: AppConfig) -> int:
                         row["created_at"], row["last_login"],
                     ),
                 )
-                if conn.pgconn.cmd_tuples > 0:
-                    count += 1
+                count += 1
             except Exception as exc:
                 print(f"  ⚠ User {row['id']}: {exc}")
         conn.commit()
@@ -236,8 +235,7 @@ def migrate_archive(config: AppConfig) -> int:
                         fts_text,
                     ),
                 )
-                if conn.pgconn.cmd_tuples > 0:
-                    count += 1
+                count += 1
             except Exception as exc:
                 print(f"  ⚠ Archive {row['id']}: {exc}")
         conn.commit()
@@ -286,8 +284,7 @@ def migrate_graph(config: AppConfig) -> int:
                     (row["id"], row["type"], row["label"], props,
                      row["created_at"], row["updated_at"]),
                 )
-                if conn.pgconn.cmd_tuples > 0:
-                    node_count += 1
+                node_count += 1
             except Exception as exc:
                 print(f"  ⚠ Node {row['id']}: {exc}")
 
@@ -303,8 +300,7 @@ def migrate_graph(config: AppConfig) -> int:
                     (row["source_id"], row["target_id"], row["relation"],
                      props, row["created_at"]),
                 )
-                if conn.pgconn.cmd_tuples > 0:
-                    edge_count += 1
+                edge_count += 1
             except Exception as exc:
                 print(f"  ⚠ Edge {row['source_id']}→{row['target_id']}: {exc}")
         conn.commit()
