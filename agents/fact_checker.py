@@ -359,6 +359,39 @@ def _build_search_queries_from_profile(claim: "ProcessedClaim") -> list[str]:  #
     if q3c.strip() and q3c.strip() not in queries:
         queries.append(q3c.strip())
 
+    # ── Query 5+6: procedural/official (Beschluss, Protokoll, Drucksache) ──────
+    # Für Regelungsclaims: suche nach offiziellen Verfahrensdokumenten.
+    # Ableitung ausschließlich aus Frame-Feldern des Claims – keine Halluzinationen.
+    # Keine erfundenen Behörden, Städte oder Akteure: nur was Frame/Profil liefert.
+    from models.schemas import ProcessedClaim as _PC_proc
+    if isinstance(claim, _PC_proc) and claim.frame:
+        _f = claim.frame
+        _is_regulatory_q = bool(
+            _f.sanction
+            or _f.enforcement
+            or (_f.policy_context and _f.institution)
+        )
+        if _is_regulatory_q:
+            # Query 5: Institution + Ort + (Zeitbezug) + "Beschluss"
+            _q5_parts: list[str] = []
+            _q5_parts.extend(profile.institutions[:1])
+            _q5_parts.extend(profile.locations[:1])
+            if _f.time_reference:
+                _q5_parts.append(_f.time_reference)
+            _q5_parts.append("Beschluss")
+            q5 = " ".join(p for p in _q5_parts if p)
+            if q5.strip() and q5.strip() not in queries and _count_strong_anchors(_q5_parts, profile) >= 1:
+                queries.append(q5.strip())
+
+            # Query 6: Ort + Policy/Action + Protokoll/Drucksache
+            _q6_parts: list[str] = []
+            _q6_parts.extend(profile.locations[:1])
+            _q6_parts.extend(profile.policy_terms[:1] or profile.action_terms[:1])
+            _q6_parts.append("Ratsprotokoll Drucksache")
+            q6 = " ".join(p for p in _q6_parts if p)
+            if q6.strip() and q6.strip() not in queries and len(_q6_parts) >= 2:
+                queries.append(q6.strip())
+
     # ── Query 4: sanction/number (nur bei konkreten Zahlen + Sanktionen) ──
     # Ort + Policy immer mitführen, damit Treffer wie "Bußgeld 250" ohne Kontext vermieden werden
     if profile.sanction_terms and profile.number_terms:

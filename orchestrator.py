@@ -52,6 +52,47 @@ class InputValidationError(ValueError):
     pass
 
 
+def _should_run_number_auditor(claim: "Claim") -> bool:
+    """Entscheide ob der NumberAuditor für diesen Claim ausgeführt werden soll.
+
+    Regelungsclaims (Sanktion, Enforcement oder Policy+Institution im Frame)
+    werden nicht als rein statistische Claims behandelt, auch wenn sie Zahlen
+    enthalten. Zahlen wie "250 Euro Bußgeld" sind hier normative/politische
+    Angaben, keine statistischen Messwerte.
+
+    Explizite ``number_auditor``-Anforderung im requires_agents-Feld hat immer
+    Vorrang und überschreibt die Regelungsclaim-Erkennung.
+
+    Args:
+        claim: Der zu prüfende Claim (Claim oder ProcessedClaim).
+
+    Returns:
+        True wenn der NumberAuditor ausgeführt werden soll.
+    """
+    from models.schemas import ProcessedClaim
+
+    # Explizit angefordert → immer ausführen
+    if "number_auditor" in claim.requires_agents:
+        return True
+
+    # Kein statistischer Claim → kein NumberAuditor
+    if claim.type != ClaimType.STATISTICAL:
+        return False
+
+    # Für STATISTICAL-Claims: Regelungsclaim-Check via Frame
+    if isinstance(claim, ProcessedClaim) and claim.frame:
+        f = claim.frame
+        is_regulatory = bool(
+            f.sanction
+            or f.enforcement
+            or (f.policy_context and f.institution)
+        )
+        if is_regulatory:
+            return False  # Regelungsclaim – NumberAuditor nicht geeignet
+
+    return True
+
+
 class Orchestrator:
     """Steuert den gesamten Analyse-Workflow.
 
@@ -233,7 +274,7 @@ class Orchestrator:
             elif fc_result is not None:
                 fact_checks.append(fc_result)
 
-            if "number_auditor" in claim.requires_agents or claim.type == ClaimType.STATISTICAL:
+            if _should_run_number_auditor(claim):
                 self._step("number_audit", f"  ── Number-Audit für {claim.id} ──")
                 fc_context = ""
                 if fc_result is not None:
@@ -327,7 +368,7 @@ class Orchestrator:
                 errors.append(fc_error)
 
             na_result: NumberAuditResult | None = None
-            if "number_auditor" in claim.requires_agents or claim.type == ClaimType.STATISTICAL:
+            if _should_run_number_auditor(claim):
                 self._step("number_audit", f"  ── Number-Audit für {claim.id} ──")
                 fc_context = ""
                 if fc_result is not None:
