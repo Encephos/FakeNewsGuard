@@ -505,9 +505,8 @@ class TestRankingIntegration:
 
     def test_offtopic_results_ranked_below_relevant(self):
         from agents.evidence_builder import _rank_evidence_items
-        from models.evidence_models import GoogleFactCheckMatch
+        from models.evidence_models import EvidenceItem, EvidenceSource, GoogleFactCheckMatch
         from models.schemas import ClaimSearchProfile
-        from tools.web_search import SearchResult
 
         profile = ClaimSearchProfile(
             institutions=["Stadtrat Hannover"],
@@ -520,20 +519,17 @@ class TestRankingIntegration:
             "Hannover Stadtrat 15-Minuten-Stadt 100 Autofahrten 250 Euro Bußgeld"
         )
         results = [
-            SearchResult(
-                title="Hannover Stadtrat 15-Minuten-Stadt Debatte",
-                url="https://tagesschau.de/inland/hannover-stadtrat",
-                snippet="Der Stadtrat Hannover diskutiert das 15-Minuten-Stadt-Konzept.",
+            EvidenceItem(
+                source=EvidenceSource(url="https://tagesschau.de/inland/hannover-stadtrat", title="Hannover Stadtrat 15-Minuten-Stadt Debatte"),
+                excerpt="Der Stadtrat Hannover diskutiert das 15-Minuten-Stadt-Konzept.",
             ),
-            SearchResult(
-                title="Kamera 250 Euro MediaMarkt Angebot",
-                url="https://www.mediamarkt.de/kamera/250",
-                snippet="Überwachungskamera für 250 Euro jetzt kaufen bei MediaMarkt.",
+            EvidenceItem(
+                source=EvidenceSource(url="https://www.mediamarkt.de/kamera/250", title="Kamera 250 Euro MediaMarkt Angebot"),
+                excerpt="Überwachungskamera für 250 Euro jetzt kaufen bei MediaMarkt.",
             ),
-            SearchResult(
-                title="Stadtrat beschließt Programm",
-                url="https://random-blog.de/stadtrat-allgemein",
-                snippet="Ein Stadtrat hat heute ein neues Programm verabschiedet.",
+            EvidenceItem(
+                source=EvidenceSource(url="https://random-blog.de/stadtrat-allgemein", title="Stadtrat beschließt Programm"),
+                excerpt="Ein Stadtrat hat heute ein neues Programm verabschiedet.",
             ),
         ]
 
@@ -1026,8 +1022,8 @@ class TestHannoverC2Regression:
     def test_c2_grammar_page_filtered_from_ranking(self):
         """Grammatik-/Konjugationsseite wird aus Ranking verworfen oder stark abgewertet."""
         from agents.evidence_builder import _rank_evidence_items
+        from models.evidence_models import EvidenceItem, EvidenceSource
         from models.schemas import ClaimSearchProfile
-        from tools.web_search import SearchResult
 
         profile = ClaimSearchProfile(
             institutions=["Stadtrat Hannover"],
@@ -1038,15 +1034,13 @@ class TestHannoverC2Regression:
         claim_text = "Bürger dürfen Wohnbezirke 100 Mal Jahr Auto verlassen Hannover"
 
         results = [
-            SearchResult(
-                title="Konjugation dürfen – alle Formen, Tabellen, Beispiele",
-                url="https://www.verbformen.de/konjugation/duerfen.htm",
-                snippet="Die Konjugation des Verbs dürfen im Deutschen: Indikativ, Konjunktiv.",
+            EvidenceItem(
+                source=EvidenceSource(url="https://www.verbformen.de/konjugation/duerfen.htm", title="Konjugation dürfen – alle Formen, Tabellen, Beispiele"),
+                excerpt="Die Konjugation des Verbs dürfen im Deutschen: Indikativ, Konjunktiv.",
             ),
-            SearchResult(
-                title="Hannover: Stadtrat debattiert Verkehrskonzept",
-                url="https://tagesschau.de/inland/hannover-verkehr",
-                snippet="Der Stadtrat Hannover diskutiert das 15-Minuten-Stadt-Konzept.",
+            EvidenceItem(
+                source=EvidenceSource(url="https://tagesschau.de/inland/hannover-verkehr", title="Hannover: Stadtrat debattiert Verkehrskonzept"),
+                excerpt="Der Stadtrat Hannover diskutiert das 15-Minuten-Stadt-Konzept.",
             ),
         ]
 
@@ -1094,8 +1088,8 @@ class TestHannoverC3Regression:
     def test_c3_currency_converter_filtered(self):
         """Währungsrechner-Seite wird aus Ranking verworfen."""
         from agents.evidence_builder import _rank_evidence_items
+        from models.evidence_models import EvidenceItem, EvidenceSource
         from models.schemas import ClaimSearchProfile
-        from tools.web_search import SearchResult
 
         profile = ClaimSearchProfile(
             institutions=["Stadtrat Hannover"],
@@ -1107,15 +1101,13 @@ class TestHannoverC3Regression:
         claim_text = "Hannover 250 Euro Bußgeld Kameraüberwachung 15-Minuten-Stadt"
 
         results = [
-            SearchResult(
-                title="250 GBP in EUR – Xe Währungsrechner",
-                url="https://www.xe.com/de/currencyconverter/convert/?Amount=250&From=GBP&To=EUR",
-                snippet="250 Britische Pfund = 289,50 Euro. Aktueller Wechselkurs.",
+            EvidenceItem(
+                source=EvidenceSource(url="https://www.xe.com/de/currencyconverter/convert/?Amount=250&From=GBP&To=EUR", title="250 GBP in EUR – Xe Währungsrechner"),
+                excerpt="250 Britische Pfund = 289,50 Euro. Aktueller Wechselkurs.",
             ),
-            SearchResult(
-                title="Faktencheck: 15-Minuten-Stadt Hannover",
-                url="https://correctiv.org/faktencheck/hannover-15min",
-                snippet="Correctiv prüft die Behauptung über Bußgelder in Hannover.",
+            EvidenceItem(
+                source=EvidenceSource(url="https://correctiv.org/faktencheck/hannover-15min", title="Faktencheck: 15-Minuten-Stadt Hannover"),
+                excerpt="Correctiv prüft die Behauptung über Bußgelder in Hannover.",
             ),
         ]
 
@@ -1129,8 +1121,8 @@ class TestHannoverC3Regression:
     def test_c3_juraforum_without_claim_context_filtered(self):
         """Allgemeines Juraforum ohne Hannover-Bezug wird abgewertet/verworfen."""
         from agents.evidence_builder import _rank_evidence_items
+        from models.evidence_models import EvidenceItem, EvidenceSource
         from models.schemas import ClaimSearchProfile
-        from tools.web_search import SearchResult
 
         profile = ClaimSearchProfile(
             institutions=["Stadtrat Hannover"],
@@ -1142,15 +1134,13 @@ class TestHannoverC3Regression:
         claim_text = "Hannover Kameraüberwachung 250 Euro Bußgeld 15-Minuten-Stadt"
 
         results = [
-            SearchResult(
-                title="Kameraüberwachung – Juraforum Rechtslexikon",
-                url="https://www.juraforum.de/lexikon/kameraueberwachung",
-                snippet="Definition Kameraüberwachung im deutschen Recht. Rechtliche Grundlagen.",
+            EvidenceItem(
+                source=EvidenceSource(url="https://www.juraforum.de/lexikon/kameraueberwachung", title="Kameraüberwachung – Juraforum Rechtslexikon"),
+                excerpt="Definition Kameraüberwachung im deutschen Recht. Rechtliche Grundlagen.",
             ),
-            SearchResult(
-                title="Hannover: Debatte um 15-Minuten-Stadt",
-                url="https://correctiv.org/faktencheck/hannover",
-                snippet="Correctiv prüft: Werden in Hannover Autofahrten begrenzt?",
+            EvidenceItem(
+                source=EvidenceSource(url="https://correctiv.org/faktencheck/hannover", title="Hannover: Debatte um 15-Minuten-Stadt"),
+                excerpt="Correctiv prüft: Werden in Hannover Autofahrten begrenzt?",
             ),
         ]
 
