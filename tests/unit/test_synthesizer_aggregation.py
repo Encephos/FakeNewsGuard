@@ -11,13 +11,14 @@ from __future__ import annotations
 
 import pytest
 
-from agents.synthesizer import (
-    AggregationSignals,
-    SynthesizerAgent,
-    _FABRICATED_MIN_REFUTED_RATIO,
-    _RHETORIC_FLOOR_HIGHLY,
-    _RHETORIC_FLOOR_MISLEADING,
-)
+from agents.synthesizer import AggregationSignals, SynthesizerAgent
+from config import SynthesizerConfig as _SynthCfg
+
+# Referenzwerte aus Config-Defaults für Grenzwert-Tests
+_defaults = _SynthCfg()
+_FABRICATED_MIN_REFUTED_RATIO = _defaults.fabricated_min_refuted_ratio
+_RHETORIC_FLOOR_MISLEADING = _defaults.rhetoric_floor_misleading
+_RHETORIC_FLOOR_HIGHLY = _defaults.rhetoric_floor_highly
 from models.schemas import (
     FactCheckResult,
     FactRating,

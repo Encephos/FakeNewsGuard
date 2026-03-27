@@ -436,6 +436,72 @@ class RateLimitConfig:
 
 
 @dataclass
+class SynthesizerConfig:
+    """Schwellenwerte für die regelbasierte Aggregationslogik im SynthesizerAgent.
+
+    Steuerung der drei Rating-Guardrails sowie der Confidence-Aggregation
+    aus Per-Claim-Confidences.
+
+    Env-Vars:
+        SYNTH_FABRICATED_MIN_REFUTED_RATIO       – Min. Anteil widerlegter Claims für FABRICATED (Default: 0.5)
+        SYNTH_RHETORIC_FLOOR_MISLEADING          – Rhetorik-Score-Schwelle für MISLEADING-Floor (Default: 0.5)
+        SYNTH_RHETORIC_FLOOR_HIGHLY              – Rhetorik-Score-Schwelle für HIGHLY_MISLEADING-Floor (Default: 0.7)
+        SYNTH_RHETORIC_NORM_BASE                 – Normalisierungsbasis für Rhetorik-Score (Default: 9.0)
+        SYNTH_MISLEADING_UNVERIFIED_MIN          – Min. unverified_ratio für MISLEADING-Guardrail (Default: 0.4)
+        SYNTH_HIGHLY_MISLEADING_UNVERIFIED_MIN   – Min. unverified_ratio für HIGHLY_MISLEADING-Guardrail (Default: 0.5)
+        SYNTH_HIGHLY_MISLEADING_REFUTED_MAX      – Max. refuted_ratio für HIGHLY_MISLEADING-Guardrail (Default: 0.3)
+        SYNTH_CLAIM_CONFIDENCE_BUFFER            – Puffer auf min_claim_conf bei Multi-Claim (Default: 0.10)
+        SYNTH_EXTRAORDINARY_CLAIM_CONF_CEILING   – Confidence-Ceiling bei 1 Claim ohne Primärquellen (Default: 0.80)
+    """
+
+    # ── FABRICATED-Guardrail ──────────────────────────────────────────────────
+    # Mindestanteil direkt widerlegter Claims (FALSE/MOSTLY_FALSE) für FABRICATED
+    fabricated_min_refuted_ratio: float = 0.5
+
+    # ── Rhetorik-Floors ───────────────────────────────────────────────────────
+    # Rhetorik-Score ab dem MISLEADING als Mindestverdikt gilt (+ unverified_min)
+    rhetoric_floor_misleading: float = 0.5
+    # Rhetorik-Score ab dem HIGHLY_MISLEADING als Mindestverdikt gilt
+    rhetoric_floor_highly: float = 0.7
+    # Normalisierungsbasis: 3 HIGH-Techniken ergeben Score 1.0
+    rhetoric_norm_base: float = 9.0
+
+    # ── Guardrail-Schwellen für unverified/refuted Ratios ─────────────────────
+    # Min. unverified_ratio damit der MISLEADING-Floor greift
+    misleading_unverified_min: float = 0.4
+    # Min. unverified_ratio damit der HIGHLY_MISLEADING-Floor greift
+    highly_misleading_unverified_min: float = 0.5
+    # Max. refuted_ratio für den HIGHLY_MISLEADING-Floor (muss niedrig sein)
+    highly_misleading_refuted_max: float = 0.3
+
+    # ── Confidence-Aggregation ────────────────────────────────────────────────
+    # Puffer auf min_claim_conf beim Blending mehrerer Claim-Confidences
+    claim_confidence_buffer: float = 0.10
+    # Ceiling bei genau 1 Fact-Check ohne konsultierte Primärquellen
+    extraordinary_claim_confidence_ceiling: float = 0.80
+
+    def __post_init__(self) -> None:
+        if v := os.getenv("SYNTH_FABRICATED_MIN_REFUTED_RATIO", ""):
+            self.fabricated_min_refuted_ratio = float(v)
+        if v := os.getenv("SYNTH_RHETORIC_FLOOR_MISLEADING", ""):
+            self.rhetoric_floor_misleading = float(v)
+        if v := os.getenv("SYNTH_RHETORIC_FLOOR_HIGHLY", ""):
+            self.rhetoric_floor_highly = float(v)
+        if v := os.getenv("SYNTH_RHETORIC_NORM_BASE", ""):
+            self.rhetoric_norm_base = float(v)
+        if v := os.getenv("SYNTH_MISLEADING_UNVERIFIED_MIN", ""):
+            self.misleading_unverified_min = float(v)
+        if v := os.getenv("SYNTH_HIGHLY_MISLEADING_UNVERIFIED_MIN", ""):
+            self.highly_misleading_unverified_min = float(v)
+        if v := os.getenv("SYNTH_HIGHLY_MISLEADING_REFUTED_MAX", ""):
+            self.highly_misleading_refuted_max = float(v)
+        if v := os.getenv("SYNTH_CLAIM_CONFIDENCE_BUFFER", ""):
+            self.claim_confidence_buffer = float(v)
+        if v := os.getenv("SYNTH_EXTRAORDINARY_CLAIM_CONF_CEILING", ""):
+            self.extraordinary_claim_confidence_ceiling = float(v)
+
+
+@dataclass
 class EvidenceRetrievalConfig:
     """Konfiguration für das adaptive Retrieval im EvidenceBuilderAgent.
 
@@ -525,6 +591,7 @@ class AppConfig:
     rate_limit: RateLimitConfig = field(default_factory=RateLimitConfig)
     graph: GraphConfig = field(default_factory=GraphConfig)
     evidence_retrieval: EvidenceRetrievalConfig = field(default_factory=EvidenceRetrievalConfig)
+    synthesizer: SynthesizerConfig = field(default_factory=SynthesizerConfig)
     tier: ScoutTier = ScoutTier.PRO  # Scout-Stufe (lite / pro / max)
     verbose: bool = True  # Zeige Agent-Wechsel und Zwischenergebnisse
     language: str = "de"  # Primärsprache der Analyse
