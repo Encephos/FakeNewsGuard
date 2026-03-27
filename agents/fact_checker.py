@@ -101,6 +101,89 @@ Antworte NUR mit einem JSON-Array von 3-4 Strings. Beispiel:
 """
 
 
+# ── Artifact-Indikatoren für missing_artifact_evidence ───────────────────────
+# Generische Artefakt-Begriffe aus dem Claim-Text (keine erfundenen Behörden).
+# Nur Wörter, die auf ein konkretes Dokument/Artefakt hinweisen.
+_ARTIFACT_TERMS: frozenset[str] = frozenset({
+    "dokument", "leak", "geleakt", "geleaktes", "intern", "interne", "internes",
+    "geheim", "geheimes", "geheimakte", "protokoll", "beschluss", "studie",
+    "bericht", "berichte", "papier", "entwurf", "richtlinie", "verordnung",
+    "vertrag", "vereinbarung", "memo", "memorandum", "whistleblower",
+    "enthüllung", "enthüllungen", "enthüllt", "leaked", "document", "secret",
+    "internal", "classified",
+})
+
+
+def _build_queries_for_underspecified_claim(
+    claim: "Claim",
+    quality_signals: list[str],
+) -> list[str]:
+    """Generiere generische Query-Familien für schwach spezifizierte Claims.
+
+    Für Claims ohne eindeutigen Akteur, mit behaupteten Dokumenten/Leaks
+    oder ohne identifizierbare Institution werden 4 Query-Familien erzeugt.
+    Keine Halluzinationen: Es werden ausschließlich Begriffe aus dem
+    Claim-Text selbst verwendet – niemals erfundene Länder, Behörden oder
+    Akteure.
+
+    Query-Familien:
+        1. direct_claim    – kompakte Keyword-Query ohne Füllwörter
+        2. document/artifact – Artefakt-Keyword + Kontext-Keywords
+                              (nur wenn ``missing_artifact_evidence`` Signal)
+        3. fact-check      – Keywords + „Faktencheck" / Debunk-Suffix
+        4. official_response – Keywords + „Stellungnahme" (ohne Institution)
+
+    Args:
+        claim: Der zu prüfende Claim (Claim oder ProcessedClaim).
+        quality_signals: Liste der erkannten Qualitätssignale aus
+            ProcessedClaim.quality_signals.
+
+    Returns:
+        Liste von 2–4 Queries. Leer wenn keine verwertbaren Keywords.
+    """
+    from tools.scrape_ranker import _extract_claim_keywords
+
+    keywords = _extract_claim_keywords(claim.text)
+    if not keywords:
+        return []
+
+    queries: list[str] = []
+    kw_sorted = sorted(keywords)[:6]
+    keyword_base = " ".join(kw_sorted)
+
+    # ── Familie 1: direct claim ──────────────────────────────────────────
+    queries.append(keyword_base)
+
+    # ── Familie 2: document/artifact ────────────────────────────────────
+    # Nur wenn das Signal ``missing_artifact_evidence`` vorliegt.
+    # Artefakt-Begriff stammt aus dem Claim-Text – nie halluziniert.
+    if "missing_artifact_evidence" in quality_signals:
+        claim_lower = claim.text.lower()
+        found_artifacts = [t for t in _ARTIFACT_TERMS if t in claim_lower]
+        if found_artifacts:
+            artifact_term = found_artifacts[0]
+            # Nicht-Artefakt-Keywords als Kontext-Anker behalten
+            ctx_kw = [k for k in kw_sorted if k not in _ARTIFACT_TERMS][:4]
+            artifact_query = " ".join([artifact_term] + ctx_kw)
+        else:
+            artifact_query = f"{keyword_base} Dokument"
+        if artifact_query and artifact_query not in queries:
+            queries.append(artifact_query)
+
+    # ── Familie 3: fact-check / debunk ───────────────────────────────────
+    fc_query = f"{keyword_base} Faktencheck"
+    if fc_query not in queries:
+        queries.append(fc_query)
+
+    # ── Familie 4: official response ─────────────────────────────────────
+    # Kein konkreter Akteur: generisches „Stellungnahme" als Suffix.
+    response_query = f"{keyword_base} Stellungnahme"
+    if response_query not in queries:
+        queries.append(response_query)
+
+    return queries
+
+
 def _count_strong_anchors(parts: list[str], profile: "ClaimSearchProfile") -> int:  # type: ignore[name-defined]
     """Zähle starke Anker in einer Query-Teilliste.
 
@@ -355,22 +438,39 @@ def _optimize_queries_with_llm(
 def _build_search_queries(claim: Claim, original_text: str = "") -> list[str]:
     """Generiere Suchqueries adaptiv – bevorzuge frame-basierte Queries.
 
-    Strategie (Priorität):
-        1. ClaimSearchProfile (frame-basiert) → _build_search_queries_from_profile()
-        2. LLM-Query-Optimierung (wird in EvidenceBuilder aufgerufen)
-        3. Fallback: adaptive Typ-basierte Queries aus Claim-Text
+    Prioritäten:
+        1. ClaimSearchProfile (frame-basiert) – außer bei Unspezifik + dünnem Profil
+        2. Query-Familien für schwach spezifizierte Claims
+           (``underspecified_actor`` / ``missing_artifact_evidence``):
+           direct_claim | document/artifact | fact-check | official_response
+        3. Adaptive Typ-Strategie aus freiem Claim-Text (Fallback)
 
-    Die Option "direkter Claim-Text als Query" bleibt als Fallback erhalten,
-    wird aber nicht mehr als primäre Strategie eingesetzt.
+    Query-Familien (Priorität 2) halluzinieren KEINE Akteure, Länder oder
+    Behörden – sie basieren ausschließlich auf Begriffen aus dem Claim-Text.
     """
     from models.schemas import ProcessedClaim as _PC
-    # Priorität 1: Wenn ein SearchProfile vorhanden ist, nutze es primär
+
+    _underspec_signals = {"underspecified_actor", "missing_artifact_evidence"}
+
+    # Priorität 1: Wenn ein SearchProfile vorhanden ist, nutze es primär.
+    # Ausnahme: Bei Unspezifik-Signalen UND dünnem Profil (<3 Queries)
+    # werden Query-Familien bevorzugt, da Profil-Felder dann meist leer sind.
     if isinstance(claim, _PC) and claim.search_profile:
         profile_queries = _build_search_queries_from_profile(claim)
         if profile_queries:
-            return profile_queries
+            is_underspecified = bool(_underspec_signals & set(claim.quality_signals or []))
+            if not is_underspecified or len(profile_queries) >= 3:
+                return profile_queries
+            # Profil dünn + unterspecified → weiter zu Query-Familien
 
-    # Fallback: adaptive Strategie basierend auf Claim-Typ
+    # Priorität 2: Query-Familien für schwach spezifizierte Claims.
+    # Verwendet nur Begriffe aus dem Claim-Text – keine Halluzinationen.
+    if isinstance(claim, _PC) and _underspec_signals & set(claim.quality_signals or []):
+        underspec_queries = _build_queries_for_underspecified_claim(claim, claim.quality_signals)
+        if underspec_queries:
+            return underspec_queries
+
+    # Priorität 3 (Fallback): adaptive Strategie basierend auf Claim-Typ
     text = claim.text
     claim_type = claim.type.value
 

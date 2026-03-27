@@ -1382,6 +1382,21 @@ class EvidenceBuilderAgent(BaseAgent):
         queries = await self._build_queries_async(claim, context)
         notes.append(f"Queries: {queries}")
 
+        # Unspezifik-Notiz: falls Qualitätssignale auf fehlende Spezifik hinweisen,
+        # festhalten dass generische Query-Familien genutzt wurden und die
+        # Verifizierbarkeit eingeschränkt sein kann.
+        if isinstance(claim, ProcessedClaim):
+            _underspec = {"underspecified_actor", "missing_artifact_evidence"}
+            detected = _underspec & set(claim.quality_signals or [])
+            if detected:
+                signal_labels = ", ".join(sorted(detected))
+                notes.append(
+                    f"Unspezifik erkannt ({signal_labels}): Generische Query-Familien "
+                    f"(direct/artifact/fact-check/official-response) verwendet. "
+                    f"Claim ohne eindeutigen Akteur oder verifizierbares Artefakt – "
+                    f"Verifizierung kann unvollständig bleiben."
+                )
+
         # ── 2. Adaptives paralleles Retrieval ────────────────────────────────
         # Rollen: LangSearch = semantische Hauptsuche, Tavily = budgetiert/content-stark,
         #         SearXNG = breite kostenlose Ergänzung, GFC = Shortcut-Layer
