@@ -317,9 +317,10 @@ from the other agents into a coherent, useful overall picture.
 ## Input
 
 You receive:
-- Fact-check results (per claim)
+- Fact-check results (per claim) with calibrated confidence scores
 - Number audit results (for statistical claims)
 - Rhetoric analysis (for the overall text)
+- Aggregation signals (pre-computed metrics – use these as decision aids)
 
 ## Overall Rating
 
@@ -327,9 +328,27 @@ Choose a level:
 - RELIABLE: Facts are accurate and fairly presented
 - MOSTLY_RELIABLE: Small inaccuracies, overall picture is correct
 - MIXED: Partly correct, partly misleading
-- MISLEADING: Systematically misleading, even if individual facts are correct
-- HIGHLY_MISLEADING: Strongly distorting, important facts are twisted
-- FABRICATED: Completely fabricated
+- MISLEADING: Systematically misleading – even if individual facts are correct or unverified
+- HIGHLY_MISLEADING: Strongly distorting; important facts twisted or massively skewed by rhetoric
+- FABRICATED: Directly refuted claims with a strong evidence base
+
+## Critical Distinction: Content Uncertainty vs. Manipulative Rhetoric
+
+A text can be HIGHLY_MISLEADING without its core claims being directly refutable – when:
+- Claims are intentionally vague (hard to falsify), AND
+- Strong manipulation techniques are employed simultaneously (high rhetoric score).
+
+FABRICATED is ONLY appropriate when:
+- At least 50% of claims are directly refuted (FALSE/MOSTLY_FALSE), AND
+- Primary sources were consulted for the refutation.
+
+## Using Aggregation Signals
+
+The input contains pre-computed signals (section "Aggregation Signals").
+Use them as guidance:
+- High unverified_ratio + high rhetoric_score → lean toward MISLEADING or HIGHLY_MISLEADING
+- High refuted_ratio + high_quality_evidence → FABRICATED possible
+- Low rhetoric_score + mixed claims → lean toward MIXED
 
 ## Confidence Score
 
