@@ -32,8 +32,10 @@ from models.evidence_models import (
     EvidencePack,
     EvidenceQualitySignals,
     EvidenceSource,
+    EvidenceType,
     GoogleFactCheckMatch,
     SourceConsensus,
+    SourceDirection,
 )
 from models.schemas import Claim, ClaimSearchProfile, ProcessedClaim
 from tools.factcheck_databases import FactCheckDatabaseClient, FactCheckDatabaseConfig
@@ -678,13 +680,21 @@ def _extract_best_excerpt(content: str, claim_text: str, max_chars: int = 800) -
 
 
 def _rank_evidence_items(
-    results: list[SearchResult],
+    items: list[EvidenceItem],
     claim_text: str,
     google_matches: list[GoogleFactCheckMatch],
     profile: ClaimSearchProfile | None = None,
     is_current_state: bool = False,
 ) -> list[EvidenceItem]:
-    """Ranke Suchergebnisse zu strukturierten EvidenceItems.
+    """Ranke bestehende EvidenceItems neu – behalte alle Metadaten.
+
+    Eingang: Bereits angereicherte EvidenceItems mit:
+        - publication_date (extrahiert aus Quellen)
+        - evidence_type (DIRECT/CONTEXTUAL/WEAK)
+        - claim_scope_score (profile-basiert berechnet)
+        - extraction_confidence (0.8/0.6/0.3 je Quelle)
+
+    Ausgang: Gleiche Items, aber neu sortiert nach:
 
     Ranking-Kriterien:
         1. Domain-Tier             (0.25 Gewicht)
@@ -694,30 +704,41 @@ def _rank_evidence_items(
         5. GFC-Match-Bonus         (0.10)
         6. Off-topic Penalty       (0.05 + content-basiert)
 
-    Verwerfen:
+    Filtering (Items werden entfernt):
         - URL-basierte Off-topics mit rel < 0.3
         - Inhaltliche Off-topics (Institution + Ort fehlen) mit rel < 0.25
         - Tier-5-Treffer mit rel < 0.10 ohne FC-Status
+
+    WICHTIG: Alle Metadaten außer relevance_score bleiben unverändert.
     """
     fact_check_domains = {_extract_domain(m.url) for m in google_matches}
 
-    items: list[tuple[float, EvidenceItem]] = []
-    for r in results:
-        tier = _domain_tier(r.url)
-        rel = _relevance_score(r, claim_text, profile)
-        is_fc = _is_fact_check_org(r.url)
-        has_gfc_match = _extract_domain(r.url) in fact_check_domains
+    ranked: list[tuple[float, EvidenceItem]] = []
+    for item in items:
+        # Extrahiere URL/Titel/Snippet aus dem bestehenden Item
+        url = item.source.url
+        title = item.source.title
+        snippet = item.excerpt
+
+        tier = _domain_tier(url)
+        rel = _relevance_score(
+            SearchResult(title=title, url=url, snippet=snippet),
+            claim_text,
+            profile,
+        )
+        is_fc = _is_fact_check_org(url)
+        has_gfc_match = _extract_domain(url) in fact_check_domains
 
         # ── Off-topic Detection ──────────────────────────────────
         # 0. Low-Trust-Seitentyp: fast immer verwerfen (Währungsrechner, Grammatik etc.)
-        is_low_trust = _is_low_trust_site(r.url, r.title, r.snippet)
+        is_low_trust = _is_low_trust_site(url, title, snippet)
         if is_low_trust and not is_fc and not has_gfc_match:
             # Low-Trust-Seiten nur durchlassen wenn außergewöhnlich relevant
             if rel < 0.50:
                 continue
 
         # 1. URL-basiert: klar irrelevante Domains
-        if _is_offtopic_url(r.url) and rel < 0.3:
+        if _is_offtopic_url(url) and rel < 0.3:
             continue
 
         # 2. Inhalt-basiert: Hauptentitäten fehlen komplett
@@ -725,7 +746,7 @@ def _rank_evidence_items(
         content_penalty = 0.0
         if profile:
             content_offtopic, content_penalty = _is_offtopic_content(
-                r.title, r.snippet, profile
+                title, snippet, profile
             )
             # Erhöhte Discard-Schwelle: 0.30 statt 0.25 – fängt mehr Randtreffer ab
             if content_offtopic and rel < 0.30 and not is_fc and not has_gfc_match:
@@ -739,7 +760,7 @@ def _rank_evidence_items(
         offtopic_penalty = 0.0
         if is_low_trust:
             offtopic_penalty = 0.7  # Low-Trust: starke Abwertung
-        elif _is_offtopic_url(r.url):
+        elif _is_offtopic_url(url):
             offtopic_penalty = 0.4
         elif content_offtopic:
             offtopic_penalty = max(offtopic_penalty, content_penalty)
@@ -749,7 +770,7 @@ def _rank_evidence_items(
         # ── Profil-Anchor-Score (wenn Profil vorhanden) ──────────
         anchor_bonus = 0.0
         if profile:
-            combined = f"{r.title} {r.snippet}".lower()
+            combined = f"{title} {snippet}".lower()
             raw_anchor = _profile_anchor_score(combined, profile)
             # Bei Regelungsclaims (Sanktion/Policy + Institution) höheres Anchor-Gewicht
             is_regulatory_profile = bool(profile.sanction_terms) or (
@@ -777,28 +798,14 @@ def _rank_evidence_items(
             else:
                 score -= 0.05
 
-        source = EvidenceSource(
-            url=r.url,
-            title=r.title,
-            domain=_extract_domain(r.url),
-            domain_tier=tier,
-            is_fact_check_org=is_fc,
+        # ── Metadaten erhalten, nur relevance_score aktualisieren ──
+        updated_item = item.model_copy(
+            update={"relevance_score": rel}
         )
+        ranked.append((score, updated_item))
 
-        # Bessere Excerpt-Extraktion
-        content = r.content if r.content else r.snippet
-        excerpt = _extract_best_excerpt(content, claim_text, max_chars=800) if content else ""
-
-        item = EvidenceItem(
-            source=source,
-            excerpt=excerpt,
-            relevance_score=rel,
-            extraction_confidence=0.5 if excerpt else 0.0,
-        )
-        items.append((score, item))
-
-    items.sort(key=lambda x: -x[0])
-    return [item for _, item in items]
+    ranked.sort(key=lambda x: -x[0])
+    return [item for _, item in ranked]
 
 
 def _detect_contradictions(items: list[EvidenceItem]) -> list[EvidenceContradiction]:
@@ -838,6 +845,118 @@ def _detect_contradictions(items: list[EvidenceItem]) -> list[EvidenceContradict
     return contradictions
 
 
+# ── Direktionales Quellen-Signal ──────────────────────────────────────────────
+
+# Widerlegungsmuster (generisch, kein Claim-Bezug)
+_REFUTATION_PATTERNS: list[re.Pattern[str]] = [
+    re.compile(p) for p in [
+        r"\bnicht\s+(?:korrekt|richtig|wahr|zutreffend|belegt|nachgewiesen|bestätigt)\b",
+        r"\bwiderlegt\b",
+        r"\bunwahr\b",
+        r"\bist\s+falsch\b",
+        r"\bsind\s+falsch\b",
+        r"\bunzutreffend\b",
+        r"\bstimmt\s+nicht\b",
+        r"\btrifft\s+nicht\s+zu\b",
+        r"\bkeine?\s+(?:belege?|nachweise?)\b",
+        r"\bnicht\s+belegt\b",
+        r"\bnicht\s+bestätigt\b",
+        r"\bkein\s+(?:beleg|nachweis)\b",
+        r"\b(?:was|were|has been|have been)\s+(?:refuted|debunked)\b",
+        r"\bdebunked\b",
+        r"\brefuted\b",
+        r"\bincorrect\b",
+    ]
+]
+
+# Bestätigungsmuster (generisch, kein Claim-Bezug)
+_CONFIRMATION_PATTERNS: list[re.Pattern[str]] = [
+    re.compile(p) for p in [
+        r"\bbestätigt\b",
+        r"\bbelegt\b",
+        r"\bnachgewiesen\b",
+        r"\btrifft\s+zu\b",
+        r"\bist\s+korrekt\b",
+        r"\bist\s+richtig\b",
+        r"\btatsächlich\b",
+        r"\bwie\s+behauptet\b",
+        r"\bin\s+der\s+tat\b",
+        r"\bist\s+wahr\b",
+        r"\bwurde\s+festgestellt\b",
+        r"\b(?:has been|have been)\s+confirmed\b",
+        r"\bconfirmed\b",
+        r"\bverified\b",
+    ]
+]
+
+
+def _classify_source_direction(
+    excerpt: str,
+    relevance_score: float,
+    evidence_type: EvidenceType,
+    is_low_trust: bool,
+) -> SourceDirection:
+    """Bestimme die generische Aussagebeziehung einer Quelle zum Claim.
+
+    Keine claim-spezifischen Regeln oder hartcodierten Behauptungen.
+    Schwache, unzuverlässige und off-topic Quellen werden nie als
+    SUPPORTS oder REFUTES klassifiziert.
+
+    Hierarchie:
+        1. Niedrige Relevanz → OFFTOPIC
+        2. Low-Trust oder WEAK evidence → NEUTRAL
+        3. Textanalyse auf Widerlegungs-/Bestätigungsmuster
+        4. Nur DIRECT oder hochrelevantes CONTEXTUAL erhält SUPPORTS/REFUTES
+    """
+    # 1. Off-topic: Zu schwacher Claim-Bezug für eine Richtungsaussage
+    if relevance_score < 0.20:
+        return SourceDirection.OFFTOPIC
+
+    # 2. Strukturell unzuverlässige Quellen können keine verlässliche Richtung liefern
+    if is_low_trust or evidence_type == EvidenceType.WEAK:
+        return SourceDirection.NEUTRAL
+
+    # 3. Textuelles Richtungssignal – nur wenn Excerpt vorhanden
+    if not excerpt:
+        return SourceDirection.NEUTRAL
+
+    text = excerpt.lower()
+    refute_count = sum(1 for p in _REFUTATION_PATTERNS if p.search(text))
+    support_count = sum(1 for p in _CONFIRMATION_PATTERNS if p.search(text))
+
+    # 4. Richtung nur für DIRECT oder relevantes CONTEXTUAL vergeben
+    # CONTEXTUAL mit niedriger Relevanz → NEUTRAL (verhindert "Support Leakage")
+    if evidence_type != EvidenceType.DIRECT and relevance_score < 0.40:
+        return SourceDirection.NEUTRAL
+
+    if refute_count > support_count and refute_count >= 1:
+        return SourceDirection.REFUTES
+    if support_count > refute_count and support_count >= 1:
+        return SourceDirection.SUPPORTS
+
+    return SourceDirection.NEUTRAL
+
+
+def _direction_weight(item: EvidenceItem) -> float:
+    """Gewicht eines Items für die gewichtete Konsensberechnung.
+
+    Low-Trust- und OFFTOPIC/NEUTRAL-Items tragen nicht zur Richtungsbestimmung bei.
+    Tier und EvidenceType skalieren das Gewicht.
+    """
+    if item.source_direction in (SourceDirection.OFFTOPIC, SourceDirection.NEUTRAL):
+        return 0.0
+    if _is_low_trust_site(item.source.url, item.source.title, ""):
+        return 0.0
+    # Tier-Gewicht: Tier 1 → 1.0, Tier 5 → 0.2
+    tier_weight = max(0.2, (6 - item.source.domain_tier) / 5.0)
+    ev_weight = {
+        EvidenceType.DIRECT: 1.0,
+        EvidenceType.CONTEXTUAL: 0.5,
+        EvidenceType.WEAK: 0.0,
+    }
+    return tier_weight * ev_weight.get(item.evidence_type, 0.0)
+
+
 def _compute_quality_signals(
     items: list[EvidenceItem],
     google_matches: list[GoogleFactCheckMatch],
@@ -847,24 +966,56 @@ def _compute_quality_signals(
     is_current_state: bool = False,
 ) -> EvidenceQualitySignals:
     """Berechne Qualitätssignale für das Evidence-Set."""
-    has_primary = any(i.source.domain_tier <= 2 for i in items)
-    has_fc = bool(google_matches) or any(i.source.is_fact_check_org for i in items)
+    # ── Granulare Primary-Source-Signale ──────────────────────────────────────
+    # has_primary_any: irgendeine Tier-1/2-Quelle vorhanden (schwaches Signal)
+    has_primary_any = any(i.source.domain_tier <= 2 for i in items)
+    # has_primary_direct: Tier-1/2-Quelle mit direktem Claim-Bezug (starkes Signal)
+    # Bedingung: evidence_type=DIRECT und claim_scope_score >= 0.50
+    # Allgemeine Behördenseiten ohne spezifischen Claim-Bezug zählen NICHT.
+    _PRIMARY_DIRECT_SCOPE = 0.50
+    has_primary_direct = any(
+        i.source.domain_tier <= 2
+        and i.evidence_type == EvidenceType.DIRECT
+        and i.claim_scope_score >= _PRIMARY_DIRECT_SCOPE
+        for i in items
+    )
+
+    # ── Granulare Faktenchecker-Signale ───────────────────────────────────────
+    # has_fc_any: irgendein Faktenchecker-Ergebnis vorhanden (schwaches Signal)
+    has_fc_any = bool(google_matches) or any(i.source.is_fact_check_org for i in items)
+    # has_fc_direct: Faktenchecker mit direktem Claim-Bezug (starkes Signal)
+    # GFC-Matches gelten immer als direkt (API liefert Claim-spezifische Treffer).
+    # Faktenchecker-Orgs nur wenn evidence_type=DIRECT (kein allgemeiner Hintergrundartikel).
+    has_fc_direct = bool(google_matches) or any(
+        i.source.is_fact_check_org and i.evidence_type == EvidenceType.DIRECT
+        for i in items
+    )
+
+    # Rückwärtskompatible Aliase (hat_primary_sources, has_fact_check_org_result)
+    has_primary = has_primary_any
+    has_fc = has_fc_any
+
     top_tier_count = sum(1 for i in items if i.source.domain_tier <= 2)
 
-    if not items:
+    # Gewichteter Konsens über source_direction-Signale.
+    # Low-Trust- und OFFTOPIC/NEUTRAL-Items tragen nicht bei (_direction_weight = 0).
+    # Damit wird fehlende Bestätigung klar von echter Widerlegung getrennt.
+    weighted_support = sum(_direction_weight(i) for i in items if i.source_direction == SourceDirection.SUPPORTS)
+    weighted_refute = sum(_direction_weight(i) for i in items if i.source_direction == SourceDirection.REFUTES)
+    total_signal = weighted_support + weighted_refute
+
+    if total_signal == 0:
         consensus = SourceConsensus.INSUFFICIENT
-    elif len(items) < 2:
-        consensus = SourceConsensus.INSUFFICIENT
+    elif weighted_refute == 0:
+        consensus = SourceConsensus.AGREEING
+    elif weighted_support == 0:
+        consensus = SourceConsensus.CONTRADICTORY
     else:
-        support = sum(1 for i in items if i.supports_claim is True)
-        oppose = sum(1 for i in items if i.supports_claim is False)
-        total_assessed = support + oppose
-        if total_assessed == 0:
-            consensus = SourceConsensus.INSUFFICIENT
-        elif support > 0 and oppose == 0:
+        support_ratio = weighted_support / total_signal
+        if support_ratio >= 0.70:
             consensus = SourceConsensus.AGREEING
-        elif oppose > 0 and support == 0:
-            consensus = SourceConsensus.AGREEING  # Konsens gegen Claim
+        elif support_ratio <= 0.30:
+            consensus = SourceConsensus.CONTRADICTORY
         else:
             consensus = SourceConsensus.MIXED
 
@@ -915,12 +1066,36 @@ def _compute_quality_signals(
     # Stale-Penalty: wenn alle Quellen veraltet sind (avg_freshness < stale_threshold)
     stale_penalty = stale_penalty_factor if (items and freshness < stale_threshold) else 0.0
 
+    # Konsens-Bonus: klares Richtungssignal aus vertrauenswürdigen Quellen erhöht Qualität
+    # (sowohl AGREEING als auch CONTRADICTORY sind informative Signale)
+    consensus_clarity_bonus = (
+        0.05
+        if consensus in (SourceConsensus.AGREEING, SourceConsensus.CONTRADICTORY)
+        and total_signal >= 0.5
+        else 0.0
+    )
+
+    # Primary-Source-Beitrag: direkter Claim-Bezug → 0.25, nur Präsenz → 0.10
+    # Verhindert, dass allgemeine Behörden-/Statistikseiten als starke Evidenz zählen.
+    primary_contribution = (
+        0.25 if has_primary_direct
+        else 0.10 if has_primary_any
+        else 0.0
+    )
+    # Faktenchecker-Beitrag: direkter Match → 0.25, nur Präsenz → 0.10
+    fc_contribution = (
+        0.25 if has_fc_direct
+        else 0.10 if has_fc_any
+        else 0.0
+    )
+
     overall = (
         min(1.0, top_tier_count / 3) * 0.30
-        + (0.25 if has_primary else 0)
-        + (0.25 if has_fc else 0)
+        + primary_contribution
+        + fc_contribution
         + avg_relevance * 0.10
         + freshness_term
+        + consensus_clarity_bonus
         - offtopic_penalty
         - low_trust_penalty
         - stale_penalty
@@ -928,7 +1103,6 @@ def _compute_quality_signals(
     overall = max(0.0, min(1.0, overall))
 
     # Evidence-Type-Statistiken für Top-5
-    from models.evidence_models import EvidenceType
     direct_count = sum(
         1 for i in top_5
         if getattr(i, "evidence_type", None) == EvidenceType.DIRECT
@@ -943,9 +1117,27 @@ def _compute_quality_signals(
     if contextual_only_rate > 0.6 and direct_count == 0:
         overall = max(0.0, overall - 0.10)
 
+    # Aktive direkte Widerlegung: Quellen die BOTH REFUTES + DIRECT sind.
+    # Unterscheidet "Claim nicht belegt" (fehlendes Stützungssignal) von
+    # "Claim aktiv durch direkte Quelle widerlegt" (echtes Widerlegungssignal).
+    direct_refutation_count = sum(
+        1 for i in top_5
+        if (
+            getattr(i, "source_direction", None) == SourceDirection.REFUTES
+            and getattr(i, "evidence_type", None) == EvidenceType.DIRECT
+        )
+    )
+    has_direct_refutation = direct_refutation_count > 0
+
     return EvidenceQualitySignals(
-        has_primary_sources=has_primary,
-        has_fact_check_org_result=has_fc,
+        # Granulare Signale (neue Felder)
+        has_primary_source_any=has_primary_any,
+        has_primary_direct_evidence=has_primary_direct,
+        has_fact_check_any=has_fc_any,
+        has_fact_check_direct_match=has_fc_direct,
+        # Rückwärtskompatible Aliase
+        has_primary_sources=has_primary_any,
+        has_fact_check_org_result=has_fc_any,
         source_consensus=consensus,
         freshness_score=freshness,
         overall_quality=overall,
@@ -955,6 +1147,8 @@ def _compute_quality_signals(
         low_trust_rate=low_trust_rate,
         direct_evidence_count=direct_count,
         contextual_only_rate=contextual_only_rate,
+        has_direct_refutation=has_direct_refutation,
+        direct_refutation_count=direct_refutation_count,
     )
 
 
@@ -1028,8 +1222,10 @@ def _classify_evidence_type(
     if is_fact_check and item_relevance >= 0.30:
         return EvidenceType.DIRECT
 
-    # Offizielle Quellen (Tier 1-2) mit gutem Scope → DIRECT
-    if domain_tier <= 2 and claim_scope >= min_direct_scope * 0.8:
+    # Offizielle Quellen (Tier 1-2) brauchen denselben Scope-Threshold wie andere Quellen.
+    # Eine allgemeine Behörden-/Statistikseite ohne direkten Claim-Bezug darf nicht als
+    # DIRECT gewertet werden, nur weil die Domain vertrauenswürdig ist.
+    if domain_tier <= 2 and claim_scope >= min_direct_scope:
         return EvidenceType.DIRECT
 
     # Hoher Scope + ausreichende Relevanz → DIRECT
@@ -1642,24 +1838,35 @@ class EvidenceBuilderAgent(BaseAgent):
                 min_direct_scope=self.config.evidence_retrieval.claim_scope_min_direct,
             )
 
+            direction = _classify_source_direction(
+                excerpt=excerpt,
+                relevance_score=rel_score,
+                evidence_type=ev_type,
+                is_low_trust=is_low_trust,
+            )
+            # supports_claim wird aus source_direction abgeleitet (Rückwärtskompatibilität)
+            supports_claim_derived: bool | None = (
+                True if direction == SourceDirection.SUPPORTS
+                else False if direction == SourceDirection.REFUTES
+                else None
+            )
+
             item = EvidenceItem(
                 source=source,
                 excerpt=excerpt,
                 relevance_score=rel_score,
                 extraction_confidence=extraction_conf,
-                supports_claim=None,
+                supports_claim=supports_claim_derived,
+                source_direction=direction,
                 evidence_type=ev_type,
                 claim_scope_score=scope_score,
             )
             items.append(item)
 
         # Nach Ranking-Score sortieren (Tier + Relevanz + Profil-Anker + Off-topic)
+        # Direktes Ranking auf EvidenceItems – Metadaten bleiben erhalten
         items = _rank_evidence_items(
-            [SearchResult(
-                title=i.source.title,
-                url=i.source.url,
-                snippet=i.excerpt,
-            ) for i in items],
+            items,
             claim_text,
             gfc_matches,
             profile=profile,

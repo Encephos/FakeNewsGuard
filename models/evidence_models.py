@@ -21,10 +21,27 @@ from pydantic import BaseModel, Field
 
 
 class SourceConsensus(str, Enum):
-    AGREEING = "agreeing"          # Quellen stimmen überein
-    CONTRADICTORY = "contradictory"  # Quellen widersprechen sich direkt
-    MIXED = "mixed"                # Teils übereinstimmend, teils widersprüchlich
-    INSUFFICIENT = "insufficient"  # Zu wenig Quellen für Aussage
+    AGREEING = "agreeing"          # Quellen stützen den Claim überwiegend
+    CONTRADICTORY = "contradictory"  # Quellen widerlegen den Claim überwiegend
+    MIXED = "mixed"                # Stützende und widerlegende Quellen halten sich die Waage
+    INSUFFICIENT = "insufficient"  # Zu wenig verwertbare Richtungssignale
+
+
+class SourceDirection(str, Enum):
+    """Aussagebeziehung einer einzelnen Quelle zum Claim.
+
+    Generisches Signal – wird rein textbasiert und strukturell bestimmt,
+    ohne claim-spezifische Regeln oder hartcodierte Behauptungen.
+
+    SUPPORTS  – Quelle stützt den Claim inhaltlich
+    REFUTES   – Quelle widerlegt den Claim inhaltlich
+    NEUTRAL   – Quelle ist relevant, aber ohne klare Richtung
+    OFFTOPIC  – Quelle hat keinen ausreichenden Bezug zum Claim
+    """
+    SUPPORTS = "supports"
+    REFUTES = "refutes"
+    NEUTRAL = "neutral"
+    OFFTOPIC = "offtopic"
 
 
 class EvidenceType(str, Enum):
@@ -81,7 +98,15 @@ class EvidenceItem(BaseModel):
     extraction_confidence: float = Field(default=0.0, ge=0.0, le=1.0)
     supports_claim: Optional[bool] = Field(
         default=None,
-        description="True=stützt Claim, False=widerspricht, None=neutral/unklar",
+        description="Deprecated – wird aus source_direction abgeleitet. True=stützt Claim, False=widerspricht, None=neutral/unklar",
+    )
+    source_direction: SourceDirection = Field(
+        default=SourceDirection.NEUTRAL,
+        description=(
+            "Generisches Richtungssignal: SUPPORTS=stützt Claim, REFUTES=widerlegt, "
+            "NEUTRAL=relevant aber unklar, OFFTOPIC=kein ausreichender Claim-Bezug. "
+            "Low-Trust- und Off-topic-Quellen werden nie als SUPPORTS/REFUTES klassifiziert."
+        ),
     )
     evidence_type: EvidenceType = Field(
         default=EvidenceType.CONTEXTUAL,
@@ -113,10 +138,57 @@ class EvidenceContradiction(BaseModel):
 
 
 class EvidenceQualitySignals(BaseModel):
-    """Qualitätssignale für das gesamte Evidence-Set."""
+    """Qualitätssignale für das gesamte Evidence-Set.
 
-    has_primary_sources: bool = False
-    has_fact_check_org_result: bool = False
+    Unterscheidung zwischen Präsenz und direkter Evidenz:
+        has_primary_source_any          – mind. eine Tier-1/2-Quelle vorhanden
+        has_primary_direct_evidence     – Tier-1/2-Quelle, die den Claim direkt belegt
+                                          (evidence_type=DIRECT + claim_scope_score >= 0.50)
+        has_fact_check_any              – mind. ein Faktenchecker-Ergebnis vorhanden (GFC oder Org)
+        has_fact_check_direct_match     – Faktenchecker-Ergebnis mit direktem Claim-Bezug
+                                          (GFC-Match oder Faktenchecker-Org mit evidence_type=DIRECT)
+
+    Die rückwärtskompatiblen Felder has_primary_sources und has_fact_check_org_result
+    werden auf has_primary_source_any bzw. has_fact_check_any abgebildet.
+    """
+
+    # ── Granulare Primary-Source-Signale ──────────────────────────────────────
+    has_primary_source_any: bool = Field(
+        default=False,
+        description="Mind. eine Tier-1/2-Quelle (Behörde/Statistikamt) vorhanden",
+    )
+    has_primary_direct_evidence: bool = Field(
+        default=False,
+        description=(
+            "Mind. eine Tier-1/2-Quelle mit direktem Claim-Bezug: "
+            "evidence_type=DIRECT und claim_scope_score >= 0.50. "
+            "Allgemeine Behördenseiten ohne spezifischen Claim-Bezug zählen hier NICHT."
+        ),
+    )
+
+    # ── Granulare Faktenchecker-Signale ───────────────────────────────────────
+    has_fact_check_any: bool = Field(
+        default=False,
+        description="Mind. ein Faktenchecker-Ergebnis vorhanden (GFC-Match oder Faktenchecker-Org)",
+    )
+    has_fact_check_direct_match: bool = Field(
+        default=False,
+        description=(
+            "Faktenchecker-Ergebnis mit direktem Claim-Bezug: GFC-Match "
+            "oder Faktenchecker-Org mit evidence_type=DIRECT"
+        ),
+    )
+
+    # ── Rückwärtskompatible Aliase ────────────────────────────────────────────
+    has_primary_sources: bool = Field(
+        default=False,
+        description="Deprecated – identisch mit has_primary_source_any",
+    )
+    has_fact_check_org_result: bool = Field(
+        default=False,
+        description="Deprecated – identisch mit has_fact_check_any",
+    )
+
     source_consensus: SourceConsensus = SourceConsensus.INSUFFICIENT
     freshness_score: float = Field(
         default=0.0,
@@ -170,6 +242,20 @@ class EvidenceQualitySignals(BaseModel):
             "Anteil der Quellen die nur contextual/weak sind (kein direct evidence) "
             "in den Top-5. Hoher Wert → Support Leakage-Risiko."
         ),
+    )
+
+    # ── Widerlegungs-Signale ──────────────────────────────────────────────────
+    has_direct_refutation: bool = Field(
+        default=False,
+        description=(
+            "Mind. eine Quelle in Top-5 widerlegt den Claim direkt: "
+            "source_direction=REFUTES UND evidence_type=DIRECT. "
+            "Unterscheidet aktive Widerlegung von bloßem Fehlen von Belegen."
+        ),
+    )
+    direct_refutation_count: int = Field(
+        default=0,
+        description="Anzahl der Top-5-Quellen mit REFUTES + DIRECT (aktive direkte Widerlegung)",
     )
 
 
@@ -271,11 +357,13 @@ class EvidencePack(BaseModel):
             for i, item in enumerate(self.web_results[:8], 1):
                 tier_label = {1: "Statistikamt", 2: "Behörde", 3: "Qualitätsjournalismus",
                               4: "Faktenchecker", 5: "Sonstige"}.get(item.source.domain_tier, "Sonstige")
-                support = ""
-                if item.supports_claim is True:
-                    support = " [stützt Claim]"
-                elif item.supports_claim is False:
-                    support = " [widerspricht Claim]"
+                direction_labels = {
+                    SourceDirection.SUPPORTS: " [stützt Claim]",
+                    SourceDirection.REFUTES: " [widerlegt Claim]",
+                    SourceDirection.OFFTOPIC: " [off-topic]",
+                    SourceDirection.NEUTRAL: "",
+                }
+                support = direction_labels.get(item.source_direction, "")
                 ev_type_label = {
                     EvidenceType.DIRECT: "DIREKT",
                     EvidenceType.CONTEXTUAL: "KONTEXT",
@@ -297,16 +385,29 @@ class EvidencePack(BaseModel):
         # Qualitätssignale
         if self.evidence_quality:
             q = self.evidence_quality
+            # Primärquelle: unterscheide allgemeine Präsenz von direkter Evidenz
+            primary_label = (
+                "direkte Evidenz" if q.has_primary_direct_evidence
+                else "nur Präsenz" if q.has_primary_source_any
+                else "keine"
+            )
+            fc_label = (
+                "direkter Match" if q.has_fact_check_direct_match
+                else "nur Präsenz" if q.has_fact_check_any
+                else "kein"
+            )
             parts.append(
                 f"\n## Evidenz-Qualität\n"
                 f"  Quellen gesamt: {self.source_count}, Tier-1/2: {q.top_tier_count}\n"
-                f"  Faktenchecker-Ergebnis vorhanden: {q.has_fact_check_org_result}\n"
+                f"  Primärquelle (Behörde/Statistik): {primary_label}\n"
+                f"  Faktenchecker-Ergebnis: {fc_label}\n"
                 f"  Quellen-Konsens: {q.source_consensus.value}\n"
                 f"  Qualitätsscore: {q.overall_quality:.2f}\n"
                 f"  Off-topic-Rate (Top-5): {q.off_topic_rate:.0%}\n"
                 f"  Ø Relevanz (Top-5): {q.avg_top5_relevance:.2f}\n"
                 f"  Direkte Evidenz (Top-5): {q.direct_evidence_count}\n"
                 f"  Nur-Kontext-Rate (Top-5): {q.contextual_only_rate:.0%}\n"
+                f"  Aktive direkte Widerlegung: {'ja (' + str(q.direct_refutation_count) + ')' if q.has_direct_refutation else 'nein'}\n"
             )
 
         return "\n".join(parts) if parts else "Keine Evidenz gefunden."

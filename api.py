@@ -263,6 +263,7 @@ def _transform_result(result: Any, claims_map: dict[str, Any]) -> dict:
             "text": claim_info.get("text", fc.claim_id),
             "type": claim_info.get("type", "FACTUAL"),
             "rating": fc.rating.value,
+            "confidence": round(fc.confidence * 100) if fc.confidence >= 0.0 else None,
             "evidence": fc.evidence or "",
             "correction": fc.correction or "",
             "missing_context": fc.missing_context or "",

@@ -15,10 +15,11 @@ Wichtig:
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass, field
 from typing import Any
 
 from agents.base import BaseAgent
-from models.evidence_models import EvidencePack, EvidenceType
+from models.evidence_models import EvidencePack, EvidenceType, SourceConsensus
 from models.schemas import (
     FACT_CHECK_SCHEMA,
     Claim,
@@ -86,6 +87,155 @@ def _is_regulatory_from_text(claim_text: str) -> bool:
     return bool(_REGULATORY_TEXT_PATTERN.search(claim_text))
 
 
+# ── Rating-Kalibrierung ────────────────────────────────────────────────────────
+
+
+@dataclass
+class VerdictRatingCalibrationConfig:
+    """Konfigurierbare Regeln für die regelbasierte Rating-Nachkorrektur.
+
+    Kerntrennung:
+        - UNVERIFIABLE : Claim kann mit vorliegender Evidenz nicht geprüft werden
+                         (fehlende direkte Belege, kein Konsens)
+        - MISLEADING   : Kontext-Quellen vorhanden, aber kein direkter Beweis/Widerruf;
+                         oder ähnliches Konzept belegt, aber Details verzerrt
+        - MOSTLY_FALSE : Kernaussage falsch, aber nur durch schwache/kontextuelle
+                         Widerlegungssignale (kein aktives DIRECT-REFUTES-Signal nötig)
+        - FALSE        : Direkt widerlegt (aktive direkte Quelle, Faktenchecker-Match
+                         oder überwiegend widerlegender Konsens)
+    """
+
+    # --- FALSE-Schwellen -------------------------------------------------------
+    # FALSE erfordert mindestens eines dieser Signale:
+    #   a) eine DIRECT+REFUTES Quelle in Top-5 (has_direct_refutation)
+    #   b) CONTRADICTORY source_consensus (gewichteter Widerlegungs-Konsens)
+    #   c) einen direkten Faktenchecker-Match (has_fact_check_direct_match)
+    false_requires_active_refutation: bool = True
+
+    # Wohin FALSE degradiert wird, wenn kein aktives Widerlegungssignal vorliegt:
+    #   "UNVERIFIABLE" wenn Konsens INSUFFICIENT (keine Richtungssignale)
+    #   "MISLEADING"   wenn Konsens MIXED oder AGREEING (Kontext vorhanden,
+    #                  aber kein direkter Widerruf)
+    false_no_refutation_downgrade_insufficient: str = "UNVERIFIABLE"
+    false_no_refutation_downgrade_mixed_or_agreeing: str = "MISLEADING"
+
+    # --- MOSTLY_FALSE-Schwellen -----------------------------------------------
+    # MOSTLY_FALSE erfordert mindestens eines dieser Signale:
+    #   a) irgendein REFUTES-Signal in Top-5 (auch CONTEXTUAL, nicht nur DIRECT)
+    #   b) CONTRADICTORY oder MIXED source_consensus
+    #   c) irgendein Faktenchecker-Ergebnis (has_fact_check_any)
+    mostly_false_requires_refutation_signal: bool = True
+
+    # Wohin MOSTLY_FALSE degradiert wenn kein Widerlegungssignal vorliegt:
+    mostly_false_no_signal_downgrade: str = "UNVERIFIABLE"
+
+    # --- Kontextueller Cap -------------------------------------------------------
+    # Wenn 0 DIRECT-Evidence in Top-5 (nur CONTEXTUAL/WEAK): FALSE → MISLEADING
+    # Kontextquellen simulieren keine aktive Widerlegung.
+    contextual_only_caps_false_at_misleading: bool = True
+
+
+def _calibrate_rating(
+    raw_rating: "FactRating",
+    pack: "EvidencePack",
+    config: VerdictRatingCalibrationConfig | None = None,
+) -> tuple["FactRating", list[str]]:
+    """Regelbasierter Rating-Postprocessor.
+
+    Korrigiert LLM-Ratings die aus fehlendem Beweis fälschlich auf FALSE schließen.
+
+    Kernregel: Fehlende direkte Evidenz ≠ Widerlegung.
+        - Keine Belege + kein Konsens         → UNVERIFIABLE
+        - Kontextquellen ohne direkten Beweis → höchstens MISLEADING
+        - Aktive Widerlegung (DIRECT+REFUTES) → FALSE bleibt FALSE
+
+    Args:
+        raw_rating: Vom LLM geliefertes Rating (FactRating-Enum)
+        pack: EvidencePack mit berechneten Qualitätssignalen
+        config: Optionale Konfiguration (Default: VerdictRatingCalibrationConfig())
+
+    Returns:
+        (korrigiertes_rating, gründe_als_liste)
+    """
+    if config is None:
+        config = VerdictRatingCalibrationConfig()
+
+    rating = raw_rating
+    reasons: list[str] = []
+
+    quality = pack.evidence_quality
+    if quality is None:
+        # Ohne Qualitätssignale kann keine regelbasierte Korrektur erfolgen
+        return rating, reasons
+
+    consensus = quality.source_consensus
+    has_direct_refutation = quality.has_direct_refutation
+    has_fc_direct = quality.has_fact_check_direct_match
+    has_fc_any = quality.has_fact_check_any
+    direct_count = quality.direct_evidence_count
+
+    # Gibt es überhaupt irgendein Widerlegungs-Richtungssignal (auch CONTEXTUAL)?
+    has_any_refutation_signal = (
+        has_direct_refutation
+        or has_fc_any
+        or consensus in (SourceConsensus.CONTRADICTORY, SourceConsensus.MIXED)
+        or any(
+            getattr(i, "source_direction", None) is not None
+            and i.source_direction.value == "refutes"
+            for i in pack.web_results[:5]
+        )
+    )
+
+    # ── FALSE-Korrektur ────────────────────────────────────────────────────────
+    if rating == FactRating.FALSE and config.false_requires_active_refutation:
+        has_active_refutation = (
+            has_direct_refutation
+            or consensus == SourceConsensus.CONTRADICTORY
+            or has_fc_direct
+        )
+        if not has_active_refutation:
+            # Kein aktives Widerlegungssignal → FALSE nicht gerechtfertigt
+            if consensus == SourceConsensus.INSUFFICIENT:
+                new_rating = FactRating(config.false_no_refutation_downgrade_insufficient)
+                reasons.append(
+                    f"FALSE ohne aktive Widerlegung + Konsens INSUFFICIENT → {new_rating.value}"
+                )
+            else:
+                # MIXED oder AGREEING: Kontext vorhanden, aber kein direkter Widerruf
+                new_rating = FactRating(config.false_no_refutation_downgrade_mixed_or_agreeing)
+                reasons.append(
+                    f"FALSE ohne aktive Widerlegung (Konsens={consensus.value}) → {new_rating.value}"
+                )
+            rating = new_rating
+
+    # Zusätzlicher Kontextueller Cap: Wenn nur CONTEXTUAL/WEAK-Quellen vorhanden,
+    # kann FALSE nicht gerechtfertigt sein.
+    # Ausnahmen: has_direct_refutation (DIRECT+REFUTES-Quelle vorhanden – zählt als
+    #            direkte Evidenz), has_fc_direct (Faktenchecker hat direkten Match).
+    if (
+        rating == FactRating.FALSE
+        and config.contextual_only_caps_false_at_misleading
+        and direct_count == 0
+        and not has_fc_direct
+        and not has_direct_refutation
+    ):
+        reasons.append(
+            "FALSE bei ausschließlich Kontext-Evidenz (0 DIRECT in Top-5, kein FC-Match) → MISLEADING"
+        )
+        rating = FactRating.MISLEADING
+
+    # ── MOSTLY_FALSE-Korrektur ────────────────────────────────────────────────
+    if rating == FactRating.MOSTLY_FALSE and config.mostly_false_requires_refutation_signal:
+        if not has_any_refutation_signal:
+            new_rating = FactRating(config.mostly_false_no_signal_downgrade)
+            reasons.append(
+                f"MOSTLY_FALSE ohne jegliches Widerlegungssignal → {new_rating.value}"
+            )
+            rating = new_rating
+
+    return rating, reasons
+
+
 def _calibrate_confidence(
     raw_confidence: float,
     pack: "EvidencePack",
@@ -138,8 +288,8 @@ def _calibrate_confidence(
 
     # ── Ceilings ──────────────────────────────────────────────────────────────
 
-    has_primary = quality.has_primary_sources if quality else False
-    has_fc = quality.has_fact_check_org_result if quality else False
+    has_primary = quality.has_primary_source_any if quality else False
+    has_fc = quality.has_fact_check_any if quality else False
 
     # Ceiling: ohne Primärquelle oder Fact-Check
     if not has_primary and not has_fc:
@@ -379,16 +529,28 @@ Du erhältst strukturierte Evidenz (keine Webseiten-Rohtexte).
 
 ## Sonderregel: Claims über Beschlüsse, Bußgelder, Überwachung, Regelungen
 Wenn ein Claim eine konkrete Regelung, einen Beschluss, ein Bußgeld oder eine
-Überwachungsmaßnahme behauptet UND keine belastbare amtliche oder journalistische
-Quelle diesen Sachverhalt bestätigt, dann:
-- Bevorzuge FALSE oder MOSTLY_FALSE gegenüber MISLEADING oder UNVERIFIABLE
-- MISLEADING nur, wenn ein ähnliches (nicht identisches) Konzept belegt ist,
-  der Claim dieses aber verzerrt oder übertreibt
-- UNVERIFIABLE nur, wenn das Thema prinzipiell nicht nachprüfbar ist (z.B. interne
-  Beratungen ohne öffentliche Quellen) – NICHT als Ausweichoption bei schlechten Quellen
-- Konkret: Wenn ein spezifisches Bußgeld, eine Überwachungsmaßnahme oder eine
-  rechtlich bindende Regel behauptet wird und KEINE Regelungsgrundlage in den
-  Quellen existiert, ist das Urteil FALSE – nicht MISLEADING
+Überwachungsmaßnahme behauptet, gilt diese Stufenlogik:
+
+**Aktive Widerlegung (direkter Beweis):**
+- Mindestens eine DIREKT-klassifizierte Quelle widerlegt den Claim explizit (z.B.
+  offizielle Stellungnahme: „Diese Regelung existiert nicht") → FALSE
+- Ein professioneller Faktenchecker hat diesen konkreten Claim geprüft und widerlegt
+  → FALSE
+
+**Kontextuelle Widerlegung (schwacher Beweis):**
+- Thematisch relevante Quellen zeigen, dass das behauptete Konzept in abgewandelter
+  Form existiert, aber der Claim wesentliche Details verzerrt → MOSTLY_FALSE
+- Allgemeiner Themenkontext ohne konkreten Claim-Bezug → MISLEADING (wenn naheliegend
+  irreführend formuliert) oder UNVERIFIABLE (wenn keine Ableitungen möglich)
+
+**Fehlende Evidenz (kein aktiver Beweis):**
+- Keine relevante Quelle gefunden, keine direkte Widerlegung → UNVERIFIABLE
+  NICHT FALSE – fehlendes Beweis ist keine Widerlegung
+- Allgemeine Kontext-Quellen (KONTEXT-klassifiziert) belegen NICHT, dass eine
+  spezifische Regelung nicht existiert
+
+WICHTIG: Schließe NICHT von „keine Quelle bestätigt dies" auf FALSE.
+Das Fehlen von Belegen rechtfertigt UNVERIFIABLE, nicht FALSE.
 
 ## Evidenz-Typen beachten
 Jede Quelle ist als DIREKT, KONTEXT oder SCHWACH klassifiziert:
@@ -434,6 +596,15 @@ Wenn die bereitgestellten Quellen keine relevante Information zum Claim enthalte
 
 Im sources-Feld dürfen NUR URLs erscheinen, die tatsächlich in der bereitgestellten
 Evidenz vorkommen. Erfinde KEINE URLs.
+
+## Rhetorische Sprache im Claim-Text
+Der Claim-Text kann rhetorisch manipulative Formulierungen enthalten (Alarmsprache,
+emotionale Verstärkung, Framing). Das beeinflusst NICHT dein Faktenurteil:
+- Beurteile ausschließlich die faktische Substanz des Claims
+- Rhetorische Verstärkung (z.B. „extreme Überwachung", „skandalöse Lüge") macht
+  einen unbelegten Claim nicht zu FALSE
+- Eine tendenziöse Formulierung ändert UNVERIFIABLE nicht zu FALSE oder MOSTLY_FALSE
+- Vermerke erkannte Rhetorik höchstens im missing_context-Feld als Hinweis
 
 ## Output-Format (JSON)
 {
@@ -488,6 +659,12 @@ class VerdictAgent(BaseAgent):
         except ValueError:
             rating = FactRating.UNVERIFIABLE
 
+        # ── Regelbasierte Rating-Kalibrierung ──────────────────────────────────
+        # Verhindert, dass fehlendes Beweis automatisch zu FALSE führt.
+        # Konfiguration kann über data["rating_calibration_config"] übergeben werden.
+        rating_config: VerdictRatingCalibrationConfig | None = data.get("rating_calibration_config")
+        rating, rating_calibration_reasons = _calibrate_rating(rating, pack, rating_config)
+
         # ── Regelbasierte Confidence-Kalibrierung ──────────────────────────────
         # LLM-Confidence wird NICHT direkt übernommen, sondern durch
         # objektive Pipeline-Signale korrigiert.
@@ -525,8 +702,8 @@ class VerdictAgent(BaseAgent):
             stale_freshness_threshold=stale_threshold,
         )
 
-        # Unsicherheitssignale aus Kalibrierung + eigenen Checks sammeln
-        uncertainty_signals = list(calibration_reasons)
+        # Unsicherheitssignale aus Rating- + Confidence-Kalibrierung sammeln
+        uncertainty_signals = list(rating_calibration_reasons) + list(calibration_reasons)
 
         if cove_trace:
             if cove_trace.unanswered_questions:
@@ -551,7 +728,8 @@ class VerdictAgent(BaseAgent):
             uncertainty_signals.append(f"Claim-Qualität eingeschränkt ({claim_quality:.2f})")
 
         # FinalVerdictMeta
-        confidence_reduction_reason = "; ".join(calibration_reasons) if calibration_reasons else ""
+        all_reduction_reasons = rating_calibration_reasons + calibration_reasons
+        confidence_reduction_reason = "; ".join(all_reduction_reasons) if all_reduction_reasons else ""
         verdict_meta = FinalVerdictMeta(
             cove_trace=cove_trace,
             uncertainty_signals=uncertainty_signals,
@@ -559,7 +737,7 @@ class VerdictAgent(BaseAgent):
             calibrated_confidence=calibrated_confidence,
             verdict_based_on_fact_check_org=bool(pack.google_fact_check_matches),
             primary_sources_consulted=(
-                pack.evidence_quality.has_primary_sources
+                pack.evidence_quality.has_primary_source_any
                 if pack.evidence_quality else False
             ),
         )
@@ -599,7 +777,14 @@ class VerdictAgent(BaseAgent):
             verdict_meta=verdict_meta,
         )
 
-        self._log(f"Urteil {claim.id}: {result.rating.value}")
+        raw_rating_str = raw.get("rating", "UNVERIFIABLE")
+        if rating_calibration_reasons:
+            self._log(
+                f"Urteil {claim.id}: {result.rating.value} "
+                f"(LLM: {raw_rating_str} → kalibriert: {'; '.join(rating_calibration_reasons)})"
+            )
+        else:
+            self._log(f"Urteil {claim.id}: {result.rating.value}")
         return result
 
     def _build_verdict_prompt(
