@@ -1359,6 +1359,156 @@ class EvidenceBuilderAgent(BaseAgent):
         self._tavily_requests_used += actual
         return actual
 
+    def _get_source_adapter(self, source_config: "SourceConfig"):  # type: ignore[name-defined]
+        """Instanziiere oder hole Source Adapter via AdapterGuardian (mit Caching).
+
+        AdapterGuardian handled:
+        - Caching (24h default, 168h für statische Quellen)
+        - Rate-Limiting (pro-Quelle Token-Bucket)
+        - Circuit-Breaker (verhindert Cascade-Fehler)
+        """
+        if not hasattr(self, "_source_adapters"):
+            self._source_adapters = {}
+
+        if source_config.source_id not in self._source_adapters:
+            try:
+                from tools.sources.adapter_guardian import AdapterGuardian
+                import tools.sources.clients as clients_module
+
+                # Map source_id → adapter class
+                adapter_class_map = {
+                    "world_bank": clients_module.WorldBankClient,
+                    "gleif": clients_module.GLEIFClient,
+                    "openfda": clients_module.OpenFDAClient,
+                    "openalex": clients_module.OpenAlexClient,
+                    "arxiv": clients_module.ArXivClient,
+                    "crossref": clients_module.CrossrefClient,
+                    "cern_open_data": clients_module.CERNOpenDataClient,
+                    "eurostat": clients_module.EurostatClient,
+                    "eur_lex": clients_module.EURLexClient,
+                    "uspto": clients_module.USPTOClient,
+                    "companies_house": clients_module.CompaniesHouseClient,
+                    "clinicaltrials": clients_module.ClinicalTrialsClient,
+                    "dailymed": clients_module.DailyMedClient,
+                    "pubmed": clients_module.PubMedClient,
+                }
+
+                adapter_class = adapter_class_map.get(source_config.source_id)
+                if not adapter_class:
+                    self._log(f"⚠ Source client nicht verfügbar: {source_config.source_id}")
+                    return None
+
+                adapter = adapter_class(source_config)
+                self._source_adapters[source_config.source_id] = AdapterGuardian(adapter)
+            except Exception as e:
+                self._log(f"⚠ Source adapter init failed ({source_config.source_id}): {type(e).__name__}")
+                return None
+
+        return self._source_adapters[source_config.source_id]
+
+    def _select_query_for_source(
+        self,
+        queries: list[str],
+        route_result: "RouteResult",  # type: ignore[name-defined]
+        source_config: "SourceConfig",  # type: ignore[name-defined]
+    ) -> str | None:
+        """Wähle beste Query für ein Source basierend auf Domänen-Match."""
+        if not route_result.domains or not source_config.claim_domains:
+            return queries[0] if queries else None
+
+        # Finde Queries die zu Source-Domänen passen
+        # (simplistically: prefer first query for now)
+        return queries[0] if queries else None
+
+    @staticmethod
+    def _convert_official_evidence_to_search_results(
+        source_results: dict[str, list]
+    ) -> list[SearchResult]:
+        """Konvertiere OfficialEvidenceItem-Lister zu SearchResult-Format.
+
+        Source Clients liefern OfficialEvidenceItems mit title, url, excerpt, full_text.
+        Diese müssen zu SearchResult konvertiert werden für Deduplication + Ranking.
+        """
+        results: list[SearchResult] = []
+
+        for source_id, items in source_results.items():
+            if not items:
+                continue
+
+            # items sind listen von dicts (OfficialEvidenceItem serialisiert)
+            for item in items:
+                try:
+                    title = item.get("title", "") if isinstance(item, dict) else getattr(item, "title", "")
+                    url = item.get("url", "") if isinstance(item, dict) else getattr(item, "url", "")
+                    excerpt = item.get("excerpt", "") if isinstance(item, dict) else getattr(item, "excerpt", "")
+                    full_text = item.get("full_text", "") if isinstance(item, dict) else getattr(item, "full_text", "")
+
+                    result = SearchResult(
+                        title=title,
+                        url=url,
+                        snippet=excerpt or "",
+                        content=full_text or "",
+                    )
+                    results.append(result)
+                except Exception:
+                    continue  # Skip malformed items
+
+        return results
+
+    async def _build_source_client_tasks(
+        self,
+        claim: "Claim",  # type: ignore[name-defined]
+        route_result: "RouteResult",  # type: ignore[name-defined]
+        queries: list[str],
+    ) -> tuple[list[tuple[str, Any]], dict[str, list]]:  # task list + results placeholder
+        """Erstelle Source Client Tasks für hohe-confidence Routes.
+
+        Returns:
+            (task_list, results_map) wobei results_map ein dict für Ergebnisse ist
+        """
+        source_cfg = self.config.source_clients
+
+        if not source_cfg.enabled:
+            return [], {}
+
+        # Nur wenn Routing-Konfidenz ausreichend ist
+        if route_result.confidence < source_cfg.min_confidence:
+            self._log(
+                f"Source clients übersprungen (confidence: {route_result.confidence:.2f} < {source_cfg.min_confidence})"
+            )
+            return [], {}
+
+        # Source-Tasks erstellen
+        source_tasks: list[tuple[str, Any]] = []
+        results_map: dict[str, list] = {}
+
+        for source_config in route_result.sources[: source_cfg.max_sources_per_claim]:
+            # Adapter instantiieren
+            adapter = self._get_source_adapter(source_config)
+            if not adapter:
+                continue
+
+            # Beste Query für diese Source
+            query = self._select_query_for_source(queries, route_result, source_config)
+            if not query:
+                continue
+
+            # Task erstellen
+            try:
+                task = adapter.search(query, max_results=source_cfg.max_results_per_source)
+                source_tasks.append((source_config.source_id, task))
+                results_map[source_config.source_id] = []
+            except Exception as e:
+                self._log(f"⚠ Source task creation failed ({source_config.source_id}): {type(e).__name__}")
+
+        if source_tasks:
+            self._log(
+                f"Source clients aktiviert: {len(source_tasks)} Quellen "
+                f"(Domains: {[d.value for d in route_result.domains]})"
+            )
+
+        return source_tasks, results_map
+
     def execute(self, input_data: Any, context: str = "") -> EvidencePack:
         """Synchrone Version – nutzt asyncio.run intern."""
         import asyncio as _asyncio
@@ -1413,11 +1563,22 @@ class EvidenceBuilderAgent(BaseAgent):
 
         # ── 2. Adaptives paralleles Retrieval ────────────────────────────────
         # Rollen: LangSearch = semantische Hauptsuche, Tavily = budgetiert/content-stark,
-        #         SearXNG = breite kostenlose Ergänzung, GFC = Shortcut-Layer
+        #         SearXNG = breite kostenlose Ergänzung, GFC = Shortcut-Layer,
+        #         SourceClients = hochwertige institutionelle Datenquellen (NEW)
         from agents.fact_checker import _categories_for_claim, _is_current_state_claim
-        categories = _categories_for_claim(claim)
+        from tools.claim_router import ClaimRouter
 
+        categories = _categories_for_claim(claim)
         retrieval_cfg = self.config.evidence_retrieval
+
+        # Route claim für Source Client selection (NEW)
+        route_result = None
+        try:
+            if isinstance(claim, ProcessedClaim):
+                router = ClaimRouter()
+                route_result, _ = router.route_and_apply(claim)
+        except Exception as e:
+            self._log(f"ClaimRouter error: {type(e).__name__}")
 
         # Recency-Override: Aktuell-Zustand-Claims (z.B. Amtsinhaber) brauchen frische Quellen
         is_current_state = _is_current_state_claim(claim.text)
@@ -1477,10 +1638,34 @@ class EvidenceBuilderAgent(BaseAgent):
         )
         gfc_task = self._gfc_client.search_async(claim.text)
 
-        searxng_results, langsearch_results, tavily_results, gfc_raw = await asyncio.gather(
-            searxng_task, langsearch_task, tavily_task, gfc_task,
-            return_exceptions=False,
-        )
+        # ── Source Client Tasks (NEW) ──────────────────────────────────────────
+        source_tasks = []
+        source_results_map = {}
+        if route_result:
+            source_tasks, source_results_map = await self._build_source_client_tasks(
+                claim, route_result, queries
+            )
+
+        # ── Parallele Ausführung aller Tasks ───────────────────────────────────
+        gather_tasks = [searxng_task, langsearch_task, tavily_task, gfc_task]
+        gather_tasks.extend([task for _, task in source_tasks])
+
+        all_results = await asyncio.gather(*gather_tasks, return_exceptions=False)
+
+        # ── Ergebnisse auspacken ──────────────────────────────────────────────
+        searxng_results = all_results[0] if len(all_results) > 0 else {}
+        langsearch_results = all_results[1] if len(all_results) > 1 else {}
+        tavily_results = all_results[2] if len(all_results) > 2 else {}
+        gfc_raw = all_results[3] if len(all_results) > 3 else []
+
+        # Source Client Results (NEW)
+        source_client_results = {}
+        if source_tasks:
+            for idx, (source_id, _) in enumerate(source_tasks):
+                result_idx = 4 + idx
+                if result_idx < len(all_results):
+                    source_client_results[source_id] = all_results[result_idx] or []
+
         if not isinstance(tavily_results, dict):
             tavily_results = {}
 
@@ -1557,12 +1742,13 @@ class EvidenceBuilderAgent(BaseAgent):
                         )
 
         # ── 5. Ergebnisse zusammenführen + deduplizieren ──────────────────────
-        # Reihenfolge: LangSearch (semantisch) → SearXNG (breit) → Tavily (content-stark)
+        # Reihenfolge: LangSearch (semantisch) → SearXNG (breit) → Tavily (content-stark) → SourceClients (strukturiert)
         # _dedup_results() behält erstes Vorkommen → LangSearch hat Dedup-Priorität
         all_results: list[SearchResult] = []
         tavily_count = sum(len(v) for v in tavily_results.values())
         langsearch_count = sum(len(v) for v in langsearch_results.values())
         searxng_count = sum(len(v) for v in searxng_results.values())
+        source_clients_count = 0
 
         for q_res in langsearch_results.values():
             all_results.extend(q_res)
@@ -1571,13 +1757,27 @@ class EvidenceBuilderAgent(BaseAgent):
         for q_res in tavily_results.values():
             all_results.extend(q_res)
 
+        # Source Client Results (NEW) – konvertieren + hinzufügen
+        if source_client_results:
+            source_search_results = self._convert_official_evidence_to_search_results(
+                source_client_results
+            )
+            source_clients_count = len(source_search_results)
+            all_results.extend(source_search_results)
+
         unique_results = _dedup_results(all_results)
-        notes.append(
+
+        # Logging mit Source Client Info (NEW)
+        retrieval_log = (
             f"Retrieval: {len(all_results)} Treffer → {len(unique_results)} unique "
-            f"(Tavily: {tavily_count} content-stark, "
-            f"LangSearch: {langsearch_count} semantisch [{ls_count} Queries], "
-            f"SearXNG: {searxng_count} breit)"
+            f"(LangSearch: {langsearch_count} semantisch [{ls_count} Queries], "
+            f"SearXNG: {searxng_count} breit, "
+            f"Tavily: {tavily_count} content-stark"
         )
+        if source_clients_count > 0:
+            retrieval_log += f", SourceClients: {source_clients_count} strukturiert"
+        retrieval_log += ")"
+        notes.append(retrieval_log)
 
         # ── 6. Google Fact Check Matches aufbereiten ──────────────────────────
         gfc_matches = [
