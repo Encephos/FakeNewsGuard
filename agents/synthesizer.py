@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 from typing import Any
 
 from agents.base import BaseAgent
@@ -9,61 +10,57 @@ from i18n import t
 from models.schemas import (
     SYNTHESIS_SCHEMA,
     FactCheckResult,
+    FactRating,
     NumberAuditResult,
     OverallRating,
     RhetoricAnalysisResult,
+    Severity,
     SynthesisResult,
 )
 
-SYSTEM_PROMPT = """\
-Du bist der Synthesizer.  Deine EINZIGE Aufgabe: Fasse alle Teilergebnisse
-der anderen Agenten zu einem kohärenten, nützlichen Gesamtbild zusammen.
-
-## Input
-
-Du erhältst:
-- Fact-Check-Ergebnisse (pro Claim)
-- Number-Audit-Ergebnisse (für statistische Claims)
-- Rhetoric-Analyse (für den Gesamttext)
-
-## Gesamtbewertung
-
-Wähle eine Stufe:
-- RELIABLE: Fakten stimmen und sind fair dargestellt
-- MOSTLY_RELIABLE: Kleine Ungenauigkeiten, Gesamtbild stimmt
-- MIXED: Teils richtig, teils irreführend
-- MISLEADING: Systematisch irreführend, auch wenn einzelne Fakten stimmen
-- HIGHLY_MISLEADING: Stark verzerrend, wichtige Fakten werden verdreht
-- FABRICATED: Frei erfunden
-
-## Confidence Score
-
-0.0 bis 1.0 – wie sicher bist du in der Bewertung?
-- Hohe Confidence (>0.8): Klare Quellenlage, eindeutige Fakten
-- Mittlere Confidence (0.5-0.8): Manche Aspekte unklar
-- Niedrige Confidence (<0.5): Wenig verlässliche Quellen gefunden
-
-## WICHTIG: Fairness-Check
-
-Du MUSST explizit angeben, was am Text KORREKT ist.
-Dies ist entscheidend für die Glaubwürdigkeit der Analyse.
-
-## Output-Format (JSON)
-
-{
-  "overall_rating": "MISLEADING",
-  "confidence": 0.85,
-  "summary": "3-5 Sätze Zusammenfassung für Nicht-Experten",
-  "key_corrections": ["Korrektur 1", "Korrektur 2"],
-  "fairness_notes": ["Was korrekt dargestellt wurde"],
-  "sources": ["url1", "url2"]
+# Reihenfolge der Ratings für Vergleiche (kleiner = besser)
+_RATING_ORDER: dict[OverallRating, int] = {
+    OverallRating.RELIABLE: 0,
+    OverallRating.MOSTLY_RELIABLE: 1,
+    OverallRating.MIXED: 2,
+    OverallRating.MISLEADING: 3,
+    OverallRating.HIGHLY_MISLEADING: 4,
+    OverallRating.FABRICATED: 5,
 }
-"""
+
+_SEVERITY_WEIGHT: dict[str, float] = {
+    Severity.HIGH.value: 3.0,
+    Severity.MEDIUM.value: 2.0,
+    Severity.LOW.value: 1.0,
+}
+
+# FABRICATED-Schwelle: mindestens so viele direkt widerlegte Claims
+_FABRICATED_MIN_REFUTED_RATIO = 0.5
+# Rhetorik-Score-Schwellen für Mindestbewertungs-Floors
+_RHETORIC_FLOOR_MISLEADING = 0.5     # ab hier: min MISLEADING wenn unverified_ratio >= 0.4
+_RHETORIC_FLOOR_HIGHLY = 0.7         # ab hier: min HIGHLY_MISLEADING wenn unverified_ratio >= 0.5
+# Normalisierungsbasis für Rhetorik-Score (≙ 3 HIGH-Techniken = 1.0)
+_RHETORIC_NORM_BASE = 9.0
+
+
+@dataclass
+class AggregationSignals:
+    """Abgeleitete Signale für die regelbasierte Rating-Kalibrierung."""
+
+    n_claims: int = 0
+    refuted_ratio: float = 0.0        # Anteil FALSE + MOSTLY_FALSE
+    unverified_ratio: float = 0.0     # Anteil UNVERIFIABLE
+    avg_claim_confidence: float = 0.0
+    high_quality_evidence: bool = False  # mind. ein Claim mit Primärquellen
+    rhetoric_score: float = 0.0          # 0.0–1.0, gewichtete Rhetorik-Schwere
+    n_high_rhetoric: int = 0             # Anzahl HIGH-Severity-Techniken
 
 
 class SynthesizerAgent(BaseAgent):
     name = "Synthesizer"
     emoji = "📊"
+
+    # ── Öffentliche Schnittstelle ─────────────────────────────────
 
     def execute(self, input_data: Any, context: str = "") -> SynthesisResult:
         """Input ist ein dict mit allen Teilergebnissen."""
@@ -74,6 +71,8 @@ class SynthesizerAgent(BaseAgent):
         rhetoric: RhetoricAnalysisResult | None = data.get("rhetoric")
         original_text: str = data.get("original_text", "")
         image_analysis: str = data.get("image_analysis", "")
+
+        signals = self._compute_aggregation_signals(fact_checks, rhetoric)
 
         # Kontext für das LLM zusammenbauen
         parts: list[str] = [f"## Originaltext\n\n{original_text}\n"]
@@ -117,6 +116,9 @@ class SynthesizerAgent(BaseAgent):
             parts.append("## Bildanalyse\n")
             parts.append(image_analysis + "\n")
 
+        # Aggregationssignale als strukturierte Entscheidungshilfe für das LLM
+        parts.append(self._format_signals_section(signals))
+
         user_msg = "\n".join(parts)
 
         prompt = t("agents.synthesizer.system_prompt")
@@ -133,12 +135,13 @@ class SynthesizerAgent(BaseAgent):
         all_sources = list(dict.fromkeys(all_sources))
 
         try:
-            rating = OverallRating(raw.get("overall_rating", "MIXED"))
+            llm_rating = OverallRating(raw.get("overall_rating", "MIXED"))
         except ValueError:
-            rating = OverallRating.MIXED
+            llm_rating = OverallRating.MIXED
+
+        rating = self._apply_rating_guardrails(llm_rating, signals)
 
         # Confidence: Kalibrierte Per-Claim-Confidences aus VerdictAgent verwenden.
-        # Das LLM kann nicht wissen welche Ceilings VerdictAgent gesetzt hat.
         raw_confidence = min(1.0, max(0.0, float(raw.get("confidence", 0.5))))
 
         claim_confidences: list[float] = [
@@ -148,11 +151,8 @@ class SynthesizerAgent(BaseAgent):
         if claim_confidences:
             avg_claim_conf = sum(claim_confidences) / len(claim_confidences)
             min_claim_conf = min(claim_confidences)
-            # Synthese-Confidence ≤ Durchschnitt und ≤ niedrigster Claim + 0.10
-            # und ≤ LLM-Rohwert (Belt-and-Suspenders)
             confidence = min(raw_confidence, avg_claim_conf, min_claim_conf + 0.10)
         else:
-            # Fallback für Altdaten ohne kalibrierte Per-Claim-Confidences
             confidence = raw_confidence
 
         # Ceiling: Bei nur 1 Fact-Check ohne starke Quellen → max 0.80
@@ -175,3 +175,111 @@ class SynthesizerAgent(BaseAgent):
             fairness_notes=raw.get("fairness_notes", []),
             sources=all_sources,
         )
+
+    # ── Aggregationssignale ──────────────────────────────────────
+
+    def _compute_aggregation_signals(
+        self,
+        fact_checks: list[FactCheckResult],
+        rhetoric: RhetoricAnalysisResult | None,
+    ) -> AggregationSignals:
+        """Berechnet abgeleitete Signale aus Fact-Checks und Rhetorik-Analyse."""
+        signals = AggregationSignals()
+        signals.n_claims = len(fact_checks)
+
+        if fact_checks:
+            refuted = sum(
+                1 for fc in fact_checks
+                if fc.rating in (FactRating.FALSE, FactRating.MOSTLY_FALSE)
+            )
+            unverified = sum(
+                1 for fc in fact_checks
+                if fc.rating == FactRating.UNVERIFIABLE
+            )
+            signals.refuted_ratio = refuted / signals.n_claims
+            signals.unverified_ratio = unverified / signals.n_claims
+
+            calibrated = [fc.confidence for fc in fact_checks if fc.confidence >= 0.0]
+            if calibrated:
+                signals.avg_claim_confidence = sum(calibrated) / len(calibrated)
+
+            signals.high_quality_evidence = any(
+                fc.verdict_meta and fc.verdict_meta.primary_sources_consulted
+                for fc in fact_checks
+            )
+
+        if rhetoric and rhetoric.techniques:
+            weighted_sum = sum(
+                _SEVERITY_WEIGHT.get(tech.severity.value, 1.0)
+                for tech in rhetoric.techniques
+            )
+            signals.rhetoric_score = min(1.0, weighted_sum / _RHETORIC_NORM_BASE)
+            signals.n_high_rhetoric = sum(
+                1 for tech in rhetoric.techniques
+                if tech.severity == Severity.HIGH
+            )
+
+        return signals
+
+    def _apply_rating_guardrails(
+        self, llm_rating: OverallRating, signals: AggregationSignals
+    ) -> OverallRating:
+        """Regelbasierte Korrekturen am LLM-Vorschlag.
+
+        Unterscheidet zwischen inhaltlicher Unsicherheit (unbelegt) und
+        manipulativer Rhetorik (auch bei formal unbelegten Claims relevant).
+
+        Keine Hardcoding einzelner Narrativtypen – nur signalbasierte Regeln.
+        """
+        rating = llm_rating
+
+        # Regel 1: FABRICATED nur bei ausreichend starker Evidenzbasis
+        # → braucht: ≥50 % direkt widerlegte Claims UND Primärquellen vorhanden
+        if rating == OverallRating.FABRICATED:
+            if (
+                not signals.high_quality_evidence
+                or signals.refuted_ratio < _FABRICATED_MIN_REFUTED_RATIO
+            ):
+                rating = OverallRating.HIGHLY_MISLEADING
+
+        # Regel 2: Hohe Rhetorik-Manipulation + hoher Anteil unbelegter Claims
+        # → mindestens MISLEADING, auch wenn LLM MIXED oder besser vergeben hat
+        if (
+            signals.rhetoric_score >= _RHETORIC_FLOOR_MISLEADING
+            and signals.unverified_ratio >= 0.4
+            and signals.n_claims > 0
+        ):
+            if _RATING_ORDER[rating] < _RATING_ORDER[OverallRating.MISLEADING]:
+                rating = OverallRating.MISLEADING
+
+        # Regel 3: Sehr starke Rhetorik + überwiegend unbelegt + kaum widerlegt
+        # → Text ist stark irreführend auch ohne direkte Widerlegung
+        if (
+            signals.rhetoric_score >= _RHETORIC_FLOOR_HIGHLY
+            and signals.unverified_ratio >= 0.5
+            and signals.refuted_ratio < 0.3
+            and signals.n_claims > 0
+        ):
+            if _RATING_ORDER[rating] < _RATING_ORDER[OverallRating.HIGHLY_MISLEADING]:
+                rating = OverallRating.HIGHLY_MISLEADING
+
+        return rating
+
+    # ── Hilfsmethoden ────────────────────────────────────────────
+
+    @staticmethod
+    def _format_signals_section(signals: AggregationSignals) -> str:
+        """Formatiert die Aggregationssignale als lesbaren Abschnitt für das LLM."""
+        if signals.n_claims == 0:
+            return "## Aggregationssignale\n\nKeine Claims geprüft.\n"
+
+        lines = [
+            "## Aggregationssignale\n",
+            f"- Claims geprüft: {signals.n_claims}",
+            f"- Direkt widerlegte Claims (FALSE/MOSTLY_FALSE): {signals.refuted_ratio:.0%}",
+            f"- Unbelegte Claims (UNVERIFIABLE): {signals.unverified_ratio:.0%}",
+            f"- Ø Claim-Konfidenz: {signals.avg_claim_confidence:.0%}" if signals.avg_claim_confidence > 0 else "- Ø Claim-Konfidenz: nicht verfügbar",
+            f"- Rhetorik-Manipulationsscore: {signals.rhetoric_score:.2f} / 1.00 ({signals.n_high_rhetoric} HIGH-Techniken)",
+            f"- Primärquellen konsultiert: {'Ja' if signals.high_quality_evidence else 'Nein'}",
+        ]
+        return "\n".join(lines) + "\n"
