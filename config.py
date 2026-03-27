@@ -574,6 +574,86 @@ class EvidenceRetrievalConfig:
 
 
 @dataclass
+class SourceLayerConfig:
+    """Konfiguration für die strukturierte Source-Integration-Schicht.
+
+    Verwaltet API-Keys, Rate-Limit-Overrides und Quellen-Aktivierung
+    für die institutionellen Datenquellen in tools/sources/.
+
+    Alle API-Keys werden aus Umgebungsvariablen geladen (Fallback: "").
+    Quellen ohne Key funktionieren eingeschränkt (niedrigere Rate-Limits).
+    """
+
+    enabled: bool = True
+    """Master-Schalter für die gesamte Source-Integration-Schicht."""
+
+    # ── Optionale / pflichtlose API-Keys ──────────────────────────────────────
+    companies_house_api_key: str = ""
+    """UK Companies House API – Pflicht. ENV: COMPANIES_HOUSE_API_KEY."""
+
+    openfda_api_key: str = ""
+    """openFDA API – Optional (höheres Rate-Limit: 240/min statt 40/min).
+    ENV: OPENFDA_API_KEY."""
+
+    ncbi_api_key: str = ""
+    """NCBI / PubMed E-utilities – Optional (10 req/s statt 3 req/s).
+    ENV: NCBI_API_KEY."""
+
+    polite_pool_email: str = ""
+    """E-Mail für OpenAlex- und Crossref-Polite-Pool (User-Agent mailto).
+    Kein API-Key – ermöglicht höhere Rate-Limits ohne Registrierung.
+    ENV: POLITE_POOL_EMAIL."""
+
+    # ── Laufzeit-Overrides ─────────────────────────────────────────────────────
+    rate_limit_overrides: dict[str, float] = field(default_factory=dict)
+    """Überschreibt rate_limit_rps pro source_id.
+    Beispiel: {"pubmed": 5.0, "crossref": 10.0}
+    ENV: nicht direkt konfigurierbar – nur programmatisch."""
+
+    enabled_sources: list[str] = field(default_factory=list)
+    """Whitelist aktiver source_ids. Leer = alle Quellen aktiviert.
+    ENV: SOURCE_LAYER_ENABLED_SOURCES (kommasepariert)."""
+
+    def __post_init__(self) -> None:
+        if not self.companies_house_api_key:
+            self.companies_house_api_key = os.getenv("COMPANIES_HOUSE_API_KEY", "")
+        if not self.openfda_api_key:
+            self.openfda_api_key = os.getenv("OPENFDA_API_KEY", "")
+        if not self.ncbi_api_key:
+            self.ncbi_api_key = os.getenv("NCBI_API_KEY", "")
+        if not self.polite_pool_email:
+            self.polite_pool_email = os.getenv("POLITE_POOL_EMAIL", "")
+        if not self.enabled_sources:
+            raw = os.getenv("SOURCE_LAYER_ENABLED_SOURCES", "")
+            if raw:
+                self.enabled_sources = [s.strip() for s in raw.split(",") if s.strip()]
+
+    def get_api_key(self, source_id: str) -> str:
+        """Gibt den API-Key für eine gegebene source_id zurück (leer wenn nicht gesetzt)."""
+        _key_map: dict[str, str] = {
+            "companies_house": self.companies_house_api_key,
+            "openfda": self.openfda_api_key,
+            "pubmed": self.ncbi_api_key,
+        }
+        return _key_map.get(source_id, "")
+
+    def get_rate_limit(self, source_id: str, default: float | None) -> float | None:
+        """Gibt das effektive Rate-Limit für source_id zurück.
+
+        Prüft zuerst rate_limit_overrides, fällt auf den SourceConfig-Default zurück.
+        """
+        return self.rate_limit_overrides.get(source_id, default)
+
+    def is_source_enabled(self, source_id: str) -> bool:
+        """Gibt ``True`` zurück wenn source_id aktiviert ist."""
+        if not self.enabled:
+            return False
+        if not self.enabled_sources:
+            return True
+        return source_id in self.enabled_sources
+
+
+@dataclass
 class AppConfig:
     llm: LLMConfig = field(default_factory=LLMConfig)
     search: SearchConfig = field(default_factory=SearchConfig)
@@ -592,6 +672,7 @@ class AppConfig:
     graph: GraphConfig = field(default_factory=GraphConfig)
     evidence_retrieval: EvidenceRetrievalConfig = field(default_factory=EvidenceRetrievalConfig)
     synthesizer: SynthesizerConfig = field(default_factory=SynthesizerConfig)
+    source_layer: SourceLayerConfig = field(default_factory=SourceLayerConfig)
     tier: ScoutTier = ScoutTier.PRO  # Scout-Stufe (lite / pro / max)
     verbose: bool = True  # Zeige Agent-Wechsel und Zwischenergebnisse
     language: str = "de"  # Primärsprache der Analyse

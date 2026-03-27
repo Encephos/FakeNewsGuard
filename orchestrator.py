@@ -43,6 +43,7 @@ from agents.number_auditor import NumberAuditorAgent
 from agents.rhetoric_analyzer import RhetoricAnalyzerAgent
 from agents.synthesizer import SynthesizerAgent
 from tools.cache import ClaimCache
+from tools.claim_router import ClaimRouter
 from tools.llm import LLMClient
 from tools.web_search import WebSearchClient
 
@@ -151,6 +152,7 @@ class Orchestrator:
         self.number_auditor = NumberAuditorAgent(config, llm_powerful, search, cache)
         self.rhetoric_analyzer = RhetoricAnalyzerAgent(config, llm_powerful, search)
         self.synthesizer = SynthesizerAgent(config, llm_powerful, search)
+        self._router = ClaimRouter()
 
     # ── Input Validation ──────────────────────────────────────────────────────
 
@@ -267,19 +269,21 @@ class Orchestrator:
 
         for claim in checkable:
             self._step("fact_checking", f"\n  ── Fact-Check für {claim.id} ──")
-            fc_result, fc_error = self.fact_checker.run_safe(claim, context=text)
+            route_result, routed_claim = self._router.route_and_apply(claim)
+            self._log(f"  🗺 Route: {route_result.rationale}")
+            fc_result, fc_error = self.fact_checker.run_safe(routed_claim, context=text)
             if fc_error:
                 self._log(f"  ⚠ Fact-Check fehlgeschlagen: {fc_error}")
                 analysis_errors.append(fc_error)
             elif fc_result is not None:
                 fact_checks.append(fc_result)
 
-            if _should_run_number_auditor(claim):
+            if _should_run_number_auditor(routed_claim):
                 self._step("number_audit", f"  ── Number-Audit für {claim.id} ──")
                 fc_context = ""
                 if fc_result is not None:
                     fc_context = f"Fact-Check: {fc_result.rating.value}\nEvidenz: {fc_result.evidence}"
-                na_result, na_error = self.number_auditor.run_safe(claim, context=fc_context)
+                na_result, na_error = self.number_auditor.run_safe(routed_claim, context=fc_context)
                 if na_error:
                     self._log(f"  ⚠ Number-Audit fehlgeschlagen: {na_error}")
                     analysis_errors.append(na_error)
@@ -362,18 +366,20 @@ class Orchestrator:
         async def check_claim(claim: Claim) -> tuple[FactCheckResult | None, NumberAuditResult | None, list[str]]:
             errors: list[str] = []
             self._step("fact_checking", f"  ── Fact-Check für {claim.id} ──")
-            fc_result, fc_error = await self.fact_checker.run_safe_async(claim, context=text)
+            route_result, routed_claim = self._router.route_and_apply(claim)
+            self._log(f"  🗺 Route: {route_result.rationale}")
+            fc_result, fc_error = await self.fact_checker.run_safe_async(routed_claim, context=text)
             if fc_error:
                 self._log(f"  ⚠ Fact-Check fehlgeschlagen: {fc_error}")
                 errors.append(fc_error)
 
             na_result: NumberAuditResult | None = None
-            if _should_run_number_auditor(claim):
+            if _should_run_number_auditor(routed_claim):
                 self._step("number_audit", f"  ── Number-Audit für {claim.id} ──")
                 fc_context = ""
                 if fc_result is not None:
                     fc_context = f"Fact-Check: {fc_result.rating.value}\nEvidenz: {fc_result.evidence}"
-                na_result, na_error = await self.number_auditor.run_safe_async(claim, context=fc_context)
+                na_result, na_error = await self.number_auditor.run_safe_async(routed_claim, context=fc_context)
                 if na_error:
                     self._log(f"  ⚠ Number-Audit fehlgeschlagen: {na_error}")
                     errors.append(na_error)
