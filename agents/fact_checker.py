@@ -689,10 +689,10 @@ def _is_current_state_claim(claim_text: str) -> bool:
 
     _STATE_VERBS = (
         r"\b(ist|war|ist\s+derzeit|ist\s+aktuell|ist\s+seit|bleibt|wurde\s+zum?|"
-        r"amtiert|fungiert|dient|steht\s+vor|leitet)\b"
+        r"amtiert|fungiert|dient|steht\s+vor|leitet|regiert)\b"
     )
     _POSITION_KEYWORDS = (
-        r"\b(bundeskanzler|kanzler|pr[äa]sident|vizepr[äa]sident|"
+        r"\b(bundeskanzler(?:in)?|kanzler(?:in)?|pr[äa]sident(?:in)?|vizepr[äa]sident(?:in)?|"
         # Compound-fähig: (?:\w+)? erlaubt Präfix wie "Gesundheits-", "Partei-"
         r"(?:\w+)?minister(?:in)?|senator(?:in)?|"
         r"b[üu]rgermeister(?:in)?|oberbürgermeister(?:in)?|"
