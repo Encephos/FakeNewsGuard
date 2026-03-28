@@ -23,7 +23,7 @@ def client():
             api._jobs[job_id]["status"] = "done"
             api._jobs[job_id]["result"] = {"claims": [], "verdict": "UNVERIFIABLE"}
 
-    with patch("api._run_job", side_effect=_instant_job):
+    with patch("api.analysis._run_job", side_effect=_instant_job):
         api._rate_limiter = None
         yield TestClient(api.app)
 
@@ -103,7 +103,7 @@ def test_rate_limit_blocks_after_burst():
                 headers={"Retry-After": "1"},
             )
 
-    with patch("api._check_rate_limit", side_effect=fake_rate_limit):
+    with patch("api.analysis.check_rate_limit", side_effect=fake_rate_limit):
         from api import app
         patched_client = TestClient(app)
 
