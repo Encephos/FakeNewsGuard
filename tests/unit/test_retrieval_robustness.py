@@ -93,7 +93,6 @@ def _make_agent():
     agent = EvidenceBuilderAgent.__new__(EvidenceBuilderAgent)
     agent.config = config
     agent._log = lambda msg: None
-    agent._tavily_requests_used = 0
     return agent
 
 
@@ -197,7 +196,7 @@ class TestAdaptiveLangSearchQueryCount:
 class TestPreScrapingLowTrustFilter:
     """_rank_and_scrape() muss Low-Trust-Seiten VOR rank_sources() entfernen."""
 
-    def _run_capture(self, results, claim, profile=None, tavily_content_map=None):
+    def _run_capture(self, results, claim, profile=None):
         """Führt _rank_and_scrape aus und gibt die gefilterten Kandidaten zurück."""
         agent = _make_agent()
         captured = []
@@ -205,7 +204,7 @@ class TestPreScrapingLowTrustFilter:
         with patch("agents.evidence_builder.rank_sources", side_effect=_fake_rank_sources_capturing(captured)):
             with patch("agents.evidence_builder.scrape_sources", side_effect=_fake_scrape_sources):
                 _run_async(
-                    agent._rank_and_scrape(results, claim, profile=profile, tavily_content_map=tavily_content_map)
+                    agent._rank_and_scrape(results, claim, profile=profile)
                 )
         return captured
 
@@ -386,37 +385,36 @@ class TestTavilyContentAsExcerpt:
             assert "Snippet" in item.excerpt
 
 
-# ── 4. Tavily-Content-reiche Kandidaten überspringen Scraping ─────────────────
+# ── 4. LangSearch-Content-reiche Kandidaten überspringen Scraping ────────────
 
 
-class TestTavilyContentSkipsScraping:
-    """Kandidaten mit ausreichendem Tavily-Content und guter Relevanz
-    sollen should_scrape=False bekommen (skip_reason='tavily_content_sufficient')."""
+class TestLangSearchContentSkipsScraping:
+    """Kandidaten mit ausreichendem LangSearch-Content und guter Relevanz
+    sollen should_scrape=False bekommen (skip_reason='langsearch_content_sufficient')."""
 
-    def test_strong_tavily_content_disables_scraping(self):
-        """Gut-relevanter Tavily-Content → should_scrape=False."""
+    def test_strong_content_disables_scraping(self):
+        """Gut-relevanter LangSearch-Content → should_scrape=False."""
         from tools.scrape_ranker import RankedSource
         from tools.source_classifier import SourceTier
 
         agent = _make_agent()
         claim = _make_claim("Kriminalität in Deutschland stieg 2023 laut Polizeistatistik")
 
-        tavily_content = (
+        ls_content = (
             "Die Polizeiliche Kriminalstatistik 2023 zeigt einen Anstieg der Kriminalität "
             "in Deutschland. Laut BKA wurden 2023 insgesamt X Straftaten erfasst. "
             "Dies stellt eine Zunahme gegenüber dem Vorjahr dar. " * 3
         )
-        tavily_result = _make_result(
+        ls_result = _make_result(
             url="https://bka.de/pks2023",
             title="BKA Polizeiliche Kriminalstatistik 2023",
             snippet="BKA PKS 2023 Kriminalstatistik Deutschland Straftaten",
-            content=tavily_content,
+            content=ls_content,
         )
-        tavily_content_map = {tavily_result.url: tavily_content}
 
         ranked = [
             RankedSource(
-                result=tavily_result,
+                result=ls_result,
                 tier=SourceTier.OFFICIAL,
                 relevance_score=0.8,
                 should_scrape=True,
@@ -430,41 +428,35 @@ class TestTavilyContentSkipsScraping:
         with patch("agents.evidence_builder.rank_sources", side_effect=fake_rank_sources):
             with patch("agents.evidence_builder.scrape_sources", side_effect=_fake_scrape_sources):
                 _run_async(
-                    agent._rank_and_scrape(
-                        [tavily_result], claim,
-                        profile=None,
-                        tavily_content_map=tavily_content_map,
-                    )
+                    agent._rank_and_scrape([ls_result], claim, profile=None)
                 )
 
         assert ranked[0].should_scrape is False, \
-            "Ausreichend relevanter Tavily-Content muss should_scrape deaktivieren"
-        assert ranked[0].skip_reason == "tavily_content_sufficient"
+            "Ausreichend relevanter LangSearch-Content muss should_scrape deaktivieren"
+        assert ranked[0].skip_reason == "langsearch_content_sufficient"
 
-    def test_weak_tavily_content_does_not_disable_scraping(self):
-        """Zu kurzer Tavily-Content (< 300 Zeichen) → kein tavily_content_sufficient-Skip."""
+    def test_weak_content_does_not_disable_scraping(self):
+        """Zu kurzer Content (< 300 Zeichen) → kein Content-Skip."""
         from tools.scrape_ranker import RankedSource
         from tools.source_classifier import SourceTier
 
         agent = _make_agent()
         claim = _make_claim("Kriminalstatistik 2023")
 
-        short_content = "Kurzer Text."  # < 300 Zeichen → kein Tavily-Skip
+        short_content = "Kurzer Text."  # < 300 Zeichen → kein Skip
         result = _make_result(
             url="https://example.com/test",
             title="Test",
             snippet="Snippet",
             content=short_content,
         )
-        tavily_content_map = {result.url: short_content}
 
-        # rank_sources soll should_scrape=True lassen (simuliert reguläres Ergebnis)
         ranked = [
             RankedSource(
                 result=result,
                 tier=SourceTier.QUALITY_JOURNALISM,
                 relevance_score=0.5,
-                should_scrape=True,   # soll True bleiben
+                should_scrape=True,
                 skip_reason=None,
             )
         ]
@@ -475,14 +467,11 @@ class TestTavilyContentSkipsScraping:
         with patch("agents.evidence_builder.rank_sources", side_effect=fake_rank_sources):
             with patch("agents.evidence_builder.scrape_sources", side_effect=_fake_scrape_sources):
                 _run_async(
-                    agent._rank_and_scrape(
-                        [result], claim, profile=None, tavily_content_map=tavily_content_map,
-                    )
+                    agent._rank_and_scrape([result], claim, profile=None)
                 )
 
-        # Kurzer Content darf NICHT tavily_content_sufficient-Skip auslösen
-        assert ranked[0].skip_reason != "tavily_content_sufficient", \
-            "Kurzer Tavily-Content darf should_scrape nicht deaktivieren"
+        assert ranked[0].skip_reason != "langsearch_content_sufficient", \
+            "Kurzer Content darf should_scrape nicht deaktivieren"
 
 
 # ── 5. Confidence-Deckelung bei hohem Low-Trust-Anteil ───────────────────────

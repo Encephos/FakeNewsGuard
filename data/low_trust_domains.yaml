@@ -1,0 +1,75 @@
+# Low-Trust Domains: Seiten die kaum zur Evidenzqualität beitragen.
+# Gruppiert nach Kategorie für Lesbarkeit.
+
+currency:
+  - xe.com
+  - x-rates.com
+  - oanda.com
+  - wise.com
+  - transferwise.com
+  - exchangerate.guru
+  - currency-converter.com
+  - finanzen.net
+
+grammar:
+  - duden.de
+  - verbformen.de
+  - verbformen.com
+  - konjugator.de
+  - conjugation.com
+  - reverso.net
+  - linguee.de
+  - linguee.com
+  - deepl.com
+  - dict.cc
+  - wiktionary.org
+  - pons.com
+  - wordreference.com
+  - dict.leo.org
+
+legal_forums:
+  - juraforum.de
+  - anwalt.de
+  - 123recht.de
+  - frag-einen-anwalt.de
+  - rechtsanwalt.com
+  - advocado.de
+  - fachanwalt.de
+
+qa_sites:
+  - gutefrage.net
+  - wer-weiss-was.de
+  - helpster.de
+  - haushaltstipps.net
+  - tipps.net
+  - alleantworten.de
+  - praxistipps.focus.de
+  - praxistipps.chip.de
+  - ratgeber.focus.de
+
+# Auch in scrape_ranker verwendet (Untermenge)
+scrape_ranker:
+  - xe.com
+  - x-rates.com
+  - oanda.com
+  - wise.com
+  - transferwise.com
+  - duden.de
+  - verbformen.de
+  - verbformen.com
+  - konjugator.de
+  - linguee.de
+  - linguee.com
+  - deepl.com
+  - dict.cc
+  - pons.com
+  - juraforum.de
+  - anwalt.de
+  - 123recht.de
+  - frag-einen-anwalt.de
+  - gutefrage.net
+  - wer-weiss-was.de
+  - helpster.de
+  - bussgeldkatalog.de
+  - bussgeldkatalog.org
+  - bussgeldrechner.de

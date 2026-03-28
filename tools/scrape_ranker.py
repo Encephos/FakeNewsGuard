@@ -19,6 +19,10 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 
+from tools.data_loader import (
+    stopwords as load_stopwords, scrape_ranker_low_trust_domains,
+    paywall_domains,
+)
 from tools.source_classifier import SourceTier, classify_source
 from tools.web_search import SearchResult
 
@@ -26,40 +30,17 @@ if TYPE_CHECKING:
     from models.schemas import ClaimSearchProfile
 
 
-# ── Stoppwörter (konsistent mit fact_checker.py) ─────────────────
+# ── Stoppwörter (aus data/stopwords.yaml) ─────────────────
 
-STOPWORDS: set[str] = {
-    "diese", "dieser", "dieses", "einen", "einem", "einer", "eines",
-    "werden", "wurde", "worden", "haben", "hatte", "waren", "sind",
-    "nicht", "sich", "dass", "wenn", "weil", "also", "auch", "noch",
-    "schon", "immer", "durch", "nach", "über", "unter", "zwischen",
-    "gegen", "damit", "dabei", "dafür", "darin", "darauf", "davon",
-    "denen", "deren", "zeigen", "zeigt", "laut", "mehr", "sehr",
-    "andere", "anderen", "anderer", "wieder", "bereits", "dabei",
-}
+STOPWORDS: set[str] = load_stopwords("scrape_ranker")
 
-# Domains mit bekannten harten Paywalls
-KNOWN_PAYWALLS: set[str] = {
-    "bild.de", "welt.de", "faz.net", "handelsblatt.com",
-    "nytimes.com", "washingtonpost.com", "economist.com",
-    "ft.com", "wsj.com",
-}
+# Paywall-Domains (aus data/scoring_weights.yaml)
+_pw = paywall_domains()
+KNOWN_PAYWALLS: set[str] = _pw["hard"]
+SOFT_PAYWALLS: set[str] = _pw["soft"]
 
-# Domains mit teilweiser Paywall — werden nur als Fallback gescraped
-SOFT_PAYWALLS: set[str] = {
-    "spiegel.de", "zeit.de", "sz.de", "sueddeutsche.de",
-}
-
-# Low-Trust Domains (re-used from evidence_builder, leichtgewichtig repliziert
-# um Agent-Abhängigkeit zu vermeiden)
-_LOW_TRUST_DOMAINS: frozenset[str] = frozenset({
-    "xe.com", "x-rates.com", "oanda.com", "wise.com", "transferwise.com",
-    "duden.de", "verbformen.de", "verbformen.com", "konjugator.de",
-    "linguee.de", "linguee.com", "deepl.com", "dict.cc", "pons.com",
-    "juraforum.de", "anwalt.de", "123recht.de", "frag-einen-anwalt.de",
-    "gutefrage.net", "wer-weiss-was.de", "helpster.de",
-    "bussgeldkatalog.de", "bussgeldkatalog.org", "bussgeldrechner.de",
-})
+# Low-Trust Domains (aus data/low_trust_domains.yaml)
+_LOW_TRUST_DOMAINS: frozenset[str] = scrape_ranker_low_trust_domains()
 
 
 # ── Dataclass ────────────────────────────────────────────────────

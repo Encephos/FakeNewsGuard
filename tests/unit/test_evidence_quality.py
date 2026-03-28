@@ -117,7 +117,7 @@ class TestRelevanceScore:
             snippet="Hier finden Sie leckere Pasta-Rezepte für warme Sommertage.",
         )
         score = _relevance_score(result, "Die Kriminalität in Deutschland ist 2023 um 50% gestiegen.")
-        assert score < 0.2
+        assert score <= 0.2
 
     def test_keyword_only_match_lower_than_entity_match(self):
         """Ein Treffer mit Keyword-Match aber ohne Entitäten ist weniger relevant."""

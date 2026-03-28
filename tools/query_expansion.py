@@ -1,38 +1,55 @@
-"""Query Expansion Engine – generates diverse, domain-aware queries for evidence retrieval.
+"""Query Expansion Engine – generiert diverse, kurze, fokussierte Suchanfragen.
 
-Combines ClaimRouter routing results with SearchProfile fields to create 6–8 diverse
-query variants per claim. Each variant includes metadata for provider-specific routing:
-- LangSearch: priority-ranked for semantic search
-- SearXNG: engine/category hints for strategic routing
-- Source clients: best-fit query selection per domain
+Kernprinzip: Keyword-Suchmaschinen (DuckDuckGo, Brave, Qwant) arbeiten am besten
+mit 3-5 präzisen Termen. Zu viele Terme → Recall sinkt drastisch.
 
-This replaces the fixed 3–4 query generation with adaptive, domain-aware expansion.
+7 orthogonale Strategien pro Claim:
+  1. Kern-Entitäten     (hoher Recall, breit)
+  2. Exakte Phrase      (hohe Precision, direkt)
+  3. Zeitlich+Entität   (Aktualitäts-Filter)
+  4. Offizielle Quelle  (site:-Hints, Primärquellen)
+  5. Fact-Check         (Debunks, Gegenbelege)
+  6. Negation/Debunk    (Falschmeldung, Hoax – Faktencheck-Vokabular)
+  7. Dekomposition      (mehrdimensionale Claims → Sub-Queries)
+
+NER-Integration: spaCy-Entitäten cross-validieren mit ClaimFrame-Feldern.
+Synonym-Expansion: Token-Vektoren für Synonyme (E-Scooter ↔ Elektroroller).
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import re
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from agents.fact_checker import _bind_number_to_context, _count_strong_anchors
-from tools.claim_router import ClaimRouter, RouteResult
+from tools.data_loader import query_expansion_config
+from tools.ner_extractor import ClaimEntities, extract_entities
 
 if TYPE_CHECKING:
     from models.schemas import ClaimSearchProfile, ProcessedClaim
+    from tools.claim_router import RouteResult
+
+
+# Query-Expansion-Konstanten (aus data/scoring_weights.yaml)
+_QE_CFG = query_expansion_config()
+MAX_QUERY_TERMS = _QE_CFG.get("max_query_terms", 5)
+MAX_PER_FAMILY = _QE_CFG.get("max_per_family", 2)
+MAX_TOTAL_QUERIES = _QE_CFG.get("max_total_queries", 14)
 
 
 @dataclass
 class QueryVariant:
-    """Single query variant with metadata for provider routing.
+    """Einzelne Query-Variante mit Routing-Metadaten.
 
     Attributes:
-        text: The actual query string
-        family: Query family type (entity_policy, official_source, factcheck, etc.)
-        priority: Priority for semantic engines [0.0–1.0] (1.0 = highest)
-        engine_hint: SearXNG engine suggestion ("brave", "duckduckgo", None)
-        category_hint: SearXNG category suggestion ("news", "science", "social", etc.)
-        time_range_hint: SearXNG time range ("day", "week", "month", None)
-        anchors: Strong anchors present (institution, location, policy, etc.)
+        text:              Eigentlicher Query-String (max 5 Terme)
+        family:            Strategie-Familie (entity_core, phrase, temporal, ...)
+        priority:          Priorität für semantische Engines [0.0–1.0]
+        engine_hint:       SearXNG Engine-Vorschlag ("brave", "duckduckgo", None)
+        category_hint:     SearXNG Kategorie ("news", "general", "science")
+        time_range_hint:   SearXNG Zeitraum ("day", "week", "month", None)
+        page_hint:         SearXNG Seitennummer (1 oder 2 für Multi-Page)
+        anchors:           Vorhandene starke Anker
     """
 
     text: str
@@ -41,34 +58,107 @@ class QueryVariant:
     engine_hint: str | None = None
     category_hint: str | None = None
     time_range_hint: str | None = None
-    anchors: set[str] | None = None
+    page_hint: int = 1
+    anchors: set[str] = field(default_factory=set)
 
-    def __post_init__(self):
-        if self.anchors is None:
-            self.anchors = set()
+
+def _trim_query(terms: list[str], max_terms: int = MAX_QUERY_TERMS) -> str:
+    """Kombiniert Terms zu einer Query, max max_terms Wörter gesamt.
+
+    Priorisiert spezifischere (längere) Terme.
+    """
+    # Normalisieren: leere Terme und Duplikate entfernen
+    clean: list[str] = []
+    seen: set[str] = set()
+    for t in terms:
+        t = t.strip()
+        if not t:
+            continue
+        t_lower = t.lower()
+        if t_lower not in seen:
+            seen.add(t_lower)
+            clean.append(t)
+
+    # Gesamtzahl Wörter zählen – terme werden als Wörter gesparsed
+    result_terms: list[str] = []
+    word_count = 0
+    for term in clean:
+        term_words = len(term.split())
+        if word_count + term_words > max_terms:
+            break
+        result_terms.append(term)
+        word_count += term_words
+
+    return " ".join(result_terms)
+
+
+def _merge_ner_with_profile(
+    ner: ClaimEntities,
+    profile: ClaimSearchProfile | None,
+) -> dict[str, list[str]]:
+    """Kombiniert NER-Entitäten mit ClaimSearchProfile-Feldern.
+
+    NER ergänzt das Profil – ersetzt es nicht. Wenn das Profil Entitäten hat,
+    die spaCy übersehen hat, bleiben sie erhalten.
+
+    Returns:
+        Dict mit Schlüsseln: locations, organizations, money, dates, misc, key_nouns
+    """
+    merged: dict[str, list[str]] = {
+        "locations": list(ner.locations),
+        "organizations": list(ner.organizations),
+        "money": list(ner.money),
+        "dates": list(ner.dates),
+        "misc": list(ner.misc),
+        "key_nouns": list(ner.key_nouns),
+    }
+
+    if profile is None:
+        return merged
+
+    def _add_unique(target: list[str], sources: list[str]) -> None:
+        existing_lower = {x.lower() for x in target}
+        for s in sources:
+            s = s.strip()
+            if s and s.lower() not in existing_lower:
+                target.append(s)
+                existing_lower.add(s.lower())
+
+    # Profile-Felder in passende Kategorien einordnen
+    _add_unique(merged["locations"], profile.locations)
+    _add_unique(merged["organizations"], profile.institutions)
+
+    # core_entities → misc (falls nicht bereits in LOC/ORG)
+    all_specific = set(
+        (x.lower() for x in merged["locations"] + merged["organizations"])
+    )
+    for ent in profile.core_entities:
+        if ent.strip().lower() not in all_specific:
+            _add_unique(merged["misc"], [ent])
+
+    # policy_terms → key_nouns
+    _add_unique(merged["key_nouns"], profile.policy_terms)
+    _add_unique(merged["key_nouns"], profile.action_terms)
+
+    # sanction_terms + number_terms → money/misc
+    _add_unique(merged["money"], profile.number_terms)
+    _add_unique(merged["misc"], profile.sanction_terms)
+
+    return merged
 
 
 class QueryExpansionEngine:
-    """Generates 6–8 diverse queries from ClaimRouter routing + SearchProfile.
+    """Generiert 6-10 diverse, kurze Queries aus NER + ClaimSearchProfile.
 
-    Leverages:
-    - Domain detection (STATISTICAL, REGULATORY, PHARMACEUTICAL, etc.)
-    - Jurisdiction detection (EU, UK, US, DE, global)
-    - SearchProfile fields (core_entities, policy_terms, locations, numbers, sanctions)
-    - Official source hints from ClaimRouter
+    5 orthogonale Strategien:
+    1. entity_core:    Kern-Entitäten, 3-4 Terme, breiter Recall
+    2. phrase:         Exakte Phrasen in Anführungszeichen, hohe Precision
+    3. temporal:       Entitäten + Zeitbezug (Jahr/Datum aus Claim)
+    4. official_source: site:-Hints auf Primärquellen
+    5. factcheck:      Faktencheck/Debunking-Queries
 
-    Reuses existing patterns:
-    - _bind_number_to_context() to prevent isolated numbers
-    - _count_strong_anchors() to validate query quality
-    - Domain keywords from claim_router
-
-    Query Families:
-    1. entity_policy: Core claim keywords
-    2. official_source: Site:-hints from official sources
-    3. factcheck: Debunk/verification queries
-    4. sanction: Enforcement/regulatory focus
-    5. domain_specific: Domain-tailored queries
-    6. jurisdiction_specific: Jurisdiction-aware variants
+    Jede Strategie produziert max 2 Queries → ~10 Queries gesamt.
+    Nach Dedup und Prio-Sortierung: 6-8 finale Queries.
     """
 
     def expand(
@@ -77,410 +167,439 @@ class QueryExpansionEngine:
         route_result: RouteResult,
         search_profile: ClaimSearchProfile,
     ) -> list[QueryVariant]:
-        """Generate diverse queries from claim routing + search profile.
+        """Hauptmethode: Generiert QueryVariants aus Claim + Routing + Profil.
 
         Args:
-            claim: The processed claim with text, frame, and context
-            route_result: Output from ClaimRouter.route() with domains/jurisdiction
-            search_profile: SearchProfile with structured fields (entities, policies, etc.)
+            claim:          ProcessedClaim mit text und frame
+            route_result:   ClaimRouter-Ergebnis (domains, jurisdiction, site_hints)
+            search_profile: SearchProfile (entities, policies, locations etc.)
 
         Returns:
-            List of QueryVariant objects, sorted by priority (highest first)
+            Liste von QueryVariants, sortiert nach Priorität (höchste zuerst)
         """
+        # NER auf Claim-Text
+        ner = extract_entities(claim.text)
+
+        # NER + Profil zusammenführen
+        merged = _merge_ner_with_profile(ner, search_profile)
+
         variants: list[QueryVariant] = []
 
-        # Family 1: Core claim + policy terms
-        variants.extend(self._entity_policy_family(claim, search_profile))
+        # Strategie 1: Kern-Entitäten (hoher Recall)
+        variants.extend(self._strategy_entity_core(merged, route_result))
 
-        # Family 2: Official source + site-hints from routing
-        variants.extend(self._official_source_family(claim, route_result, search_profile))
+        # Strategie 2: Exakte Phrasen (hohe Precision)
+        variants.extend(self._strategy_exact_phrase(claim.text, merged))
 
-        # Family 3: Fact-check organizations
-        variants.extend(self._factcheck_family(claim, search_profile))
+        # Strategie 3: Zeitlich (Aktualität)
+        variants.extend(self._strategy_temporal(merged))
 
-        # Family 4: Sanction/enforcement (for regulatory claims)
-        if search_profile.sanction_terms:
-            variants.extend(self._sanction_family(claim, search_profile))
+        # Strategie 4: Offizielle Quellen (site:-Hints)
+        variants.extend(self._strategy_official_source(merged, route_result, search_profile))
 
-        # Family 5: Domain-specific queries
-        variants.extend(self._domain_specific_family(claim, route_result, search_profile))
+        # Strategie 5: Fact-Check (Debunking)
+        variants.extend(self._strategy_factcheck(merged))
 
-        # Family 6: Jurisdiction-specific (EU, UK, US, DE)
-        if route_result.jurisdiction != "global":
-            variants.extend(
-                self._jurisdiction_specific_family(claim, route_result, search_profile)
-            )
+        # Strategie 6: Negation/Debunk (Falschmeldung, Hoax)
+        variants.extend(self._strategy_negation_search(merged))
 
-        # Sort by priority and remove duplicates
-        unique_variants = {}
-        for v in sorted(variants, key=lambda x: x.priority, reverse=True):
-            if v.text not in unique_variants:
-                unique_variants[v.text] = v
+        # Strategie 7: Dekomposition (mehrdimensionale Claims)
+        variants.extend(self._strategy_decomposition(claim.text, merged))
 
-        return list(unique_variants.values())
+        # Deduplizieren und nach Priorität sortieren
+        return self._deduplicate(variants)
 
-    # ── Query Family Implementations ──────────────────────────────────────────────
+    # ── Strategie 1: Kern-Entitäten ───────────────────────────────────────────
 
-    def _entity_policy_family(
-        self, claim: ProcessedClaim, profile: ClaimSearchProfile
-    ) -> list[QueryVariant]:
-        """Entity + policy terms – core claim structure.
-
-        Generates:
-        1. Location + core_entities + policy_terms
-        2. Location + institutions + policy_terms
-        3. Location + core_entities (without policy if too generic)
-        """
-        variants = []
-
-        location = " ".join(profile.locations) if profile.locations else ""
-        entities = " ".join(profile.core_entities[:3]) if profile.core_entities else ""
-        institutions = " ".join(profile.institutions) if profile.institutions else ""
-        policies = " ".join(profile.policy_terms) if profile.policy_terms else ""
-
-        # Query 1: Location + entities + policy (highest priority)
-        if location and entities and policies:
-            query_text = f"{location} {entities} {policies}".strip()
-            if _count_strong_anchors([location, entities, policies], profile) >= 2:
-                variants.append(
-                    QueryVariant(
-                        text=query_text,
-                        family="entity_policy",
-                        priority=1.0,
-                        category_hint="news",
-                        anchors={"location", "entity", "policy"},
-                    )
-                )
-
-        # Query 2: Institution + policy (regulatory focus)
-        if institutions and policies:
-            query_text = f"{institutions} {policies}".strip()
-            if _count_strong_anchors([institutions, policies], profile) >= 1:
-                variants.append(
-                    QueryVariant(
-                        text=query_text,
-                        family="entity_policy",
-                        priority=0.95,
-                        category_hint="news",
-                        anchors={"institution", "policy"},
-                    )
-                )
-
-        # Query 3: Location + core_entities (fallback if policy_terms empty)
-        if location and entities and not policies:
-            query_text = f"{location} {entities}".strip()
-            variants.append(
-                QueryVariant(
-                    text=query_text,
-                    family="entity_policy",
-                    priority=0.85,
-                    category_hint="general",
-                    anchors={"location", "entity"},
-                )
-            )
-
-        return variants
-
-    def _official_source_family(
+    def _strategy_entity_core(
         self,
-        claim: ProcessedClaim,
+        merged: dict[str, list[str]],
         route_result: RouteResult,
-        profile: ClaimSearchProfile,
     ) -> list[QueryVariant]:
-        """Official source queries via site:-hints from ClaimRouter routing.
+        """3-4 Terme: Ort + Hauptentität + ggf. Geld/Sanktion.
 
-        Generates per-source queries:
-        - site:eurostat.ec.europa.eu [claim keywords]
-        - site:eur-lex.europa.eu [policy terms]
-        - etc. (based on detected domain/jurisdiction)
+        Ziel: Maximaler Recall, breite Treffer.
+        Beispiel: "Hannover E-Scooter Bußgeld"
         """
         variants = []
+        locs = merged["locations"]
+        orgs = merged["organizations"]
+        money = merged["money"]
+        misc = merged["misc"]
+        nouns = merged["key_nouns"]
 
-        # Use site-hints from routing, supplemented by official_source_hints in profile
-        site_hints = route_result.site_hints + profile.official_source_hints
-        if not site_hints:
-            return variants
+        # Primäre Entität: LOC > ORG > MISC > Key-Noun (Fallback)
+        primary = locs[:1] or orgs[:1] or misc[:1] or nouns[:1]
+        used: set[str] = {t.lower() for t in primary}
+        # Sekundäre Entität: nächste nicht-duplizierte aus MISC > Key-Nouns
+        secondary = [t for t in misc + nouns if t.lower() not in used][:1]
+        used |= {t.lower() for t in secondary}
+        # Optionale Spezifikation: Geld > nächste nicht-duplizierte Entität
+        spec = money[:1] or [t for t in misc + nouns if t.lower() not in used][:1]
 
-        # Core keywords for site-based searches
-        keywords = []
-        if profile.core_entities:
-            keywords.extend(profile.core_entities[:2])
-        if profile.policy_terms:
-            keywords.extend(profile.policy_terms[:1])
-        if profile.locations:
-            keywords.extend(profile.locations[:1])
+        # Query 1: primary + secondary + spec
+        if primary and secondary:
+            terms = primary + secondary + spec
+            q = _trim_query(terms)
+            if len(q.split()) >= 2:
+                variants.append(QueryVariant(
+                    text=q,
+                    family="entity_core",
+                    priority=1.0,
+                    category_hint="general",
+                    anchors={"location" if locs else "entity", "secondary"},
+                ))
 
-        keyword_str = " ".join(keywords)
+        # Query 2: Nur ORG/Institution + Schlüsselbegriff (für institutionelle Claims)
+        if orgs and nouns:
+            terms = orgs[:1] + nouns[:2]
+            q = _trim_query(terms)
+            if len(q.split()) >= 2 and q != (variants[0].text if variants else ""):
+                variants.append(QueryVariant(
+                    text=q,
+                    family="entity_core",
+                    priority=0.95,
+                    category_hint="general",
+                    anchors={"organization", "policy"},
+                ))
 
-        # Generate one query per site-hint (highest priority)
-        for hint in site_hints[:3]:  # Max 3 site-specific queries
-            query_text = f"{hint} {keyword_str}".strip()
-            variants.append(
-                QueryVariant(
-                    text=query_text,
+        return variants[:MAX_PER_FAMILY]
+
+    # ── Strategie 2: Exakte Phrasen ────────────────────────────────────────────
+
+    def _strategy_exact_phrase(
+        self,
+        claim_text: str,
+        merged: dict[str, list[str]],
+    ) -> list[QueryVariant]:
+        """Anführungszeichen um markante Phrasen + Kontextterm.
+
+        Ziel: Hohe Precision, direkte Matches.
+        Beispiel: '"E-Scooter Bußgeld" Hannover 250'
+        """
+        variants = []
+        locs = merged["locations"]
+        money = merged["money"]
+        misc = merged["misc"]
+        nouns = merged["key_nouns"]
+
+        # Beste Phrase: längster MISC-Term oder Key-Noun (min. 2 Wörter)
+        phrase_candidates = [m for m in misc + nouns if len(m.split()) >= 2]
+        if not phrase_candidates:
+            # Fallback: Zwei separate Terme als Phrase zusammensetzen
+            combo = (misc[:1] + nouns[:1])
+            if len(combo) == 2:
+                phrase_candidates = [" ".join(combo)]
+
+        context = locs[:1] + money[:1]
+
+        if phrase_candidates:
+            phrase = phrase_candidates[0]
+            # Anführungszeichen für exakte Phrasensuche
+            quoted = f'"{phrase}"'
+            terms = [quoted] + context
+            q = _trim_query(terms)
+            if q and q != quoted:  # Muss mehr als nur die Phrase enthalten
+                variants.append(QueryVariant(
+                    text=q,
+                    family="phrase",
+                    priority=0.93,
+                    engine_hint="duckduckgo",
+                    category_hint="general",
+                    anchors={"phrase", "context"},
+                ))
+
+        # Query 2: Wenn Geldbetrag vorhanden → Betrag + Kontext
+        if money and (locs or misc):
+            money_val = money[0]
+            context2 = locs[:1] + misc[:1]
+            terms = [money_val] + context2
+            q = _trim_query(terms)
+            if len(q.split()) >= 2:
+                variants.append(QueryVariant(
+                    text=q,
+                    family="phrase",
+                    priority=0.90,
+                    category_hint="general",
+                    anchors={"money", "entity"},
+                ))
+
+        return variants[:MAX_PER_FAMILY]
+
+    # ── Strategie 3: Zeitlich ──────────────────────────────────────────────────
+
+    def _strategy_temporal(
+        self,
+        merged: dict[str, list[str]],
+    ) -> list[QueryVariant]:
+        """Entitäten + Zeitangabe für aktualitätssensitive Claims.
+
+        Ziel: Artikel aus konkretem Zeitraum finden.
+        Beispiel: "Hannover E-Scooter 2025 Verordnung"
+        """
+        variants = []
+        locs = merged["locations"]
+        misc = merged["misc"]
+        nouns = merged["key_nouns"]
+        dates = merged["dates"]
+
+        if not dates:
+            return variants  # Keine Zeitangabe → Strategie übersprungen
+
+        # Nur Jahreszahlen als Zeitbegriff (kürzere, präzisere Queries)
+        year_dates = [d for d in dates if re.match(r"^\d{4}$", d.strip())]
+        time_term = year_dates[:1] or dates[:1]
+
+        primary = locs[:1] or misc[:1]
+        secondary = misc[:1] if primary != misc[:1] else nouns[:1]
+
+        if primary:
+            terms = primary + secondary + time_term
+            q = _trim_query(terms)
+            if len(q.split()) >= 2:
+                variants.append(QueryVariant(
+                    text=q,
+                    family="temporal",
+                    priority=0.88,
+                    category_hint="news",
+                    time_range_hint="year",
+                    anchors={"location", "temporal"},
+                ))
+
+        return variants[:MAX_PER_FAMILY]
+
+    # ── Strategie 4: Offizielle Quellen ───────────────────────────────────────
+
+    def _strategy_official_source(
+        self,
+        merged: dict[str, list[str]],
+        route_result: RouteResult,
+        profile: ClaimSearchProfile | None,
+    ) -> list[QueryVariant]:
+        """site:-Hint + kompakte Keywords für offizielle Primärquellen.
+
+        Ziel: Direkte Treffer auf Behörden/Instituts-Websites.
+        Beispiel: "site:hannover.de E-Scooter Bußgeld"
+        """
+        variants = []
+        locs = merged["locations"]
+        misc = merged["misc"]
+        nouns = merged["key_nouns"]
+        money = merged["money"]
+
+        # Site-Hints aus Routing und Profil zusammenführen
+        site_hints: list[str] = []
+        if route_result and route_result.site_hints:
+            site_hints.extend(route_result.site_hints)
+        if profile and profile.official_source_hints:
+            site_hints.extend(profile.official_source_hints)
+
+        # Duplikate entfernen (Reihenfolge beibehalten)
+        seen_hints: set[str] = set()
+        unique_hints = []
+        for h in site_hints:
+            if h not in seen_hints:
+                seen_hints.add(h)
+                unique_hints.append(h)
+
+        # Keywords für site:-Queries: 2-3 Terme (site: zählt als 1)
+        kw_terms = (misc[:1] or locs[:1]) + nouns[:1] + money[:1]
+
+        for hint in unique_hints[:MAX_PER_FAMILY]:
+            terms = [hint] + kw_terms[:2]  # site: + max 2 weitere Terme
+            q = _trim_query(terms, max_terms=4)
+            if q:
+                variants.append(QueryVariant(
+                    text=q,
                     family="official_source",
-                    priority=0.98,
-                    engine_hint=None,  # Web engines for official sources
+                    priority=0.97,
                     category_hint="general",
                     anchors={"official_source"},
-                )
-            )
+                ))
 
-        return variants
+        return variants[:MAX_PER_FAMILY]
 
-    def _factcheck_family(
-        self, claim: ProcessedClaim, profile: ClaimSearchProfile
+    # ── Strategie 5: Fact-Check ────────────────────────────────────────────────
+
+    def _strategy_factcheck(
+        self,
+        merged: dict[str, list[str]],
     ) -> list[QueryVariant]:
-        """Fact-check organization queries – debunk/verification focus.
+        """Kern-Entitäten + Faktencheck-Schlüsselwort.
 
-        Generates:
-        1. [claim keywords] + "Faktencheck" / "Falschmeldung"
-        2. site:correctiv.org [keywords]
-        3. site:snopes.com [keywords] (for global claims)
+        Ziel: Bestehende Fact-Checks und Debunks finden.
+        Beispiel: "E-Scooter Bußgeld Faktencheck"
+                  "site:correctiv.org Hannover E-Scooter"
         """
         variants = []
+        locs = merged["locations"]
+        misc = merged["misc"]
+        nouns = merged["key_nouns"]
 
-        # Core keywords
-        keywords = []
-        if profile.core_entities:
-            keywords.extend(profile.core_entities[:2])
-        if profile.policy_terms:
-            keywords.extend(profile.policy_terms[:1])
+        # Beste 2 Terme für Fact-Check-Query (dedupliziert)
+        seen_terms: set[str] = set()
+        core: list[str] = []
+        for t in (locs[:1] or misc[:1]) + misc[:2] + nouns[:2]:
+            if t.lower() not in seen_terms:
+                seen_terms.add(t.lower())
+                core.append(t)
+            if len(core) >= 2:
+                break
+        kw = " ".join(core)
 
-        keyword_str = " ".join(keywords) if keywords else claim.text[:50]
-
-        # Query 1: Keywords + "Faktencheck"
-        query1 = f'{keyword_str} Faktencheck'
-        variants.append(
-            QueryVariant(
-                text=query1,
+        if kw:
+            # Query 1: Keywords + "Faktencheck"
+            q1 = _trim_query([kw, "Faktencheck"])
+            variants.append(QueryVariant(
+                text=q1,
                 family="factcheck",
                 priority=0.92,
                 engine_hint="duckduckgo",
                 category_hint="news",
                 anchors={"factcheck"},
-            )
-        )
+            ))
 
-        # Query 2: Keywords + "Falschmeldung"
-        query2 = f'{keyword_str} Falschmeldung'
-        variants.append(
-            QueryVariant(
-                text=query2,
+            # Query 2: site:correctiv.org + Keywords
+            q2 = _trim_query(["site:correctiv.org", kw], max_terms=4)
+            variants.append(QueryVariant(
+                text=q2,
                 family="factcheck",
-                priority=0.90,
-                engine_hint="brave",
+                priority=0.88,
                 category_hint="news",
-                anchors={"factcheck"},
-            )
-        )
+                anchors={"factcheck", "official_source"},
+            ))
 
-        # Query 3: site:correctiv.org
-        if len(keywords) > 0:
-            query3 = f'site:correctiv.org {keyword_str}'
-            variants.append(
-                QueryVariant(
-                    text=query3,
-                    family="factcheck",
-                    priority=0.88,
-                    category_hint="news",
-                    anchors={"factcheck", "official_source"},
-                )
-            )
+        return variants[:MAX_PER_FAMILY]
 
-        return variants
+    # ── Strategie 6: Negation/Debunk ───────────────────────────────────────────
 
-    def _sanction_family(
-        self, claim: ProcessedClaim, profile: ClaimSearchProfile
-    ) -> list[QueryVariant]:
-        """Sanction/enforcement queries – regulatory focus.
-
-        Generates:
-        - Entity + sanction_term + number (e.g., "Hannover 250 Euro Bußgeld")
-        """
-        variants = []
-
-        if not profile.sanction_terms:
-            return variants
-
-        location = profile.locations[0] if profile.locations else ""
-        entity = profile.core_entities[0] if profile.core_entities else location
-        sanction = " ".join(profile.sanction_terms[:1])
-        number = " ".join(profile.number_terms[:1]) if profile.number_terms else ""
-
-        if entity and sanction:
-            # Bind number to sanction for context
-            if number:
-                query_text = f"{entity} {number} {sanction}".strip()
-            else:
-                query_text = f"{entity} {sanction}".strip()
-
-            variants.append(
-                QueryVariant(
-                    text=query_text,
-                    family="sanction",
-                    priority=0.88,
-                    category_hint="news",
-                    time_range_hint="month",
-                    anchors={"entity", "sanction", "number"},
-                )
-            )
-
-        return variants
-
-    def _domain_specific_family(
+    def _strategy_negation_search(
         self,
-        claim: ProcessedClaim,
-        route_result: RouteResult,
-        profile: ClaimSearchProfile,
+        merged: dict[str, list[str]],
     ) -> list[QueryVariant]:
-        """Domain-specific queries tailored to detected claim domains.
+        """Generiert Debunk-orientierte Queries mit Falschmeldung/Hoax-Termen.
 
-        STATISTICAL: datapoint + location + time
-        REGULATORY: law/ordinance + location
-        PHARMACEUTICAL: drug name + FDA/dosage
-        PATENT: invention + USPTO
-        SCIENTIFIC: topic + research/study
-        LEGAL: statute + jurisdiction
+        Ziel: Findet Faktenchecks die andere Terminologie verwenden als der Claim.
+        Beispiel: "EU Fleisch Falschmeldung", "WhatsApp kostenpflichtig Hoax"
         """
-        variants = []
+        variants: list[QueryVariant] = []
+        locs = merged["locations"]
+        orgs = merged["organizations"]
+        misc = merged["misc"]
+        nouns = merged["key_nouns"]
 
-        if not route_result.domains:
-            return variants
+        # Kern-Entitäten sammeln (dedupliziert)
+        core: list[str] = []
+        seen: set[str] = set()
+        for t in locs[:1] + orgs[:1] + misc[:2] + nouns[:2]:
+            if t.lower() not in seen:
+                seen.add(t.lower())
+                core.append(t)
+            if len(core) >= 2:
+                break
 
-        location = " ".join(profile.locations[:1]) if profile.locations else ""
-        entity = " ".join(profile.core_entities[:1]) if profile.core_entities else ""
+        if not core:
+            return []
 
-        for domain in route_result.domains[:2]:  # Top 2 domains
-            domain_value = domain.value if hasattr(domain, "value") else str(domain)
+        entity_str = " ".join(core)
+        debunk_terms = ["Falschmeldung", "Hoax", "Kettenbrief", "Faktencheck"]
 
-            if domain_value == "STATISTICAL":
-                # Statistical query: location + "Statistik" + datapoint
-                if location:
-                    query = f"{location} Statistik {entity}".strip()
-                    variants.append(
-                        QueryVariant(
-                            text=query,
-                            family="domain_specific",
-                            priority=0.85,
-                            category_hint="science",
-                            anchors={"location", "statistical"},
-                        )
-                    )
+        for term in debunk_terms[:2]:
+            q = _trim_query([entity_str, term])
+            if len(q.split()) >= 2:
+                variants.append(QueryVariant(
+                    text=q,
+                    family="negation",
+                    priority=0.82,
+                    category_hint="general",
+                    anchors={"debunk", "factcheck"},
+                ))
 
-            elif domain_value == "REGULATORY":
-                # Regulatory query: location + "Verordnung" / "Regelwerk"
-                if location:
-                    query = f'{location} Verordnung {" ".join(profile.policy_terms[:1]) if profile.policy_terms else ""}'.strip()
-                    variants.append(
-                        QueryVariant(
-                            text=query,
-                            family="domain_specific",
-                            priority=0.84,
-                            category_hint="news",
-                            anchors={"location", "regulatory"},
-                        )
-                    )
+        return variants[:MAX_PER_FAMILY]
 
-            elif domain_value == "PHARMACEUTICAL":
-                # Pharmaceutical: drug + FDA/EMA + side effect
-                if entity:
-                    query = f"{entity} FDA Nebenwirkung".strip()
-                    variants.append(
-                        QueryVariant(
-                            text=query,
-                            family="domain_specific",
-                            priority=0.83,
-                            category_hint="science",
-                            anchors={"entity", "pharmaceutical"},
-                        )
-                    )
+    # ── Strategie 7: Dekomposition ──────────────────────────────────────────────
 
-            elif domain_value == "PATENT":
-                # Patent: invention + USPTO
-                if entity:
-                    query = f"{entity} USPTO Patent".strip()
-                    variants.append(
-                        QueryVariant(
-                            text=query,
-                            family="domain_specific",
-                            priority=0.82,
-                            category_hint="science",
-                            anchors={"entity", "patent"},
-                        )
-                    )
-
-        return variants
-
-    def _jurisdiction_specific_family(
+    def _strategy_decomposition(
         self,
-        claim: ProcessedClaim,
-        route_result: RouteResult,
-        profile: ClaimSearchProfile,
+        claim_text: str,
+        merged: dict[str, list[str]],
     ) -> list[QueryVariant]:
-        """Jurisdiction-specific queries – EU, UK, US, DE boosters.
+        """Zerlegt mehrdimensionale Claims in separate Sub-Queries.
 
-        EU: Eurozone indicators, European Commission
-        UK: Companies House, HMRC
-        US: Federal agencies (FDA, SEC)
-        DE: German state/municipal keywords
+        Bei Claims mit 2+ Dimensionen (z.B. rechtliche Referenz + Konsequenz)
+        werden separate Queries für jede Dimension generiert.
+        Beispiel: "§14a EnWG steuerbare Verbrauchseinrichtung" + "EnWG Waschmaschine"
         """
-        variants = []
+        variants: list[QueryVariant] = []
+        misc = merged["misc"]
+        nouns = merged["key_nouns"]
+        orgs = merged["organizations"]
+        locs = merged["locations"]
 
-        jurisdiction = route_result.jurisdiction
-        location = " ".join(profile.locations[:1]) if profile.locations else ""
-        entity = " ".join(profile.core_entities[:1]) if profile.core_entities else ""
+        # Dimension 1: Rechtliche Referenzen (§-Paragraphen, Gesetze)
+        legal_refs = [m for m in misc if m.startswith("§") or re.match(r"^[A-Z]{2,}$", m)]
+        # Dimension 2: Sachliche Terme (Nouns, Orgs)
+        subject_terms = nouns[:3] + orgs[:1]
 
-        if jurisdiction == "eu":
-            # EU-specific: European Commission, Eurozone
-            if location:
-                query = f"{location} Europäische Kommission {entity}".strip()
-                variants.append(
-                    QueryVariant(
-                        text=query,
-                        family="jurisdiction_specific",
-                        priority=0.80,
-                        anchors={"jurisdiction", "location"},
-                    )
-                )
+        has_legal = len(legal_refs) >= 1
+        has_subjects = len(subject_terms) >= 2
 
-        elif jurisdiction == "uk":
-            # UK-specific: Companies House, HMRC
-            if entity:
-                query = f'{entity} "Companies House"'
-                variants.append(
-                    QueryVariant(
-                        text=query,
-                        family="jurisdiction_specific",
-                        priority=0.80,
-                        anchors={"jurisdiction", "entity"},
-                    )
-                )
+        if has_legal and has_subjects:
+            # Sub-Query 1: Rechtliche Referenz + Top-Subject
+            q1 = _trim_query(legal_refs[:2] + subject_terms[:1])
+            if len(q1.split()) >= 2:
+                variants.append(QueryVariant(
+                    text=q1,
+                    family="decomposition",
+                    priority=0.78,
+                    category_hint="general",
+                    anchors={"legal", "specific"},
+                ))
 
-        elif jurisdiction == "us":
-            # US-specific: Federal agencies
-            if entity:
-                query = f"{entity} FDA SEC FTC".strip()
-                variants.append(
-                    QueryVariant(
-                        text=query,
-                        family="jurisdiction_specific",
-                        priority=0.80,
-                        anchors={"jurisdiction", "entity"},
-                    )
-                )
+            # Sub-Query 2: Location/Org + verbleibende Subjects
+            context = locs[:1] or orgs[:1]
+            remaining = [t for t in subject_terms if t not in subject_terms[:1]][:2]
+            if context and remaining:
+                q2 = _trim_query(context + remaining)
+                if len(q2.split()) >= 2:
+                    variants.append(QueryVariant(
+                        text=q2,
+                        family="decomposition",
+                        priority=0.76,
+                        category_hint="general",
+                        anchors={"context", "subject"},
+                    ))
+        elif len(nouns) >= 3:
+            # Kein legaler Kontext, aber viele Terme → Split in zwei Hälften
+            mid = len(nouns) // 2
+            q1 = _trim_query((locs[:1] or orgs[:1]) + nouns[:mid])
+            q2 = _trim_query((locs[:1] or orgs[:1]) + nouns[mid:mid+2])
+            if len(q1.split()) >= 2:
+                variants.append(QueryVariant(
+                    text=q1,
+                    family="decomposition",
+                    priority=0.74,
+                    category_hint="general",
+                ))
+            if len(q2.split()) >= 2 and q2 != q1:
+                variants.append(QueryVariant(
+                    text=q2,
+                    family="decomposition",
+                    priority=0.72,
+                    category_hint="general",
+                ))
 
-        elif jurisdiction == "de":
-            # German-specific: state/municipal context
-            if location:
-                query = f"{location} Bundesregierung Bundestag".strip()
-                variants.append(
-                    QueryVariant(
-                        text=query,
-                        family="jurisdiction_specific",
-                        priority=0.80,
-                        anchors={"jurisdiction", "location"},
-                    )
-                )
+        return variants[:MAX_PER_FAMILY]
 
-        return variants
+    # ── Deduplication & Sortierung ─────────────────────────────────────────────
+
+    def _deduplicate(self, variants: list[QueryVariant]) -> list[QueryVariant]:
+        """Entfernt Duplikate, sortiert nach Priorität, begrenzt auf MAX_TOTAL_QUERIES."""
+        seen: dict[str, QueryVariant] = {}
+        for v in sorted(variants, key=lambda x: x.priority, reverse=True):
+            normalized = v.text.strip().lower()
+            if normalized and normalized not in seen:
+                seen[normalized] = v
+
+        result = list(seen.values())[:MAX_TOTAL_QUERIES]
+        return result

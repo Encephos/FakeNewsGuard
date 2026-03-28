@@ -461,12 +461,14 @@ class SearXNGQuery:
       - Faktencheck-Queries → Nachrichten-Engines
       - Aktualitäts-sensitive Queries → time_range="year"
       - Referenz-Queries → wikipedia, wikidata
+      - pageno=2 für Multi-Page-Suche (mehr Tiefe bei starken Queries)
     """
 
     query: str
     categories: list[str] | str | None = None
     engines: list[str] | None = None
     time_range: str | None = None
+    pageno: int = 1
 
 
 class SearXNGClient:
@@ -491,10 +493,11 @@ class SearXNGClient:
         categories: list[str] | str | None = None,
         engines: list[str] | None = None,
         time_range: str | None = None,
+        pageno: int = 1,
     ) -> dict:
         """Baue SearXNG-Request-Parameter. Normalisiert categories: str → list.
 
-        Per-Query-Overrides (engines, time_range) haben Vorrang vor Config-Defaults.
+        Per-Query-Overrides (engines, time_range, pageno) haben Vorrang vor Config-Defaults.
         """
         if isinstance(categories, str):
             cats = [c.strip() for c in categories.split(",") if c.strip()] or self.config.categories
@@ -503,7 +506,7 @@ class SearXNGClient:
         params: dict = {
             "q": query,
             "format": "json",
-            "pageno": 1,
+            "pageno": pageno,
             "language": self.config.language,
             "categories": ",".join(cats),
         }
@@ -567,10 +570,11 @@ class SearXNGClient:
         categories: list[str] | str | None = None,
         engines: list[str] | None = None,
         time_range: str | None = None,
+        pageno: int = 1,
     ) -> list[SearchResult]:
         """Asynchrone SearXNG-Suche mit Retry."""
         n = max_results or self.config.max_results
-        params = self._build_params(query, n, categories, engines=engines, time_range=time_range)
+        params = self._build_params(query, n, categories, engines=engines, time_range=time_range, pageno=pageno)
 
         async def _call():
             async with httpx.AsyncClient(timeout=30.0) as client:
@@ -615,13 +619,20 @@ class SearXNGClient:
 
         async def _bounded(sq: SearXNGQuery) -> tuple[str, list[SearchResult]]:
             async with semaphore:
-                return sq.query, await self.search_async(
+                # Kleines Delay nach Semaphore-Acquire verhindert Engine-Suspendierung
+                # durch zu viele gleichzeitige Anfragen (DuckDuckGo, Brave, Qwant)
+                await asyncio.sleep(0.25)
+                # Eindeutiger Key: query + pageno (damit pageno=1 und pageno=2 nicht kollidieren)
+                key = sq.query if sq.pageno == 1 else f"{sq.query}__p{sq.pageno}"
+                results = await self.search_async(
                     sq.query,
                     max_results,
                     sq.categories or categories,
                     engines=sq.engines,
                     time_range=sq.time_range,
+                    pageno=sq.pageno,
                 )
+                return key, results
 
         pairs = await asyncio.gather(*[_bounded(sq) for sq in normalized])
         return dict(pairs)

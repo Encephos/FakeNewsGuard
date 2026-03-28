@@ -1,0 +1,34 @@
+# Off-topic Signale: URL-Patterns, Inhalts-Muster und kommerzielle Signale.
+# Alle Patterns sind reguläre Ausdrücke (IGNORECASE wird automatisch gesetzt).
+
+url_patterns:
+  - "(rezept|recipe|kochen|restaurant|essen)"
+  - "(grammatik|duden|wörterbuch|dictionary|linguee|deepl)"
+  - "(wetter|weather|horoskop|horoscope)"
+  - "(shop|kaufen|bestellen|amazon|ebay)"
+  - "(forum|reddit\\.com/r/(?!de|europe|news|worldnews))"
+  - "(bu[sß]sgeld|straf|verwarn).*(rechner|calculator|berechne)"
+  - "rechner.*(bu[sß]sgeld|strafe|verwarn)"
+  - "(mediamarkt|saturn\\.de|otto\\.de|zalando|idealo|geizhals)"
+  - "/(preis|angebot|produkt|artikel)-"
+
+# Low-Trust Titel/Snippet-Muster (erkennt generische Hilfsseiten anhand Inhalt)
+low_trust_content_patterns:
+  # Währungsrechner / Umrechnung
+  - "\\b(currency\\s+convert|w[äa]hrungsrechner|umrechn|exchange\\s+rate|wechselkurs)|\\b\\d+\\s*(gbp|usd|eur|pfund|dollar)\\s+(in|to|nach|zu)\\s+\\d*\\s*(gbp|usd|eur|euro|pfund|dollar)"
+  # Grammatik / Konjugation
+  - "\\bkonjugation\\b.*\\b(verb|dürfen|können|sollen|müssen|werden|haben|sein)\\b|\\b(indikativ|konjunktiv|imperativ|pr[äa]teritum|partizip)\\b.*\\bkonjugation\\b|\\bverb\\s+(conjugat|konjugier)"
+  # Allgemeine Bußgeldrechner/-tabellen
+  - "\\bbu[sß]geld(rechner|tabelle|katalog)\\b.*\\b(berechne|online|aktuell)\\b|\\b(berechne|berechnung)\\b.*\\bbu[sß]geld\\b"
+  # Generische Rechts-Lexikon-Seiten
+  - "\\b(rechtslexikon|jura\\s*lexikon|rechts(begriffe|w[öo]rterbuch))\\b|\\b(definition|begriff)\\b.{0,30}\\b(jura|recht|gesetz)\\b"
+  # Generische "Was ist/verdient/kostet" Erklärungs-Seiten
+  - "\\bwas\\s+(ist|sind|verdient|kostet|bedeutet)\\s+(ein|eine|der|die|das)\\s+\\w+.*\\b(aufgaben|definition|gehalt|bedeutung|[üu]berblick)\\b"
+
+# Kommerzielle Content-Signale (Snippets/Titel)
+commercial_snippet_patterns:
+  - "\\bjetzt\\s+(kaufen|bestellen|sichern)\\b"
+  - "\\bab\\s+\\d+\\s*euro\\b.*\\b(kaufen|bestellen|shop)\\b"
+  - "\\b(günstig|billig|preis|angebot|rabatt|deal)\\b.{0,30}\\b(kaufen|bestellen|shop)\\b"
+  - "\\bpreisvergleich\\b|\\bversandkostenfrei\\b|\\bin\\s+den\\s+warenkorb\\b"
+  - "\\bbußgeld\\s+berechnen\\b|\\bbu[sß]sgeld\\s+rechner\\b"

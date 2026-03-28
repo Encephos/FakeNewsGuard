@@ -156,7 +156,7 @@ class SearchConfig:
     base_url: str = ""  # Für SearXNG: URL der Instanz (z.B. http://localhost:8888)
     engines: str = ""   # SearXNG: kommaseparierte Engine-Liste (z.B. "google,duckduckgo,bing")
     max_results: int = 15              # SearXNG ist self-hosted → großzügig
-    max_concurrent_searches: int = 8  # Für async Parallelisierung (self-hosted, keine Limits)
+    max_concurrent_searches: int = 3  # Gleichzeitige Anfragen – zu hoch → Engine-Suspendierung
     scrape_top_n: int = 10          # Maximale Anzahl zu scrapender Quellen pro Claim
     scrape_timeout: float = 10.0    # HTTP-Timeout pro Scrape-Request in Sekunden
 
@@ -204,7 +204,7 @@ class SearXNGConfig:
     language: str = "de"
     time_range: str | None = None
     max_results: int = 15
-    max_concurrent_searches: int = 8
+    max_concurrent_searches: int = 3
     scrape_top_n: int = 10
     scrape_timeout: float = 10.0
 
@@ -640,6 +640,11 @@ class EvidenceRetrievalConfig:
     # aber breit genug damit offizielle Seiten gefunden werden.
     # Mögliche Werte: "day" | "week" | "month" | "year" | None
     current_state_time_range: str = "month"
+    # ── Iterative Search (Phase 3) ───────────────────────────────────────────
+    iterative_search_enabled: bool = True     # Iterative Suche bei niedriger Qualität
+    iterative_min_quality: float = 0.45       # Qualitätsschwelle für Iteration
+    iterative_max_rounds: int = 2             # Max. Iterationen
+    iterative_max_refinement_queries: int = 3 # Max. Queries pro Iteration
 
     def __post_init__(self) -> None:
         if v := os.getenv("LANGSEARCH_QUERIES_SIMPLE", ""):
@@ -668,6 +673,14 @@ class EvidenceRetrievalConfig:
             self.claim_scope_min_direct = float(v)
         if v := os.getenv("CURRENT_STATE_TIME_RANGE", ""):
             self.current_state_time_range = v
+        if v := os.getenv("ITERATIVE_SEARCH_ENABLED", ""):
+            self.iterative_search_enabled = v.lower() in ("true", "1", "yes")
+        if v := os.getenv("ITERATIVE_MIN_QUALITY", ""):
+            self.iterative_min_quality = float(v)
+        if v := os.getenv("ITERATIVE_MAX_ROUNDS", ""):
+            self.iterative_max_rounds = int(v)
+        if v := os.getenv("ITERATIVE_MAX_REFINEMENT_QUERIES", ""):
+            self.iterative_max_refinement_queries = int(v)
 
 
 @dataclass
@@ -871,10 +884,11 @@ class AppConfig:
             sys.exit(1)
 
 
-# ── SearXNG Query-Routing-Konstanten ─────────────────────────────────────────
-# Engine-Sets für claim-typ-gesteuertes Routing.
-# Passen zu den in searxng/settings.yml konfigurierten Engines.
+# ── SearXNG Query-Routing-Konstanten (aus data/scoring_weights.yaml) ──────────
+# Rückwärtskompatible Aliase – bevorzugt tools.data_loader.searxng_engines() verwenden.
+from tools.data_loader import searxng_engines as _load_engines
 
-SEARXNG_WEB_ENGINES: list[str] = ["duckduckgo", "brave", "qwant"]
-SEARXNG_NEWS_ENGINES: list[str] = ["duckduckgo", "brave", "tagesschau"]
-SEARXNG_REFERENCE_ENGINES: list[str] = ["wikipedia", "wikidata"]
+_engines = _load_engines()
+SEARXNG_WEB_ENGINES: list[str] = _engines.get("web", ["duckduckgo", "brave", "qwant"])
+SEARXNG_NEWS_ENGINES: list[str] = _engines.get("news", ["duckduckgo", "brave", "tagesschau"])
+SEARXNG_REFERENCE_ENGINES: list[str] = _engines.get("reference", ["wikipedia", "wikidata"])
