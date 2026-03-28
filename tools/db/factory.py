@@ -36,6 +36,21 @@ def create_cache(config: "AppConfig"):
     return ClaimCache(config.cache)
 
 
+def create_search_cache(config: "AppConfig"):
+    """SearchCache: Valkey wenn verfügbar, sonst In-Memory-Fallback."""
+    if config.valkey.enabled:
+        try:
+            from tools.db.valkey_search_cache import ValkeySearchCache
+            return ValkeySearchCache(config.valkey, config.search_cache)
+        except ImportError as exc:
+            print(
+                f"  ⚠ Valkey-SearchCache nicht verfügbar ({exc}), Fallback auf In-Memory.",
+                file=sys.stderr,
+            )
+    from tools.db.valkey_search_cache import InMemorySearchCache
+    return InMemorySearchCache(config.search_cache)
+
+
 def create_user_db(config: "AppConfig"):
     """UserDB: PostgreSQL wenn DB_BACKEND=postgres, sonst SQLite."""
     if config.postgres.enabled:

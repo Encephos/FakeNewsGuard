@@ -6,6 +6,11 @@ use_default_settings:
       - qwant
       - startpage
       - google
+      - yahoo
+      - bing
+      - mojeek
+      - yep
+      - presearch
       - wikipedia
       - wikidata
       - tagesschau
@@ -31,11 +36,11 @@ search:
   ban_time_on_fail: 2
   max_ban_time_on_fail: 15
   suspended_times:
-    SearxEngineTooManyRequests: 30
-    SearxEngineAccessDenied: 60
-    SearxEngineCaptcha: 120
-    cf_SearxEngineAccessDenied: 120
-    cf_SearxEngineCaptcha: 300
+    SearxEngineTooManyRequests: 10
+    SearxEngineAccessDenied: 15
+    SearxEngineCaptcha: 30
+    cf_SearxEngineAccessDenied: 30
+    cf_SearxEngineCaptcha: 60
 
 server:
   secret_key: "fakeguard-searxng-secret-change-me"
@@ -50,31 +55,38 @@ redis:
   url: "redis://valkey:6379/0"
 
 outgoing:
-  request_timeout: 3.0
-  max_request_timeout: 8.0
+  request_timeout: 5.0
+  max_request_timeout: 10.0
   useragent_suffix: "FakeNewsGuard"
   pool_connections: 100
   pool_maxsize: 30
   enable_http2: true
+  # Tor deaktiviert: Bekannte Exit-Nodes werden von den meisten Engines
+  # aggressiver geblockt als normale IPs. Die Engine-Rotation (10 Engines,
+  # 3 pro Query) + kurze Suspension-Times sind effektiver.
+  # proxies:
+  #   all://:
+  #     - socks5h://tor:9050
+  # using_tor_proxy: true
 
 plugins: {}
 
 engines:
   - name: duckduckgo
     disabled: false
-    timeout: 3.0
+    timeout: 10.0
     weight: 1.1
     send_accept_language_header: true
 
   - name: brave
     disabled: false
-    timeout: 3.0
+    timeout: 10.0
     weight: 1.0
     send_accept_language_header: true
 
   - name: qwant
     disabled: false
-    timeout: 3.0
+    timeout: 10.0
     weight: 0.9
     send_accept_language_header: true
 
@@ -88,15 +100,43 @@ engines:
 
   - name: startpage
     disabled: false
-    timeout: 4.0
+    timeout: 10.0
     weight: 1.2
     send_accept_language_header: true
 
   - name: google
     disabled: false
+    timeout: 10.0
+    weight: 1.0
+    send_accept_language_header: true
+
+  - name: yahoo
+    disabled: false
+    timeout: 3.0
+    weight: 0.8
+    send_accept_language_header: true
+
+  - name: bing
+    disabled: false
     timeout: 3.0
     weight: 1.0
     send_accept_language_header: true
+
+  - name: mojeek
+    disabled: false
+    timeout: 10.0
+    weight: 0.7
+    send_accept_language_header: true
+
+  - name: yep
+    disabled: false
+    timeout: 10.0
+    weight: 0.7
+
+  - name: presearch
+    disabled: false
+    timeout: 10.0
+    weight: 0.7
 
   - name: tagesschau
     disabled: false

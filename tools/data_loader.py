@@ -196,7 +196,7 @@ def searxng_engines() -> dict[str, list[str]]:
     """Lade SearXNG Engine-Sets."""
     data = scoring_weights()
     return data.get("searxng_engines", {
-        "web": ["duckduckgo", "brave", "qwant"],
+        "web": ["duckduckgo", "brave", "qwant", "startpage", "google", "yahoo", "bing", "mojeek", "yep", "presearch"],
         "news": ["duckduckgo", "brave", "tagesschau"],
         "reference": ["wikipedia", "wikidata"],
     })
