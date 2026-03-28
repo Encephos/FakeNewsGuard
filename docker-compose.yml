@@ -27,6 +27,14 @@ services:
     restart: unless-stopped
     command: valkey-server --save 60 1 --loglevel warning
 
+  tor:
+    image: dperson/torproxy:latest
+    container_name: fakenewsguard-tor
+    restart: unless-stopped
+    environment:
+      # Neue Circuit alle 60s für IP-Rotation
+      - TORRC=MaxCircuitDirtiness 60
+
   searxng:
     image: searxng/searxng:latest
     container_name: fakenewsguard-searxng

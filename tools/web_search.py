@@ -14,7 +14,10 @@ Legacy-Provider (weiter verfügbar über WebSearchClient/AsyncWebSearchClient):
 from __future__ import annotations
 
 import asyncio
+import itertools
+import random
 import sys
+import threading
 from dataclasses import dataclass
 from typing import Any
 
@@ -482,9 +485,32 @@ class SearXNGClient:
       - Retry-Robustheit via retry_call / retry_call_async (wie TavilyClient)
     """
 
-    def __init__(self, config: SearXNGConfig, retry: RetryConfig | None = None) -> None:
+    # Standard-Engine-Pool für Rotation (Web-Engines, keine Reference-Engines)
+    _DEFAULT_ENGINE_POOL: list[str] = [
+        "duckduckgo", "brave", "qwant", "startpage", "google",
+        "yahoo", "bing", "mojeek", "yep", "presearch",
+    ]
+
+    def __init__(self, config: SearXNGConfig, retry: RetryConfig | None = None, search_cache=None) -> None:
         self.config = config
         self._retry = retry or RetryConfig()
+        self._cache = search_cache
+
+        # Engine-Rotation: Round-Robin über shuffled Pool
+        if config.engine_rotation_enabled:
+            pool = list(self._DEFAULT_ENGINE_POOL)
+            random.shuffle(pool)
+            self._engine_cycle = itertools.cycle(pool)
+        else:
+            self._engine_cycle = None
+        self._rotation_lock = threading.Lock()
+
+    def _select_engines(self) -> list[str] | None:
+        """Wähle nächste N Engines aus dem Round-Robin-Pool."""
+        if not self._engine_cycle:
+            return None
+        with self._rotation_lock:
+            return [next(self._engine_cycle) for _ in range(self.config.engines_per_query)]
 
     def _build_params(
         self,
@@ -497,7 +523,10 @@ class SearXNGClient:
     ) -> dict:
         """Baue SearXNG-Request-Parameter. Normalisiert categories: str → list.
 
-        Per-Query-Overrides (engines, time_range, pageno) haben Vorrang vor Config-Defaults.
+        Priorität für Engines:
+          1. Per-Query-Override (engines-Parameter) – höchste Priorität
+          2. Engine-Rotation (wenn aktiviert) – wählt N Engines round-robin
+          3. Config-Default (self.config.engines) – Fallback
         """
         if isinstance(categories, str):
             cats = [c.strip() for c in categories.split(",") if c.strip()] or self.config.categories
@@ -510,8 +539,13 @@ class SearXNGClient:
             "language": self.config.language,
             "categories": ",".join(cats),
         }
-        # Per-Query-Engines überschreiben Config-Engines
-        effective_engines = engines or (self.config.engines if self.config.engines else None)
+        # Engine-Auswahl: Per-Query > Rotation > Config-Default
+        if engines:
+            effective_engines = engines
+        elif self.config.engine_rotation_enabled:
+            effective_engines = self._select_engines()
+        else:
+            effective_engines = self.config.engines if self.config.engines else None
         if effective_engines:
             params["engines"] = ",".join(effective_engines)
         # Per-Query-Zeitraum überschreibt Config-Zeitraum
@@ -537,8 +571,16 @@ class SearXNGClient:
         max_results: int | None = None,
         categories: list[str] | str | None = None,
     ) -> list[SearchResult]:
-        """Synchrone SearXNG-Suche mit Retry."""
+        """Synchrone SearXNG-Suche mit Cache + Retry."""
         n = max_results or self.config.max_results
+
+        # Cache-Check
+        cat_str = categories if isinstance(categories, str) else ",".join(categories) if categories else ""
+        if self._cache:
+            cached = self._cache.get(query, cat_str)
+            if cached is not None:
+                return [SearchResult(**r) for r in cached]
+
         params = self._build_params(query, n, categories)
 
         def _call():
@@ -561,7 +603,17 @@ class SearXNGClient:
         except Exception as e:
             print(f"  ⚠ SearXNG fehlgeschlagen: {type(e).__name__}: {e}", file=sys.stderr)
             return []
-        return self._parse_response(data, n)
+
+        results = self._parse_response(data, n)
+
+        if self._cache and results:
+            self._cache.set(
+                query,
+                [{"title": r.title, "url": r.url, "snippet": r.snippet} for r in results],
+                cat_str,
+            )
+
+        return results
 
     async def search_async(
         self,
@@ -572,8 +624,16 @@ class SearXNGClient:
         time_range: str | None = None,
         pageno: int = 1,
     ) -> list[SearchResult]:
-        """Asynchrone SearXNG-Suche mit Retry."""
+        """Asynchrone SearXNG-Suche mit Cache + Retry."""
         n = max_results or self.config.max_results
+
+        # Cache-Check: Query + Kategorien als Key
+        cat_str = categories if isinstance(categories, str) else ",".join(categories) if categories else ""
+        if self._cache:
+            cached = self._cache.get(query, cat_str)
+            if cached is not None:
+                return [SearchResult(**r) for r in cached]
+
         params = self._build_params(query, n, categories, engines=engines, time_range=time_range, pageno=pageno)
 
         async def _call():
@@ -596,7 +656,18 @@ class SearXNGClient:
         except Exception as e:
             print(f"  ⚠ SearXNG async fehlgeschlagen: {type(e).__name__}: {e}", file=sys.stderr)
             return []
-        return self._parse_response(data, n)
+
+        results = self._parse_response(data, n)
+
+        # Cache-Set: Ergebnisse für zukünftige Anfragen speichern
+        if self._cache and results:
+            self._cache.set(
+                query,
+                [{"title": r.title, "url": r.url, "snippet": r.snippet} for r in results],
+                cat_str,
+            )
+
+        return results
 
     async def multi_search_async(
         self,
@@ -619,9 +690,9 @@ class SearXNGClient:
 
         async def _bounded(sq: SearXNGQuery) -> tuple[str, list[SearchResult]]:
             async with semaphore:
-                # Kleines Delay nach Semaphore-Acquire verhindert Engine-Suspendierung
+                # Delay nach Semaphore-Acquire verhindert Engine-Suspendierung
                 # durch zu viele gleichzeitige Anfragen (DuckDuckGo, Brave, Qwant)
-                await asyncio.sleep(0.25)
+                await asyncio.sleep(self.config.inter_query_delay)
                 # Eindeutiger Key: query + pageno (damit pageno=1 und pageno=2 nicht kollidieren)
                 key = sq.query if sq.pageno == 1 else f"{sq.query}__p{sq.pageno}"
                 results = await self.search_async(
@@ -758,8 +829,10 @@ class LangSearchClient:
 
     @staticmethod
     def _parse_response(data: dict, max_results: int) -> list[SearchResult]:
+        # LangSearch API wraps response in {"code":200,"data":{"webPages":...}}
+        inner = data.get("data", data)
         results = []
-        for r in data.get("webPages", {}).get("value", [])[:max_results]:
+        for r in inner.get("webPages", {}).get("value", [])[:max_results]:
             results.append(SearchResult(
                 title=r.get("name", ""),
                 url=r.get("url", ""),

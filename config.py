@@ -127,6 +127,26 @@ class CacheConfig:
 
 
 @dataclass
+class SearchCacheConfig:
+    """Konfiguration für den Search-Result-Cache (Valkey oder SQLite-Fallback).
+
+    Env-Vars:
+        SEARCH_CACHE_ENABLED   – "true"/"false" (Default: true)
+        SEARCH_CACHE_TTL_HOURS – TTL in Stunden (Default: 6)
+    """
+
+    enabled: bool = True
+    ttl_hours: int = 6
+
+    def __post_init__(self) -> None:
+        env_enabled = os.getenv("SEARCH_CACHE_ENABLED", "")
+        if env_enabled:
+            self.enabled = env_enabled.lower() in ("true", "1", "yes")
+        if env_ttl := os.getenv("SEARCH_CACHE_TTL_HOURS", ""):
+            self.ttl_hours = int(env_ttl)
+
+
+@dataclass
 class LLMConfig:
     """Konfiguration für den LLM-Provider."""
 
@@ -207,6 +227,9 @@ class SearXNGConfig:
     max_concurrent_searches: int = 3
     scrape_top_n: int = 10
     scrape_timeout: float = 10.0
+    inter_query_delay: float = 1.5
+    engine_rotation_enabled: bool = True
+    engines_per_query: int = 3
 
     def __post_init__(self) -> None:
         if not self.base_url:
@@ -229,6 +252,12 @@ class SearXNGConfig:
         env_scrape_timeout = os.getenv("SCRAPE_TIMEOUT", "")
         if env_scrape_timeout:
             self.scrape_timeout = float(env_scrape_timeout)
+        env_delay = os.getenv("SEARXNG_INTER_QUERY_DELAY", "")
+        if env_delay:
+            self.inter_query_delay = float(env_delay)
+        env_rotation = os.getenv("SEARXNG_ENGINE_ROTATION", "")
+        if env_rotation:
+            self.engine_rotation_enabled = env_rotation.lower() in ("true", "1", "yes")
 
 
 @dataclass
@@ -820,6 +849,7 @@ class AppConfig:
     cove: CoVeConfig = field(default_factory=CoVeConfig)
     retry: RetryConfig = field(default_factory=RetryConfig)
     cache: CacheConfig = field(default_factory=CacheConfig)
+    search_cache: SearchCacheConfig = field(default_factory=SearchCacheConfig)
     archive: ArchiveConfig = field(default_factory=ArchiveConfig)
     user_db: UserDBConfig = field(default_factory=UserDBConfig)
     telegram: TelegramConfig = field(default_factory=TelegramConfig)

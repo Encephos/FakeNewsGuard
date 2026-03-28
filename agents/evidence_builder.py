@@ -559,6 +559,12 @@ def _relevance_score(
             + (1.0 - offtopic_penalty) * _np.get("offtopic", 0.25)
         )
 
+    # Multiplikativer Penalty für bekannte kommerzielle Domains:
+    # Numerische Entitäts-Überlappungen (z.B. Preis = 250€) sind falsch-positive
+    # Signale für Produktseiten. Ein additiver Penalty reicht nicht aus.
+    if _extract_domain(result.url) in _COMMERCIAL_DOMAINS:
+        score *= 0.5
+
     return min(1.0, max(0.0, score))
 
 

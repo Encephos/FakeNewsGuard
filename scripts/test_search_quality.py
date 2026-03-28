@@ -351,6 +351,9 @@ async def main():
         result = await test_single_claim(claim, ls_client, sx_client)
         results.append(result)
         print_result(result)
+        # Pause zwischen Claims, um Engine-Suspensions durch zu viele Anfragen zu vermeiden
+        if i < len(TEST_CLAIMS) - 1:
+            await asyncio.sleep(8)
 
     # Zusammenfassung
     print(f"\n{'='*80}")
