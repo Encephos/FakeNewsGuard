@@ -4,6 +4,8 @@ use_default_settings:
       - duckduckgo
       - brave
       - qwant
+      - startpage
+      - google
       - wikipedia
       - wikidata
       - tagesschau
@@ -26,14 +28,14 @@ search:
   formats:
     - html
     - json
-  ban_time_on_fail: 5
-  max_ban_time_on_fail: 60
+  ban_time_on_fail: 2
+  max_ban_time_on_fail: 15
   suspended_times:
-    SearxEngineTooManyRequests: 900
-    SearxEngineAccessDenied: 3600
-    SearxEngineCaptcha: 3600
-    cf_SearxEngineAccessDenied: 3600
-    cf_SearxEngineCaptcha: 7200
+    SearxEngineTooManyRequests: 30
+    SearxEngineAccessDenied: 60
+    SearxEngineCaptcha: 120
+    cf_SearxEngineAccessDenied: 120
+    cf_SearxEngineCaptcha: 300
 
 server:
   secret_key: "fakeguard-searxng-secret-change-me"
@@ -84,10 +86,21 @@ engines:
     disabled: false
     weight: 0.6
 
+  - name: startpage
+    disabled: false
+    timeout: 4.0
+    weight: 1.2
+    send_accept_language_header: true
+
+  - name: google
+    disabled: false
+    timeout: 3.0
+    weight: 1.0
+    send_accept_language_header: true
+
   - name: tagesschau
     disabled: false
     categories:
       - news
-      - general
     timeout: 3.0
     weight: 1.1

@@ -1,0 +1,161 @@
+# Domain-Tier-Klassifikation für Evidence-Ranking und Source-Klassifikation.
+# Tier 1 = höchste Vertrauenswürdigkeit, Tier 5 = niedrigste.
+
+# ── evidence_builder.py Domain-Tiers ──────────────────────────────────────────
+
+tier1_official_statistics:
+  - destatis.de
+  - eurostat.ec.europa.eu
+  - bpb.de
+  - statistik.at
+  - bfs.admin.ch
+  - oecd.org
+  - worldbank.org
+  - who.int
+  - un.org
+
+tier2_government:
+  - bamf.de
+  - bka.de
+  - bmi.bund.de
+  - bundesregierung.de
+  - bundestag.de
+  - bundesrat.de
+  - rki.de
+  - ema.europa.eu
+  - ec.europa.eu
+  - consilium.europa.eu
+  - bundesbank.de
+
+tier3_quality_journalism:
+  - reuters.com
+  - dpa.com
+  - tagesschau.de
+  - zeit.de
+  - sueddeutsche.de
+  - faz.net
+  - spiegel.de
+  - nzz.ch
+  - ard.de
+  - zdf.de
+  - tagesspiegel.de
+  - welt.de
+  - bbc.com
+  - theguardian.com
+  - ap.org
+  - dw.com
+
+tier4_fact_checkers:
+  - correctiv.org
+  - mimikama.org
+  - faktenfinder.tagesschau.de
+  - dpa-factchecking.com
+  - snopes.com
+  - factcheck.org
+  - politifact.com
+  - afp.com
+  - reuters.com/fact-check
+  - volksverpetzer.de
+
+# ── source_classifier.py Tier-Patterns ────────────────────────────────────────
+# Erweiterte Domain-Listen für die Source-Klassifikation (Substring-Matching).
+
+classifier:
+  official:
+    - destatis.de
+    - eurostat.ec.europa.eu
+    - ec.europa.eu/eurostat
+    - bamf.de
+    - bka.de
+    - bmi.bund.de
+    - bmj.de
+    - bundesregierung.de
+    - bundestag.de
+    - statistik-bw.de
+    - statistik.berlin-brandenburg.de
+    - who.int
+    - rki.de
+    - oecd.org
+    - worldbank.org
+    - imf.org
+    - cdc.gov
+    - nih.gov
+    - bpb.de
+
+  fact_checker:
+    - correctiv.org
+    - mimikama.org
+    - mimikama.at
+    - faktencheck.dpa.com
+    - dpa-factchecking.com
+    - faktenfinder.tagesschau.de
+    - snopes.com
+    - politifact.com
+    - factcheck.org
+    - fullfact.org
+    - leadstories.com
+    - checkyourfact.com
+    - reuters.com/fact-check
+    - apnews.com/hub/ap-fact-check
+
+  quality_journalism:
+    - reuters.com
+    - apnews.com
+    - dpa.com
+    - tagesschau.de
+    - zdf.de
+    - deutschlandfunk.de
+    - ndr.de
+    - wdr.de
+    - br.de
+    - swr.de
+    - mdr.de
+    - rbb24.de
+    - zeit.de
+    - sueddeutsche.de
+    - spiegel.de
+    - faz.net
+    - handelsblatt.com
+    - tagesspiegel.de
+    - fr.de
+    - stern.de
+    - nzz.ch
+    - derstandard.at
+    - bbc.com
+    - bbc.co.uk
+    - theguardian.com
+    - nytimes.com
+    - washingtonpost.com
+    - economist.com
+
+  media:
+    - focus.de
+    - n-tv.de
+    - welt.de
+    - t-online.de
+    - rp-online.de
+    - merkur.de
+    - bild.de
+    - morgenpost.de
+    - ksta.de
+    - hna.de
+    - tz.de
+    - abendblatt.de
+    - news.de
+    - rtl.de
+    - sat1.de
+    - prosieben.de
+
+  user_generated:
+    - reddit.com
+    - twitter.com
+    - x.com
+    - facebook.com
+    - telegram.org
+    - t.me
+    - tiktok.com
+    - youtube.com
+    - medium.com
+    - substack.com
+    - wordpress.com
+    - blogspot.com

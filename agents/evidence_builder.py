@@ -25,7 +25,15 @@ from typing import Any
 from urllib.parse import urlparse
 
 from agents.base import BaseAgent
-from config import AppConfig, EvidenceRetrievalConfig, SEARXNG_WEB_ENGINES, SEARXNG_NEWS_ENGINES
+from config import AppConfig, EvidenceRetrievalConfig
+from tools.data_loader import (
+    domain_tiers, low_trust_domains, commercial_domains,
+    offtopic_url_patterns, low_trust_content_patterns, commercial_snippet_patterns,
+    scoring_weights, freshness_tiers as load_freshness_tiers, searxng_engines,
+    stopwords as load_stopwords,
+)
+from tools.reranker import rerank, reranker_available
+from tools.iterative_search import extract_feedback_terms, generate_refinement_queries
 from models.evidence_models import (
     EvidenceContradiction,
     EvidenceItem,
@@ -43,7 +51,8 @@ from tools.llm import LLMClient
 from tools.scrape_ranker import RankedSource, rank_sources
 from tools.source_classifier import classify_source
 from tools.source_scraper import ScrapedSource, scrape_sources
-from tools.web_search import AsyncWebSearchClient, LangSearchClient, SearchResult, SearXNGClient, SearXNGQuery, TavilyClient, WebSearchClient
+from tools.ner_extractor import entity_overlap_score
+from tools.web_search import AsyncWebSearchClient, LangSearchClient, SearchResult, SearXNGClient, SearXNGQuery, WebSearchClient
 
 
 # ── Deduplication ─────────────────────────────────────────────────────────────
@@ -67,42 +76,19 @@ def _extract_domain(url: str) -> str:
         return url
 
 
-# ── Domain-Tier Mapping ────────────────────────────────────────────────────────
-
-# Tier 1: Offizielle Statistikämter
-_TIER1_DOMAINS = {
-    "destatis.de", "eurostat.ec.europa.eu", "bpb.de", "statistik.at",
-    "bfs.admin.ch", "oecd.org", "worldbank.org", "who.int", "un.org",
-}
-# Tier 2: Offizielle Behörden
-_TIER2_DOMAINS = {
-    "bamf.de", "bka.de", "bmi.bund.de", "bundesregierung.de",
-    "bundestag.de", "bundesrat.de", "rki.de", "ema.europa.eu",
-    "ec.europa.eu", "consilium.europa.eu", "bundesbank.de",
-}
-# Tier 3: Qualitätsjournalismus
-_TIER3_DOMAINS = {
-    "reuters.com", "dpa.com", "tagesschau.de", "zeit.de", "sueddeutsche.de",
-    "faz.net", "spiegel.de", "nzz.ch", "ard.de", "zdf.de", "tagesspiegel.de",
-    "welt.de", "bbc.com", "theguardian.com", "ap.org", "dw.com",
-}
-# Tier 4: Faktenchecker
-_TIER4_DOMAINS = {
-    "correctiv.org", "mimikama.org", "faktenfinder.tagesschau.de",
-    "dpa-factchecking.com", "snopes.com", "factcheck.org", "politifact.com",
-    "afp.com", "reuters.com/fact-check", "volksverpetzer.de",
-}
+# ── Domain-Tier Mapping (aus data/domain_tiers.yaml) ─────────────────────────
 
 
 def _domain_tier(url: str) -> int:
     domain = _extract_domain(url)
-    if any(t in domain for t in _TIER1_DOMAINS):
+    tiers = domain_tiers()
+    if any(t in domain for t in tiers["tier1"]):
         return 1
-    if any(t in domain for t in _TIER2_DOMAINS):
+    if any(t in domain for t in tiers["tier2"]):
         return 2
-    if any(t in domain for t in _TIER3_DOMAINS):
+    if any(t in domain for t in tiers["tier3"]):
         return 3
-    if any(t in domain for t in _TIER4_DOMAINS):
+    if any(t in domain for t in tiers["tier4"]):
         return 4
     return 5
 
@@ -111,42 +97,15 @@ def _is_fact_check_org(url: str) -> bool:
     return _domain_tier(url) == 4
 
 
-# ── Stopwords für Relevanz-Berechnung ─────────────────────────────────────────
+# ── Stopwords für Relevanz-Berechnung (aus data/stopwords.yaml) ───────────────
 
-_RELEVANCE_STOPWORDS: set[str] = {
-    "diese", "dieser", "dieses", "einen", "einem", "einer", "eines",
-    "werden", "wurde", "worden", "haben", "hatte", "waren", "sind",
-    "nicht", "sich", "dass", "wenn", "weil", "also", "auch", "noch",
-    "schon", "immer", "durch", "nach", "über", "unter", "zwischen",
-    "gegen", "damit", "dabei", "mehr", "sehr", "andere", "anderen",
-    "the", "and", "for", "that", "this", "with", "from", "have", "been",
-}
+_RELEVANCE_STOPWORDS: set[str] = load_stopwords("relevance")
 
-# Off-topic Signale: Domains/Muster die auf irrelevante Treffer hindeuten
-_OFFTOPIC_URL_PATTERNS: list[re.Pattern] = [
-    re.compile(r"(rezept|recipe|kochen|restaurant|essen)", re.IGNORECASE),
-    re.compile(r"(grammatik|duden|wörterbuch|dictionary|linguee|deepl)", re.IGNORECASE),
-    re.compile(r"(wetter|weather|horoskop|horoscope)", re.IGNORECASE),
-    re.compile(r"(shop|kaufen|bestellen|amazon|ebay)", re.IGNORECASE),
-    re.compile(r"(forum|reddit\.com/r/(?!de|europe|news|worldnews))", re.IGNORECASE),
-    # Bußgeld-/Strafrechner ohne redaktionellen Kontext
-    re.compile(r"(bu[sß]sgeld|straf|verwarn).*(rechner|calculator|berechne)", re.IGNORECASE),
-    re.compile(r"rechner.*(bu[sß]sgeld|strafe|verwarn)", re.IGNORECASE),
-    # Bekannte Produkt-/Shop-Domains
-    re.compile(r"(mediamarkt|saturn\.de|otto\.de|zalando|idealo|geizhals)", re.IGNORECASE),
-    # Generische Produkt-URLs (preis, angebot, produkt in URL)
-    re.compile(r"/(preis|angebot|produkt|artikel)-", re.IGNORECASE),
-]
+# Off-topic Signale (aus data/offtopic_patterns.yaml)
+_OFFTOPIC_URL_PATTERNS: list[re.Pattern] = offtopic_url_patterns()
 
-# Bekannte kommerzielle/nicht-redaktionelle Domains
-_COMMERCIAL_DOMAINS: frozenset[str] = frozenset({
-    "mediamarkt.de", "saturn.de", "otto.de", "zalando.de", "idealo.de",
-    "amazon.de", "amazon.com", "ebay.de", "ebay.com", "geizhals.de",
-    "preisvergleich.de", "check24.de", "verivox.de",
-    "bussgeldkatalog.de", "bussgeldkatalog.org", "bussgeld.de",
-    "bussgeldrechner.de", "bußgeldrechner.net", "bussgeldrechner.org",
-    "strafzettel-ratgeber.de", "recht-finanzen.de",
-})
+# Bekannte kommerzielle/nicht-redaktionelle Domains (aus data/commercial_domains.yaml)
+_COMMERCIAL_DOMAINS: frozenset[str] = commercial_domains()
 
 # ── Low-Trust-Seitentyp-Erkennung ────────────────────────────────────────────
 # Strukturelle Klasse: Seiten die kaum zur finalen Evidenzqualität beitragen
@@ -154,60 +113,10 @@ _COMMERCIAL_DOMAINS: frozenset[str] = frozenset({
 
 # Low-Trust Domains: Währungsrechner, allgemeine Grammatik-/Wörterbuchseiten,
 # allgemeine Juraforen/Lexika, allgemeine Bußgeldrechner
-_LOW_TRUST_DOMAINS: frozenset[str] = frozenset({
-    # Währungsrechner
-    "xe.com", "x-rates.com", "oanda.com", "wise.com", "transferwise.com",
-    "exchangerate.guru", "currency-converter.com", "finanzen.net",
-    # Grammatik / Wörterbuch / Konjugation
-    "duden.de", "verbformen.de", "verbformen.com", "konjugator.de",
-    "conjugation.com", "reverso.net", "linguee.de", "linguee.com",
-    "deepl.com", "dict.cc", "wiktionary.org", "pons.com",
-    "wordreference.com", "dict.leo.org",
-    # Allgemeine Juraforen / Lexika (ohne konkreten Claim-Bezug)
-    "juraforum.de", "anwalt.de", "123recht.de", "frag-einen-anwalt.de",
-    "rechtsanwalt.com", "advocado.de", "fachanwalt.de",
-    # Allgemeine Hilfs-/Erklärseiten
-    "gutefrage.net", "wer-weiss-was.de", "helpster.de",
-    "haushaltstipps.net", "tipps.net",
-    # Generische Q&A / Erklärungs-Seiten
-    "alleantworten.de", "praxistipps.focus.de", "praxistipps.chip.de",
-    "ratgeber.focus.de",
-})
+_LOW_TRUST_DOMAINS: frozenset[str] = low_trust_domains()
 
-# Low-Trust Titel/Snippet-Muster: erkennt generische Hilfsseiten anhand Inhalt
-_LOW_TRUST_CONTENT_PATTERNS: list[re.Pattern] = [
-    # Währungsrechner / Umrechnung
-    re.compile(
-        r"\b(currency\s+convert|w[äa]hrungsrechner|umrechn|exchange\s+rate|wechselkurs)"
-        r"|\b\d+\s*(gbp|usd|eur|pfund|dollar)\s+(in|to|nach|zu)\s+\d*\s*(gbp|usd|eur|euro|pfund|dollar)",
-        re.IGNORECASE,
-    ),
-    # Grammatik / Konjugation
-    re.compile(
-        r"\bkonjugation\b.*\b(verb|dürfen|können|sollen|müssen|werden|haben|sein)\b"
-        r"|\b(indikativ|konjunktiv|imperativ|pr[äa]teritum|partizip)\b.*\bkonjugation\b"
-        r"|\bverb\s+(conjugat|konjugier)",
-        re.IGNORECASE,
-    ),
-    # Allgemeine Bußgeldrechner/-tabellen (ohne spezifischen Claim-Bezug)
-    re.compile(
-        r"\bbu[sß]geld(rechner|tabelle|katalog)\b.*\b(berechne|online|aktuell)\b"
-        r"|\b(berechne|berechnung)\b.*\bbu[sß]geld\b",
-        re.IGNORECASE,
-    ),
-    # Generische Rechts-Lexikon-Seiten
-    re.compile(
-        r"\b(rechtslexikon|jura\s*lexikon|rechts(begriffe|w[öo]rterbuch))\b"
-        r"|\b(definition|begriff)\b.{0,30}\b(jura|recht|gesetz)\b",
-        re.IGNORECASE,
-    ),
-    # Generische "Was ist/verdient/kostet" Erklärungs-Seiten
-    re.compile(
-        r"\bwas\s+(ist|sind|verdient|kostet|bedeutet)\s+(ein|eine|der|die|das)\s+\w+"
-        r".*\b(aufgaben|definition|gehalt|bedeutung|[üu]berblick)\b",
-        re.IGNORECASE,
-    ),
-]
+# Low-Trust Titel/Snippet-Muster (aus data/offtopic_patterns.yaml)
+_LOW_TRUST_CONTENT_PATTERNS: list[re.Pattern] = low_trust_content_patterns()
 
 
 def _is_low_trust_site(url: str, title: str, snippet: str) -> bool:
@@ -261,14 +170,8 @@ def _is_generic_reference(url: str, profile: "ClaimSearchProfile | None") -> boo
     return not any(loc.lower() in wiki_title for loc in profile.locations if loc)
 
 
-# Kommerzielle Content-Signale (Snippets/Titel)
-_COMMERCIAL_SNIPPET_PATTERNS: list[re.Pattern] = [
-    re.compile(r"\bjetzt\s+(kaufen|bestellen|sichern)\b", re.IGNORECASE),
-    re.compile(r"\bab\s+\d+\s*euro\b.*\b(kaufen|bestellen|shop)\b", re.IGNORECASE),
-    re.compile(r"\b(günstig|billig|preis|angebot|rabatt|deal)\b.{0,30}\b(kaufen|bestellen|shop)\b", re.IGNORECASE),
-    re.compile(r"\bpreisvergleich\b|\bversandkostenfrei\b|\bin\s+den\s+warenkorb\b", re.IGNORECASE),
-    re.compile(r"\bbußgeld\s+berechnen\b|\bbu[sß]sgeld\s+rechner\b", re.IGNORECASE),
-]
+# Kommerzielle Content-Signale (aus data/offtopic_patterns.yaml)
+_COMMERCIAL_SNIPPET_PATTERNS: list[re.Pattern] = commercial_snippet_patterns()
 
 
 # ── Evidence Ranking ──────────────────────────────────────────────────────────
@@ -542,41 +445,39 @@ def _compute_freshness(publication_date: str) -> float:
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     days_old = (now - dt).days
 
-    if days_old <= 1:
-        return 1.0
-    elif days_old <= 7:
-        return 0.9
-    elif days_old <= 30:
-        return 0.8
-    elif days_old <= 90:
-        return 0.7
-    elif days_old <= 365:
-        return 0.5
-    elif days_old <= 730:
-        return 0.3
-    else:
-        return 0.1
+    for max_days, score in load_freshness_tiers():
+        if max_days is None or days_old <= max_days:
+            return score
+    return 0.1
 
 
 def _relevance_score(
     result: SearchResult,
     claim_text: str,
     profile: ClaimSearchProfile | None = None,
+    ce_score: float | None = None,
 ) -> float:
-    """Multi-Signal Relevanz-Score mit optionalem Profil-Anchor-Boost.
+    """Multi-Signal Relevanz-Score mit NER-basiertem Entity-Overlap.
 
     Ohne Profil (Gewichte):
-        - Keyword-Overlap (0.35)
-        - Entitäts-Match  (0.40)
+        - Keyword-Overlap  (0.25)
+        - NER Entity-Overlap (0.50)  ← spaCy + Synonym-Matching
         - Off-topic Penalty (0.25)
 
     Mit Profil (Gewichte):
-        - Keyword-Overlap  (0.20)
-        - Entitäts-Match   (0.25)
-        - Profile-Anchor   (0.35)  ← strukturierte Anker
+        - Keyword-Overlap  (0.15)
+        - NER Entity-Overlap (0.30)  ← spaCy + Synonym-Matching
+        - Profile-Anchor   (0.35)    ← strukturierte Anker
         - Off-topic Penalty (0.20)
+
+    NER Entity-Overlap (tools/ner_extractor.py):
+        1. Exact match der erkannten Entitäten
+        2. Teilstring-Match für mehrteilige Entitäten
+        3. Token-Vektor-Similarität für Synonyme (E-Scooter ↔ Elektroroller)
+           – nur wenn de_core_news_lg geladen ist
     """
     combined = f"{result.title} {result.snippet}".lower()
+    result_text = f"{result.title} {result.snippet}"
 
     # Signal 1: Keyword-Overlap (ohne Stoppwörter)
     claim_words = set(re.findall(r"\b[a-zäöüA-ZÄÖÜ]{4,}\b", claim_text.lower()))
@@ -587,16 +488,17 @@ def _relevance_score(
     else:
         kw_score = 0.0
 
-    # Signal 2: Entitäts-Match (Eigennamen, Zahlen, Akronyme)
-    entity_score = _entity_overlap(claim_text, f"{result.title} {result.snippet}")
+    # Signal 2: NER-basierter Entity-Overlap (spaCy + Synonyme, Fallback regex)
+    ner_score = entity_overlap_score(claim_text, result_text)
+    # Fallback: regex-basierter Entity-Overlap wenn NER 0 liefert
+    regex_entity_score = _entity_overlap(claim_text, result_text)
+    entity_score = max(ner_score, regex_entity_score)
 
     # Signal 3: Off-topic Penalty (URL + Inhalt wenn Profil vorhanden)
     offtopic_penalty = 0.0
-    # Low-Trust-Seitentyp: starke Penalty (Währungsrechner, Grammatik, Juraforen etc.)
     if _is_low_trust_site(result.url, result.title, result.snippet):
         offtopic_penalty = 0.75
     elif _is_generic_reference(result.url, profile):
-        # Generischer Wikipedia-/Lexikon-Artikel ohne Location-Spezifik
         offtopic_penalty = 0.6
     elif _is_offtopic_url(result.url):
         offtopic_penalty = 0.6
@@ -607,29 +509,54 @@ def _relevance_score(
     if kw_score < 0.2 and entity_score < 0.2:
         offtopic_penalty = max(offtopic_penalty, 0.4)
 
-    if profile:
-        # Signal 4: Profile-Anchor-Score (strukturierte Anker aus SearchProfile)
+    _sw = scoring_weights().get("relevance_score", {})
+    if ce_score is not None and profile:
+        # Cross-Encoder verfügbar + Profil → stärkstes Scoring
         anchor_score = _profile_anchor_score(combined, profile)
+        _wp = _sw.get("with_profile_ce", _sw.get("with_profile", {}))
         score = (
-            kw_score * 0.20
-            + entity_score * 0.25
-            + anchor_score * 0.35
-            + (1.0 - offtopic_penalty) * 0.20
+            kw_score * _wp.get("keyword", 0.10)
+            + entity_score * _wp.get("entity", 0.20)
+            + anchor_score * _wp.get("anchor", 0.25)
+            + ce_score * _wp.get("cross_encoder", 0.30)
+            + (1.0 - offtopic_penalty) * _wp.get("offtopic", 0.15)
         )
-        # Spezifitäts-Penalty: Wenn das Profil ≥3 Anker-Gruppen hat, aber nur
-        # 1 davon matcht UND der Entity-Score niedrig ist, ist das Ergebnis
-        # wahrscheinlich generisch (z.B. Wikipedia "Stadtrat" für einen Claim
-        # über "Stadtrat von Hannover + 15-Minuten-Stadt + 250€ Bußgeld").
+        total_anchors = _count_active_anchors(profile)
+        if total_anchors >= 3:
+            anchor_hits = _count_anchor_hits(combined, profile)
+            if anchor_hits <= 1 and entity_score < 0.20 and ce_score < 0.40:
+                score *= 0.4
+    elif ce_score is not None:
+        # Cross-Encoder ohne Profil
+        _np = _sw.get("no_profile_ce", _sw.get("no_profile", {}))
+        score = (
+            kw_score * _np.get("keyword", 0.15)
+            + entity_score * _np.get("entity", 0.25)
+            + ce_score * _np.get("cross_encoder", 0.40)
+            + (1.0 - offtopic_penalty) * _np.get("offtopic", 0.20)
+        )
+    elif profile:
+        # Kein Cross-Encoder, aber Profil
+        anchor_score = _profile_anchor_score(combined, profile)
+        _wp = _sw.get("with_profile", {})
+        score = (
+            kw_score * _wp.get("keyword", 0.15)
+            + entity_score * _wp.get("entity", 0.30)
+            + anchor_score * _wp.get("anchor", 0.35)
+            + (1.0 - offtopic_penalty) * _wp.get("offtopic", 0.20)
+        )
         total_anchors = _count_active_anchors(profile)
         if total_anchors >= 3:
             anchor_hits = _count_anchor_hits(combined, profile)
             if anchor_hits <= 1 and entity_score < 0.20:
                 score *= 0.4
     else:
+        # Kein Cross-Encoder, kein Profil
+        _np = _sw.get("no_profile", {})
         score = (
-            kw_score * 0.35
-            + entity_score * 0.40
-            + (1.0 - offtopic_penalty) * 0.25
+            kw_score * _np.get("keyword", 0.25)
+            + entity_score * _np.get("entity", 0.50)
+            + (1.0 - offtopic_penalty) * _np.get("offtopic", 0.25)
         )
 
     return min(1.0, max(0.0, score))
@@ -653,28 +580,45 @@ def _extract_best_excerpt(content: str, claim_text: str, max_chars: int = 800) -
     if not paragraphs:
         return content[:max_chars].strip()
 
-    claim_lower = claim_text.lower()
-    claim_words = set(re.findall(r"\b[a-zäöü]{4,}\b", claim_lower)) - _RELEVANCE_STOPWORDS
-    claim_entities = _extract_entities(claim_text)
+    # Phase 5: Cross-Encoder-basiertes Paragraph-Scoring wenn verfügbar
+    from tools.reranker import _get_model as _get_ce_model
+    ce_model = _get_ce_model()
+    if ce_model is not None and len(paragraphs) <= 50:
+        try:
+            pairs = [(claim_text, para) for para in paragraphs]
+            raw_scores = ce_model.predict(pairs, show_progress_bar=False)
+            try:
+                import numpy as np
+                normalized = 1.0 / (1.0 + np.exp(-raw_scores))
+            except ImportError:
+                import math
+                normalized = [1.0 / (1.0 + math.exp(-float(s))) for s in raw_scores]
+            scored: list[tuple[float, str]] = list(zip(normalized, paragraphs))
+        except Exception:
+            ce_model = None  # Fallback auf lexikalisches Scoring
 
-    scored: list[tuple[float, str]] = []
-    for para in paragraphs:
-        para_lower = para.lower()
-        # Keyword-Match
-        if claim_words:
-            kw_hits = sum(1 for w in claim_words if w in para_lower)
-            kw_score = kw_hits / len(claim_words)
-        else:
-            kw_score = 0.0
-        # Entity-Match
-        if claim_entities:
-            ent_hits = sum(1 for e in claim_entities if e.lower() in para_lower)
-            ent_score = ent_hits / len(claim_entities)
-        else:
-            ent_score = 0.0
+    if ce_model is None or len(paragraphs) > 50:
+        claim_lower = claim_text.lower()
+        claim_words = set(re.findall(r"\b[a-zäöü]{4,}\b", claim_lower)) - _RELEVANCE_STOPWORDS
+        claim_entities = _extract_entities(claim_text)
 
-        total = kw_score * 0.4 + ent_score * 0.6
-        scored.append((total, para))
+        scored = []
+        for para in paragraphs:
+            para_lower = para.lower()
+            if claim_words:
+                kw_hits = sum(1 for w in claim_words if w in para_lower)
+                kw_score = kw_hits / len(claim_words)
+            else:
+                kw_score = 0.0
+            if claim_entities:
+                ent_hits = sum(1 for e in claim_entities if e.lower() in para_lower)
+                ent_score = ent_hits / len(claim_entities)
+            else:
+                ent_score = 0.0
+
+            _ew = scoring_weights().get("excerpt_extraction", {})
+            total = kw_score * _ew.get("keyword", 0.4) + ent_score * _ew.get("entity", 0.6)
+            scored.append((total, para))
 
     # Sortiere nach Score, wähle Top-Absätze
     scored.sort(key=lambda x: -x[0])
@@ -693,12 +637,91 @@ def _extract_best_excerpt(content: str, claim_text: str, max_chars: int = 800) -
     return " … ".join(selected)
 
 
+def _cluster_by_perspective(
+    items: list[EvidenceItem],
+    target: int = 8,
+) -> list[EvidenceItem]:
+    """Round-Robin-Selektion aus Perspektiv-Clustern für Evidenz-Diversität.
+
+    Stellt sicher, dass verschiedene Quelltypen vertreten sind:
+    - Faktenchecker (höchste Priorität bei Fake-Claims)
+    - Offizielle Quellen (Tier 1-2)
+    - Widerlegende Quellen
+    - Bestätigende Quellen
+    - Qualitätsjournalismus (Tier 3)
+    - Sonstige
+
+    Items behalten ihre ursprüngliche Reihenfolge innerhalb jedes Clusters.
+    """
+    if len(items) <= target:
+        return items
+
+    clusters: dict[str, list[EvidenceItem]] = {
+        "fact_check": [],
+        "official": [],
+        "refuting": [],
+        "supporting": [],
+        "journalism": [],
+        "other": [],
+    }
+
+    for item in items:
+        tier = item.source.domain_tier
+        direction = item.source_direction
+
+        if item.source.is_fact_check_org or tier == 4:
+            clusters["fact_check"].append(item)
+        elif tier <= 2:
+            clusters["official"].append(item)
+        elif direction == SourceDirection.REFUTES:
+            clusters["refuting"].append(item)
+        elif direction == SourceDirection.SUPPORTS:
+            clusters["supporting"].append(item)
+        elif tier == 3:
+            clusters["journalism"].append(item)
+        else:
+            clusters["other"].append(item)
+
+    # Round-Robin: Faktenchecker zuerst, dann offizielle Quellen, etc.
+    priority_order = ["fact_check", "official", "refuting", "supporting", "journalism", "other"]
+    selected: list[EvidenceItem] = []
+    seen_urls: set[str] = set()
+
+    # Erste Runde: je 1 Item pro Cluster
+    for key in priority_order:
+        for item in clusters[key]:
+            if item.source.url not in seen_urls and len(selected) < target:
+                selected.append(item)
+                seen_urls.add(item.source.url)
+                break
+
+    # Restliche Plätze auffüllen (Round-Robin)
+    round_idx = 1
+    while len(selected) < target:
+        added = False
+        for key in priority_order:
+            if round_idx < len(clusters[key]):
+                item = clusters[key][round_idx]
+                if item.source.url not in seen_urls:
+                    selected.append(item)
+                    seen_urls.add(item.source.url)
+                    added = True
+                    if len(selected) >= target:
+                        break
+        if not added:
+            break
+        round_idx += 1
+
+    return selected
+
+
 def _rank_evidence_items(
     items: list[EvidenceItem],
     claim_text: str,
     google_matches: list[GoogleFactCheckMatch],
     profile: ClaimSearchProfile | None = None,
     is_current_state: bool = False,
+    ce_scores: dict[str, float] | None = None,
 ) -> list[EvidenceItem]:
     """Ranke bestehende EvidenceItems neu – behalte alle Metadaten.
 
@@ -735,10 +758,12 @@ def _rank_evidence_items(
         snippet = item.excerpt
 
         tier = _domain_tier(url)
+        _ce = ce_scores.get(url) if ce_scores else None
         rel = _relevance_score(
             SearchResult(title=title, url=url, snippet=snippet),
             claim_text,
             profile,
+            ce_score=_ce,
         )
         is_fc = _is_fact_check_org(url)
         has_gfc_match = _extract_domain(url) in fact_check_domains
@@ -793,14 +818,15 @@ def _rank_evidence_items(
             anchor_weight = 0.22 if is_regulatory_profile else 0.15
             anchor_bonus = raw_anchor * anchor_weight
 
-        # ── Multi-Signal Ranking-Score ───────────────────────────
+        # ── Multi-Signal Ranking-Score (Gewichte aus data/scoring_weights.yaml) ──
+        _rw = scoring_weights().get("ranking", {})
         score = (
-            (5 - tier) / 4 * 0.25           # Tier-Bonus
-            + rel * 0.30                      # Relevanz (inkl. Anker wenn Profil)
-            + anchor_bonus                    # Expliziter Profil-Anker-Bonus
-            + (0.15 if is_fc else 0)          # Faktenchecker-Bonus
-            + (0.10 if has_gfc_match else 0)  # GFC-Match-Bonus
-            + (1.0 - offtopic_penalty) * 0.05 # Off-topic Penalty
+            (5 - tier) / 4 * _rw.get("tier", 0.25)
+            + rel * _rw.get("relevance", 0.30)
+            + anchor_bonus
+            + (_rw.get("factcheck", 0.15) if is_fc else 0)
+            + (_rw.get("gfc", 0.10) if has_gfc_match else 0)
+            + (1.0 - offtopic_penalty) * _rw.get("offtopic", 0.05)
         )
 
         # Current-state Claims: Nachrichten-/Behördenquellen (Tier 1-3) boosten,
@@ -986,11 +1012,12 @@ def _compute_quality_signals(
     # has_primary_direct: Tier-1/2-Quelle mit direktem Claim-Bezug (starkes Signal)
     # Bedingung: evidence_type=DIRECT und claim_scope_score >= 0.50
     # Allgemeine Behördenseiten ohne spezifischen Claim-Bezug zählen NICHT.
-    _PRIMARY_DIRECT_SCOPE = 0.50
+    _qw_scope = scoring_weights().get("quality_signals", {})
+    _primary_direct_scope = _qw_scope.get("primary_direct_scope", 0.50)
     has_primary_direct = any(
         i.source.domain_tier <= 2
         and i.evidence_type == EvidenceType.DIRECT
-        and i.claim_scope_score >= _PRIMARY_DIRECT_SCOPE
+        and i.claim_scope_score >= _primary_direct_scope
         for i in items
     )
 
@@ -1069,45 +1096,45 @@ def _compute_quality_signals(
     top_relevance = [i.relevance_score for i in items[:5]]
     avg_relevance = sum(top_relevance) / len(top_relevance) if top_relevance else 0.0
 
+    # Gewichte aus data/scoring_weights.yaml
+    _qw = scoring_weights().get("quality_signals", {})
+
     # Off-topic-Penalty in overall_quality einrechnen
-    offtopic_penalty = off_topic_rate * 0.15
+    offtopic_penalty = off_topic_rate * _qw.get("offtopic_penalty", 0.15)
     # Low-Trust-Penalty: deckelt Confidence wenn überwiegend unzuverlässige Quellen
-    # (konfigurierbar über low_trust_penalty_factor, Default 0.20)
     low_trust_penalty = low_trust_rate * low_trust_penalty_factor
-    # Freshness: bei current-state Claims stärker gewichten (0.25 statt 0.15)
-    freshness_weight = 0.25 if is_current_state else 0.15
+    # Freshness: bei current-state Claims stärker gewichten
+    freshness_weight = _qw.get("freshness_current_state", 0.25) if is_current_state else _qw.get("freshness_normal", 0.15)
     freshness_term = freshness * freshness_weight if items else 0.0
     # Stale-Penalty: wenn alle Quellen veraltet sind (avg_freshness < stale_threshold)
     stale_penalty = stale_penalty_factor if (items and freshness < stale_threshold) else 0.0
 
     # Konsens-Bonus: klares Richtungssignal aus vertrauenswürdigen Quellen erhöht Qualität
-    # (sowohl AGREEING als auch CONTRADICTORY sind informative Signale)
     consensus_clarity_bonus = (
-        0.05
+        _qw.get("consensus_bonus", 0.05)
         if consensus in (SourceConsensus.AGREEING, SourceConsensus.CONTRADICTORY)
         and total_signal >= 0.5
         else 0.0
     )
 
-    # Primary-Source-Beitrag: direkter Claim-Bezug → 0.25, nur Präsenz → 0.10
-    # Verhindert, dass allgemeine Behörden-/Statistikseiten als starke Evidenz zählen.
+    # Primary-Source-Beitrag
     primary_contribution = (
-        0.25 if has_primary_direct
-        else 0.10 if has_primary_any
+        _qw.get("primary_direct", 0.25) if has_primary_direct
+        else _qw.get("primary_any", 0.10) if has_primary_any
         else 0.0
     )
-    # Faktenchecker-Beitrag: direkter Match → 0.25, nur Präsenz → 0.10
+    # Faktenchecker-Beitrag
     fc_contribution = (
-        0.25 if has_fc_direct
-        else 0.10 if has_fc_any
+        _qw.get("fc_direct", 0.25) if has_fc_direct
+        else _qw.get("fc_any", 0.10) if has_fc_any
         else 0.0
     )
 
     overall = (
-        min(1.0, top_tier_count / 3) * 0.30
+        min(1.0, top_tier_count / 3) * _qw.get("top_tier_count", 0.30)
         + primary_contribution
         + fc_contribution
-        + avg_relevance * 0.10
+        + avg_relevance * _qw.get("avg_relevance", 0.10)
         + freshness_term
         + consensus_clarity_bonus
         - offtopic_penalty
@@ -1129,7 +1156,7 @@ def _compute_quality_signals(
 
     # Contextual-only-Penalty in overall_quality einrechnen
     if contextual_only_rate > 0.6 and direct_count == 0:
-        overall = max(0.0, overall - 0.10)
+        overall = max(0.0, overall - _qw.get("contextual_only_penalty", 0.10))
 
     # Aktive direkte Widerlegung: Quellen die BOTH REFUTES + DIRECT sind.
     # Unterscheidet "Claim nicht belegt" (fehlendes Stützungssignal) von
@@ -1321,12 +1348,6 @@ class EvidenceBuilderAgent(BaseAgent):
             retry=self.config.retry,
         )
 
-        # Tavily Client (budgetiert – content-stark, nicht pauschal)
-        self._tavily = TavilyClient(
-            config=self.config.tavily,
-            retry=self.config.retry,
-        )
-
         # SearXNG Client (unterstützend – kostenlos, alle Queries, self-hosted)
         # Dedizierter Client: immer und ausschließlich SearXNG.
         # Kein Provider-Routing, keine Abhängigkeit von search.provider.
@@ -1334,30 +1355,6 @@ class EvidenceBuilderAgent(BaseAgent):
             config=self.config.searxng,
             retry=self.config.retry,
         )
-
-        # ── Tavily-Budget-Tracking ────────────────────────────────────────────
-        # Wird pro Analyse-Lauf gezählt (nicht pro Claim).
-        # Muss vom Orchestrator bei jedem neuen analyze()-Aufruf zurückgesetzt werden
-        # über reset_tavily_budget().
-        self._tavily_requests_used: int = 0
-
-    def reset_tavily_budget(self) -> None:
-        """Setze Tavily-Budget-Zähler zurück (aufrufen zu Beginn jeder Analyse)."""
-        self._tavily_requests_used = 0
-
-    def _tavily_budget_remaining(self) -> int:
-        """Verbleibende Tavily-Requests im aktuellen Analyse-Lauf."""
-        budget = self.config.evidence_retrieval.tavily_request_budget
-        if budget <= 0:
-            return 999  # unbegrenzt
-        return max(0, budget - self._tavily_requests_used)
-
-    def _consume_tavily_budget(self, n_queries: int) -> int:
-        """Verbrauche bis zu n_queries aus dem Tavily-Budget. Gibt tatsächlich verfügbare zurück."""
-        remaining = self._tavily_budget_remaining()
-        actual = min(n_queries, remaining)
-        self._tavily_requests_used += actual
-        return actual
 
     def _get_source_adapter(self, source_config: "SourceConfig"):  # type: ignore[name-defined]
         """Instanziiere oder hole Source Adapter via AdapterGuardian (mit Caching).
@@ -1604,37 +1601,37 @@ class EvidenceBuilderAgent(BaseAgent):
         ls_count = _langsearch_query_count(claim, retrieval_cfg)
         langsearch_queries = queries[:ls_count]
 
-        # Tavily: budgetiert – nur primary_queries in Runde 1, Expansion nur bei Bedarf
-        tavily_primary_n = self._consume_tavily_budget(retrieval_cfg.tavily_primary_queries)
-        tavily_queries_list = queries[:tavily_primary_n] if tavily_primary_n > 0 else []
-
         # Parallele Tasks starten
-        # SearXNG: Per-Query-Routing – Faktencheck/Falschmeldung-Queries durch News-Engines,
-        # Regulatory/Current-State-Claims mit time_range="year"
+        # SearXNG: Per-Query-Routing + Multi-Page (pageno=1 und pageno=2 für Top-Queries)
+        # Faktencheck/Falschmeldung-Queries → News-Engines
+        # Regulatory/Current-State-Claims → News-Engines + time_range
+        # Top-2 Queries bekommen zusätzlich pageno=2 für mehr Tiefe
         searxng_queries: list[SearXNGQuery] = []
-        for q in queries:
+        for i, q in enumerate(queries):
             sq = SearXNGQuery(query=q, categories=categories)
             if "Faktencheck" in q or "Falschmeldung" in q:
-                sq.engines = SEARXNG_NEWS_ENGINES
+                sq.engines = searxng_engines().get("news", ["duckduckgo", "brave", "tagesschau"])
             elif is_current_state:
-                sq.engines = SEARXNG_NEWS_ENGINES
+                sq.engines = searxng_engines().get("news", ["duckduckgo", "brave", "tagesschau"])
                 sq.time_range = retrieval_cfg.current_state_time_range
             else:
-                sq.engines = SEARXNG_WEB_ENGINES
+                sq.engines = searxng_engines().get("web", ["duckduckgo", "brave", "qwant"])
             searxng_queries.append(sq)
+            # Multi-Page: Top-2 Queries auch auf Seite 2 suchen
+            if i < 2:
+                sq2 = SearXNGQuery(
+                    query=q,
+                    categories=categories,
+                    engines=sq.engines,
+                    time_range=sq.time_range,
+                    pageno=2,
+                )
+                searxng_queries.append(sq2)
         searxng_task = self._searxng.multi_search_async(
             searxng_queries, max_results=self.config.searxng.max_results,
         )
         langsearch_task = self._langsearch.multi_search_async(
             langsearch_queries, max_results=self.config.langsearch.max_results,
-        )
-        async def _empty_tavily() -> dict[str, list[SearchResult]]:
-            return {}
-
-        tavily_task = (
-            self._tavily.multi_search_async(
-                tavily_queries_list, max_results=self.config.tavily.max_results,
-            ) if tavily_queries_list else _empty_tavily()
         )
         gfc_task = self._gfc_client.search_async(claim.text)
 
@@ -1647,7 +1644,7 @@ class EvidenceBuilderAgent(BaseAgent):
             )
 
         # ── Parallele Ausführung aller Tasks ───────────────────────────────────
-        gather_tasks = [searxng_task, langsearch_task, tavily_task, gfc_task]
+        gather_tasks = [searxng_task, langsearch_task, gfc_task]
         gather_tasks.extend([task for _, task in source_tasks])
 
         all_results = await asyncio.gather(*gather_tasks, return_exceptions=False)
@@ -1655,31 +1652,17 @@ class EvidenceBuilderAgent(BaseAgent):
         # ── Ergebnisse auspacken ──────────────────────────────────────────────
         searxng_results = all_results[0] if len(all_results) > 0 else {}
         langsearch_results = all_results[1] if len(all_results) > 1 else {}
-        tavily_results = all_results[2] if len(all_results) > 2 else {}
-        gfc_raw = all_results[3] if len(all_results) > 3 else []
+        gfc_raw = all_results[2] if len(all_results) > 2 else []
 
         # Source Client Results (NEW)
         source_client_results = {}
         if source_tasks:
             for idx, (source_id, _) in enumerate(source_tasks):
-                result_idx = 4 + idx
+                result_idx = 3 + idx
                 if result_idx < len(all_results):
                     source_client_results[source_id] = all_results[result_idx] or []
 
-        if not isinstance(tavily_results, dict):
-            tavily_results = {}
-
-        # ── 3. Tavily-Content-Map aufbauen (vor Dedup/Ranking verwendbar) ────
-        # Enthält Volltext-Content aus Tavily – wird für Pre-Scraping-Bewertung
-        # und als Excerpt-Fallback genutzt (reduziert unnötiges Scraping)
-        tavily_content_map: dict[str, str] = {
-            r.url: r.content
-            for q_res in tavily_results.values()
-            for r in q_res
-            if r.content
-        }
-
-        # ── 4. LangSearch-Retry bei schwacher erster Evidenz ─────────────────
+        # ── 3. LangSearch-Retry bei schwacher erster Evidenz ─────────────────
         # LangSearch ist die primäre semantische Suchquelle – bei schwacher
         # erster Runde wird ZUERST LangSearch erweitert, nicht Tavily.
         if (
@@ -1706,46 +1689,10 @@ class EvidenceBuilderAgent(BaseAgent):
                         f"{len(extra_queries)} zusätzliche Queries"
                     )
 
-        # ── 4b. Tavily-Expansion bei schwacher Evidenz (budgetiert) ──────────
-        # Nur wenn: (a) Evidenzqualität bisher schwach, (b) Budget verfügbar,
-        # (c) expand_on_low_quality aktiviert. Tavily soll NICHT pauschal fluten.
-        if (
-            retrieval_cfg.tavily_expand_on_low_quality
-            and self.config.tavily.enabled
-            and self._tavily_budget_remaining() > 0
-        ):
-            all_scores = [
-                _relevance_score(r, claim.text, profile)
-                for results_map in (langsearch_results, tavily_results)
-                for q_res in results_map.values()
-                for r in q_res
-            ]
-            avg_all = sum(all_scores) / len(all_scores) if all_scores else 0.0
-            if avg_all < retrieval_cfg.weak_evidence_threshold:
-                expand_n = self._consume_tavily_budget(
-                    retrieval_cfg.tavily_max_queries_per_claim - tavily_primary_n
-                )
-                if expand_n > 0:
-                    expand_queries = [
-                        q for q in queries[tavily_primary_n:tavily_primary_n + expand_n]
-                        if q not in tavily_queries_list
-                    ]
-                    if expand_queries:
-                        expand_results = await self._tavily.multi_search_async(
-                            expand_queries, max_results=self.config.tavily.max_results,
-                        )
-                        tavily_results.update({f"expand_{q}": v for q, v in expand_results.items()})
-                        notes.append(
-                            f"Tavily-Expansion: avg_relevance={avg_all:.2f}, "
-                            f"{len(expand_queries)} zusätzliche Queries "
-                            f"(Budget: {self._tavily_budget_remaining()} verbleibend)"
-                        )
-
-        # ── 5. Ergebnisse zusammenführen + deduplizieren ──────────────────────
-        # Reihenfolge: LangSearch (semantisch) → SearXNG (breit) → Tavily (content-stark) → SourceClients (strukturiert)
+        # ── 4. Ergebnisse zusammenführen + deduplizieren ─────────────────────
+        # Reihenfolge: LangSearch (semantisch) → SearXNG (breit) → SourceClients (strukturiert)
         # _dedup_results() behält erstes Vorkommen → LangSearch hat Dedup-Priorität
         all_results: list[SearchResult] = []
-        tavily_count = sum(len(v) for v in tavily_results.values())
         langsearch_count = sum(len(v) for v in langsearch_results.values())
         searxng_count = sum(len(v) for v in searxng_results.values())
         source_clients_count = 0
@@ -1753,8 +1700,6 @@ class EvidenceBuilderAgent(BaseAgent):
         for q_res in langsearch_results.values():
             all_results.extend(q_res)
         for q_res in searxng_results.values():
-            all_results.extend(q_res)
-        for q_res in tavily_results.values():
             all_results.extend(q_res)
 
         # Source Client Results (NEW) – konvertieren + hinzufügen
@@ -1767,12 +1712,18 @@ class EvidenceBuilderAgent(BaseAgent):
 
         unique_results = _dedup_results(all_results)
 
+        # ── Cross-Encoder Re-Ranking (Phase 2) ─────────────────────────────
+        ce_scores: dict[str, float] = {}
+        if reranker_available():
+            ce_ranked = rerank(claim.text, unique_results, top_k=30)
+            ce_scores = {r.url: float(s) for r, s in ce_ranked}
+            notes.append(f"Cross-Encoder: {len(ce_scores)} Ergebnisse bewertet")
+
         # Logging mit Source Client Info (NEW)
         retrieval_log = (
             f"Retrieval: {len(all_results)} Treffer → {len(unique_results)} unique "
             f"(LangSearch: {langsearch_count} semantisch [{ls_count} Queries], "
-            f"SearXNG: {searxng_count} breit, "
-            f"Tavily: {tavily_count} content-stark"
+            f"SearXNG: {searxng_count} breit"
         )
         if source_clients_count > 0:
             retrieval_log += f", SourceClients: {source_clients_count} strukturiert"
@@ -1800,11 +1751,10 @@ class EvidenceBuilderAgent(BaseAgent):
         ranked, scraped = await self._rank_and_scrape(
             unique_results, claim,
             profile=profile,
-            tavily_content_map=tavily_content_map,
         )
 
         # ── 8. EvidenceItems aus gescrapten Quellen bauen ─────────────────────
-        evidence_items = self._build_evidence_items(ranked, scraped, claim.text, gfc_matches, profile, is_current_state=is_current_state)
+        evidence_items = self._build_evidence_items(ranked, scraped, claim.text, gfc_matches, profile, is_current_state=is_current_state, ce_scores=ce_scores)
         notes.append(f"Evidence Items: {len(evidence_items)} (mit Scraping)")
 
         # ── 9. Qualität, Widersprüche, Pack zusammenstellen ───────────────────
@@ -1817,24 +1767,53 @@ class EvidenceBuilderAgent(BaseAgent):
             is_current_state=is_current_state,
         )
 
-        # Retry wenn Qualität zu niedrig oder Off-topic-Rate hoch
-        high_offtopic = quality.off_topic_rate > 0.6
-        low_quality = quality.overall_quality < 0.2
-        has_primary_content = bool(tavily_content_map) or any(
-            r.content for q_res in langsearch_results.values() for r in q_res
-        )
-        # Fallback immer bei schlechter Qualität — has_primary_content prüft nur ob
-        # Content existiert, nicht ob er relevant ist. Irrelevanter Tavily/LangSearch-Content
-        # darf Fallback-Retrieval nicht blockieren.
-        if low_quality or high_offtopic:
-            reason = "Off-topic-Rate hoch" if high_offtopic else "Qualität niedrig"
-            notes.append(f"{reason} – Fallback-Suche mit alternativen Queries")
+        # ── Iterative Search: Qualitäts-basierter Retry mit Relevanz-Feedback ──
+        iterative_round = 0
+        while (
+            retrieval_cfg.iterative_search_enabled
+            and iterative_round < retrieval_cfg.iterative_max_rounds
+            and quality.overall_quality < retrieval_cfg.iterative_min_quality
+        ):
+            iterative_round += 1
+
+            # Feedback-Terme aus Top-Ergebnissen extrahieren
+            top_results = unique_results[:10]
+            feedback_terms = extract_feedback_terms(claim.text, top_results)
+
+            if feedback_terms:
+                # Verfeinerte Queries generieren
+                refined_queries = generate_refinement_queries(
+                    claim.text, feedback_terms,
+                    max_queries=retrieval_cfg.iterative_max_refinement_queries,
+                )
+                notes.append(
+                    f"Iterative Runde {iterative_round}: Feedback-Terme={feedback_terms[:3]}, "
+                    f"Queries={len(refined_queries)}"
+                )
+            else:
+                # Kein Feedback → klassischer Fallback
+                notes.append(f"Iterative Runde {iterative_round}: Kein Feedback, Fallback-Suche")
+                refined_queries = []
+
+            # Fallback + ggf. Refinement-Queries ausführen
             fallback_results = await self._fallback_retrieval(claim, queries)
+            if refined_queries:
+                # Refinement-Queries über SearXNG
+                from tools.web_search import SearXNGQuery
+                refinement_sq = [SearXNGQuery(query=q) for q in refined_queries]
+                refinement_results = await self._searxng.multi_search_async(refinement_sq)
+                for results_list in refinement_results.values():
+                    fallback_results.extend(results_list)
+
             unique_results = _dedup_results(all_results + fallback_results)
+            # Re-rank mit Cross-Encoder (inkl. neue Ergebnisse)
+            if reranker_available():
+                ce_ranked = rerank(claim.text, unique_results, top_k=30)
+                ce_scores = {r.url: float(s) for r, s in ce_ranked}
             ranked, scraped = await self._rank_and_scrape(
-                unique_results, claim, profile=profile, tavily_content_map=tavily_content_map,
+                unique_results, claim, profile=profile,
             )
-            evidence_items = self._build_evidence_items(ranked, scraped, claim.text, gfc_matches, profile, is_current_state=is_current_state)
+            evidence_items = self._build_evidence_items(ranked, scraped, claim.text, gfc_matches, profile, is_current_state=is_current_state, ce_scores=ce_scores)
             quality = _compute_quality_signals(
                 evidence_items, gfc_matches,
                 low_trust_penalty_factor=retrieval_cfg.low_trust_confidence_penalty,
@@ -1842,7 +1821,7 @@ class EvidenceBuilderAgent(BaseAgent):
                 stale_penalty_factor=retrieval_cfg.stale_sources_confidence_penalty,
                 is_current_state=is_current_state,
             )
-            notes.append(f"Fallback: {len(evidence_items)} Evidence Items")
+            notes.append(f"Iterative Runde {iterative_round}: {len(evidence_items)} Items, Qualität={quality.overall_quality:.2f}")
 
         selected_sources = [item.source for item in evidence_items[:5]]
 
@@ -1943,16 +1922,13 @@ class EvidenceBuilderAgent(BaseAgent):
         results: list[SearchResult],
         claim: Claim,
         profile: ClaimSearchProfile | None = None,
-        tavily_content_map: dict[str, str] | None = None,
     ) -> tuple[list[RankedSource], list[ScrapedSource]]:
         """Ranke und scrape – Profile/Low-Trust-Filter greifen VOR dem Scraping.
 
         Ablauf:
             1. Low-Trust-Seiten und klar off-topic Kandidaten entfernen (Pre-Filter)
-            2. Tavily-Content in SearchResults einsetzen (Content-Anreicherung)
-            3. rank_sources() auf gefilterten Kandidaten
-            4. Scraping-Skip für Kandidaten mit ausreichendem Tavily-Content
-            5. Eigentliches Scraping nur noch für verbliebene Kandidaten
+            2. rank_sources() auf gefilterten Kandidaten
+            3. Eigentliches Scraping der Top-K Kandidaten
         """
         retrieval_cfg = self.config.evidence_retrieval
 
@@ -1982,15 +1958,7 @@ class EvidenceBuilderAgent(BaseAgent):
         if removed:
             self._log(f"Pre-Scraping-Filter: {removed}/{len(results)} Low-Trust/Off-topic Kandidaten entfernt")
 
-        # ── 2. Tavily-Content-Anreicherung ────────────────────────────────────
-        # Tavily-Volltext in SearchResults einsetzen – wird in rank_sources und
-        # _build_evidence_items als Excerpt-Quelle genutzt.
-        if tavily_content_map:
-            for r in filtered:
-                if not r.content and r.url in tavily_content_map:
-                    r.content = tavily_content_map[r.url]
-
-        # ── 3. Ranking (hybrid: BM25 + semantic + profile + low-trust) ─────
+        # ── 2. Ranking (hybrid: BM25 + semantic + profile + low-trust) ─────
         results_by_query: dict[str, list[SearchResult]] = {"_all": filtered}
         ranked = rank_sources(
             results_by_query,
@@ -1999,22 +1967,20 @@ class EvidenceBuilderAgent(BaseAgent):
             profile=profile,
         )
 
-        # ── 4. Scraping-Skip bei ausreichendem Tavily-Content ─────────────────
-        # Wenn Tavily bereits gut-relevanten Volltext geliefert hat,
-        # kein redundantes Scraping nötig → spart Zeit und API-Requests.
-        if tavily_content_map:
-            content_skipped = 0
-            for rs in ranked:
-                if not rs.should_scrape or not rs.result.content:
-                    continue
-                if len(rs.result.content) > 300:
-                    tavily_rel = _relevance_score(rs.result, claim.text, profile)
-                    if tavily_rel > 0.30:
-                        rs.should_scrape = False
-                        rs.skip_reason = "tavily_content_sufficient"
-                        content_skipped += 1
-            if content_skipped:
-                self._log(f"Tavily-Content ausreichend: {content_skipped} Scraping-Requests eingespart")
+        # ── 3. LangSearch-Content-Skip ────────────────────────────────────────
+        # LangSearch liefert Summaries – bei ausreichendem Content kein Scraping nötig.
+        content_skipped = 0
+        for rs in ranked:
+            if not rs.should_scrape or not rs.result.content:
+                continue
+            if len(rs.result.content) > 300:
+                ls_rel = _relevance_score(rs.result, claim.text, profile)
+                if ls_rel > 0.30:
+                    rs.should_scrape = False
+                    rs.skip_reason = "langsearch_content_sufficient"
+                    content_skipped += 1
+        if content_skipped:
+            self._log(f"LangSearch-Content ausreichend: {content_skipped} Scraping-Requests eingespart")
 
         scrape_count = sum(1 for rs in ranked if rs.should_scrape)
         self._log(f"Scraping {scrape_count} von {len(ranked)} Quellen...")
@@ -2036,6 +2002,7 @@ class EvidenceBuilderAgent(BaseAgent):
         gfc_matches: list[GoogleFactCheckMatch],
         profile: ClaimSearchProfile | None = None,
         is_current_state: bool = False,
+        ce_scores: dict[str, float] | None = None,
     ) -> list[EvidenceItem]:
         """Baue EvidenceItems aus gescrapten Quellen.
 
@@ -2133,7 +2100,11 @@ class EvidenceBuilderAgent(BaseAgent):
             gfc_matches,
             profile=profile,
             is_current_state=is_current_state,
+            ce_scores=ce_scores,
         )
+
+        # Phase 6: Perspektiv-Clustering für Evidenz-Diversität
+        items = _cluster_by_perspective(items, target=8)
 
         return items
 
@@ -2167,16 +2138,6 @@ class EvidenceBuilderAgent(BaseAgent):
                 self._langsearch.multi_search_async(
                     fallback_queries[:2],
                     max_results=self.config.langsearch.max_results,
-                )
-            )
-
-        # Tavily nur im Fallback wenn Budget vorhanden
-        tavily_fallback_n = self._consume_tavily_budget(1)
-        if tavily_fallback_n > 0 and self.config.tavily.enabled:
-            tasks.append(
-                self._tavily.multi_search_async(
-                    fallback_queries[:1],
-                    max_results=self.config.tavily.max_results,
                 )
             )
 

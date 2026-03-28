@@ -5,11 +5,17 @@ pydantic[email]>=2.0.0
 python-jose[cryptography]>=3.3.0
 bcrypt>=4.0.0
 python-dotenv>=1.0.0
+pyyaml>=6.0
 fastapi>=0.110.0
 uvicorn>=0.30.0
 trafilatura>=2.0.0
 beautifulsoup4>=4.12.0
 reportlab>=4.0.0
+# NER & semantische Analyse
+spacy>=3.7.0
+# Nach Installation: python -m spacy download de_core_news_lg
+# Cross-Encoder Re-Ranking (optional – graceful degradation wenn nicht installiert)
+# sentence-transformers>=2.2.0  # Zieht torch als Abhängigkeit
 # Produktions-Datenbank-Backends (optional – Fallback auf SQLite wenn nicht installiert)
 psycopg[binary,pool]>=3.1.0
 redis>=5.0.0

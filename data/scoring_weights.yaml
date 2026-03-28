@@ -1,0 +1,155 @@
+# Scoring-Gewichte für alle Bewertungs-Komponenten.
+# Zentrale Konfiguration – alle Magic Numbers aus dem Code externalisiert.
+
+# ── Relevanz-Score (evidence_builder._relevance_score) ────────────────────────
+
+relevance_score:
+  no_profile:
+    keyword: 0.25
+    entity: 0.50
+    offtopic: 0.25
+  with_profile:
+    keyword: 0.15
+    entity: 0.30
+    anchor: 0.35
+    offtopic: 0.20
+  # Cross-Encoder-Varianten (Phase 2)
+  no_profile_ce:
+    keyword: 0.15
+    entity: 0.25
+    cross_encoder: 0.40
+    offtopic: 0.20
+  with_profile_ce:
+    keyword: 0.10
+    entity: 0.20
+    anchor: 0.25
+    cross_encoder: 0.30
+    offtopic: 0.15
+
+# ── Evidence-Ranking (evidence_builder._rank_evidence_items) ──────────────────
+
+ranking:
+  tier: 0.25
+  relevance: 0.30
+  factcheck: 0.15
+  gfc: 0.10
+  offtopic: 0.05
+
+# ── Quality-Signals (evidence_builder._compute_quality_signals) ───────────────
+
+quality_signals:
+  primary_direct: 0.25
+  primary_any: 0.10
+  fc_direct: 0.25
+  fc_any: 0.10
+  top_tier_count: 0.30
+  avg_relevance: 0.10
+  freshness_normal: 0.15
+  freshness_current_state: 0.25
+  offtopic_penalty: 0.15
+  low_trust_penalty: 0.20
+  stale_penalty: 0.15
+  consensus_bonus: 0.05
+  contextual_only_penalty: 0.10
+  primary_direct_scope: 0.50
+
+# ── Freshness-Tiers (evidence_builder._compute_freshness) ─────────────────────
+
+freshness_tiers:
+  - max_days: 1
+    score: 1.0
+  - max_days: 7
+    score: 0.9
+  - max_days: 30
+    score: 0.8
+  - max_days: 90
+    score: 0.7
+  - max_days: 365
+    score: 0.5
+  - max_days: 730
+    score: 0.3
+  - max_days: null
+    score: 0.1
+
+# ── Excerpt-Extraktion (evidence_builder._extract_best_excerpt) ───────────────
+
+excerpt_extraction:
+  keyword: 0.4
+  entity: 0.6
+
+# ── Scrape-Ranker Gewichte ────────────────────────────────────────────────────
+
+scrape_ranker:
+  bm25:
+    k1: 1.5
+    b: 0.75
+    avg_dl: 80.0
+  hybrid:
+    with_profile:
+      bm25: 0.25
+      keyword: 0.15
+      number: 0.10
+      anchor: 0.30
+      content_bonus: 0.20
+    no_profile:
+      bm25: 0.40
+      keyword: 0.30
+      number: 0.15
+      content_bonus: 0.15
+  profile_anchor_fit:
+    institution: 0.30
+    location: 0.25
+    policy: 0.20
+    number: 0.15
+    sanction: 0.10
+  tier_bonus:
+    official: 0.20
+    fact_checker: 0.15
+    quality_journalism: 0.10
+    media: 0.03
+  low_trust_penalty: 0.25
+  passage_extraction:
+    keyword: 0.5
+    number: 0.3
+    position: 0.2
+
+# ── Paywalls (scrape_ranker.py) ───────────────────────────────────────────────
+
+paywalls:
+  hard:
+    - bild.de
+    - welt.de
+    - faz.net
+    - handelsblatt.com
+    - nytimes.com
+    - washingtonpost.com
+    - economist.com
+    - ft.com
+    - wsj.com
+  soft:
+    - spiegel.de
+    - zeit.de
+    - sz.de
+    - sueddeutsche.de
+
+# ── SearXNG Engine-Sets ──────────────────────────────────────────────────────
+
+searxng_engines:
+  web:
+    - duckduckgo
+    - brave
+    - qwant
+  news:
+    - duckduckgo
+    - brave
+    - tagesschau
+  reference:
+    - wikipedia
+    - wikidata
+
+# ── Query-Expansion Konstanten ────────────────────────────────────────────────
+
+query_expansion:
+  max_query_terms: 5
+  max_per_family: 2
+  max_total_queries: 14

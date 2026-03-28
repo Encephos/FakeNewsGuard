@@ -17,6 +17,7 @@ from dataclasses import dataclass
 from enum import IntEnum
 from urllib.parse import urlparse
 
+from tools.data_loader import classifier_tier_patterns
 from tools.web_search import SearchResult
 
 
@@ -30,45 +31,18 @@ class SourceTier(IntEnum):
     OFFICIAL = 5         # Behörden, Statistikämter, Regierung
 
 
-# Domain → Tier Mapping (Substring-Matching auf Hostname)
+# Domain → Tier Mapping (aus data/domain_tiers.yaml)
 # Hinweis: Wird nach Klassendefinition durch _extend_from_registry() ergänzt.
+_TIER_INT_TO_SOURCE_TIER = {
+    5: SourceTier.OFFICIAL,
+    4: SourceTier.FACT_CHECKER,
+    3: SourceTier.QUALITY_JOURNALISM,
+    2: SourceTier.MEDIA,
+    1: SourceTier.USER_GENERATED,
+}
 _TIER_PATTERNS: list[tuple[SourceTier, list[str]]] = [
-    (SourceTier.OFFICIAL, [
-        "destatis.de", "eurostat.ec.europa.eu", "ec.europa.eu/eurostat",
-        "bamf.de", "bka.de", "bmi.bund.de", "bmj.de", "bundesregierung.de",
-        "bundestag.de", "statistik-bw.de", "statistik.berlin-brandenburg.de",
-        "who.int", "rki.de", "oecd.org", "worldbank.org", "imf.org",
-        "cdc.gov", "nih.gov", "bpb.de",
-    ]),
-    (SourceTier.FACT_CHECKER, [
-        "correctiv.org", "mimikama.org", "mimikama.at",
-        "faktencheck.dpa.com", "dpa-factchecking.com",
-        "faktenfinder.tagesschau.de", "snopes.com", "politifact.com",
-        "factcheck.org", "fullfact.org", "leadstories.com",
-        "checkyourfact.com", "reuters.com/fact-check",
-        "apnews.com/hub/ap-fact-check",
-    ]),
-    (SourceTier.QUALITY_JOURNALISM, [
-        "reuters.com", "apnews.com", "dpa.com",
-        "tagesschau.de", "zdf.de", "deutschlandfunk.de", "ndr.de",
-        "wdr.de", "br.de", "swr.de", "mdr.de", "rbb24.de",
-        "zeit.de", "sueddeutsche.de", "spiegel.de", "faz.net",
-        "handelsblatt.com", "tagesspiegel.de", "fr.de",
-        "stern.de", "nzz.ch", "derstandard.at",
-        "bbc.com", "bbc.co.uk", "theguardian.com", "nytimes.com",
-        "washingtonpost.com", "economist.com",
-    ]),
-    (SourceTier.MEDIA, [
-        "focus.de", "n-tv.de", "welt.de", "t-online.de",
-        "rp-online.de", "merkur.de", "bild.de", "morgenpost.de",
-        "ksta.de", "hna.de", "tz.de", "abendblatt.de",
-        "news.de", "rtl.de", "sat1.de", "prosieben.de",
-    ]),
-    (SourceTier.USER_GENERATED, [
-        "reddit.com", "twitter.com", "x.com", "facebook.com",
-        "telegram.org", "t.me", "tiktok.com", "youtube.com",
-        "medium.com", "substack.com", "wordpress.com", "blogspot.com",
-    ]),
+    (_TIER_INT_TO_SOURCE_TIER[tier_int], patterns)
+    for tier_int, patterns in classifier_tier_patterns()
 ]
 
 

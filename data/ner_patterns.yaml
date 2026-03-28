@@ -1,0 +1,68 @@
+# NER-Muster für den Regex-Fallback (ner_extractor.py).
+
+# Bekannte Organisationsabkürzungen
+known_orgs:
+  - KBA
+  - BKA
+  - BfR
+  - BfArM
+  - RKI
+  - BMI
+  - BMWK
+  - BaFin
+  - Destatis
+  - EZB
+  - BNetzA
+  - BAMF
+  - FIU
+  - UBA
+  - DIW
+  - WHO
+  - EMA
+  - EFSA
+  - ESA
+  - NASA
+  - OECD
+  - IWF
+
+# Institutions-Pattern: (regex, kind)
+# kind = "org" oder "loc"
+# Patterns verwenden \w* um deutsche Kasus-Formen abzudecken
+institution_patterns:
+  - pattern: "\\bDestatis\\b"
+    kind: org
+  - pattern: "\\bStatistisch\\w*\\s+Bundesamt\\w*\\b"
+    kind: org
+  - pattern: "\\bKraftfahrt[- ]Bundesamt\\w*\\b"
+    kind: org
+  - pattern: "\\bBundesnetzagentur\\w*\\b"
+    kind: org
+  - pattern: "\\bBundesbank\\w*\\b"
+    kind: org
+  - pattern: "\\bBundesregierung\\w*\\b"
+    kind: org
+  - pattern: "\\bBundesrat\\w*\\b"
+    kind: org
+  - pattern: "\\bBundestag\\w*\\b"
+    kind: org
+  - pattern: "\\bEU[- ]Kommission\\w*\\b"
+    kind: org
+  - pattern: "\\bEuropäisch\\w*\\s+Kommission\\w*\\b"
+    kind: org
+  - pattern: "\\bEuropäisch\\w*\\s+Union\\w*\\b"
+    kind: loc
+  - pattern: "\\bDeutschland\\b"
+    kind: loc
+  - pattern: "\\bBerlin\\b"
+    kind: loc
+  - pattern: "\\bBrüssel\\b"
+    kind: loc
+  - pattern: "\\bGenf\\b"
+    kind: loc
+  - pattern: "\\b(?:WhatsApp|Facebook|Meta|Google|Microsoft|Apple)\\b"
+    kind: org
+  - pattern: "\\b(?:Ifo[- ]Institut|ifo)\\b"
+    kind: org
+
+# Bekannte Gesetzesabkürzungen (Regex-Pattern)
+law_acronyms: "\\b(?:EnWG|BGB|StGB|GmbHG|AktG|DSGVO|GDPR|MwStG|UStG|EStG|GEG|BauGB|WHG|KrWG|BSIG|TKG|UWG|HGB|InsO|ZPO|StPO|VwGO|GG)\\b"

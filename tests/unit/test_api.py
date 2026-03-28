@@ -84,6 +84,9 @@ def test_get_job_after_analyze(client):
 # ── Rate-Limiting ────────────────────────────────────────────────
 
 
+import pytest
+
+@pytest.mark.integration
 def test_rate_limit_blocks_after_burst():
     """Nach Überschreitung des Bursts sollte 429 zurückkommen."""
     from fastapi import HTTPException
