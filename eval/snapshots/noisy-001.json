@@ -1,0 +1,91 @@
+{
+  "case_id": "noisy-001",
+  "timestamp": "2025-03-29T10:00:00+00:00",
+  "generated_queries": [
+    "Man hört ja überall, dass die Wirtschaft den Bach runtergeht",
+    "Wirtschaft Deutschland Krise",
+    "Wirtschaft den Bach runtergeht"
+  ],
+  "deduped_queries": [
+    "Man hört ja überall, dass die Wirtschaft den Bach runtergeht",
+    "Wirtschaft Deutschland Krise"
+  ],
+  "searxng_queries": [
+    {"query": "Wirtschaft Deutschland Krise", "pageno": 1}
+  ],
+  "searxng_results": {
+    "Wirtschaft Deutschland Krise": [
+      {"title": "Konjunktur: Wie steht es um die deutsche Wirtschaft?", "url": "https://www.tagesschau.de/wirtschaft/konjunktur/konjunktur-ausblick-2025-101.html", "snippet": "Konjunkturprognose 2025: Die deutsche Wirtschaft stagniert, aber von einem Zusammenbruch kann keine Rede sein.", "content": ""},
+      {"title": "Wirtschaftslage in Deutschland – ifo Institut", "url": "https://www.ifo.de/themen/konjunktur", "snippet": "Das ifo Institut analysiert die aktuelle Wirtschaftslage in Deutschland.", "content": ""},
+      {"title": "Geht Deutschland den Bach runter? – Reddit", "url": "https://www.reddit.com/r/de/comments/wirtschaft_den_bach_runter", "snippet": "Diskussion über die wirtschaftliche Lage Deutschlands.", "content": ""},
+      {"title": "Wirtschaftskrise 2025: Was Experten sagen", "url": "https://www.focus.de/finanzen/wirtschaftskrise-2025.html", "snippet": "Viele fragen sich, ob eine Wirtschaftskrise droht. Hier die Einschätzung der Experten.", "content": ""}
+    ]
+  },
+  "langsearch_results": {},
+  "gfc_results": [],
+  "source_client_results": [],
+  "merged_results": [
+    {"title": "Konjunktur: Wie steht es um die deutsche Wirtschaft?", "url": "https://www.tagesschau.de/wirtschaft/konjunktur/konjunktur-ausblick-2025-101.html", "snippet": "Konjunkturprognose 2025.", "content": ""},
+    {"title": "Wirtschaftslage in Deutschland – ifo Institut", "url": "https://www.ifo.de/themen/konjunktur", "snippet": "Das ifo Institut analysiert die aktuelle Wirtschaftslage.", "content": ""},
+    {"title": "Geht Deutschland den Bach runter? – Reddit", "url": "https://www.reddit.com/r/de/comments/wirtschaft_den_bach_runter", "snippet": "Diskussion über die wirtschaftliche Lage.", "content": ""},
+    {"title": "Wirtschaftskrise 2025: Was Experten sagen", "url": "https://www.focus.de/finanzen/wirtschaftskrise-2025.html", "snippet": "Experten-Einschätzung zur Wirtschaftslage.", "content": ""}
+  ],
+  "ranked_sources": [
+    {"result": {"title": "Konjunktur: Deutsche Wirtschaft", "url": "https://www.tagesschau.de/wirtschaft/konjunktur/konjunktur-ausblick-2025-101.html", "snippet": "Konjunkturprognose 2025.", "content": ""}, "tier": "QUALITY_JOURNALISM", "relevance_score": 0.55, "should_scrape": true, "skip_reason": null, "hybrid_score": 0.60},
+    {"result": {"title": "Wirtschaftslage – ifo", "url": "https://www.ifo.de/themen/konjunktur", "snippet": "Wirtschaftslage.", "content": ""}, "tier": "QUALITY_JOURNALISM", "relevance_score": 0.50, "should_scrape": true, "skip_reason": null, "hybrid_score": 0.55},
+    {"result": {"title": "Reddit Diskussion", "url": "https://www.reddit.com/r/de/comments/wirtschaft_den_bach_runter", "snippet": "Diskussion.", "content": ""}, "tier": "USER_GENERATED", "relevance_score": 0.30, "should_scrape": false, "skip_reason": "low_tier", "hybrid_score": 0.25},
+    {"result": {"title": "Wirtschaftskrise 2025", "url": "https://www.focus.de/finanzen/wirtschaftskrise-2025.html", "snippet": "Experten-Einschätzung.", "content": ""}, "tier": "MEDIA", "relevance_score": 0.45, "should_scrape": true, "skip_reason": null, "hybrid_score": 0.48}
+  ],
+  "evidence_items": [
+    {
+      "source": {"url": "https://www.tagesschau.de/wirtschaft/konjunktur/konjunktur-ausblick-2025-101.html", "title": "Konjunktur: Deutsche Wirtschaft", "domain": "tagesschau.de", "domain_tier": 3, "publication_date": "2025-01-15", "is_fact_check_org": false, "is_primary_source": false},
+      "excerpt": "Die deutsche Wirtschaft stagniert laut Konjunkturprognose 2025, aber von einem Zusammenbruch ist keine Rede.",
+      "relevance_score": 0.55,
+      "extraction_confidence": 0.50,
+      "source_direction": "neutral",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.30
+    },
+    {
+      "source": {"url": "https://www.ifo.de/themen/konjunktur", "title": "Wirtschaftslage – ifo", "domain": "ifo.de", "domain_tier": 2, "publication_date": "2025-02-01", "is_fact_check_org": false, "is_primary_source": true},
+      "excerpt": "Das ifo Institut analysiert die aktuelle Wirtschaftslage. Geschäftsklima hat sich leicht verbessert.",
+      "relevance_score": 0.50,
+      "extraction_confidence": 0.45,
+      "source_direction": "neutral",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.25
+    },
+    {
+      "source": {"url": "https://www.focus.de/finanzen/wirtschaftskrise-2025.html", "title": "Wirtschaftskrise 2025", "domain": "focus.de", "domain_tier": 3, "publication_date": "2025-01-20", "is_fact_check_org": false, "is_primary_source": false},
+      "excerpt": "Experten sind sich uneinig über die wirtschaftliche Entwicklung. Von einer echten Krise sprechen die wenigsten.",
+      "relevance_score": 0.45,
+      "extraction_confidence": 0.40,
+      "source_direction": "neutral",
+      "evidence_type": "weak",
+      "claim_scope_score": 0.20
+    }
+  ],
+  "quality_signals": {
+    "has_primary_source_any": true,
+    "has_primary_direct_evidence": false,
+    "has_fact_check_any": false,
+    "has_fact_check_direct_match": false,
+    "has_primary_sources": true,
+    "has_fact_check_org_result": false,
+    "source_consensus": "insufficient",
+    "freshness_score": 0.7,
+    "overall_quality": 0.35,
+    "top_tier_count": 1,
+    "off_topic_rate": 0.0,
+    "avg_top5_relevance": 0.50,
+    "low_trust_rate": 0.0,
+    "direct_evidence_count": 0,
+    "contextual_only_rate": 1.0,
+    "has_direct_refutation": false,
+    "direct_refutation_count": 0
+  },
+  "route_result": null,
+  "backends_used": ["searxng"],
+  "cache_hits": 0,
+  "cache_misses": 1
+}

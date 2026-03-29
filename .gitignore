@@ -17,6 +17,12 @@ PLAN.md
 *.db-shm
 *.db-wal
 
+# Evaluation snapshots (live-generated; seed snapshots are committed)
+eval/snapshots/*.json
+!eval/snapshots/stat-001.json
+!eval/snapshots/reg-001.json
+!eval/snapshots/noisy-001.json
+
 # IDEs
 .vscode/
 .idea/

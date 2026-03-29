@@ -1,0 +1,109 @@
+{
+  "case_id": "reg-001",
+  "timestamp": "2025-03-29T10:00:00+00:00",
+  "generated_queries": [
+    "EU Verbot Einwegplastik-Besteck 2025",
+    "EU Einwegplastik Verbot",
+    "EU Single-Use Plastics Directive 2025",
+    "Einwegplastik Besteck EU Verbot Faktencheck"
+  ],
+  "deduped_queries": [
+    "EU Verbot Einwegplastik-Besteck 2025",
+    "EU Einwegplastik Verbot",
+    "EU Single-Use Plastics Directive 2025",
+    "Einwegplastik Besteck EU Verbot Faktencheck"
+  ],
+  "searxng_queries": [
+    {"query": "EU Verbot Einwegplastik-Besteck 2025", "pageno": 1},
+    {"query": "EU Einwegplastik Verbot", "pageno": 1}
+  ],
+  "searxng_results": {
+    "EU Verbot Einwegplastik-Besteck 2025": [
+      {"title": "Directive (EU) 2019/904 – Single-Use Plastics", "url": "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32019L0904", "snippet": "Richtlinie über die Verringerung der Auswirkungen bestimmter Kunststoffprodukte auf die Umwelt.", "content": ""},
+      {"title": "EU-Plastikverbot: Was ist seit Juli 2021 verboten?", "url": "https://www.europarl.europa.eu/news/de/headlines/society/20190103STO03610/plastikverbot", "snippet": "Seit dem 3. Juli 2021 sind Einwegplastik-Teller, Besteck und Strohhalme in der EU verboten.", "content": ""},
+      {"title": "Einwegplastik-Verbot: Diese Produkte sind betroffen", "url": "https://www.tagesschau.de/wirtschaft/einwegplastik-verbot-101.html", "snippet": "Seit Juli 2021 gilt das EU-weite Verbot für Einwegplastik-Besteck.", "content": ""}
+    ],
+    "EU Einwegplastik Verbot": [
+      {"title": "FAQ: Einwegplastikverbot", "url": "https://ec.europa.eu/environment/topics/plastics/single-use-plastics_de", "snippet": "Die EU-Kommission informiert über das Einwegplastikverbot und seine Umsetzung.", "content": ""},
+      {"title": "Verbot von Einwegplastik – Umweltbundesamt", "url": "https://www.umweltbundesamt.de/themen/einwegplastik", "snippet": "Informationen zum Verbot von Einwegkunststoffprodukten in Deutschland.", "content": ""}
+    ]
+  },
+  "langsearch_results": {},
+  "gfc_results": [],
+  "source_client_results": [],
+  "merged_results": [
+    {"title": "Directive (EU) 2019/904 – Single-Use Plastics", "url": "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32019L0904", "snippet": "Richtlinie über die Verringerung der Auswirkungen bestimmter Kunststoffprodukte auf die Umwelt.", "content": ""},
+    {"title": "EU-Plastikverbot: Was ist seit Juli 2021 verboten?", "url": "https://www.europarl.europa.eu/news/de/headlines/society/20190103STO03610/plastikverbot", "snippet": "Seit dem 3. Juli 2021 sind Einwegplastik-Teller, Besteck und Strohhalme in der EU verboten.", "content": ""},
+    {"title": "Einwegplastik-Verbot: Diese Produkte sind betroffen", "url": "https://www.tagesschau.de/wirtschaft/einwegplastik-verbot-101.html", "snippet": "Seit Juli 2021 gilt das EU-weite Verbot für Einwegplastik-Besteck.", "content": ""},
+    {"title": "FAQ: Einwegplastikverbot", "url": "https://ec.europa.eu/environment/topics/plastics/single-use-plastics_de", "snippet": "Die EU-Kommission informiert über das Einwegplastikverbot und seine Umsetzung.", "content": ""},
+    {"title": "Verbot von Einwegplastik – Umweltbundesamt", "url": "https://www.umweltbundesamt.de/themen/einwegplastik", "snippet": "Informationen zum Verbot von Einwegkunststoffprodukten in Deutschland.", "content": ""}
+  ],
+  "ranked_sources": [
+    {"result": {"title": "Directive (EU) 2019/904", "url": "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32019L0904", "snippet": "Richtlinie über die Verringerung der Auswirkungen bestimmter Kunststoffprodukte auf die Umwelt.", "content": ""}, "tier": "OFFICIAL", "relevance_score": 0.90, "should_scrape": true, "skip_reason": null, "hybrid_score": 0.93},
+    {"result": {"title": "EU-Plastikverbot: Was ist seit Juli 2021 verboten?", "url": "https://www.europarl.europa.eu/news/de/headlines/society/20190103STO03610/plastikverbot", "snippet": "Seit dem 3. Juli 2021 sind Einwegplastik-Teller, Besteck und Strohhalme in der EU verboten.", "content": ""}, "tier": "OFFICIAL", "relevance_score": 0.88, "should_scrape": true, "skip_reason": null, "hybrid_score": 0.90},
+    {"result": {"title": "FAQ: Einwegplastikverbot", "url": "https://ec.europa.eu/environment/topics/plastics/single-use-plastics_de", "snippet": "Die EU-Kommission informiert über das Einwegplastikverbot.", "content": ""}, "tier": "OFFICIAL", "relevance_score": 0.85, "should_scrape": true, "skip_reason": null, "hybrid_score": 0.87},
+    {"result": {"title": "Einwegplastik-Verbot", "url": "https://www.tagesschau.de/wirtschaft/einwegplastik-verbot-101.html", "snippet": "Seit Juli 2021 gilt das EU-weite Verbot für Einwegplastik-Besteck.", "content": ""}, "tier": "QUALITY_JOURNALISM", "relevance_score": 0.82, "should_scrape": true, "skip_reason": null, "hybrid_score": 0.84},
+    {"result": {"title": "Verbot von Einwegplastik – Umweltbundesamt", "url": "https://www.umweltbundesamt.de/themen/einwegplastik", "snippet": "Informationen zum Verbot von Einwegkunststoffprodukten in Deutschland.", "content": ""}, "tier": "OFFICIAL", "relevance_score": 0.78, "should_scrape": true, "skip_reason": null, "hybrid_score": 0.82}
+  ],
+  "evidence_items": [
+    {
+      "source": {"url": "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32019L0904", "title": "Directive (EU) 2019/904", "domain": "eur-lex.europa.eu", "domain_tier": 1, "publication_date": "2019-06-12", "is_fact_check_org": false, "is_primary_source": true},
+      "excerpt": "Die Richtlinie (EU) 2019/904 verbietet ab dem 3. Juli 2021 bestimmte Einwegkunststoffprodukte, darunter Besteck, Teller und Strohhalme. Das Verbot gilt seit 2021, nicht erst ab 2025.",
+      "relevance_score": 0.90,
+      "extraction_confidence": 0.88,
+      "source_direction": "refutes",
+      "evidence_type": "direct",
+      "claim_scope_score": 0.85
+    },
+    {
+      "source": {"url": "https://www.europarl.europa.eu/news/de/headlines/society/20190103STO03610/plastikverbot", "title": "EU-Plastikverbot", "domain": "europarl.europa.eu", "domain_tier": 1, "publication_date": "2021-07-01", "is_fact_check_org": false, "is_primary_source": true},
+      "excerpt": "Seit dem 3. Juli 2021 sind Einwegplastik-Teller, Besteck und Strohhalme in der gesamten EU verboten. Das Verbot trat 2021 in Kraft.",
+      "relevance_score": 0.88,
+      "extraction_confidence": 0.85,
+      "source_direction": "refutes",
+      "evidence_type": "direct",
+      "claim_scope_score": 0.80
+    },
+    {
+      "source": {"url": "https://ec.europa.eu/environment/topics/plastics/single-use-plastics_de", "title": "FAQ: Einwegplastikverbot", "domain": "ec.europa.eu", "domain_tier": 1, "publication_date": "2023-01-15", "is_fact_check_org": false, "is_primary_source": true},
+      "excerpt": "Die EU-Kommission informiert über das seit Juli 2021 geltende Verbot bestimmter Einwegkunststoffprodukte.",
+      "relevance_score": 0.85,
+      "extraction_confidence": 0.80,
+      "source_direction": "neutral",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.60
+    },
+    {
+      "source": {"url": "https://www.tagesschau.de/wirtschaft/einwegplastik-verbot-101.html", "title": "Einwegplastik-Verbot", "domain": "tagesschau.de", "domain_tier": 3, "publication_date": "2021-07-03", "is_fact_check_org": false, "is_primary_source": false},
+      "excerpt": "Seit Juli 2021 gilt das EU-weite Verbot für bestimmte Einwegplastikprodukte einschließlich Besteck.",
+      "relevance_score": 0.82,
+      "extraction_confidence": 0.78,
+      "source_direction": "refutes",
+      "evidence_type": "direct",
+      "claim_scope_score": 0.75
+    }
+  ],
+  "quality_signals": {
+    "has_primary_source_any": true,
+    "has_primary_direct_evidence": true,
+    "has_fact_check_any": false,
+    "has_fact_check_direct_match": false,
+    "has_primary_sources": true,
+    "has_fact_check_org_result": false,
+    "source_consensus": "contradictory",
+    "freshness_score": 0.5,
+    "overall_quality": 0.82,
+    "top_tier_count": 3,
+    "off_topic_rate": 0.0,
+    "avg_top5_relevance": 0.86,
+    "low_trust_rate": 0.0,
+    "direct_evidence_count": 3,
+    "contextual_only_rate": 0.25,
+    "has_direct_refutation": true,
+    "direct_refutation_count": 3
+  },
+  "route_result": null,
+  "backends_used": ["searxng"],
+  "cache_hits": 0,
+  "cache_misses": 2
+}
