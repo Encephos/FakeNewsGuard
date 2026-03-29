@@ -193,6 +193,79 @@ class TestSnapshotSerialization:
 
 
 @pytest.mark.eval_replay
+class TestNewSeedSnapshots:
+    """Tests for the new seed snapshots covering all major categories."""
+
+    def test_replay_new_seed_cases(self):
+        """All new seed-snapshot cases pass without error-level violations."""
+        from eval.runner_replay import ReplayRunner
+
+        runner = ReplayRunner(
+            cases_path=CASES_PATH,
+            snapshots_dir=SNAPSHOTS_DIR,
+        )
+        new_ids = ["cs-001", "corp-001", "med-001", "trap-001", "leu-001", "ml-001"]
+        results = runner.run(case_ids=new_ids)
+
+        assert len(results) >= 6, f"Expected 6 results, got {len(results)}"
+        for r in results:
+            errors = [v for v in r.violations if v.severity == "error"]
+            assert not errors, (
+                f"Case {r.case_id} has error-level violations: "
+                f"{[(v.metric, v.actual) for v in errors]}"
+            )
+
+    def test_replay_current_state_freshness(self):
+        """cs-001 should have freshness > 0 (requires_recency case)."""
+        from eval.runner_replay import ReplayRunner
+
+        runner = ReplayRunner(
+            cases_path=CASES_PATH,
+            snapshots_dir=SNAPSHOTS_DIR,
+        )
+        results = runner.run(case_ids=["cs-001"])
+        assert len(results) == 1
+        # cs-001 has requires_recency=true
+        # freshness depends on evidence_items having publication_date
+        m = results[0].metrics
+        assert m.preferred_domain_hit_rate > 0.0, "cs-001 should find destatis.de"
+
+    def test_replay_offtopic_trap(self):
+        """trap-001 (opinion) should have high contextual_only_rate."""
+        from eval.runner_replay import ReplayRunner
+
+        runner = ReplayRunner(
+            cases_path=CASES_PATH,
+            snapshots_dir=SNAPSHOTS_DIR,
+        )
+        results = runner.run(case_ids=["trap-001"])
+        assert len(results) == 1
+        m = results[0].metrics
+        assert m.contextual_only_rate >= 0.5, (
+            f"trap-001 contextual_only_rate={m.contextual_only_rate}, expected >= 0.5"
+        )
+
+    def test_all_categories_have_snapshots(self):
+        """At least one snapshot exists per major category."""
+        from eval.dataset import load_cases
+        from eval.snapshot import snapshot_exists
+
+        cases = load_cases(CASES_PATH)
+        categories_with_snapshots = set()
+        for c in cases:
+            if snapshot_exists(c.id, SNAPSHOTS_DIR):
+                categories_with_snapshots.add(c.category.value)
+
+        expected = {
+            "current_state", "regulatory", "statistical",
+            "corporate", "medical_pharma", "legal_eu",
+            "noisy_or_underspecified", "off_topic_traps", "multilingual",
+        }
+        missing = expected - categories_with_snapshots
+        assert not missing, f"Missing snapshot coverage for categories: {missing}"
+
+
+@pytest.mark.eval_replay
 class TestMetrics:
     """Test individual metric functions."""
 
