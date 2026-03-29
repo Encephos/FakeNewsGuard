@@ -47,6 +47,9 @@ In Docker: → [[Docker]]
 | GET | `/api/admin/users` | Nutzerliste mit Stats |
 | GET | `/api/admin/metrics` | System-Metriken |
 | GET | `/api/admin/logs` | Log-Ring-Buffer |
+| POST | `/api/admin/reload-data` | Cache neu laden (Domain-Tiers, Config) |
+| GET | `/api/admin/calibration` | Confidence-Kalibrierungsbericht (Brier Score) |
+| POST | `/api/admin/calibration/ground-truth` | Ground-Truth für Kalibrierung setzen |
 
 ---
 
@@ -140,6 +143,76 @@ POST /api/extract
 ```
 
 Extrahierter Text wird automatisch an `/analyze` weitergeleitet wenn URL eingegeben wird.
+
+---
+
+## Admin-Endpunkte
+
+### Daten neu laden
+
+```http
+POST /api/admin/reload-data
+```
+
+Setzt den LRU-Cache aller `tools/data_loader.py`-Funktionen zurück (Domain-Tiers, Scoring-Weights, etc.). Ermöglicht Hot-Reload von Konfigurationen ohne Server-Neustart.
+
+**Response:**
+```json
+{
+  "ok": true,
+  "caches_cleared": 19
+}
+```
+
+---
+
+### Confidence-Kalibrierungsbericht
+
+```http
+GET /api/admin/calibration
+```
+
+Berechnet Kalibrierungsmetriken basierend auf gespeicherten Vorhersagen mit Ground-Truth-Labels.
+
+**Response:**
+```json
+{
+  "brier_score": 0.1234,
+  "total_predictions": 150,
+  "correct_predictions": 127,
+  "accuracy": 0.847,
+  "total": 150,
+  "labeled": 100,
+  "unlabeled": 50,
+  "buckets": [
+    {
+      "bin_start": 0.0,
+      "bin_end": 0.1,
+      "predicted_mean": 0.05,
+      "observed_rate": 0.2,
+      "count": 10
+    }
+  ]
+}
+```
+
+**Metriken:**
+- **Brier Score:** `mean((confidence - is_correct)^2)` – 0 = perfekt, 1 = schlecht
+- **Buckets (Reliability Diagram):** Zeigt ob das Modell zu selbstsicher oder zu vorsichtig ist
+
+---
+
+### Ground-Truth setzen
+
+```http
+POST /api/admin/calibration/ground-truth
+{
+  "claim_id": "claim_abc123",
+  "is_correct": true
+}
+```
+
+Speichert die tatsächliche (durch Menschen überprüfte) Korrektheit einer Vorhersage. Wird für Kalibrierungsberichte genutzt.
 
 ---
 

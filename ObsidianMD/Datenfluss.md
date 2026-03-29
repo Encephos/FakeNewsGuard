@@ -17,8 +17,13 @@ FastAPI (api.py)
   ▼
 Orchestrator.analyze_async()
   │
-  ├─ Phase 1: ClaimExtractor
-  │    └─ 5–10 atomare Claims
+  ├─ Phase 0: Initialisierung
+  │    └─ analysis_id = uuid.uuid4().hex[:12]  (Korrelations-ID)
+  │
+  ├─ Phase 1: ClaimExtractor + Deduplication
+  │    ├─ LLM zerlegt Text in atomare Claims
+  │    ├─ Dedupliziert nach canonical_hash (nur 1. Vorkommen behalten)
+  │    └─ Top-N Filterung (nach priority_score)
   │
   ├─ Phase 2 + 3 (asyncio.gather):
   │    ├─ FactChecker (Claim 1) ──┐
@@ -28,7 +33,7 @@ Orchestrator.analyze_async()
   │    └─ RhetoricAnalyzer   ─────┘
   │
   └─ Phase 4: Synthesizer
-       └─ SynthesisResult (Rating, Korrekturen, Quellen …)
+       └─ SynthesisResult (Rating, Korrekturen, Quellen, analysis_id …)
   │
   ▼
 Job-Store → GET /api/jobs/{id} liefert Ergebnis
@@ -36,11 +41,11 @@ Job-Store → GET /api/jobs/{id} liefert Ergebnis
 
 ---
 
-## Phase 1: Claim-Extraktion
+## Phase 1: Claim-Extraktion und Deduplizierung
 
 **Agent:** [[Agent-ClaimExtractor]]
 
-Der Eingabetext (max. 10.000 Zeichen) wird an den `ClaimExtractorAgent` übergeben. Der Agent nutzt das LLM, um den Text in **atomare, verifizierbare Einzelbehauptungen** zu zerlegen.
+Der Eingabetext (max. 10.000 Zeichen) wird an den `ClaimExtractorAgent` übergeben. Der Agent nutzt das LLM, um den Text in **atomare, verifizierbare Einzelbehauptungen** zu zerlegen. Nachdem alle Claims kanonisiert wurden, dedupliziert der Orchestrator sie nach `canonical_hash`.
 
 **Input:**
 ```
@@ -52,16 +57,24 @@ Der Eingabetext (max. 10.000 Zeichen) wird an den `ClaimExtractorAgent` übergeb
 ```python
 claims = [
     Claim(id=1, text="Die Bundesregierung hat 2023 die Rente um 4,39 % erhöht.",
-          type=ClaimType.STATISTICAL),
+          type=ClaimType.STATISTICAL, canonical_hash="a1f3c2b9"),
     Claim(id=2, text="Die Inflation lag 2023 bei über 7 %.",
-          type=ClaimType.STATISTICAL),
+          type=ClaimType.STATISTICAL, canonical_hash="d4e5c7b1"),
 ]
 implicit_claims = [
     "Die Rentenerhöhung reichte nicht aus, um die Inflation zu kompensieren."
 ]
 ```
 
+**Deduplizierung:**
+Nach Kanonisierung werden Claims mit gleichem `canonical_hash` gruppiert. Nur der erste eines Clusters wird analysiert – dies verhindert doppelte LLM-Aufrufe bei Paraphrasen wie:
+- "Die Rente um 4,39% erhöht" (original)
+- "Die Rentenerhöhung betrug etwa 4,39 Prozent" (Paraphrase, gleicher Hash)
+
 Jeder Claim erhält außerdem ein `requires_agents`-Flag, das steuert, ob NumberAuditor hinzugezogen wird.
+
+**Top-N Filterung:**
+Nach Deduplizierung werden nach `priority_score` sortiert; konfigurierbar via `CLAIM_TOP_N` (0 = keine Limite).
 
 ---
 
@@ -76,6 +89,8 @@ Für **jeden** Claim wird ein eigener Async-Task gestartet. Alle laufen gleichze
 ```
 1. Cache-Lookup (SHA256-Key)
      └─ Treffer → sofort zurückgeben
+     └─ Kein Treffer → Fallback zu Semantic Cache (optional, Threshold 0.92)
+     └─ Semantic Treffer → sofort zurückgeben
      └─ Kein Treffer → weiter
 
 2. LLM generiert 3 optimierte Suchanfragen
@@ -84,21 +99,30 @@ Für **jeden** Claim wird ein eigener Async-Task gestartet. Alle laufen gleichze
 3. Multi-Search (alle Anfragen parallel)
      └─ Ergebnisse: Titel, URL, Snippet
 
-4. Source-Klassifikation (Tier-Hierarchie)
-     OFFICIAL > FACT_CHECKER > QUALITY_JOURNALISM > MEDIA > USER_GENERATED
+4. EvidenceBuilder: Strukturiertes EvidencePack
+     └─ Source-Klassifikation (Tier-Hierarchie)
+     └─ Relevanz-Scoring (Keyword-Overlap vs. Claim-Text)
+     └─ Scraping (async, max 8 gleichzeitig)
+     └─ Widerspruchserkennung (Typ/Schweregrad, max 5)
+     └─ Trust Boundary: Excerpts auf max. 800 Zeichen kürzen
 
-5. Relevanz-Scoring (Keyword-Overlap vs. Claim-Text)
+5. CoVeProcessor (optional, if cove.enabled)
+     └─ Baseline-Assessment (Schätzung basierend auf Evidence)
+     └─ Verifikationsfragen generieren (2–3)
+     └─ Unabhängige Antworten (ohne Baseline-Paraphrase)
+     └─ Reconciliation (Konsistenz-Check)
 
-6. Scraping (async, max 8 gleichzeitig)
-     └─ Paywall-Erkennung → ggf. überspringen
-     └─ trafilatura → BeautifulSoup Fallback
-     └─ Relevante Passagen extrahieren
+6. VerdictAgent: Rating-Entscheidung
+     └─ Liest strukturiertes EvidencePack (nie rohes HTML)
+     └─ Confidence basierend auf Evidence-Qualität
 
-7. Retry (falls Scraping-Qualität zu niedrig)
-     └─ Fallback-Suchanfragen → neues Scraping
+7. VerdictCalibration: Confidence-Ceilings + Overrides
+     └─ Consensus-Contradiction-Override:
+        Wenn AGREEING+FALSE oder CONTRADICTORY+TRUE → MISLEADING
 
-8. LLM bewertet: FactCheckResult
-     rating, evidence, correction, missing_context, sources
+8. Cache-Storage
+     └─ Ergebnis wird mit cache_key gespeichert
+     └─ Optional: Embedding für Semantic Cache
 ```
 
 ### NumberAuditor (nur für STATISTICAL-Claims)
