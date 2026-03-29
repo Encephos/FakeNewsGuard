@@ -1,0 +1,131 @@
+{
+  "case_id": "stat-001",
+  "timestamp": "2025-03-29T10:00:00+00:00",
+  "generated_queries": [
+    "Kriminalitätsrate Deutschland seit 2015",
+    "Kriminalität Deutschland 50 Prozent Anstieg",
+    "Polizeiliche Kriminalstatistik 2015 2023",
+    "Kriminalität Deutschland Faktencheck",
+    "Kriminalität Deutschland 50 Prozent"
+  ],
+  "deduped_queries": [
+    "Kriminalitätsrate Deutschland seit 2015",
+    "Kriminalität Deutschland 50 Prozent Anstieg",
+    "Polizeiliche Kriminalstatistik 2015 2023",
+    "Kriminalität Deutschland Faktencheck"
+  ],
+  "searxng_queries": [
+    {"query": "Kriminalitätsrate Deutschland seit 2015", "pageno": 1},
+    {"query": "Kriminalität Deutschland 50 Prozent Anstieg", "pageno": 1},
+    {"query": "Polizeiliche Kriminalstatistik 2015 2023", "pageno": 1}
+  ],
+  "searxng_results": {
+    "Kriminalitätsrate Deutschland seit 2015": [
+      {"title": "Polizeiliche Kriminalstatistik 2023", "url": "https://www.bka.de/DE/AktuelleInformationen/StatistikenLagebilder/PolizeilicheKriminalstatistik/pks_node.html", "snippet": "Die Polizeiliche Kriminalstatistik (PKS) 2023 verzeichnet einen Anstieg der Gesamtkriminalität um 5,5% gegenüber dem Vorjahr.", "content": ""},
+      {"title": "Kriminalität in Deutschland – Statistisches Bundesamt", "url": "https://www.destatis.de/DE/Themen/Gesellschaft-Umwelt/Rechtspflege/kriminalitaet.html", "snippet": "Aktuelle Daten zur Kriminalitätsentwicklung in Deutschland.", "content": ""},
+      {"title": "Faktencheck: Ist die Kriminalität um 50% gestiegen?", "url": "https://correctiv.org/faktencheck/2024/kriminalitaet-50-prozent", "snippet": "Die Behauptung, die Kriminalität sei seit 2015 um 50 Prozent gestiegen, ist irreführend. Die PKS zeigt einen Anstieg von 5,5% im Jahr 2023.", "content": ""}
+    ],
+    "Kriminalität Deutschland 50 Prozent Anstieg": [
+      {"title": "Nein, die Kriminalität ist nicht um 50% gestiegen", "url": "https://www.tagesschau.de/faktenfinder/kriminalitaet-statistik-101.html", "snippet": "Faktenfinder: Der behauptete 50-Prozent-Anstieg der Kriminalität lässt sich durch keine offizielle Statistik belegen.", "content": ""},
+      {"title": "PKS Zeitreihe 2015-2023", "url": "https://www.bka.de/zeitreihen-pks", "snippet": "Zeitreihenanalyse der PKS-Daten von 2015 bis 2023.", "content": ""}
+    ],
+    "Polizeiliche Kriminalstatistik 2015 2023": [
+      {"title": "PKS 2023 – Bundeslagebild", "url": "https://www.bka.de/DE/AktuelleInformationen/StatistikenLagebilder/PolizeilicheKriminalstatistik/PKS2023/pks2023.html", "snippet": "Bundeskriminalamt: Polizeiliche Kriminalstatistik 2023. Fallzahlenentwicklung seit 2015.", "content": ""}
+    ]
+  },
+  "langsearch_results": {
+    "Kriminalitätsrate Deutschland seit 2015": [
+      {"title": "Statistik: Kriminalität in Deutschland", "url": "https://de.statista.com/themen/kriminalitaet-in-deutschland", "snippet": "Übersicht über die Kriminalitätsentwicklung in Deutschland mit Statistiken und Grafiken.", "content": ""}
+    ]
+  },
+  "gfc_results": [
+    {"claim_reviewed": "Die Kriminalität in Deutschland ist um 50% gestiegen", "rating": "Irreführend", "publisher": "Correctiv", "url": "https://correctiv.org/faktencheck/2024/kriminalitaet-50-prozent", "language": "de", "title": "Faktencheck: Kriminalitätsanstieg"}
+  ],
+  "source_client_results": [],
+  "merged_results": [
+    {"title": "Statistik: Kriminalität in Deutschland", "url": "https://de.statista.com/themen/kriminalitaet-in-deutschland", "snippet": "Übersicht über die Kriminalitätsentwicklung in Deutschland mit Statistiken und Grafiken.", "content": ""},
+    {"title": "Polizeiliche Kriminalstatistik 2023", "url": "https://www.bka.de/DE/AktuelleInformationen/StatistikenLagebilder/PolizeilicheKriminalstatistik/pks_node.html", "snippet": "Die Polizeiliche Kriminalstatistik (PKS) 2023 verzeichnet einen Anstieg der Gesamtkriminalität um 5,5% gegenüber dem Vorjahr.", "content": ""},
+    {"title": "Kriminalität in Deutschland – Statistisches Bundesamt", "url": "https://www.destatis.de/DE/Themen/Gesellschaft-Umwelt/Rechtspflege/kriminalitaet.html", "snippet": "Aktuelle Daten zur Kriminalitätsentwicklung in Deutschland.", "content": ""},
+    {"title": "Faktencheck: Ist die Kriminalität um 50% gestiegen?", "url": "https://correctiv.org/faktencheck/2024/kriminalitaet-50-prozent", "snippet": "Die Behauptung, die Kriminalität sei seit 2015 um 50 Prozent gestiegen, ist irreführend. Die PKS zeigt einen Anstieg von 5,5% im Jahr 2023.", "content": ""},
+    {"title": "Nein, die Kriminalität ist nicht um 50% gestiegen", "url": "https://www.tagesschau.de/faktenfinder/kriminalitaet-statistik-101.html", "snippet": "Faktenfinder: Der behauptete 50-Prozent-Anstieg der Kriminalität lässt sich durch keine offizielle Statistik belegen.", "content": ""},
+    {"title": "PKS Zeitreihe 2015-2023", "url": "https://www.bka.de/zeitreihen-pks", "snippet": "Zeitreihenanalyse der PKS-Daten von 2015 bis 2023.", "content": ""},
+    {"title": "PKS 2023 – Bundeslagebild", "url": "https://www.bka.de/DE/AktuelleInformationen/StatistikenLagebilder/PolizeilicheKriminalstatistik/PKS2023/pks2023.html", "snippet": "Bundeskriminalamt: Polizeiliche Kriminalstatistik 2023. Fallzahlenentwicklung seit 2015.", "content": ""}
+  ],
+  "ranked_sources": [
+    {"result": {"title": "Polizeiliche Kriminalstatistik 2023", "url": "https://www.bka.de/DE/AktuelleInformationen/StatistikenLagebilder/PolizeilicheKriminalstatistik/pks_node.html", "snippet": "Die Polizeiliche Kriminalstatistik (PKS) 2023 verzeichnet einen Anstieg der Gesamtkriminalität um 5,5% gegenüber dem Vorjahr.", "content": ""}, "tier": "OFFICIAL", "relevance_score": 0.92, "should_scrape": true, "skip_reason": null, "hybrid_score": 0.95},
+    {"result": {"title": "Kriminalität in Deutschland – Statistisches Bundesamt", "url": "https://www.destatis.de/DE/Themen/Gesellschaft-Umwelt/Rechtspflege/kriminalitaet.html", "snippet": "Aktuelle Daten zur Kriminalitätsentwicklung in Deutschland.", "content": ""}, "tier": "OFFICIAL", "relevance_score": 0.88, "should_scrape": true, "skip_reason": null, "hybrid_score": 0.91},
+    {"result": {"title": "Faktencheck: Ist die Kriminalität um 50% gestiegen?", "url": "https://correctiv.org/faktencheck/2024/kriminalitaet-50-prozent", "snippet": "Die Behauptung, die Kriminalität sei seit 2015 um 50 Prozent gestiegen, ist irreführend.", "content": ""}, "tier": "FACT_CHECKER", "relevance_score": 0.95, "should_scrape": true, "skip_reason": null, "hybrid_score": 0.93},
+    {"result": {"title": "Nein, die Kriminalität ist nicht um 50% gestiegen", "url": "https://www.tagesschau.de/faktenfinder/kriminalitaet-statistik-101.html", "snippet": "Faktenfinder: Der behauptete 50-Prozent-Anstieg der Kriminalität lässt sich durch keine offizielle Statistik belegen.", "content": ""}, "tier": "QUALITY_JOURNALISM", "relevance_score": 0.90, "should_scrape": true, "skip_reason": null, "hybrid_score": 0.88},
+    {"result": {"title": "PKS Zeitreihe 2015-2023", "url": "https://www.bka.de/zeitreihen-pks", "snippet": "Zeitreihenanalyse der PKS-Daten von 2015 bis 2023.", "content": ""}, "tier": "OFFICIAL", "relevance_score": 0.85, "should_scrape": true, "skip_reason": null, "hybrid_score": 0.87}
+  ],
+  "evidence_items": [
+    {
+      "source": {"url": "https://www.bka.de/DE/AktuelleInformationen/StatistikenLagebilder/PolizeilicheKriminalstatistik/pks_node.html", "title": "Polizeiliche Kriminalstatistik 2023", "domain": "bka.de", "domain_tier": 1, "publication_date": "2024-04-15", "is_fact_check_org": false, "is_primary_source": true},
+      "excerpt": "Die Polizeiliche Kriminalstatistik (PKS) 2023 verzeichnet insgesamt 5.941.048 Straftaten, was einem Anstieg von 5,5% gegenüber 2022 entspricht. Im Vergleich zu 2015 liegt der Anstieg bei rund 8,3%.",
+      "relevance_score": 0.92,
+      "extraction_confidence": 0.85,
+      "source_direction": "refutes",
+      "evidence_type": "direct",
+      "claim_scope_score": 0.85
+    },
+    {
+      "source": {"url": "https://www.destatis.de/DE/Themen/Gesellschaft-Umwelt/Rechtspflege/kriminalitaet.html", "title": "Kriminalität in Deutschland – Statistisches Bundesamt", "domain": "destatis.de", "domain_tier": 1, "publication_date": "2024-03-01", "is_fact_check_org": false, "is_primary_source": true},
+      "excerpt": "Das Statistische Bundesamt veröffentlicht regelmäßig Daten zur Kriminalitätsentwicklung. Die langfristige Entwicklung zeigt keine 50-prozentige Zunahme seit 2015.",
+      "relevance_score": 0.88,
+      "extraction_confidence": 0.80,
+      "source_direction": "refutes",
+      "evidence_type": "direct",
+      "claim_scope_score": 0.75
+    },
+    {
+      "source": {"url": "https://correctiv.org/faktencheck/2024/kriminalitaet-50-prozent", "title": "Faktencheck: Ist die Kriminalität um 50% gestiegen?", "domain": "correctiv.org", "domain_tier": 4, "publication_date": "2024-05-20", "is_fact_check_org": true, "is_primary_source": false},
+      "excerpt": "Die Behauptung, die Kriminalität sei seit 2015 um 50 Prozent gestiegen, ist irreführend. Die PKS zeigt einen Anstieg von 5,5% im Jahr 2023 gegenüber dem Vorjahr. Langfristig seit 2015 beträgt der Anstieg ca. 8%.",
+      "relevance_score": 0.95,
+      "extraction_confidence": 0.90,
+      "source_direction": "refutes",
+      "evidence_type": "direct",
+      "claim_scope_score": 0.90
+    },
+    {
+      "source": {"url": "https://www.tagesschau.de/faktenfinder/kriminalitaet-statistik-101.html", "title": "Faktenfinder: Kriminalitätsstatistik", "domain": "tagesschau.de", "domain_tier": 3, "publication_date": "2024-06-01", "is_fact_check_org": false, "is_primary_source": false},
+      "excerpt": "Der behauptete 50-Prozent-Anstieg der Kriminalität lässt sich durch keine offizielle Statistik belegen. Die tatsächliche Entwicklung ist deutlich moderater.",
+      "relevance_score": 0.90,
+      "extraction_confidence": 0.85,
+      "source_direction": "refutes",
+      "evidence_type": "direct",
+      "claim_scope_score": 0.80
+    },
+    {
+      "source": {"url": "https://de.statista.com/themen/kriminalitaet-in-deutschland", "title": "Statistik: Kriminalität in Deutschland", "domain": "statista.com", "domain_tier": 3, "publication_date": "", "is_fact_check_org": false, "is_primary_source": false},
+      "excerpt": "Übersicht über die Kriminalitätsentwicklung in Deutschland. Die Fallzahlen sind seit 2015 leicht angestiegen, aber weit unter 50%.",
+      "relevance_score": 0.70,
+      "extraction_confidence": 0.65,
+      "source_direction": "neutral",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.50
+    }
+  ],
+  "quality_signals": {
+    "has_primary_source_any": true,
+    "has_primary_direct_evidence": true,
+    "has_fact_check_any": true,
+    "has_fact_check_direct_match": true,
+    "has_primary_sources": true,
+    "has_fact_check_org_result": true,
+    "source_consensus": "contradictory",
+    "freshness_score": 0.8,
+    "overall_quality": 0.88,
+    "top_tier_count": 2,
+    "off_topic_rate": 0.0,
+    "avg_top5_relevance": 0.87,
+    "low_trust_rate": 0.0,
+    "direct_evidence_count": 4,
+    "contextual_only_rate": 0.2,
+    "has_direct_refutation": true,
+    "direct_refutation_count": 4
+  },
+  "route_result": null,
+  "backends_used": ["searxng", "langsearch"],
+  "cache_hits": 0,
+  "cache_misses": 3
+}
