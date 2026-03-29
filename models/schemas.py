@@ -436,6 +436,10 @@ class OverallRating(str, Enum):
 
 
 class SynthesisResult(BaseModel):
+    analysis_id: str = Field(
+        default="",
+        description="Korrelations-ID für durchgängiges Tracing der Analyse",
+    )
     overall_rating: OverallRating
     confidence: float = Field(ge=0.0, le=1.0)
     summary: str = Field(description="3-5 Sätze Zusammenfassung")

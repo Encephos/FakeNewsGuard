@@ -131,6 +131,12 @@ class VerdictRatingCalibrationConfig:
     consensus_contradiction_current_state_downgrade: str = "UNVERIFIABLE"
     consensus_contradiction_general_downgrade: str = "MISLEADING"
 
+    # --- Inverse Konsens-Korrektur -----------------------------------------------
+    # Wenn SourceConsensus = CONTRADICTORY aber LLM-Rating = TRUE/MOSTLY_TRUE:
+    # Die Quellen widerlegen den Claim, aber das LLM ignoriert das.
+    inverse_consensus_override: bool = True
+    inverse_consensus_downgrade: str = "MISLEADING"
+
 
 def _calibrate_rating(
     raw_rating: "FactRating",
@@ -215,6 +221,24 @@ def _calibrate_rating(
             )
             rating = new_rating
             _consensus_contradiction_applied = True
+
+    # ── Inverse Konsens-Korrektur: CONTRADICTORY + TRUE/MOSTLY_TRUE ─────────
+    # Wenn die Quellen den Claim überwiegend WIDERLEGEN (CONTRADICTORY) aber
+    # das LLM TRUE oder MOSTLY_TRUE urteilt, ignoriert es die Widerlegungssignale.
+    if (
+        config.inverse_consensus_override
+        and not _consensus_contradiction_applied
+        and rating in (FactRating.TRUE, FactRating.MOSTLY_TRUE)
+        and consensus == SourceConsensus.CONTRADICTORY
+        and not has_fc_direct  # Kein Faktenchecker bestätigt den Claim
+    ):
+        new_rating = FactRating(config.inverse_consensus_downgrade)
+        reasons.append(
+            f"Inverser Konsens-Widerspruch: Evidenz CONTRADICTORY aber Rating {rating.value} "
+            f"→ {new_rating.value}"
+        )
+        rating = new_rating
+        _consensus_contradiction_applied = True
 
     # ── FALSE-Korrektur ────────────────────────────────────────────────────────
     # Nur anwenden wenn Konsens-Widerspruch nicht bereits gegriffen hat.

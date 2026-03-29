@@ -235,3 +235,39 @@ def paywall_domains() -> dict[str, set[str]]:
         "hard": set(pw.get("hard", [])),
         "soft": set(pw.get("soft", [])),
     }
+
+
+# ── Hot-Reload ───────────────────────────────────────────────────────────────
+
+_CACHED_LOADERS = [
+    domain_tiers,
+    government_domains,
+    fact_checker_domains,
+    classifier_tier_patterns,
+    low_trust_domains,
+    scrape_ranker_low_trust_domains,
+    commercial_domains,
+    offtopic_url_patterns,
+    low_trust_content_patterns,
+    commercial_snippet_patterns,
+    stopwords,
+    ner_known_orgs,
+    ner_institution_patterns,
+    ner_law_acronyms,
+    scoring_weights,
+    freshness_tiers,
+    searxng_engines,
+    query_expansion_config,
+    paywall_domains,
+]
+
+
+def reload_all() -> int:
+    """Leere alle lru_cache-Einträge, damit YAML-Dateien neu geladen werden.
+
+    Returns:
+        Anzahl der geleerten Caches.
+    """
+    for fn in _CACHED_LOADERS:
+        fn.cache_clear()
+    return len(_CACHED_LOADERS)

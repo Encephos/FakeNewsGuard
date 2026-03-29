@@ -586,48 +586,42 @@ class TestFactCheckerPathSeparation:
         agent = FactCheckerAgent(minimal_config, mocker.MagicMock(), mock_search_client)
         agent._evidence_builder.run_safe = mocker.MagicMock(return_value=(sample_evidence_pack, None))
         agent._verdict_agent.run_safe = mocker.MagicMock(return_value=(expected, None))
-        legacy_spy = mocker.patch.object(agent, "_legacy_fact_check")
 
         result = agent.execute(sample_factual_claim)
 
-        legacy_spy.assert_not_called()
         assert result.rating == FactRating.TRUE
         assert result.evidence == "v2-Evidenz"
 
     def test_fallback_on_evidence_builder_failure(
         self, minimal_config, mocker, mock_llm_client, mock_search_client, sample_factual_claim
     ):
-        """Wenn EvidenceBuilder fehlschlägt, wird der Legacy-Pfad ausgelöst."""
+        """Wenn EvidenceBuilder fehlschlägt, wird UNVERIFIABLE zurückgegeben."""
         agent = FactCheckerAgent(minimal_config, mock_llm_client, mock_search_client)
         agent._evidence_builder.run_safe = mocker.MagicMock(return_value=(None, "Simulated EvidenceBuilder error"))
 
-        legacy_spy = mocker.patch.object(agent, "_legacy_fact_check", wraps=agent._legacy_fact_check)
+        result = agent.execute(sample_factual_claim)
 
-        agent.execute(sample_factual_claim)
-
-        legacy_spy.assert_called_once_with(sample_factual_claim, "")
+        assert result.rating == FactRating.UNVERIFIABLE
+        assert "Simulated EvidenceBuilder error" in result.evidence
 
     def test_fallback_on_verdict_agent_failure(
         self, minimal_config, mocker, mock_llm_client, mock_search_client,
         sample_factual_claim, sample_evidence_pack
     ):
-        """Wenn VerdictAgent fehlschlägt (aber EvidenceBuilder OK), wird Legacy ausgelöst."""
+        """Wenn VerdictAgent fehlschlägt (aber EvidenceBuilder OK), wird UNVERIFIABLE zurückgegeben."""
         agent = FactCheckerAgent(minimal_config, mock_llm_client, mock_search_client)
         agent._evidence_builder.run_safe = mocker.MagicMock(return_value=(sample_evidence_pack, None))
         agent._verdict_agent.run_safe = mocker.MagicMock(return_value=(None, "Simulated VerdictAgent error"))
 
-        legacy_spy = mocker.patch.object(agent, "_legacy_fact_check", wraps=agent._legacy_fact_check)
+        result = agent.execute(sample_factual_claim)
 
-        agent.execute(sample_factual_claim)
-
-        legacy_spy.assert_called_once_with(sample_factual_claim, "")
+        assert result.rating == FactRating.UNVERIFIABLE
+        assert "Simulated VerdictAgent error" in result.evidence
 
     async def test_async_fallback_on_evidence_builder_failure(
         self, minimal_config, mocker, mock_llm_client, mock_search_client, sample_factual_claim
     ):
-        """Async: Wenn EvidenceBuilder fehlschlägt, wird _legacy_fact_check_async aufgerufen."""
-        from models.schemas import FactCheckResult, FactRating
-
+        """Async: Wenn EvidenceBuilder fehlschlägt, wird UNVERIFIABLE zurückgegeben."""
         agent = FactCheckerAgent(minimal_config, mock_llm_client, mock_search_client)
 
         async def _raise(*_args, **_kwargs):
@@ -635,19 +629,7 @@ class TestFactCheckerPathSeparation:
 
         agent._evidence_builder.execute_async = _raise
 
-        fallback_result = FactCheckResult(
-            claim_id=sample_factual_claim.id,
-            rating=FactRating.UNVERIFIABLE,
-            evidence="async-legacy",
-            sources=[],
-        )
-
-        async def _mock_legacy_async(claim, context):
-            return fallback_result
-
-        mocker.patch.object(agent, "_legacy_fact_check_async", side_effect=_mock_legacy_async)
-
         result = await agent.execute_async(sample_factual_claim)
 
-        agent._legacy_fact_check_async.assert_called_once_with(sample_factual_claim, "")
         assert result.rating == FactRating.UNVERIFIABLE
+        assert "EvidenceBuilder" in result.evidence
