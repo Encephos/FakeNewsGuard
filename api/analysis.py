@@ -196,8 +196,11 @@ async def _run_job(job_id: str, text: str, url: str = "", tier: ScoutTier = Scou
             """Fact-check a single claim, then optionally number-audit it."""
             push_step("Phase 2", "Fact Checker", t("api.steps.checking_claim").format(text=claim.text[:80]), "running")
 
+            # Claim durch Router leiten (wie in orchestrator.py:272 und :369)
+            route_result, routed_claim = orchestrator._router.route_and_apply(claim)
+
             fc_result, fc_error = await asyncio.get_event_loop().run_in_executor(
-                None, lambda c=claim: orchestrator.fact_checker.run_safe(c, context=text)
+                None, lambda c=routed_claim: orchestrator.fact_checker.run_safe(c, context=text)
             )
             if fc_error:
                 analysis_errors.append(fc_error)
@@ -206,7 +209,7 @@ async def _run_job(job_id: str, text: str, url: str = "", tier: ScoutTier = Scou
                 fact_checks.append(fc_result)
                 push_step("Phase 2", "Fact Checker", f"Claim {claim.id}: {fc_result.rating.value}")
 
-            if "number_auditor" in claim.requires_agents or claim.type == ClaimType.STATISTICAL:
+            if "number_auditor" in routed_claim.requires_agents or routed_claim.type == ClaimType.STATISTICAL:
                 push_step("Phase 2", "Number Auditor", t("api.steps.number_audit").format(id=claim.id), "running")
                 fc_context = (
                     f"Fact-Check Ergebnis: {fc_result.rating.value}\nEvidenz: {fc_result.evidence}"
@@ -215,7 +218,7 @@ async def _run_job(job_id: str, text: str, url: str = "", tier: ScoutTier = Scou
                 )
                 na_result, na_error = await asyncio.get_event_loop().run_in_executor(
                     None,
-                    lambda c=claim, ctx=fc_context: orchestrator.number_auditor.run_safe(c, context=ctx),
+                    lambda c=routed_claim, ctx=fc_context: orchestrator.number_auditor.run_safe(c, context=ctx),
                 )
                 if na_error:
                     analysis_errors.append(na_error)
