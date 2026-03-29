@@ -1,0 +1,2840 @@
+{
+  "case_id": "reg-001",
+  "timestamp": "2026-03-29T16:17:50.611503+00:00",
+  "generated_queries": [
+    "Die EU hat ab 2025 ein vollständiges Verbot von Einwegplastik-Besteck beschlossen.",
+    "eur-lex.europa.eu",
+    "EU Einwegplastik Faktencheck",
+    "EU Einwegplastik Falschmeldung"
+  ],
+  "deduped_queries": [
+    "Die EU hat ab 2025 ein vollständiges Verbot von Einwegplastik-Besteck beschlossen.",
+    "eur-lex.europa.eu",
+    "EU Einwegplastik Faktencheck",
+    "EU Einwegplastik Falschmeldung"
+  ],
+  "searxng_queries": [
+    {
+      "query": "Die EU hat ab 2025 ein vollständiges Verbot von Einwegplastik-Besteck beschlossen.",
+      "pageno": 1,
+      "categories": "general,news",
+      "engines": [
+        "duckduckgo",
+        "brave",
+        "qwant"
+      ]
+    },
+    {
+      "query": "Die EU hat ab 2025 ein vollständiges Verbot von Einwegplastik-Besteck beschlossen.",
+      "pageno": 2,
+      "categories": "general,news",
+      "engines": [
+        "duckduckgo",
+        "brave",
+        "qwant"
+      ]
+    },
+    {
+      "query": "eur-lex.europa.eu",
+      "pageno": 1,
+      "categories": "general,news",
+      "engines": [
+        "duckduckgo",
+        "brave",
+        "qwant"
+      ]
+    },
+    {
+      "query": "eur-lex.europa.eu",
+      "pageno": 2,
+      "categories": "general,news",
+      "engines": [
+        "duckduckgo",
+        "brave",
+        "qwant"
+      ]
+    },
+    {
+      "query": "EU Einwegplastik Faktencheck",
+      "pageno": 1,
+      "categories": "general,news",
+      "engines": [
+        "duckduckgo",
+        "brave",
+        "tagesschau"
+      ]
+    },
+    {
+      "query": "EU Einwegplastik Falschmeldung",
+      "pageno": 1,
+      "categories": "general,news",
+      "engines": [
+        "duckduckgo",
+        "brave",
+        "tagesschau"
+      ]
+    },
+    {
+      "query": "Die EU hat ab 2025 ein vollständiges Verbot von Einwegplastik-Besteck beschlossen. site:eur-lex.europa.eu",
+      "pageno": 1,
+      "categories": "general,news",
+      "engines": null
+    },
+    {
+      "query": "Die EU hat ab 2025 ein vollständiges Verbot von Einwegplastik-Besteck beschlossen. site:eurostat.ec.europa.eu",
+      "pageno": 1,
+      "categories": "general,news",
+      "engines": null
+    }
+  ],
+  "searxng_results": {
+    "Die EU hat ab 2025 ein vollständiges Verbot von Einwegplastik-Besteck beschlossen.": [
+      {
+        "title": "Plastikmüll: Was die EU-Regeln bringen - Nachrichten - WDR",
+        "url": "https://www1.wdr.de/nachrichten/plastikabkommen-plastik-europaeische-union-100.html",
+        "snippet": "15. Aug. 2025 · Die EU hat inzwischen entschieden, dass ab 2030 weitere Einweg-Plastikverpackungen verboten sein werden: Dazu zählen Ketchup-Tütchen im Restaurant und Shampoo-Tütchen im Hotel. Obst und...",
+        "content": ""
+      },
+      {
+        "title": "EU beschließt Verbot von Einweg-Plastik-Verpackungen ab 2030",
+        "url": "https://www.tagesschau.de/ausland/europa/eu-verpackungsmuell-plastik-100.html",
+        "snippet": "24. Apr. 2024 · Die EU sagt dem Einweg-Plastik den Kampf an: Von 2030 an soll jede Verpackung recycelbar sein. Viele kleine Packungen wie Ketchup-Tütchen soll es dann nicht mehr geben. Zudem setzt die EU...",
+        "content": ""
+      },
+      {
+        "title": "Einwegkunststoff, Verpackungen und Pfand - Schwerin - IHK",
+        "url": "https://www.ihk.de/schwerin/standort-westmecklenburg/handel-und-stadtentwicklung/rechtsfragen/plastiktuetenverbot-4670804",
+        "snippet": "Ab 2026 müssen Händler und Gastronomen ihre Verpackungen konsequent an Nachhaltigkeit, Kreislaufwirtschaft und EU-Standards anpassen. Das vollständige DIHK- ...",
+        "content": ""
+      },
+      {
+        "title": "Themen (Aktuell) in Burning Crusade Classic - Allgemeines - World of ...",
+        "url": "https://eu.forums.blizzard.com/de/wow/c/wow-classic/burning-crusade-classic-allgemeines/254",
+        "snippet": "Vor 3 Tagen · Themen (Aktuell) in Burning Crusade Classic - Allgemeines - World of Warcraft Forums",
+        "content": ""
+      },
+      {
+        "title": "Einwegplastik-Verbot der EU: Geltungsbereich und Umfang",
+        "url": "https://www.bussgeldkatalog.net/einwegplastik-verbot/",
+        "snippet": "Mehr als 80 Prozent der Abfälle, die im Meer herumtreiben, sind laut Angaben der Europäischen Kommission Plastikmüll. Deshalb hat die Europäische Union (EU) ein Verbot von Einwegplastik und Styroporprodukten beschlossen, das von allen Mitgliedsstaaten umgesetzt werden muss. Es soll die Nutzung von Wegwerfartikeln aus Kunststoff reduzieren. Das Einw...",
+        "content": ""
+      },
+      {
+        "title": "Nachhaltige Verpackungen: Rat beschließt neue Vorschriften ...",
+        "url": "https://www.consilium.europa.eu/de/press/press-releases/2024/12/16/sustainable-packaging-council-signs-off-on-new-rules-for-less-waste-and-more-re-use-in-the-eu/",
+        "snippet": "Dec 16, 2024 · Die neuen Vorschriften werden das Aufkommen von Verpackungsabfällen deutlich verringern, indem verbindliche Wiederverwendungsziele festgelegt, bestimmte Arten von Einwegverpackungen eingeschränkt und die Wirtschaftsakteure verpflichtet werden, möglichst wenig Verpackungen zu verwenden.",
+        "content": ""
+      },
+      {
+        "title": "EU-Plastikverbot: Wichtiges im Überblick | Duni Deutschland",
+        "url": "https://de.duni.com/de/magazin/eu-plastikverbot-was-2021-wichtig-wird?srsltid=AfmBOorN83psJOGuad8d60l2YVrPHoR2OLcGCIAIYkgVaoO5SAI7XEWL",
+        "snippet": "Das hat das Bundeskabinett mit einer Änderung des Verpackungsgesetzes beschlossen. Damit werden Menüboxen und andere Einwegverpackungen zwar nicht verboten ...",
+        "content": ""
+      },
+      {
+        "title": "Die EU-Kunststoffrichtlinie 2025 zielt darauf ab, Einwegkunststoffe zu ...",
+        "url": "https://www.bioleaderpack.com/de/eus-2025-kunststoffrichtlinie-zielt-darauf-ab-einwegkunststoffe-zu-halbieren%E2%80%91-was-geschirrhersteller-und-unternehmen-wissen-mussen/",
+        "snippet": "Jun 18, 2025 · Die Richtlinie der Europäischen Union über die Verwendung von Einwegkunststoffen (Richtlinie (EU) 2019/904) zielt darauf ab, den Verbrauch von Einwegkunststoffgeschirr - einschließlich Bechern, Besteck, Tellern, Wattestäbchen und Feuchttüchern - bis 2025 um 50% zu reduzieren.",
+        "content": ""
+      },
+      {
+        "title": "EU-Einwegplastikverbot - NABU",
+        "url": "https://www.nabu.de/umwelt-und-ressourcen/ressourcenschonung/kunststoffe-und-bioplastik/30215.html",
+        "snippet": "Im Bereich Einweggeschirr und To-Go-Verpackungen ist das Einwegplastikverbot damit auf Teller und Besteck inklusive Rührstäbchen und Trinkhalme beschränkt.",
+        "content": ""
+      },
+      {
+        "title": "EU-Parlament stimmt für Verbot von Einwegplastik - Die Zeit",
+        "url": "https://www.zeit.de/politik/ausland/2024-04/eu-parlament-plastikmuell-verbot-einweg",
+        "snippet": "Das EU-Parlament hat für ein Verbot bestimmter Einwegverpackungen gestimmt, um den Plastikmüll zu reduzieren. Ab 2023 dürfen beispielsweise Plastikverpackungen für unverarbeitetes Obst und...",
+        "content": ""
+      },
+      {
+        "title": "Themen (Aktuell) in Allgemeines - World of Warcraft Forums",
+        "url": "https://eu.forums.blizzard.com/de/wow/c/community/allgemeines/7",
+        "snippet": "Hallo! Dieser Beitrag richtet sich an alljene, die mit ihrem Char, egal ob es der erste oder siebte ist, Stufe 90 erreicht haben und sich nun fragen, wie sie denn nun an all den s",
+        "content": ""
+      },
+      {
+        "title": "EU-Verbot gegen Einwegplastik: Ein Schritt zur Nachhaltigkeit",
+        "url": "https://www.tomorrow.university/de/blog/eu-verbot-einwegplastik-nachhaltige-zukunft",
+        "snippet": "Ein bedeutender Schritt für nachhaltige Entwicklung: Die EU hat beschlossen, bestimmte Einwegplastikartikel zu verbieten. Diese bahnbrechende Entscheidung zielt darauf ab, die Umweltverschmutzung deutlich zu reduzieren und die natürlichen Ressourcen zu schützen.",
+        "content": ""
+      },
+      {
+        "title": "Fragen und Antworten (FAQ) - BMUKN",
+        "url": "https://www.bundesumweltministerium.de/presse/fragen-und-antworten-faq/thema/Kreislaufwirtschaft?tx_bmubfaq_faq%5Bfilter%5D%5Bclusters%5D=nonclustered&cHash=3d76f6fb61e5c5d7de5988e2ab884c92",
+        "snippet": "Die Hersteller von Einwegkunststoffprodukten werden künftig in die Verantwortung genommen, indem sie sich an den Kosten für die Entsorgung ihrer Produkte ...",
+        "content": ""
+      },
+      {
+        "title": "Die europäische Verpackungsverordnung 2025 tritt am 11 ...",
+        "url": "https://www.ihk.de/duesseldorf/innovation-umwelt-energie/umwelt/abfall2/die-europaeische-verpackungsverordnung-2025-ppwr--6459764",
+        "snippet": "Die neue europäische Verpackungsverordnung (Packaging and Packaging Waste Regulation, PPWR) bildet den aktualisierten Rechtsrahmen für Verpackungen und Verpackungsabfälle in der EU.",
+        "content": ""
+      },
+      {
+        "title": "Themen (Aktuell) - World of Warcraft Forums",
+        "url": "https://eu.forums.blizzard.com/de/wow/latest",
+        "snippet": "Diskutieren Sie aktuelle Themen zu World of Warcraft in den offiziellen deutschen Foren, tauschen Sie sich mit anderen Spielern aus und finden Sie hilfreiche Informationen.",
+        "content": ""
+      }
+    ],
+    "Die EU hat ab 2025 ein vollständiges Verbot von Einwegplastik-Besteck beschlossen.__p2": [
+      {
+        "title": "FAQ - Häufig gestellte Fragen zu Kunststoffen in der Umwelt - BAFU",
+        "url": "https://www.bafu.admin.ch/de/faq-haeufig-gestellte-fragen-zu-kunststoffen-in-der-umwelt",
+        "snippet": "31.07.2025 ... Die Einwegplastik-Richtlinie der EU verlangt, dass bis zum Jahr 2025 mindestens 77 % der PET-Getränkeflaschen für das Recycling gesammelt werden ...",
+        "content": ""
+      },
+      {
+        "title": "Verbot ab 2025: Einige Plastikflaschen und Verpackungen verschwinden ...",
+        "url": "https://www.fr.de/verbraucher/supermarkt-verbot-2025-plastikflaschen-verpackungen-verschwinden-93297965.html",
+        "snippet": "Ein neues EU-Gesetz, das 2025 in Kraft tritt, wird den Verkauf bestimmter Konserven, Flaschen und Dosen sowie Plastikverpackungen verbieten. Doch was steckt hinter dem Verbot?",
+        "content": ""
+      },
+      {
+        "title": "Plastikmüll: EU kommt Einigung zu Verbot von Einwegplastik ... - Die Zeit",
+        "url": "https://www.zeit.de/politik/2024-03/eu-einwegplastik-verbot-gatronomie-muell",
+        "snippet": "4. März 2024 · 190 Kilogramm Verpackungsmüll produziert ein EU-Bürger pro Jahr – Tendenz steigend. Ein EU-Verbot von Einwegplastik in der Gastronomie soll für weniger Müll sorgen.",
+        "content": ""
+      },
+      {
+        "title": "(k)ein Gamechanger gegen die Verpackungsflut - WWF Deutschland",
+        "url": "https://www.wwf.de/fileadmin/fm-wwf/Publikationen-PDF/Plastik/Die-Mehrwegangebotspflicht-kein-Gamechanger-gegen-die-Plastikflut.pdf",
+        "snippet": "25.10.2024 ... Bereits 2019 haben sich alle EU-Mitgliedstaaten im. Rahmen der EU-Einwegplastik-Richtlinie (SUPD) ... Das. Land Berlin hat ein Verbot von ...",
+        "content": ""
+      },
+      {
+        "title": "Globales Plastikabkommen ab 2025: Herausforderungen & Fortschritte",
+        "url": "https://terra-institute.eu/globales-plastikabkommen-erausforderungen-und-fortschritte/",
+        "snippet": "Globales Plastikabkommen: Warum die UN das geplante Plastikabkommen für 2025 verschoben hat und welche Maßnahmen die EU trifft.",
+        "content": ""
+      },
+      {
+        "title": "Einwegplastik-Richtlinie – wo steht die EU?",
+        "url": "https://www.stiftung-meeresschutz.org/themen/meeresverschmutzung/einwegplastik-richtlinie-eu-wo-steht-europa/",
+        "snippet": "22. Okt. 2022 · Erfahren Sie, wie die EU-Einwegplastik-Richtlinie zur Bekämpfung der Meeresverschmutzung umgesetzt wurde. Eine neue Analyse zeigt positive Entwicklungen und Defizite.",
+        "content": ""
+      },
+      {
+        "title": "EU-Parlament stimmt über Richtlinie ab: Plastik-Verbot soll Müll in ...",
+        "url": "https://www.tagesspiegel.de/politik/plastik-verbot-soll-mull-in-europa-reduzieren-5815798.html",
+        "snippet": "24.10.2018 ... Das Verbot soll in Deutschland greifen, sobald die EU-Richtlinie in nationales Recht umgesetzt ist. Dies dürfte bis spätestens 2021 der Fall ...",
+        "content": ""
+      },
+      {
+        "title": "Plastikflaschen Verbot: Einwegflaschen-Regelungen ab 2025 & 2030",
+        "url": "https://www.lizenzero.de/blog/plastikflaschen-verbot-einwegflaschen-regelungen-ab-2025-2030/",
+        "snippet": "Ab 2025 sind Einweg Plastikflaschen, die hauptsächlich aus PET bestehen verboten, es sei denn sie bestehen zu mindestens 25 % aus recyceltem Material. Außerdem gelten bestimmte Mehrwegflaschen und -dosen als verboten.",
+        "content": ""
+      },
+      {
+        "title": "Freising stellt um: Der lange Abschied vom Plastik",
+        "url": "https://www.merkur.de/lokales/freising/freising-ort28692/freising-stellt-um-der-lange-abschied-vom-plastik-90851724.html",
+        "snippet": "10.07.2021 ... Landkreis - „Fast-Food-Verpackung, Trinkhalme, To-go-Becher: Viele Einwegplastikprodukte sind seit dem 3. Juli in der EU verboten. Eigentlich.",
+        "content": ""
+      },
+      {
+        "title": "Einweg-Plastikverbot in der EU? Ein Pro und Contra - fluter.de",
+        "url": "https://www.fluter.de/plastikverbot-eu-pro-contra",
+        "snippet": "9. Jan. 2020 · Bald sind Einweggeschirr, Wattestäbchen und Strohhalme in der EU verboten. Ist das Plastikverbot ein richtungweisender Schritt oder bloße Symbolpolitik?",
+        "content": ""
+      },
+      {
+        "title": "Verpackung - Der Markt liefert die Antworten – Lebensmittelpraxis.de",
+        "url": "https://lebensmittelpraxis.de/verpackung/31152-verpackung-der-markt-liefert-die-antworten.html",
+        "snippet": "15.07.2021 ... Im Jahr 2018 hat die EU das Verbot von Einwegplastik beschlossen, jetzt tritt es in Kraft ... Ab Samstag, dem 3. Juli 2021, sind viele ...",
+        "content": ""
+      },
+      {
+        "title": "Was unternimmt die EU gegen Plastikmüll ? | tagesschau.de",
+        "url": "https://www.tagesschau.de/ausland/europa/plastik-eu-100.html",
+        "snippet": "Die EU-Kommission will, dass der wachsende Müllberg kleiner wird und hat dafür im Rahmen des \"Green Deals\" eine Strategie mit drei Säulen entwickelt: reparieren, verbieten, recyclen. Als...",
+        "content": ""
+      },
+      {
+        "title": "Was das Plastikverbot der EU bedeutet - DER SPIEGEL",
+        "url": "https://www.spiegel.de/wirtschaft/service/eu-plastikverbot-was-es-bedeutet-was-sich-fuer-verbraucher-aendert-a-1244554.html",
+        "snippet": "19. Dez. 2018 · Die EU sagt Plastik den Kampf an: Wegwerfprodukte wie Plastikteller und Trinkhalme sollen künftig verboten werden. Wie sieht die Regelung aus, was ändert sich für den Verbraucher? Ein Überblick.",
+        "content": ""
+      },
+      {
+        "title": "So setzen die EU-Länder das neue Mehrweg-Modell um",
+        "url": "https://ohn.haendlerbund.de/recht/politik-gesetze/137877-eu-laender-umsetzung-mehrweg-modell",
+        "snippet": "27.03.2023 ... Mehr zum Thema: · Ab Januar 2023: Die neue Mehrweg-Pflicht kommt · Bundestag hat Abgabe für Hersteller von Einweg-Kunststoffprodukten beschlossen ...",
+        "content": ""
+      },
+      {
+        "title": "EU | Plastik: Parlament erlässt neues Verbot - t-online.de",
+        "url": "https://www.t-online.de/klima/politik-wirtschaft/id_100393286/eu-plastik-parlament-erlaesst-neues-verbot.html",
+        "snippet": "Die EU hat neue Regeln zu Reduktion von Verpackungsmüll beschlossen. Die Plastikflut soll so gestoppt werden. Das Europäische Parlament hat am Mittwoch in Straßburg für ein Verbot bestimmter...",
+        "content": ""
+      }
+    ],
+    "eur-lex.europa.eu": [
+      {
+        "title": "EUR-Lex - European Union",
+        "url": "https://eur-lex.europa.eu/homepage.html?locale=de",
+        "snippet": "Vor 2 Tagen · Hier finden Sie das Amtsblatt der Europäischen Union und können das EU-Recht, die EU-Rechtsprechung, konsolidierte Fassungen, Zusammenfassungen der Rechtsvorschriften und vieles mehr konsultieren.",
+        "content": ""
+      },
+      {
+        "title": "EU law - EUR-Lex",
+        "url": "https://eur-lex.europa.eu/homepage.html",
+        "snippet": "Vor 3 Tagen · Access the authentic Official Journal of the European Union, EU law, EU case-law, consolidated texts, summaries of legislation, and much more.",
+        "content": ""
+      },
+      {
+        "title": "Amtsblatt der Europäischen Union - EUR-Lex",
+        "url": "https://eur-lex.europa.eu/oj/direct-access.html?locale=de",
+        "snippet": "Das Amtsblatt der Europäischen Union ist das Medium für die amtliche Veröffentlichung von Rechtsakten der EU, sonstigen Rechtsakten sowie amtlichen Informationen der Organe, Einrichtungen und sonstigen Stellen der EU.",
+        "content": ""
+      },
+      {
+        "title": "EUR-Lex - Access to European Union law",
+        "url": "https://eur-lex.org/",
+        "snippet": "Note: The EUR-Lex document register provides access to all European Union legislative acts, court decisions, international agreements, preparatory documents, and other official publications of the EU institutions.",
+        "content": ""
+      },
+      {
+        "title": "EUR-Lex portal - EU Law - EC Library Guides at European Commission Library",
+        "url": "https://ec-europa-eu.libguides.com/eu-law/legislation/eur-lex",
+        "snippet": "Vor 4 Tagen · EUR-Lex is your online gateway to EU Law. It provides the official and most comprehensive access to EU legal documents. It is available in all of the EU’s 24 official languages and is updated daily.",
+        "content": ""
+      },
+      {
+        "title": "Erweiterte Suche - EUR-Lex - European Union",
+        "url": "https://eur-lex.europa.eu/advanced-search-form.html?locale=de",
+        "snippet": "Hilfe bei der Eingabe der CELEX-Nummer im Feld „Suche mit CELEX-Nummer“ im erweiterten Suchformular „Alle Dokumente“. Die CELEX-Nummer ist die eindeutige Kennung eines jeden Dokuments in EUR-Lex (z. B. 32006L0121).",
+        "content": ""
+      },
+      {
+        "title": "EU-Recht - Publications Office of the EU",
+        "url": "https://op.europa.eu/de/law",
+        "snippet": "Ihr Zugangsportal zum Amtsblatt der Europäischen Union, zum EU-Recht, zur EU-Rechtsprechung, zu nationalen Umsetzungsmaßnahmen sowie zu anderen Rechtsdokumenten und Informationen",
+        "content": ""
+      },
+      {
+        "title": "EUR-Lex",
+        "url": "https://eur-lex.europa.eu/de/index.htm",
+        "snippet": "JavaScript is disabled. In order to continue, we need to verify that you're not a robot. This requires JavaScript. Enable JavaScript and then reload the page.",
+        "content": ""
+      },
+      {
+        "title": "Suche nach Rechtstexten | Europäische Union - European Union",
+        "url": "https://european-union.europa.eu/institutions-law-budget/law/find-legislation_de",
+        "snippet": "Finden Sie EU-Rechtsvorschriften, die geltend oder in Vorbereitung sind, auf EUR-Lex und in anderen Verzeichnissen. Erfahren Sie mehr über die EU-Gesetzgebung, die Rechtsvorschriften in Vorbereitung, die Publikationen und die Gründungsverträge.",
+        "content": ""
+      },
+      {
+        "title": "Rückkehr zum Plastik-Strohhalm? Das plant Capri-Sun für sein Aushängeschild",
+        "url": "https://www.swr.de/swraktuell/baden-wuerttemberg/capri-sun-strohhalm-plastik-100.html",
+        "snippet": "Capri-Sun - da werden Kindheitserinnerungen wach.",
+        "content": ""
+      },
+      {
+        "title": "Was geben Haushalte in BW aus? Statistisches Landesamt sucht Freiwillige",
+        "url": "https://www.swr.de/swraktuell/baden-wuerttemberg/90-euro-fuer-blick-auf-den-kassenzettel-100.html",
+        "snippet": "Die Statistiker möchten wissen, wie viel Geld private Haushalte für ihren Einkauf in die Hand nehmen.",
+        "content": ""
+      },
+      {
+        "title": "Prawo UE - EUR-Lex",
+        "url": "https://eur-lex.europa.eu/homepage.html?locale=pl",
+        "snippet": "Vor 3 Tagen · EUROPA EUR-Lex strona główna Prawo UE Aby wyszukać „konkretne wyrażenie”, umieść je w cudzysłowach. Dodaj gwiazdkę (*) w wyszukiwanym terminie, aby znaleźć jego warianty …",
+        "content": ""
+      },
+      {
+        "title": "EUR-Lex — Access to European Union law — choose your language",
+        "url": "https://eur-lex.europa.eu/",
+        "snippet": "EUR-Lex. europa.eu bg Достъп до правото на Европейския съюз es El acceso al Derecho de la Unión Europea cs Přístup k právu Evropské unie da Adgang til EU-lovgivningen de Der Zugang zum EU …",
+        "content": ""
+      },
+      {
+        "title": "12012E/TXT - EN - EUR-Lex - European Union",
+        "url": "https://eur-lex.europa.eu/legal-content/DE/ALL/?uri=CELEX%3A12012E%2FTXT",
+        "snippet": "Consolidated version of the Treaty on the Functioning of the European Union. Konsolidierte Fassung des Vertrags über die Arbeitsweise der Europäischen Union.",
+        "content": ""
+      },
+      {
+        "title": "Find legislation | European Union",
+        "url": "https://european-union.europa.eu/institutions-law-budget/law/find-legislation_en",
+        "snippet": "Search for EU legislation - both in force and under preparation - on EUR-Lex and in other EU legislation directories.",
+        "content": ""
+      }
+    ],
+    "eur-lex.europa.eu__p2": [
+      {
+        "title": "Verordnungen der Europäischen Union - EUR-Lex",
+        "url": "https://eur-lex.europa.eu/DE/legal-content/summary/european-union-regulations.html",
+        "snippet": "16.03.2022 ... Verordnungen sind in Artikel 288 des Vertrags über die Arbeitsweise der Europäischen Union (AEUV) definierte Rechtsakte. Sie haben allgemeine ...",
+        "content": ""
+      },
+      {
+        "title": "Official Journal L series daily view - EUR-Lex",
+        "url": "https://eur-lex.europa.eu/oj/daily-view/L-series/default.html",
+        "snippet": "Corrigendum to Regulation (EU) 2025/1355 of the European Central Bank of 2 July 2025 on oversight requirements for systemically important payment systems (ECB/2025/22) (OJ L, 2025/1355, 14.7.2025)",
+        "content": ""
+      },
+      {
+        "title": "Cyber Resilience Act implementation - Frequently asked questions",
+        "url": "https://digital-strategy.ec.europa.eu/en/library/cyber-resilience-act-implementation-frequently-asked-questions",
+        "snippet": "3. Dez. 2025 · Find the frequently asked questions on the implementation of the Cyber Resilience Act (CRA).",
+        "content": ""
+      },
+      {
+        "title": "Regulation - EU - 2025/652 - EN - EUR-Lex",
+        "url": "https://eur-lex.europa.eu/eli/reg/2025/652/oj/eng",
+        "snippet": "Apr 3, 2025 · Commission Regulation (EU) 2025/652 of 2 April 2025 amending Regulation (EC) No 1333/2008 of the European Parliament and the Council and Commission Regulation (EU) No 231/2012 as regards the use of Steviol glycosides produced by fermentation using Yarrowia lipolytica",
+        "content": ""
+      },
+      {
+        "title": "EUR-Lex Vorschriften und Verträge - Juris",
+        "url": "https://www.juris.de/jportal/nav/produkte/werk/eur-lex-vorschriften-und-vertr%C3%A4ge.jsp",
+        "snippet": "Quelle: © Europäische Union, http://eur-lex.europa.eu/. Jetzt Produkt wählen. Der Titel ist enthalten in: juris DAV · Nutzen Sie Rechtsprechung, Gesetze ...",
+        "content": ""
+      },
+      {
+        "title": "EU-Recht - Europäische Kommission - European Commission",
+        "url": "https://commission.europa.eu/law/search-law/eu-law_de",
+        "snippet": "EU-Rechtsprechung Suche nach Rechtssachen, Urteilen, Besschlüssen und Stellungnahmen des Europäischen Gerichtshofs.",
+        "content": ""
+      },
+      {
+        "title": "Directive (EU) 2024/1799 on the Repair of Goods",
+        "url": "https://circular-cities-and-regions.ec.europa.eu/support-materials/eu-regulations-legislation/directive-eu-20241799-repair-goods",
+        "snippet": "14. Juli 2025 · Directive (EU) 2024/1799, adopted on 13 June 2024, establishes common rules to promote the repair of goods, aiming to enhance sustainable consumption and support the circular economy within the European Union.",
+        "content": ""
+      },
+      {
+        "title": "12012E/TXT - EN - EUR-Lex - European Union",
+        "url": "https://eur-lex.europa.eu/legal-content/DE/ALL/?uri=CELEX%3A12012E%2FTXT",
+        "snippet": "Consolidated version of the Treaty on the Functioning of the European Union. Konsolidierte Fassung des Vertrags über die Arbeitsweise der Europäischen Union.",
+        "content": ""
+      },
+      {
+        "title": "Regulation - 2023/1805 - EN - EUR-Lex",
+        "url": "https://eur-lex.europa.eu/eli/reg/2023/1805/oj/eng",
+        "snippet": "Sep 22, 2023 · Regulation (EU) 2023/1805 of the European Parliament and of the Council of 13 September 2023 on the use of renewable and low-carbon fuels in maritime transport, and amending Directive 2009/16/EC (Text with EEA relevance) PE/26/2023/INIT",
+        "content": ""
+      },
+      {
+        "title": "EU law - European Commission",
+        "url": "https://commission.europa.eu/law/search-law/eu-law_en",
+        "snippet": "Find treaties, legislation, preparatory acts, case law, EFTA documents and official journal on EUR-Lex, the EU's legal portal. Learn how to use EUR-Lex to access and search EU law.",
+        "content": ""
+      },
+      {
+        "title": "Euro - EUR-Lex - European Union",
+        "url": "https://eur-lex.europa.eu/legal-content/DE/ALL/?uri=LEGISSUM:euro",
+        "snippet": "Mit diesen Kriterien soll sichergestellt werden, dass Mitgliedstaaten, die dem Euro-Währungsgebiet beitreten, sich reibungslos in die Währungsunion integrieren ...",
+        "content": ""
+      },
+      {
+        "title": "Felhatalmazáson alapuló rendelet - 208/2015 - EN - EUR-Lex",
+        "url": "https://data.europa.eu/eli/reg_del/2015/208/oj/hun",
+        "snippet": "Do you want to help improving EUR-Lex ? This is a list of experimental features that you can enable. These features are still under development; they are not fully tested, and might reduce EUR-Lex stability. Don't forget to give your feedback!",
+        "content": ""
+      },
+      {
+        "title": "Homepage - http://eur-lex.europa.eu/legal ... - Bundesnetzagentur",
+        "url": "https://www.bundesnetzagentur.de/SharedDocs/ExterneLinks/DE/Sachgebiete/Telekommunikation/Unternehmen_Institutionen/Netzneutralitaet/binnenmarktVO.html",
+        "snippet": "http://eur-lex.europa.eu/legal-content/DE/ALL/?uri=CELEX%3A32015R2120. Webseite: http://eur-lex.europa.eu/legal-content/DE/ALL/?uri=CELEX%3A32015R2120 ...",
+        "content": ""
+      },
+      {
+        "title": "EU law - EUR-Lex",
+        "url": "https://eur-lex.europa.eu/homepage.html?locale=en",
+        "snippet": "2 days ago · Access the authentic Official Journal of the European Union, EU law, EU case-law, consolidated texts, summaries of legislation, and much more.",
+        "content": ""
+      },
+      {
+        "title": "EUR-Lex - C_202601928 - EN - EUR-Lex - data.europa.eu",
+        "url": "https://data.europa.eu/eli/C/2026/1928/oj",
+        "snippet": "In Case E-11/25, EFTA Surveillance Authority v Iceland – APPLICATION seeking a declaration that Iceland has failed to fulfil its obligations under the act referred to at points 1a, 7a, 7g and 7i of Annex XIX to the Agreement on the European Economic Area, (Directive (EU) 2019/2161 of the European Parliament and of the Council of 27 ...",
+        "content": ""
+      }
+    ],
+    "EU Einwegplastik Faktencheck": [
+      {
+        "title": "Einwegkunststoffprodukte in der Europäischen Union - Your Europe",
+        "url": "https://europa.eu/youreurope/business/product-requirements/recycling-waste-management/single-use-plastics/index_de.htm",
+        "snippet": "12. Nov. 2025 · So befolgen Sie die EU-Vorschriften zu Einwegkunststoffprodukten. Welche Produkte sind verboten, welche Anforderungen an Kennzeichnung und Gestaltung gelten und was hat es mit der erweiterten Herstellerverantwortung auf sich?",
+        "content": ""
+      },
+      {
+        "title": "Fragen und Antworten: Umsetzung der Einwegkunststoffrichtlinie",
+        "url": "https://www.umweltbundesamt.de/themen/abfall-ressourcen/produktverantwortung-in-der-abfallwirtschaft/verpackungen/fragen-antworten-umsetzung-der",
+        "snippet": "Durch die EU-Richtlinie 2019/904 über die Verringerung der Auswirkungen bestimmter Kunststoffprodukte auf die Umwelt (Einwegkunststoffrichtlinie - EWKRL) werden 10 Produktkategorien mit Maßnahmen belegt, die 86 Prozent der gefundenen Einwegkunststoffprodukte ausmachen.",
+        "content": ""
+      },
+      {
+        "title": "EU beschließt Verbot von Einweg-Plastik-Verpackungen ab 2030",
+        "url": "https://www.tagesschau.de/ausland/europa/eu-verpackungsmuell-plastik-100.html",
+        "snippet": "24. Apr. 2024 · Die EU sagt dem Einweg-Plastik den Kampf an: Von 2030 an soll jede Verpackung recycelbar sein. Viele kleine Packungen wie Ketchup-Tütchen soll es dann nicht mehr geben. Zudem setzt die EU...",
+        "content": ""
+      },
+      {
+        "title": "Einwegplastik: Verboten, aber online zu kaufen",
+        "url": "https://www.verbraucherzentrale.nrw/wissen/umwelt-haushalt/nachhaltigkeit/einwegplastik-verboten-aber-online-zu-kaufen-85629",
+        "snippet": "05.07.2024 ... Seit dem 3. Juli 2021 sind in der EU viele Wegwerfprodukte aus Kunststoff verboten, darunter Einweggeschirr und Einwegbesteck.",
+        "content": ""
+      },
+      {
+        "title": "Richtlinie (EU) 2019/904 (Einwegkunststoff-Richtlinie) - Wikipedia",
+        "url": "https://de.wikipedia.org/wiki/Richtlinie_(EU)_2019/904_(Einwegkunststoff-Richtlinie)",
+        "snippet": "EU-weit einheitliche Normen sollen insbesondere gewährleisten, dass die erforderliche Widerstandsfähigkeit, Verlässlichkeit und Sicherheit von Verschlüssen für Getränkebehälter, einschließlich der Verschlüsse für kohlensäurehaltige Getränke, erhalten bleibt.",
+        "content": ""
+      },
+      {
+        "title": "Warum Plastikverbote nicht wirken - und was sich ändern muss",
+        "url": "https://www.dw.com/de/warum-plastikverbote-nicht-wirken-und-was-sich-%C3%A4ndern-muss/a-75199938",
+        "snippet": "Jan 1, 2026 · Knapp 40 Prozent davon waren Einwegplastik wie Strohhalme, Take-away-Boxen aus Styropor, Plastik-Besteck oder Teller. Die Idee der EU: Einfach die schlimmsten Übeltäter verbieten und das...",
+        "content": ""
+      },
+      {
+        "title": "Themen (Aktuell) in Burning Crusade Classic - Allgemeines - World of ...",
+        "url": "https://eu.forums.blizzard.com/de/wow/c/wow-classic/burning-crusade-classic-allgemeines/254",
+        "snippet": "Vor 3 Tagen · Themen (Aktuell) in Burning Crusade Classic - Allgemeines - World of Warcraft Forums",
+        "content": ""
+      },
+      {
+        "title": "EU-Einwegplastikverbot - NABU",
+        "url": "https://www.nabu.de/umwelt-und-ressourcen/ressourcenschonung/kunststoffe-und-bioplastik/30215.html",
+        "snippet": "Das EU-Verbot zu Einwegplastik zeigt: Der Regelungsumfang des Verbots ist „überschaubar“. To-Go-Verpackungen oder Getränkebecher aus Plastik werden auch zukünftig nicht aus der Gastronomie verschwinden.",
+        "content": ""
+      },
+      {
+        "title": "Einwegplastik-Richtlinie: Umsetzung und Bewertung in der EU – Deutsche ...",
+        "url": "https://www.stiftung-meeresschutz.org/themen/meeresverschmutzung/einwegplastik-richtlinie-eu-wo-steht-europa/",
+        "snippet": "22. Okt. 2022 · Eine neue Analyse zeigt nach wie vor Defizite, aber auch viele positive Entwicklungen. Ende September 2022 veröffentlichte das europäische Meeresschutzbündnis „ Seas At Risk “, dem wir angeschlossen sind, die zweite jährliche Bewertung der Umsetzung der EU-Einwegplastik-Richtlinie.",
+        "content": ""
+      },
+      {
+        "title": "Themen (Aktuell) in Allgemeines - World of Warcraft Forums",
+        "url": "https://eu.forums.blizzard.com/de/wow/c/community/allgemeines/7",
+        "snippet": "Hallo! Dieser Beitrag richtet sich an alljene, die mit ihrem Char, egal ob es der erste oder siebte ist, Stufe 90 erreicht haben und sich nun fragen, wie sie denn nun an all den s",
+        "content": ""
+      },
+      {
+        "title": "Einwegkunststoffrichtlinie in der EU: Die SUPD im Blick",
+        "url": "https://deutsche-recycling.de/blog/einwegkunststoffrichtlinie-in-der-eu-alle-fakten/",
+        "snippet": "12. Mai 2024 · Die EU-Einwegkunststoffrichtlinie (SUPD) soll die Umweltbelastung durch Plastikabfälle verringern. Verboten sind Einweg-Besteck, -Teller und -Becher aus Plastik. Unternehmen müssen die erweiterte Herstellerverantwortung (EPR) übernehmen, Entsorgungskosten tragen und Produkte kennzeichnen.",
+        "content": ""
+      },
+      {
+        "title": "Kunststoffabfälle in Deutschland - NABU",
+        "url": "https://www.nabu.de/umwelt-und-ressourcen/abfall-und-recycling/22033.html",
+        "snippet": "Nach der sogenannten outputbezogenen Quotenberechnung wurden 2023 in Deutschland 52,3 Prozent der Abfälle durch Kunststoffverpackungen recycelt („stofflich ...",
+        "content": ""
+      },
+      {
+        "title": "Themen (Aktuell) - World of Warcraft Forums",
+        "url": "https://eu.forums.blizzard.com/de/wow/latest",
+        "snippet": "Diskutieren Sie aktuelle Themen zu World of Warcraft in den offiziellen deutschen Foren, tauschen Sie sich mit anderen Spielern aus und finden Sie hilfreiche Informationen.",
+        "content": ""
+      },
+      {
+        "title": "Herstellungsverbot für Einwegplastik – Einstieg ins Umdenken? - MDR",
+        "url": "https://www.mdr.de/wissen/einwegplastik-verbot-der-herstellung-in-der-eu-100.html",
+        "snippet": "03.07.2021 ... Auch ein Import in die EU ist jetzt verboten. Das soll helfen, Plastikmüll zu vermeiden, der achtlos in die Landschaft geworfen wird und nicht ...",
+        "content": ""
+      },
+      {
+        "title": "Themen (Aktuell) in WoW Classic - World of Warcraft Forums",
+        "url": "https://eu.forums.blizzard.com/de/wow/c/wow-classic/231",
+        "snippet": "Alles rund um World of Warcraft Classic gehört in diese Foren.",
+        "content": ""
+      }
+    ],
+    "EU Einwegplastik Falschmeldung": [
+      {
+        "title": "Fragen und Antworten: Umsetzung der Einwegkunststoffrichtlinie",
+        "url": "https://www.umweltbundesamt.de/themen/abfall-ressourcen/produktverantwortung-in-der-abfallwirtschaft/verpackungen/fragen-antworten-umsetzung-der",
+        "snippet": "Ziel der Einwegkunststoffrichtlinie ist die Auswirkungen bestimmter Kunststoffprodukte auf die Umwelt zu mindern. Etwa sollen die Umweltfolgen durch eine Verringerung des Konsums solcher Produkte reduziert werden. Ein Maßnahmenpaket soll die Vermüllung des öffentlichen Raums und deren negative Folgen möglichst stoppen. Deutschland hat die EU-Vorgaben fast 1:1 übernommen.",
+        "content": ""
+      },
+      {
+        "title": "Quiz: Trennst du deinen Müll richtig? Oder recycelst du falsch?",
+        "url": "https://www.schroedingerskatze.at/muelltrennung/",
+        "snippet": "27.12.2019 ... Ab 2021 will die EU Produkte aus Einwegplastik verbieten. Plastikgabeln, -sackerl und -strohhalme sollen dann Geschichte sein. Diese ...",
+        "content": ""
+      },
+      {
+        "title": "Themen (Aktuell) in Burning Crusade Classic - Allgemeines - World of ...",
+        "url": "https://eu.forums.blizzard.com/de/wow/c/wow-classic/burning-crusade-classic-allgemeines/254",
+        "snippet": "Vor 3 Tagen · Themen (Aktuell) in Burning Crusade Classic - Allgemeines - World of Warcraft Forums",
+        "content": ""
+      },
+      {
+        "title": "Einwegkunststoffprodukte in der Europäischen Union - Your Europe",
+        "url": "https://europa.eu/youreurope/business/product-requirements/recycling-waste-management/single-use-plastics/index_de.htm",
+        "snippet": "Nov 12, 2025 · So befolgen Sie die EU-Vorschriften zu Einwegkunststoffprodukten. Welche Produkte sind verboten, welche Anforderungen an Kennzeichnung und Gestaltung gelten und was hat es mit der erweiterten Herstellerverantwortung auf sich? Erfahren Sie, wie Abfallverringerung und Verbraucherbewusstsein durch nationale Maßnahmen gefördert werden.",
+        "content": ""
+      },
+      {
+        "title": "Richtlinie (EU) 2019/904 (Einwegkunststoff-Richtlinie) - Wikipedia",
+        "url": "https://de.wikipedia.org/wiki/Richtlinie_(EU)_2019/904_(Einwegkunststoff-Richtlinie)",
+        "snippet": "Die Richtlinie (EU) 2019/904 des Europäischen Parlaments und des Rates vom 5. Juni 2019 über die Verringerung der Auswirkungen bestimmter Kunststoffprodukte auf die Umwelt (sog. Einwegkunststoff-Richtlinie oder Einwegplastik-Richtlinie, englisch Single-Use Plastics Directive – SUP) ist eine europäische Richtlinie, die die Auswirkungen bestimmter Kunststoffprodukte auf die Umwelt ...",
+        "content": ""
+      },
+      {
+        "title": "Mikroplastik im Wasser - WWF sieht eine \"Plastifizierung\" der Meere",
+        "url": "https://www.deutschlandfunk.de/studie-zur-plastifizierung-der-meere-100.html",
+        "snippet": "08.02.2022 ... (*) Frau Bergmann wurde in einer früheren Version falsch geschrieben. Wir haben den Fehler korrigiert. Mehr aus der Sendung Umwelt und ...",
+        "content": ""
+      },
+      {
+        "title": "Themen (Aktuell) in Allgemeines - World of Warcraft Forums",
+        "url": "https://eu.forums.blizzard.com/de/wow/c/community/allgemeines/7",
+        "snippet": "Hallo! Dieser Beitrag richtet sich an alljene, die mit ihrem Char, egal ob es der erste oder siebte ist, Stufe 90 erreicht haben und sich nun fragen, wie sie denn nun an all den s",
+        "content": ""
+      },
+      {
+        "title": "EU-Einwegplastikverbot - NABU",
+        "url": "https://www.nabu.de/umwelt-und-ressourcen/ressourcenschonung/kunststoffe-und-bioplastik/30215.html",
+        "snippet": "Das EU-Verbot zu Einwegplastik zeigt: Der Regelungsumfang des Verbots ist „überschaubar“. To-Go-Verpackungen oder Getränkebecher aus Plastik werden auch zukünftig nicht aus der Gastronomie verschwinden. Der NABU setzt auf eine Mehrweg-Förderung.",
+        "content": ""
+      },
+      {
+        "title": "Richtlinie - 2019/904 - EN - EUR-Lex",
+        "url": "https://eur-lex.europa.eu/legal-content/DE/TXT/?uri=CELEX:32019L0904",
+        "snippet": "6. Dez. 2019 · Das System indirekter Gebühren gemäß der Richtlinie (EU) 2019/883 des Europäischen Parlaments und des Rates (18) für das Entladen von Abfällen von Schiffen bietet ein System, um den Anreiz zu nehmen, Abfälle auf See zu verklappen, und garantiert ein Entladerecht.",
+        "content": ""
+      },
+      {
+        "title": "Einwegverpackungen wiederverwenden: nachhaltig oder schädlich?",
+        "url": "https://essenzielles.at/einwegverpackungen-wiederverwenden/",
+        "snippet": "15.01.2022 ... Fakten statt Fake News · Für Figurbewusste · Fett-weg-Spritze: Die ... Produkte, die dieses Zeichen tragen, entsprechen den Anforderungen der ...",
+        "content": ""
+      },
+      {
+        "title": "Themen (Aktuell) - World of Warcraft Forums",
+        "url": "https://eu.forums.blizzard.com/de/wow/latest",
+        "snippet": "Diskutieren Sie aktuelle Themen zu World of Warcraft in den offiziellen deutschen Foren, tauschen Sie sich mit anderen Spielern aus und finden Sie hilfreiche Informationen.",
+        "content": ""
+      },
+      {
+        "title": "Ist es falsch von mir als Hundehalter, Hundekotbeutel in fremde ...",
+        "url": "https://www.reddit.com/r/norge/comments/psgg9c/er_det_galt_av_meg_som_hundeeier_%C3%A5_kaste/?tl=de",
+        "snippet": "21.09.2021 ... ... EU-Richtlinie (2019/904) über Einwegplastik legal ... Wenn es sich falsch anfühlt und du unsicher bist, dann ist es garantiert auch falsch.",
+        "content": ""
+      },
+      {
+        "title": "Themen (Aktuell) in WoW Classic - World of Warcraft Forums",
+        "url": "https://eu.forums.blizzard.com/de/wow/c/wow-classic/231",
+        "snippet": "Alles rund um World of Warcraft Classic gehört in diese Foren.",
+        "content": ""
+      },
+      {
+        "title": "Von Bio bis Mikroplastik: Wie gut kennen Sie sich aus?",
+        "url": "https://www.bpb.de/themen/medien-journalismus/netzdebatte/282384/von-bio-bis-mikroplastik-wie-gut-kennen-sie-sich-aus/",
+        "snippet": "Ihre Antwort war falsch. Erläuterung. Insgesamt 18,16 Million Tonnen ... 2019 hat das Kabinett in Ruandas Hauptstadt Kigali – genau wie die EU – einen ...",
+        "content": ""
+      },
+      {
+        "title": "EU beschließt Verbot von Einweg-Plastik-Verpackungen ab 2030",
+        "url": "https://www.tagesschau.de/ausland/europa/eu-verpackungsmuell-plastik-100.html",
+        "snippet": "Apr 24, 2024 · Die EU sagt dem Einweg-Plastik den Kampf an: Von 2030 an soll jede Verpackung recycelbar sein. Viele kleine Packungen wie Ketchup-Tütchen soll es dann nicht mehr geben. Zudem setzt die EU ...",
+        "content": ""
+      }
+    ],
+    "Die EU hat ab 2025 ein vollständiges Verbot von Einwegplastik-Besteck beschlossen. site:eur-lex.europa.eu": [
+      {
+        "title": "Verordnung - EU - 2025/40 - DE - EUR-Lex",
+        "url": "https://eur-lex.europa.eu/eli/reg/2025/40/oj?eliuri=eli%3Areg%3A2025%3A40%3Aoj&locale=de",
+        "snippet": "Verordnung (EU) 2025/40 des Europäischen Parlaments und des Rates vom 19. Dezember 2024 über Verpackungen und Verpackungsabfälle, zur Änderung der Verordnung (EU) 2019/1020 und der Richtlinie (EU) 2019/904 sowie zur Aufhebung der Richtlinie 94/62/EG (Text von Bedeutung für den EWR) PE/73/2024/REV/1 ABl.",
+        "content": ""
+      },
+      {
+        "title": "Regulation - EU - 2025/40 - EN - EUR-Lex",
+        "url": "https://eur-lex.europa.eu/eli/reg/2025/40/oj/eng",
+        "snippet": "22. Jan. 2025 · Regulation (EU) 2025/40 of the European Parliament and of the Council of 19 December 2024 on packaging and packaging waste, amending Regulation (EU) 2019/1020 and Directive (EU) 2019/904, and repealing Directive 94/62/EC (Text with EEA relevance)",
+        "content": ""
+      },
+      {
+        "title": "Verordnung - EU - 2025/40 - EN - EUR-Lex",
+        "url": "https://eur-lex.europa.eu/legal-content/DE/HIS/?uri=OJ:L_202500040",
+        "snippet": "Jan 22, 2025 · Replacement of CELEX identifiers by short titles - experimental feature. It replaces clickable CELEX identifiers of treaties and case-law by short titles. Visualisation of document relationships. It displays a dynamic graph with relations between the act and related documents. It is currently only available for legal acts. Deep linking. It enables links to other legal acts referred to within ...",
+        "content": ""
+      },
+      {
+        "title": "Verpackungen und Verpackungsabfälle - EUR-Lex",
+        "url": "https://eur-lex.europa.eu/DE/legal-content/summary/packaging-and-packaging-waste.html",
+        "snippet": "Durch die Modulation der Gebühren, die von den Herstellern für das Inverkehrbringen von Verpackungen zu zahlen sind, ermöglichen EPR-Systeme Herstellern und Mitgliedstaaten, das Design von Produkten und ihren Komponenten zu fördern, die umweltschonender sind. HAUPTDOKUMENT Richtlinie 94/62/EG des Europäischen Parlaments und des Rates vom 20.",
+        "content": ""
+      },
+      {
+        "title": "Einwegkunststoffartikel – Bekämpfung der Auswirkungen auf die Umwelt ...",
+        "url": "https://eur-lex.europa.eu/DE/legal-content/summary/single-use-plastics-fighting-the-impact-on-the-environment.html",
+        "snippet": "Sie zielt darauf ab, die Auswirkungen von bestimmten Kunststoffartikeln auf die Umwelt zu vermeiden und zu vermindern und den Übergang zur Kreislaufwirtschaft in der gesamten Europäischen Union (EU) zu fördern, indem sie eine Kombination von Maßnahmen einführt, die auf die von der Richtlinie erfassten Produkte zugeschnitten sind ...",
+        "content": ""
+      },
+      {
+        "title": "2025/40",
+        "url": "https://eur-lex.europa.eu/legal-content/DE/TXT/PDF/?uri=OJ%3AL_202500040",
+        "snippet": "22. Jan. 2025 · VERORDNUNG (EU) 2025/40 DES EUROPÄISCHEN PARLAMENTS UND DES RATES vom 19. Dezember 2024 über Verpackungen und Verpackungsabfälle, zur Änderung der Verordnung (EU) 2019/1020 und der Richtlinie (EU) 2019/904 sowie zur Aufhebung der Richtlinie 94/62/EG",
+        "content": ""
+      },
+      {
+        "title": "2025/40 - EUR-Lex",
+        "url": "https://eur-lex.europa.eu/eli/reg/2025/40/oj/deu/pdf",
+        "snippet": "Im Jahr 2014 hat die Kommission in ihrer Eignungsprüfung in Bezug auf die Richtlinie 94/62/EG empfohlen, die grundlegenden Anforderungen für Verpackungen, die als ein entscheidendes Instrument zur Erreichung einer besseren Umweltverträglichkeit von Verpackungen angesehen wurden, anzupassen, um diese Anforderungen konkreter und noch leichter ...",
+        "content": ""
+      },
+      {
+        "title": "Verordnungen der Europäischen Union - EUR-Lex",
+        "url": "https://eur-lex.europa.eu/DE/legal-content/summary/european-union-regulations.html",
+        "snippet": "Verordnungen, die mittels eines ordentlichen oder besonderen Gesetzgebungsverfahrens vom Rat der Europäischen Union und vom Europäischen Parlament angenommen werden, sind Gesetzgebungsakte. Verordnungen richten sich an abstrakte Personengruppen und nicht an bestimmbare Adressaten und sind in all ihren Teilen verbindlich.",
+        "content": ""
+      },
+      {
+        "title": "EUR-Lex — Access to European Union law — choose your language",
+        "url": "https://eur-lex.europa.eu/legal-content/DE/TXT/HTML/?uri=CELEX:52022PC0677",
+        "snippet": "Die Herstellung von Verpackungen ist eine wichtige Wirtschaftstätigkeit in der EU. Die Regulierungskonzepte unterscheiden sich jedoch von Mitgliedstaat zu Mitgliedstaat, wodurch Hindernisse im Hinblick auf das reibungslose Funktionieren des Binnenmarktes für Verpackungen entstehen.",
+        "content": ""
+      }
+    ],
+    "Die EU hat ab 2025 ein vollständiges Verbot von Einwegplastik-Besteck beschlossen. site:eurostat.ec.europa.eu": []
+  },
+  "langsearch_results": {},
+  "gfc_results": [],
+  "source_client_results": [],
+  "merged_results": [
+    {
+      "title": "Plastikmüll: Was die EU-Regeln bringen - Nachrichten - WDR",
+      "url": "https://www1.wdr.de/nachrichten/plastikabkommen-plastik-europaeische-union-100.html",
+      "snippet": "15. Aug. 2025 · Die EU hat inzwischen entschieden, dass ab 2030 weitere Einweg-Plastikverpackungen verboten sein werden: Dazu zählen Ketchup-Tütchen im Restaurant und Shampoo-Tütchen im Hotel. Obst und...",
+      "content": ""
+    },
+    {
+      "title": "EU beschließt Verbot von Einweg-Plastik-Verpackungen ab 2030",
+      "url": "https://www.tagesschau.de/ausland/europa/eu-verpackungsmuell-plastik-100.html",
+      "snippet": "24. Apr. 2024 · Die EU sagt dem Einweg-Plastik den Kampf an: Von 2030 an soll jede Verpackung recycelbar sein. Viele kleine Packungen wie Ketchup-Tütchen soll es dann nicht mehr geben. Zudem setzt die EU...",
+      "content": ""
+    },
+    {
+      "title": "Einwegkunststoff, Verpackungen und Pfand - Schwerin - IHK",
+      "url": "https://www.ihk.de/schwerin/standort-westmecklenburg/handel-und-stadtentwicklung/rechtsfragen/plastiktuetenverbot-4670804",
+      "snippet": "Ab 2026 müssen Händler und Gastronomen ihre Verpackungen konsequent an Nachhaltigkeit, Kreislaufwirtschaft und EU-Standards anpassen. Das vollständige DIHK- ...",
+      "content": ""
+    },
+    {
+      "title": "Themen (Aktuell) in Burning Crusade Classic - Allgemeines - World of ...",
+      "url": "https://eu.forums.blizzard.com/de/wow/c/wow-classic/burning-crusade-classic-allgemeines/254",
+      "snippet": "Vor 3 Tagen · Themen (Aktuell) in Burning Crusade Classic - Allgemeines - World of Warcraft Forums",
+      "content": ""
+    },
+    {
+      "title": "Einwegplastik-Verbot der EU: Geltungsbereich und Umfang",
+      "url": "https://www.bussgeldkatalog.net/einwegplastik-verbot/",
+      "snippet": "Mehr als 80 Prozent der Abfälle, die im Meer herumtreiben, sind laut Angaben der Europäischen Kommission Plastikmüll. Deshalb hat die Europäische Union (EU) ein Verbot von Einwegplastik und Styroporprodukten beschlossen, das von allen Mitgliedsstaaten umgesetzt werden muss. Es soll die Nutzung von Wegwerfartikeln aus Kunststoff reduzieren. Das Einw...",
+      "content": ""
+    },
+    {
+      "title": "Nachhaltige Verpackungen: Rat beschließt neue Vorschriften ...",
+      "url": "https://www.consilium.europa.eu/de/press/press-releases/2024/12/16/sustainable-packaging-council-signs-off-on-new-rules-for-less-waste-and-more-re-use-in-the-eu/",
+      "snippet": "Dec 16, 2024 · Die neuen Vorschriften werden das Aufkommen von Verpackungsabfällen deutlich verringern, indem verbindliche Wiederverwendungsziele festgelegt, bestimmte Arten von Einwegverpackungen eingeschränkt und die Wirtschaftsakteure verpflichtet werden, möglichst wenig Verpackungen zu verwenden.",
+      "content": ""
+    },
+    {
+      "title": "EU-Plastikverbot: Wichtiges im Überblick | Duni Deutschland",
+      "url": "https://de.duni.com/de/magazin/eu-plastikverbot-was-2021-wichtig-wird?srsltid=AfmBOorN83psJOGuad8d60l2YVrPHoR2OLcGCIAIYkgVaoO5SAI7XEWL",
+      "snippet": "Das hat das Bundeskabinett mit einer Änderung des Verpackungsgesetzes beschlossen. Damit werden Menüboxen und andere Einwegverpackungen zwar nicht verboten ...",
+      "content": ""
+    },
+    {
+      "title": "Die EU-Kunststoffrichtlinie 2025 zielt darauf ab, Einwegkunststoffe zu ...",
+      "url": "https://www.bioleaderpack.com/de/eus-2025-kunststoffrichtlinie-zielt-darauf-ab-einwegkunststoffe-zu-halbieren%E2%80%91-was-geschirrhersteller-und-unternehmen-wissen-mussen/",
+      "snippet": "Jun 18, 2025 · Die Richtlinie der Europäischen Union über die Verwendung von Einwegkunststoffen (Richtlinie (EU) 2019/904) zielt darauf ab, den Verbrauch von Einwegkunststoffgeschirr - einschließlich Bechern, Besteck, Tellern, Wattestäbchen und Feuchttüchern - bis 2025 um 50% zu reduzieren.",
+      "content": ""
+    },
+    {
+      "title": "EU-Einwegplastikverbot - NABU",
+      "url": "https://www.nabu.de/umwelt-und-ressourcen/ressourcenschonung/kunststoffe-und-bioplastik/30215.html",
+      "snippet": "Im Bereich Einweggeschirr und To-Go-Verpackungen ist das Einwegplastikverbot damit auf Teller und Besteck inklusive Rührstäbchen und Trinkhalme beschränkt.",
+      "content": ""
+    },
+    {
+      "title": "EU-Parlament stimmt für Verbot von Einwegplastik - Die Zeit",
+      "url": "https://www.zeit.de/politik/ausland/2024-04/eu-parlament-plastikmuell-verbot-einweg",
+      "snippet": "Das EU-Parlament hat für ein Verbot bestimmter Einwegverpackungen gestimmt, um den Plastikmüll zu reduzieren. Ab 2023 dürfen beispielsweise Plastikverpackungen für unverarbeitetes Obst und...",
+      "content": ""
+    },
+    {
+      "title": "Themen (Aktuell) in Allgemeines - World of Warcraft Forums",
+      "url": "https://eu.forums.blizzard.com/de/wow/c/community/allgemeines/7",
+      "snippet": "Hallo! Dieser Beitrag richtet sich an alljene, die mit ihrem Char, egal ob es der erste oder siebte ist, Stufe 90 erreicht haben und sich nun fragen, wie sie denn nun an all den s",
+      "content": ""
+    },
+    {
+      "title": "EU-Verbot gegen Einwegplastik: Ein Schritt zur Nachhaltigkeit",
+      "url": "https://www.tomorrow.university/de/blog/eu-verbot-einwegplastik-nachhaltige-zukunft",
+      "snippet": "Ein bedeutender Schritt für nachhaltige Entwicklung: Die EU hat beschlossen, bestimmte Einwegplastikartikel zu verbieten. Diese bahnbrechende Entscheidung zielt darauf ab, die Umweltverschmutzung deutlich zu reduzieren und die natürlichen Ressourcen zu schützen.",
+      "content": ""
+    },
+    {
+      "title": "Fragen und Antworten (FAQ) - BMUKN",
+      "url": "https://www.bundesumweltministerium.de/presse/fragen-und-antworten-faq/thema/Kreislaufwirtschaft?tx_bmubfaq_faq%5Bfilter%5D%5Bclusters%5D=nonclustered&cHash=3d76f6fb61e5c5d7de5988e2ab884c92",
+      "snippet": "Die Hersteller von Einwegkunststoffprodukten werden künftig in die Verantwortung genommen, indem sie sich an den Kosten für die Entsorgung ihrer Produkte ...",
+      "content": ""
+    },
+    {
+      "title": "Die europäische Verpackungsverordnung 2025 tritt am 11 ...",
+      "url": "https://www.ihk.de/duesseldorf/innovation-umwelt-energie/umwelt/abfall2/die-europaeische-verpackungsverordnung-2025-ppwr--6459764",
+      "snippet": "Die neue europäische Verpackungsverordnung (Packaging and Packaging Waste Regulation, PPWR) bildet den aktualisierten Rechtsrahmen für Verpackungen und Verpackungsabfälle in der EU.",
+      "content": ""
+    },
+    {
+      "title": "Themen (Aktuell) - World of Warcraft Forums",
+      "url": "https://eu.forums.blizzard.com/de/wow/latest",
+      "snippet": "Diskutieren Sie aktuelle Themen zu World of Warcraft in den offiziellen deutschen Foren, tauschen Sie sich mit anderen Spielern aus und finden Sie hilfreiche Informationen.",
+      "content": ""
+    },
+    {
+      "title": "FAQ - Häufig gestellte Fragen zu Kunststoffen in der Umwelt - BAFU",
+      "url": "https://www.bafu.admin.ch/de/faq-haeufig-gestellte-fragen-zu-kunststoffen-in-der-umwelt",
+      "snippet": "31.07.2025 ... Die Einwegplastik-Richtlinie der EU verlangt, dass bis zum Jahr 2025 mindestens 77 % der PET-Getränkeflaschen für das Recycling gesammelt werden ...",
+      "content": ""
+    },
+    {
+      "title": "Verbot ab 2025: Einige Plastikflaschen und Verpackungen verschwinden ...",
+      "url": "https://www.fr.de/verbraucher/supermarkt-verbot-2025-plastikflaschen-verpackungen-verschwinden-93297965.html",
+      "snippet": "Ein neues EU-Gesetz, das 2025 in Kraft tritt, wird den Verkauf bestimmter Konserven, Flaschen und Dosen sowie Plastikverpackungen verbieten. Doch was steckt hinter dem Verbot?",
+      "content": ""
+    },
+    {
+      "title": "Plastikmüll: EU kommt Einigung zu Verbot von Einwegplastik ... - Die Zeit",
+      "url": "https://www.zeit.de/politik/2024-03/eu-einwegplastik-verbot-gatronomie-muell",
+      "snippet": "4. März 2024 · 190 Kilogramm Verpackungsmüll produziert ein EU-Bürger pro Jahr – Tendenz steigend. Ein EU-Verbot von Einwegplastik in der Gastronomie soll für weniger Müll sorgen.",
+      "content": ""
+    },
+    {
+      "title": "(k)ein Gamechanger gegen die Verpackungsflut - WWF Deutschland",
+      "url": "https://www.wwf.de/fileadmin/fm-wwf/Publikationen-PDF/Plastik/Die-Mehrwegangebotspflicht-kein-Gamechanger-gegen-die-Plastikflut.pdf",
+      "snippet": "25.10.2024 ... Bereits 2019 haben sich alle EU-Mitgliedstaaten im. Rahmen der EU-Einwegplastik-Richtlinie (SUPD) ... Das. Land Berlin hat ein Verbot von ...",
+      "content": ""
+    },
+    {
+      "title": "Globales Plastikabkommen ab 2025: Herausforderungen & Fortschritte",
+      "url": "https://terra-institute.eu/globales-plastikabkommen-erausforderungen-und-fortschritte/",
+      "snippet": "Globales Plastikabkommen: Warum die UN das geplante Plastikabkommen für 2025 verschoben hat und welche Maßnahmen die EU trifft.",
+      "content": ""
+    },
+    {
+      "title": "Einwegplastik-Richtlinie – wo steht die EU?",
+      "url": "https://www.stiftung-meeresschutz.org/themen/meeresverschmutzung/einwegplastik-richtlinie-eu-wo-steht-europa/",
+      "snippet": "22. Okt. 2022 · Erfahren Sie, wie die EU-Einwegplastik-Richtlinie zur Bekämpfung der Meeresverschmutzung umgesetzt wurde. Eine neue Analyse zeigt positive Entwicklungen und Defizite.",
+      "content": ""
+    },
+    {
+      "title": "EU-Parlament stimmt über Richtlinie ab: Plastik-Verbot soll Müll in ...",
+      "url": "https://www.tagesspiegel.de/politik/plastik-verbot-soll-mull-in-europa-reduzieren-5815798.html",
+      "snippet": "24.10.2018 ... Das Verbot soll in Deutschland greifen, sobald die EU-Richtlinie in nationales Recht umgesetzt ist. Dies dürfte bis spätestens 2021 der Fall ...",
+      "content": ""
+    },
+    {
+      "title": "Plastikflaschen Verbot: Einwegflaschen-Regelungen ab 2025 & 2030",
+      "url": "https://www.lizenzero.de/blog/plastikflaschen-verbot-einwegflaschen-regelungen-ab-2025-2030/",
+      "snippet": "Ab 2025 sind Einweg Plastikflaschen, die hauptsächlich aus PET bestehen verboten, es sei denn sie bestehen zu mindestens 25 % aus recyceltem Material. Außerdem gelten bestimmte Mehrwegflaschen und -dosen als verboten.",
+      "content": ""
+    },
+    {
+      "title": "Freising stellt um: Der lange Abschied vom Plastik",
+      "url": "https://www.merkur.de/lokales/freising/freising-ort28692/freising-stellt-um-der-lange-abschied-vom-plastik-90851724.html",
+      "snippet": "10.07.2021 ... Landkreis - „Fast-Food-Verpackung, Trinkhalme, To-go-Becher: Viele Einwegplastikprodukte sind seit dem 3. Juli in der EU verboten. Eigentlich.",
+      "content": ""
+    },
+    {
+      "title": "Einweg-Plastikverbot in der EU? Ein Pro und Contra - fluter.de",
+      "url": "https://www.fluter.de/plastikverbot-eu-pro-contra",
+      "snippet": "9. Jan. 2020 · Bald sind Einweggeschirr, Wattestäbchen und Strohhalme in der EU verboten. Ist das Plastikverbot ein richtungweisender Schritt oder bloße Symbolpolitik?",
+      "content": ""
+    },
+    {
+      "title": "Verpackung - Der Markt liefert die Antworten – Lebensmittelpraxis.de",
+      "url": "https://lebensmittelpraxis.de/verpackung/31152-verpackung-der-markt-liefert-die-antworten.html",
+      "snippet": "15.07.2021 ... Im Jahr 2018 hat die EU das Verbot von Einwegplastik beschlossen, jetzt tritt es in Kraft ... Ab Samstag, dem 3. Juli 2021, sind viele ...",
+      "content": ""
+    },
+    {
+      "title": "Was unternimmt die EU gegen Plastikmüll ? | tagesschau.de",
+      "url": "https://www.tagesschau.de/ausland/europa/plastik-eu-100.html",
+      "snippet": "Die EU-Kommission will, dass der wachsende Müllberg kleiner wird und hat dafür im Rahmen des \"Green Deals\" eine Strategie mit drei Säulen entwickelt: reparieren, verbieten, recyclen. Als...",
+      "content": ""
+    },
+    {
+      "title": "Was das Plastikverbot der EU bedeutet - DER SPIEGEL",
+      "url": "https://www.spiegel.de/wirtschaft/service/eu-plastikverbot-was-es-bedeutet-was-sich-fuer-verbraucher-aendert-a-1244554.html",
+      "snippet": "19. Dez. 2018 · Die EU sagt Plastik den Kampf an: Wegwerfprodukte wie Plastikteller und Trinkhalme sollen künftig verboten werden. Wie sieht die Regelung aus, was ändert sich für den Verbraucher? Ein Überblick.",
+      "content": ""
+    },
+    {
+      "title": "So setzen die EU-Länder das neue Mehrweg-Modell um",
+      "url": "https://ohn.haendlerbund.de/recht/politik-gesetze/137877-eu-laender-umsetzung-mehrweg-modell",
+      "snippet": "27.03.2023 ... Mehr zum Thema: · Ab Januar 2023: Die neue Mehrweg-Pflicht kommt · Bundestag hat Abgabe für Hersteller von Einweg-Kunststoffprodukten beschlossen ...",
+      "content": ""
+    },
+    {
+      "title": "EU | Plastik: Parlament erlässt neues Verbot - t-online.de",
+      "url": "https://www.t-online.de/klima/politik-wirtschaft/id_100393286/eu-plastik-parlament-erlaesst-neues-verbot.html",
+      "snippet": "Die EU hat neue Regeln zu Reduktion von Verpackungsmüll beschlossen. Die Plastikflut soll so gestoppt werden. Das Europäische Parlament hat am Mittwoch in Straßburg für ein Verbot bestimmter...",
+      "content": ""
+    },
+    {
+      "title": "EUR-Lex - European Union",
+      "url": "https://eur-lex.europa.eu/homepage.html?locale=de",
+      "snippet": "Vor 2 Tagen · Hier finden Sie das Amtsblatt der Europäischen Union und können das EU-Recht, die EU-Rechtsprechung, konsolidierte Fassungen, Zusammenfassungen der Rechtsvorschriften und vieles mehr konsultieren.",
+      "content": ""
+    },
+    {
+      "title": "EU law - EUR-Lex",
+      "url": "https://eur-lex.europa.eu/homepage.html",
+      "snippet": "Vor 3 Tagen · Access the authentic Official Journal of the European Union, EU law, EU case-law, consolidated texts, summaries of legislation, and much more.",
+      "content": ""
+    },
+    {
+      "title": "Amtsblatt der Europäischen Union - EUR-Lex",
+      "url": "https://eur-lex.europa.eu/oj/direct-access.html?locale=de",
+      "snippet": "Das Amtsblatt der Europäischen Union ist das Medium für die amtliche Veröffentlichung von Rechtsakten der EU, sonstigen Rechtsakten sowie amtlichen Informationen der Organe, Einrichtungen und sonstigen Stellen der EU.",
+      "content": ""
+    },
+    {
+      "title": "EUR-Lex - Access to European Union law",
+      "url": "https://eur-lex.org/",
+      "snippet": "Note: The EUR-Lex document register provides access to all European Union legislative acts, court decisions, international agreements, preparatory documents, and other official publications of the EU institutions.",
+      "content": ""
+    },
+    {
+      "title": "EUR-Lex portal - EU Law - EC Library Guides at European Commission Library",
+      "url": "https://ec-europa-eu.libguides.com/eu-law/legislation/eur-lex",
+      "snippet": "Vor 4 Tagen · EUR-Lex is your online gateway to EU Law. It provides the official and most comprehensive access to EU legal documents. It is available in all of the EU’s 24 official languages and is updated daily.",
+      "content": ""
+    },
+    {
+      "title": "Erweiterte Suche - EUR-Lex - European Union",
+      "url": "https://eur-lex.europa.eu/advanced-search-form.html?locale=de",
+      "snippet": "Hilfe bei der Eingabe der CELEX-Nummer im Feld „Suche mit CELEX-Nummer“ im erweiterten Suchformular „Alle Dokumente“. Die CELEX-Nummer ist die eindeutige Kennung eines jeden Dokuments in EUR-Lex (z. B. 32006L0121).",
+      "content": ""
+    },
+    {
+      "title": "EU-Recht - Publications Office of the EU",
+      "url": "https://op.europa.eu/de/law",
+      "snippet": "Ihr Zugangsportal zum Amtsblatt der Europäischen Union, zum EU-Recht, zur EU-Rechtsprechung, zu nationalen Umsetzungsmaßnahmen sowie zu anderen Rechtsdokumenten und Informationen",
+      "content": ""
+    },
+    {
+      "title": "EUR-Lex",
+      "url": "https://eur-lex.europa.eu/de/index.htm",
+      "snippet": "JavaScript is disabled. In order to continue, we need to verify that you're not a robot. This requires JavaScript. Enable JavaScript and then reload the page.",
+      "content": ""
+    },
+    {
+      "title": "Suche nach Rechtstexten | Europäische Union - European Union",
+      "url": "https://european-union.europa.eu/institutions-law-budget/law/find-legislation_de",
+      "snippet": "Finden Sie EU-Rechtsvorschriften, die geltend oder in Vorbereitung sind, auf EUR-Lex und in anderen Verzeichnissen. Erfahren Sie mehr über die EU-Gesetzgebung, die Rechtsvorschriften in Vorbereitung, die Publikationen und die Gründungsverträge.",
+      "content": ""
+    },
+    {
+      "title": "Rückkehr zum Plastik-Strohhalm? Das plant Capri-Sun für sein Aushängeschild",
+      "url": "https://www.swr.de/swraktuell/baden-wuerttemberg/capri-sun-strohhalm-plastik-100.html",
+      "snippet": "Capri-Sun - da werden Kindheitserinnerungen wach.",
+      "content": ""
+    },
+    {
+      "title": "Was geben Haushalte in BW aus? Statistisches Landesamt sucht Freiwillige",
+      "url": "https://www.swr.de/swraktuell/baden-wuerttemberg/90-euro-fuer-blick-auf-den-kassenzettel-100.html",
+      "snippet": "Die Statistiker möchten wissen, wie viel Geld private Haushalte für ihren Einkauf in die Hand nehmen.",
+      "content": ""
+    },
+    {
+      "title": "Prawo UE - EUR-Lex",
+      "url": "https://eur-lex.europa.eu/homepage.html?locale=pl",
+      "snippet": "Vor 3 Tagen · EUROPA EUR-Lex strona główna Prawo UE Aby wyszukać „konkretne wyrażenie”, umieść je w cudzysłowach. Dodaj gwiazdkę (*) w wyszukiwanym terminie, aby znaleźć jego warianty …",
+      "content": ""
+    },
+    {
+      "title": "EUR-Lex — Access to European Union law — choose your language",
+      "url": "https://eur-lex.europa.eu/",
+      "snippet": "EUR-Lex. europa.eu bg Достъп до правото на Европейския съюз es El acceso al Derecho de la Unión Europea cs Přístup k právu Evropské unie da Adgang til EU-lovgivningen de Der Zugang zum EU …",
+      "content": ""
+    },
+    {
+      "title": "12012E/TXT - EN - EUR-Lex - European Union",
+      "url": "https://eur-lex.europa.eu/legal-content/DE/ALL/?uri=CELEX%3A12012E%2FTXT",
+      "snippet": "Consolidated version of the Treaty on the Functioning of the European Union. Konsolidierte Fassung des Vertrags über die Arbeitsweise der Europäischen Union.",
+      "content": ""
+    },
+    {
+      "title": "Find legislation | European Union",
+      "url": "https://european-union.europa.eu/institutions-law-budget/law/find-legislation_en",
+      "snippet": "Search for EU legislation - both in force and under preparation - on EUR-Lex and in other EU legislation directories.",
+      "content": ""
+    },
+    {
+      "title": "Verordnungen der Europäischen Union - EUR-Lex",
+      "url": "https://eur-lex.europa.eu/DE/legal-content/summary/european-union-regulations.html",
+      "snippet": "16.03.2022 ... Verordnungen sind in Artikel 288 des Vertrags über die Arbeitsweise der Europäischen Union (AEUV) definierte Rechtsakte. Sie haben allgemeine ...",
+      "content": ""
+    },
+    {
+      "title": "Official Journal L series daily view - EUR-Lex",
+      "url": "https://eur-lex.europa.eu/oj/daily-view/L-series/default.html",
+      "snippet": "Corrigendum to Regulation (EU) 2025/1355 of the European Central Bank of 2 July 2025 on oversight requirements for systemically important payment systems (ECB/2025/22) (OJ L, 2025/1355, 14.7.2025)",
+      "content": ""
+    },
+    {
+      "title": "Cyber Resilience Act implementation - Frequently asked questions",
+      "url": "https://digital-strategy.ec.europa.eu/en/library/cyber-resilience-act-implementation-frequently-asked-questions",
+      "snippet": "3. Dez. 2025 · Find the frequently asked questions on the implementation of the Cyber Resilience Act (CRA).",
+      "content": ""
+    },
+    {
+      "title": "Regulation - EU - 2025/652 - EN - EUR-Lex",
+      "url": "https://eur-lex.europa.eu/eli/reg/2025/652/oj/eng",
+      "snippet": "Apr 3, 2025 · Commission Regulation (EU) 2025/652 of 2 April 2025 amending Regulation (EC) No 1333/2008 of the European Parliament and the Council and Commission Regulation (EU) No 231/2012 as regards the use of Steviol glycosides produced by fermentation using Yarrowia lipolytica",
+      "content": ""
+    },
+    {
+      "title": "EUR-Lex Vorschriften und Verträge - Juris",
+      "url": "https://www.juris.de/jportal/nav/produkte/werk/eur-lex-vorschriften-und-vertr%C3%A4ge.jsp",
+      "snippet": "Quelle: © Europäische Union, http://eur-lex.europa.eu/. Jetzt Produkt wählen. Der Titel ist enthalten in: juris DAV · Nutzen Sie Rechtsprechung, Gesetze ...",
+      "content": ""
+    },
+    {
+      "title": "EU-Recht - Europäische Kommission - European Commission",
+      "url": "https://commission.europa.eu/law/search-law/eu-law_de",
+      "snippet": "EU-Rechtsprechung Suche nach Rechtssachen, Urteilen, Besschlüssen und Stellungnahmen des Europäischen Gerichtshofs.",
+      "content": ""
+    },
+    {
+      "title": "Directive (EU) 2024/1799 on the Repair of Goods",
+      "url": "https://circular-cities-and-regions.ec.europa.eu/support-materials/eu-regulations-legislation/directive-eu-20241799-repair-goods",
+      "snippet": "14. Juli 2025 · Directive (EU) 2024/1799, adopted on 13 June 2024, establishes common rules to promote the repair of goods, aiming to enhance sustainable consumption and support the circular economy within the European Union.",
+      "content": ""
+    },
+    {
+      "title": "Regulation - 2023/1805 - EN - EUR-Lex",
+      "url": "https://eur-lex.europa.eu/eli/reg/2023/1805/oj/eng",
+      "snippet": "Sep 22, 2023 · Regulation (EU) 2023/1805 of the European Parliament and of the Council of 13 September 2023 on the use of renewable and low-carbon fuels in maritime transport, and amending Directive 2009/16/EC (Text with EEA relevance) PE/26/2023/INIT",
+      "content": ""
+    },
+    {
+      "title": "EU law - European Commission",
+      "url": "https://commission.europa.eu/law/search-law/eu-law_en",
+      "snippet": "Find treaties, legislation, preparatory acts, case law, EFTA documents and official journal on EUR-Lex, the EU's legal portal. Learn how to use EUR-Lex to access and search EU law.",
+      "content": ""
+    },
+    {
+      "title": "Euro - EUR-Lex - European Union",
+      "url": "https://eur-lex.europa.eu/legal-content/DE/ALL/?uri=LEGISSUM:euro",
+      "snippet": "Mit diesen Kriterien soll sichergestellt werden, dass Mitgliedstaaten, die dem Euro-Währungsgebiet beitreten, sich reibungslos in die Währungsunion integrieren ...",
+      "content": ""
+    },
+    {
+      "title": "Felhatalmazáson alapuló rendelet - 208/2015 - EN - EUR-Lex",
+      "url": "https://data.europa.eu/eli/reg_del/2015/208/oj/hun",
+      "snippet": "Do you want to help improving EUR-Lex ? This is a list of experimental features that you can enable. These features are still under development; they are not fully tested, and might reduce EUR-Lex stability. Don't forget to give your feedback!",
+      "content": ""
+    },
+    {
+      "title": "Homepage - http://eur-lex.europa.eu/legal ... - Bundesnetzagentur",
+      "url": "https://www.bundesnetzagentur.de/SharedDocs/ExterneLinks/DE/Sachgebiete/Telekommunikation/Unternehmen_Institutionen/Netzneutralitaet/binnenmarktVO.html",
+      "snippet": "http://eur-lex.europa.eu/legal-content/DE/ALL/?uri=CELEX%3A32015R2120. Webseite: http://eur-lex.europa.eu/legal-content/DE/ALL/?uri=CELEX%3A32015R2120 ...",
+      "content": ""
+    },
+    {
+      "title": "EU law - EUR-Lex",
+      "url": "https://eur-lex.europa.eu/homepage.html?locale=en",
+      "snippet": "2 days ago · Access the authentic Official Journal of the European Union, EU law, EU case-law, consolidated texts, summaries of legislation, and much more.",
+      "content": ""
+    },
+    {
+      "title": "EUR-Lex - C_202601928 - EN - EUR-Lex - data.europa.eu",
+      "url": "https://data.europa.eu/eli/C/2026/1928/oj",
+      "snippet": "In Case E-11/25, EFTA Surveillance Authority v Iceland – APPLICATION seeking a declaration that Iceland has failed to fulfil its obligations under the act referred to at points 1a, 7a, 7g and 7i of Annex XIX to the Agreement on the European Economic Area, (Directive (EU) 2019/2161 of the European Parliament and of the Council of 27 ...",
+      "content": ""
+    },
+    {
+      "title": "Einwegkunststoffprodukte in der Europäischen Union - Your Europe",
+      "url": "https://europa.eu/youreurope/business/product-requirements/recycling-waste-management/single-use-plastics/index_de.htm",
+      "snippet": "12. Nov. 2025 · So befolgen Sie die EU-Vorschriften zu Einwegkunststoffprodukten. Welche Produkte sind verboten, welche Anforderungen an Kennzeichnung und Gestaltung gelten und was hat es mit der erweiterten Herstellerverantwortung auf sich?",
+      "content": ""
+    },
+    {
+      "title": "Fragen und Antworten: Umsetzung der Einwegkunststoffrichtlinie",
+      "url": "https://www.umweltbundesamt.de/themen/abfall-ressourcen/produktverantwortung-in-der-abfallwirtschaft/verpackungen/fragen-antworten-umsetzung-der",
+      "snippet": "Durch die EU-Richtlinie 2019/904 über die Verringerung der Auswirkungen bestimmter Kunststoffprodukte auf die Umwelt (Einwegkunststoffrichtlinie - EWKRL) werden 10 Produktkategorien mit Maßnahmen belegt, die 86 Prozent der gefundenen Einwegkunststoffprodukte ausmachen.",
+      "content": ""
+    },
+    {
+      "title": "Einwegplastik: Verboten, aber online zu kaufen",
+      "url": "https://www.verbraucherzentrale.nrw/wissen/umwelt-haushalt/nachhaltigkeit/einwegplastik-verboten-aber-online-zu-kaufen-85629",
+      "snippet": "05.07.2024 ... Seit dem 3. Juli 2021 sind in der EU viele Wegwerfprodukte aus Kunststoff verboten, darunter Einweggeschirr und Einwegbesteck.",
+      "content": ""
+    },
+    {
+      "title": "Richtlinie (EU) 2019/904 (Einwegkunststoff-Richtlinie) - Wikipedia",
+      "url": "https://de.wikipedia.org/wiki/Richtlinie_(EU)_2019/904_(Einwegkunststoff-Richtlinie)",
+      "snippet": "EU-weit einheitliche Normen sollen insbesondere gewährleisten, dass die erforderliche Widerstandsfähigkeit, Verlässlichkeit und Sicherheit von Verschlüssen für Getränkebehälter, einschließlich der Verschlüsse für kohlensäurehaltige Getränke, erhalten bleibt.",
+      "content": ""
+    },
+    {
+      "title": "Warum Plastikverbote nicht wirken - und was sich ändern muss",
+      "url": "https://www.dw.com/de/warum-plastikverbote-nicht-wirken-und-was-sich-%C3%A4ndern-muss/a-75199938",
+      "snippet": "Jan 1, 2026 · Knapp 40 Prozent davon waren Einwegplastik wie Strohhalme, Take-away-Boxen aus Styropor, Plastik-Besteck oder Teller. Die Idee der EU: Einfach die schlimmsten Übeltäter verbieten und das...",
+      "content": ""
+    },
+    {
+      "title": "Einwegkunststoffrichtlinie in der EU: Die SUPD im Blick",
+      "url": "https://deutsche-recycling.de/blog/einwegkunststoffrichtlinie-in-der-eu-alle-fakten/",
+      "snippet": "12. Mai 2024 · Die EU-Einwegkunststoffrichtlinie (SUPD) soll die Umweltbelastung durch Plastikabfälle verringern. Verboten sind Einweg-Besteck, -Teller und -Becher aus Plastik. Unternehmen müssen die erweiterte Herstellerverantwortung (EPR) übernehmen, Entsorgungskosten tragen und Produkte kennzeichnen.",
+      "content": ""
+    },
+    {
+      "title": "Kunststoffabfälle in Deutschland - NABU",
+      "url": "https://www.nabu.de/umwelt-und-ressourcen/abfall-und-recycling/22033.html",
+      "snippet": "Nach der sogenannten outputbezogenen Quotenberechnung wurden 2023 in Deutschland 52,3 Prozent der Abfälle durch Kunststoffverpackungen recycelt („stofflich ...",
+      "content": ""
+    },
+    {
+      "title": "Herstellungsverbot für Einwegplastik – Einstieg ins Umdenken? - MDR",
+      "url": "https://www.mdr.de/wissen/einwegplastik-verbot-der-herstellung-in-der-eu-100.html",
+      "snippet": "03.07.2021 ... Auch ein Import in die EU ist jetzt verboten. Das soll helfen, Plastikmüll zu vermeiden, der achtlos in die Landschaft geworfen wird und nicht ...",
+      "content": ""
+    },
+    {
+      "title": "Themen (Aktuell) in WoW Classic - World of Warcraft Forums",
+      "url": "https://eu.forums.blizzard.com/de/wow/c/wow-classic/231",
+      "snippet": "Alles rund um World of Warcraft Classic gehört in diese Foren.",
+      "content": ""
+    },
+    {
+      "title": "Quiz: Trennst du deinen Müll richtig? Oder recycelst du falsch?",
+      "url": "https://www.schroedingerskatze.at/muelltrennung/",
+      "snippet": "27.12.2019 ... Ab 2021 will die EU Produkte aus Einwegplastik verbieten. Plastikgabeln, -sackerl und -strohhalme sollen dann Geschichte sein. Diese ...",
+      "content": ""
+    },
+    {
+      "title": "Mikroplastik im Wasser - WWF sieht eine \"Plastifizierung\" der Meere",
+      "url": "https://www.deutschlandfunk.de/studie-zur-plastifizierung-der-meere-100.html",
+      "snippet": "08.02.2022 ... (*) Frau Bergmann wurde in einer früheren Version falsch geschrieben. Wir haben den Fehler korrigiert. Mehr aus der Sendung Umwelt und ...",
+      "content": ""
+    },
+    {
+      "title": "Richtlinie - 2019/904 - EN - EUR-Lex",
+      "url": "https://eur-lex.europa.eu/legal-content/DE/TXT/?uri=CELEX:32019L0904",
+      "snippet": "6. Dez. 2019 · Das System indirekter Gebühren gemäß der Richtlinie (EU) 2019/883 des Europäischen Parlaments und des Rates (18) für das Entladen von Abfällen von Schiffen bietet ein System, um den Anreiz zu nehmen, Abfälle auf See zu verklappen, und garantiert ein Entladerecht.",
+      "content": ""
+    },
+    {
+      "title": "Einwegverpackungen wiederverwenden: nachhaltig oder schädlich?",
+      "url": "https://essenzielles.at/einwegverpackungen-wiederverwenden/",
+      "snippet": "15.01.2022 ... Fakten statt Fake News · Für Figurbewusste · Fett-weg-Spritze: Die ... Produkte, die dieses Zeichen tragen, entsprechen den Anforderungen der ...",
+      "content": ""
+    },
+    {
+      "title": "Ist es falsch von mir als Hundehalter, Hundekotbeutel in fremde ...",
+      "url": "https://www.reddit.com/r/norge/comments/psgg9c/er_det_galt_av_meg_som_hundeeier_%C3%A5_kaste/?tl=de",
+      "snippet": "21.09.2021 ... ... EU-Richtlinie (2019/904) über Einwegplastik legal ... Wenn es sich falsch anfühlt und du unsicher bist, dann ist es garantiert auch falsch.",
+      "content": ""
+    },
+    {
+      "title": "Von Bio bis Mikroplastik: Wie gut kennen Sie sich aus?",
+      "url": "https://www.bpb.de/themen/medien-journalismus/netzdebatte/282384/von-bio-bis-mikroplastik-wie-gut-kennen-sie-sich-aus/",
+      "snippet": "Ihre Antwort war falsch. Erläuterung. Insgesamt 18,16 Million Tonnen ... 2019 hat das Kabinett in Ruandas Hauptstadt Kigali – genau wie die EU – einen ...",
+      "content": ""
+    },
+    {
+      "title": "Verordnung - EU - 2025/40 - DE - EUR-Lex",
+      "url": "https://eur-lex.europa.eu/eli/reg/2025/40/oj?eliuri=eli%3Areg%3A2025%3A40%3Aoj&locale=de",
+      "snippet": "Verordnung (EU) 2025/40 des Europäischen Parlaments und des Rates vom 19. Dezember 2024 über Verpackungen und Verpackungsabfälle, zur Änderung der Verordnung (EU) 2019/1020 und der Richtlinie (EU) 2019/904 sowie zur Aufhebung der Richtlinie 94/62/EG (Text von Bedeutung für den EWR) PE/73/2024/REV/1 ABl.",
+      "content": ""
+    },
+    {
+      "title": "Regulation - EU - 2025/40 - EN - EUR-Lex",
+      "url": "https://eur-lex.europa.eu/eli/reg/2025/40/oj/eng",
+      "snippet": "22. Jan. 2025 · Regulation (EU) 2025/40 of the European Parliament and of the Council of 19 December 2024 on packaging and packaging waste, amending Regulation (EU) 2019/1020 and Directive (EU) 2019/904, and repealing Directive 94/62/EC (Text with EEA relevance)",
+      "content": ""
+    },
+    {
+      "title": "Verordnung - EU - 2025/40 - EN - EUR-Lex",
+      "url": "https://eur-lex.europa.eu/legal-content/DE/HIS/?uri=OJ:L_202500040",
+      "snippet": "Jan 22, 2025 · Replacement of CELEX identifiers by short titles - experimental feature. It replaces clickable CELEX identifiers of treaties and case-law by short titles. Visualisation of document relationships. It displays a dynamic graph with relations between the act and related documents. It is currently only available for legal acts. Deep linking. It enables links to other legal acts referred to within ...",
+      "content": ""
+    },
+    {
+      "title": "Verpackungen und Verpackungsabfälle - EUR-Lex",
+      "url": "https://eur-lex.europa.eu/DE/legal-content/summary/packaging-and-packaging-waste.html",
+      "snippet": "Durch die Modulation der Gebühren, die von den Herstellern für das Inverkehrbringen von Verpackungen zu zahlen sind, ermöglichen EPR-Systeme Herstellern und Mitgliedstaaten, das Design von Produkten und ihren Komponenten zu fördern, die umweltschonender sind. HAUPTDOKUMENT Richtlinie 94/62/EG des Europäischen Parlaments und des Rates vom 20.",
+      "content": ""
+    },
+    {
+      "title": "Einwegkunststoffartikel – Bekämpfung der Auswirkungen auf die Umwelt ...",
+      "url": "https://eur-lex.europa.eu/DE/legal-content/summary/single-use-plastics-fighting-the-impact-on-the-environment.html",
+      "snippet": "Sie zielt darauf ab, die Auswirkungen von bestimmten Kunststoffartikeln auf die Umwelt zu vermeiden und zu vermindern und den Übergang zur Kreislaufwirtschaft in der gesamten Europäischen Union (EU) zu fördern, indem sie eine Kombination von Maßnahmen einführt, die auf die von der Richtlinie erfassten Produkte zugeschnitten sind ...",
+      "content": ""
+    },
+    {
+      "title": "2025/40",
+      "url": "https://eur-lex.europa.eu/legal-content/DE/TXT/PDF/?uri=OJ%3AL_202500040",
+      "snippet": "22. Jan. 2025 · VERORDNUNG (EU) 2025/40 DES EUROPÄISCHEN PARLAMENTS UND DES RATES vom 19. Dezember 2024 über Verpackungen und Verpackungsabfälle, zur Änderung der Verordnung (EU) 2019/1020 und der Richtlinie (EU) 2019/904 sowie zur Aufhebung der Richtlinie 94/62/EG",
+      "content": ""
+    },
+    {
+      "title": "2025/40 - EUR-Lex",
+      "url": "https://eur-lex.europa.eu/eli/reg/2025/40/oj/deu/pdf",
+      "snippet": "Im Jahr 2014 hat die Kommission in ihrer Eignungsprüfung in Bezug auf die Richtlinie 94/62/EG empfohlen, die grundlegenden Anforderungen für Verpackungen, die als ein entscheidendes Instrument zur Erreichung einer besseren Umweltverträglichkeit von Verpackungen angesehen wurden, anzupassen, um diese Anforderungen konkreter und noch leichter ...",
+      "content": ""
+    },
+    {
+      "title": "EUR-Lex — Access to European Union law — choose your language",
+      "url": "https://eur-lex.europa.eu/legal-content/DE/TXT/HTML/?uri=CELEX:52022PC0677",
+      "snippet": "Die Herstellung von Verpackungen ist eine wichtige Wirtschaftstätigkeit in der EU. Die Regulierungskonzepte unterscheiden sich jedoch von Mitgliedstaat zu Mitgliedstaat, wodurch Hindernisse im Hinblick auf das reibungslose Funktionieren des Binnenmarktes für Verpackungen entstehen.",
+      "content": ""
+    }
+  ],
+  "ranked_sources": [
+    {
+      "result": {
+        "title": "Official Journal L series daily view - EUR-Lex",
+        "url": "https://eur-lex.europa.eu/oj/daily-view/L-series/default.html",
+        "snippet": "Corrigendum to Regulation (EU) 2025/1355 of the European Central Bank of 2 July 2025 on oversight requirements for systemically important payment systems (ECB/2025/22) (OJ L, 2025/1355, 14.7.2025)",
+        "content": ""
+      },
+      "tier": 5,
+      "relevance_score": 0.1,
+      "should_scrape": true,
+      "skip_reason": null,
+      "hybrid_score": 0.30000000000000004
+    },
+    {
+      "result": {
+        "title": "Verbot ab 2025: Einige Plastikflaschen und Verpackungen verschwinden ...",
+        "url": "https://www.fr.de/verbraucher/supermarkt-verbot-2025-plastikflaschen-verpackungen-verschwinden-93297965.html",
+        "snippet": "Ein neues EU-Gesetz, das 2025 in Kraft tritt, wird den Verkauf bestimmter Konserven, Flaschen und Dosen sowie Plastikverpackungen verbieten. Doch was steckt hinter dem Verbot?",
+        "content": ""
+      },
+      "tier": 3,
+      "relevance_score": 0.19406513194834363,
+      "should_scrape": true,
+      "skip_reason": null,
+      "hybrid_score": 0.2940651319483436
+    },
+    {
+      "result": {
+        "title": "Plastikmüll: EU kommt Einigung zu Verbot von Einwegplastik ... - Die Zeit",
+        "url": "https://www.zeit.de/politik/2024-03/eu-einwegplastik-verbot-gatronomie-muell",
+        "snippet": "4. März 2024 · 190 Kilogramm Verpackungsmüll produziert ein EU-Bürger pro Jahr – Tendenz steigend. Ein EU-Verbot von Einwegplastik in der Gastronomie soll für weniger Müll sorgen.",
+        "content": ""
+      },
+      "tier": 3,
+      "relevance_score": 0.18813026389668724,
+      "should_scrape": true,
+      "skip_reason": null,
+      "hybrid_score": 0.2881302638966873
+    },
+    {
+      "result": {
+        "title": "Einwegplastik-Verbot der EU: Geltungsbereich und Umfang",
+        "url": "https://www.bussgeldkatalog.net/einwegplastik-verbot/",
+        "snippet": "Mehr als 80 Prozent der Abfälle, die im Meer herumtreiben, sind laut Angaben der Europäischen Kommission Plastikmüll. Deshalb hat die Europäische Union (EU) ein Verbot von Einwegplastik und Styroporprodukten beschlossen, das von allen Mitgliedsstaaten umgesetzt werden muss. Es soll die Nutzung von Wegwerfartikeln aus Kunststoff reduzieren. Das Einw...",
+        "content": ""
+      },
+      "tier": 0,
+      "relevance_score": 0.2750253807106599,
+      "should_scrape": false,
+      "skip_reason": "low_tier",
+      "hybrid_score": 0.2750253807106599
+    },
+    {
+      "result": {
+        "title": "EU-Verbot gegen Einwegplastik: Ein Schritt zur Nachhaltigkeit",
+        "url": "https://www.tomorrow.university/de/blog/eu-verbot-einwegplastik-nachhaltige-zukunft",
+        "snippet": "Ein bedeutender Schritt für nachhaltige Entwicklung: Die EU hat beschlossen, bestimmte Einwegplastikartikel zu verbieten. Diese bahnbrechende Entscheidung zielt darauf ab, die Umweltverschmutzung deutlich zu reduzieren und die natürlichen Ressourcen zu schützen.",
+        "content": ""
+      },
+      "tier": 0,
+      "relevance_score": 0.24,
+      "should_scrape": false,
+      "skip_reason": "low_tier",
+      "hybrid_score": 0.24
+    },
+    {
+      "result": {
+        "title": "Verpackung - Der Markt liefert die Antworten – Lebensmittelpraxis.de",
+        "url": "https://lebensmittelpraxis.de/verpackung/31152-verpackung-der-markt-liefert-die-antworten.html",
+        "snippet": "15.07.2021 ... Im Jahr 2018 hat die EU das Verbot von Einwegplastik beschlossen, jetzt tritt es in Kraft ... Ab Samstag, dem 3. Juli 2021, sind viele ...",
+        "content": ""
+      },
+      "tier": 0,
+      "relevance_score": 0.24,
+      "should_scrape": false,
+      "skip_reason": "low_tier",
+      "hybrid_score": 0.24
+    },
+    {
+      "result": {
+        "title": "Plastikmüll: Was die EU-Regeln bringen - Nachrichten - WDR",
+        "url": "https://www1.wdr.de/nachrichten/plastikabkommen-plastik-europaeische-union-100.html",
+        "snippet": "15. Aug. 2025 · Die EU hat inzwischen entschieden, dass ab 2030 weitere Einweg-Plastikverpackungen verboten sein werden: Dazu zählen Ketchup-Tütchen im Restaurant und Shampoo-Tütchen im Hotel. Obst und...",
+        "content": ""
+      },
+      "tier": 3,
+      "relevance_score": 0.13,
+      "should_scrape": true,
+      "skip_reason": null,
+      "hybrid_score": 0.23
+    },
+    {
+      "result": {
+        "title": "Herstellungsverbot für Einwegplastik – Einstieg ins Umdenken? - MDR",
+        "url": "https://www.mdr.de/wissen/einwegplastik-verbot-der-herstellung-in-der-eu-100.html",
+        "snippet": "03.07.2021 ... Auch ein Import in die EU ist jetzt verboten. Das soll helfen, Plastikmüll zu vermeiden, der achtlos in die Landschaft geworfen wird und nicht ...",
+        "content": ""
+      },
+      "tier": 3,
+      "relevance_score": 0.11,
+      "should_scrape": true,
+      "skip_reason": null,
+      "hybrid_score": 0.21000000000000002
+    },
+    {
+      "result": {
+        "title": "EU | Plastik: Parlament erlässt neues Verbot - t-online.de",
+        "url": "https://www.t-online.de/klima/politik-wirtschaft/id_100393286/eu-plastik-parlament-erlaesst-neues-verbot.html",
+        "snippet": "Die EU hat neue Regeln zu Reduktion von Verpackungsmüll beschlossen. Die Plastikflut soll so gestoppt werden. Das Europäische Parlament hat am Mittwoch in Straßburg für ein Verbot bestimmter...",
+        "content": ""
+      },
+      "tier": 2,
+      "relevance_score": 0.1740651319483436,
+      "should_scrape": true,
+      "skip_reason": null,
+      "hybrid_score": 0.2040651319483436
+    },
+    {
+      "result": {
+        "title": "Von Bio bis Mikroplastik: Wie gut kennen Sie sich aus?",
+        "url": "https://www.bpb.de/themen/medien-journalismus/netzdebatte/282384/von-bio-bis-mikroplastik-wie-gut-kennen-sie-sich-aus/",
+        "snippet": "Ihre Antwort war falsch. Erläuterung. Insgesamt 18,16 Million Tonnen ... 2019 hat das Kabinett in Ruandas Hauptstadt Kigali – genau wie die EU – einen ...",
+        "content": ""
+      },
+      "tier": 5,
+      "relevance_score": 0.0,
+      "should_scrape": true,
+      "skip_reason": null,
+      "hybrid_score": 0.2
+    },
+    {
+      "result": {
+        "title": "EU-Parlament stimmt über Richtlinie ab: Plastik-Verbot soll Müll in ...",
+        "url": "https://www.tagesspiegel.de/politik/plastik-verbot-soll-mull-in-europa-reduzieren-5815798.html",
+        "snippet": "24.10.2018 ... Das Verbot soll in Deutschland greifen, sobald die EU-Richtlinie in nationales Recht umgesetzt ist. Dies dürfte bis spätestens 2021 der Fall ...",
+        "content": ""
+      },
+      "tier": 3,
+      "relevance_score": 0.09351197263397946,
+      "should_scrape": true,
+      "skip_reason": null,
+      "hybrid_score": 0.19351197263397946
+    },
+    {
+      "result": {
+        "title": "Warum Plastikverbote nicht wirken - und was sich ändern muss",
+        "url": "https://www.dw.com/de/warum-plastikverbote-nicht-wirken-und-was-sich-%C3%A4ndern-muss/a-75199938",
+        "snippet": "Jan 1, 2026 · Knapp 40 Prozent davon waren Einwegplastik wie Strohhalme, Take-away-Boxen aus Styropor, Plastik-Besteck oder Teller. Die Idee der EU: Einfach die schlimmsten Übeltäter verbieten und das...",
+        "content": ""
+      },
+      "tier": 0,
+      "relevance_score": 0.19,
+      "should_scrape": false,
+      "skip_reason": "low_tier",
+      "hybrid_score": 0.19
+    },
+    {
+      "result": {
+        "title": "EU beschließt Verbot von Einweg-Plastik-Verpackungen ab 2030",
+        "url": "https://www.tagesschau.de/ausland/europa/eu-verpackungsmuell-plastik-100.html",
+        "snippet": "24. Apr. 2024 · Die EU sagt dem Einweg-Plastik den Kampf an: Von 2030 an soll jede Verpackung recycelbar sein. Viele kleine Packungen wie Ketchup-Tütchen soll es dann nicht mehr geben. Zudem setzt die EU...",
+        "content": ""
+      },
+      "tier": 3,
+      "relevance_score": 0.07999999999999999,
+      "should_scrape": true,
+      "skip_reason": null,
+      "hybrid_score": 0.18
+    },
+    {
+      "result": {
+        "title": "Die EU-Kunststoffrichtlinie 2025 zielt darauf ab, Einwegkunststoffe zu ...",
+        "url": "https://www.bioleaderpack.com/de/eus-2025-kunststoffrichtlinie-zielt-darauf-ab-einwegkunststoffe-zu-halbieren%E2%80%91-was-geschirrhersteller-und-unternehmen-wissen-mussen/",
+        "snippet": "Jun 18, 2025 · Die Richtlinie der Europäischen Union über die Verwendung von Einwegkunststoffen (Richtlinie (EU) 2019/904) zielt darauf ab, den Verbrauch von Einwegkunststoffgeschirr - einschließlich Bechern, Besteck, Tellern, Wattestäbchen und Feuchttüchern - bis 2025 um 50% zu reduzieren.",
+        "content": ""
+      },
+      "tier": 0,
+      "relevance_score": 0.18,
+      "should_scrape": false,
+      "skip_reason": "low_tier",
+      "hybrid_score": 0.18
+    },
+    {
+      "result": {
+        "title": "FAQ - Häufig gestellte Fragen zu Kunststoffen in der Umwelt - BAFU",
+        "url": "https://www.bafu.admin.ch/de/faq-haeufig-gestellte-fragen-zu-kunststoffen-in-der-umwelt",
+        "snippet": "31.07.2025 ... Die Einwegplastik-Richtlinie der EU verlangt, dass bis zum Jahr 2025 mindestens 77 % der PET-Getränkeflaschen für das Recycling gesammelt werden ...",
+        "content": ""
+      },
+      "tier": 0,
+      "relevance_score": 0.18,
+      "should_scrape": false,
+      "skip_reason": "low_tier",
+      "hybrid_score": 0.18
+    },
+    {
+      "result": {
+        "title": "Plastikflaschen Verbot: Einwegflaschen-Regelungen ab 2025 & 2030",
+        "url": "https://www.lizenzero.de/blog/plastikflaschen-verbot-einwegflaschen-regelungen-ab-2025-2030/",
+        "snippet": "Ab 2025 sind Einweg Plastikflaschen, die hauptsächlich aus PET bestehen verboten, es sei denn sie bestehen zu mindestens 25 % aus recyceltem Material. Außerdem gelten bestimmte Mehrwegflaschen und -dosen als verboten.",
+        "content": ""
+      },
+      "tier": 0,
+      "relevance_score": 0.18,
+      "should_scrape": false,
+      "skip_reason": "low_tier",
+      "hybrid_score": 0.18
+    },
+    {
+      "result": {
+        "title": "(k)ein Gamechanger gegen die Verpackungsflut - WWF Deutschland",
+        "url": "https://www.wwf.de/fileadmin/fm-wwf/Publikationen-PDF/Plastik/Die-Mehrwegangebotspflicht-kein-Gamechanger-gegen-die-Plastikflut.pdf",
+        "snippet": "25.10.2024 ... Bereits 2019 haben sich alle EU-Mitgliedstaaten im. Rahmen der EU-Einwegplastik-Richtlinie (SUPD) ... Das. Land Berlin hat ein Verbot von ...",
+        "content": ""
+      },
+      "tier": 0,
+      "relevance_score": 0.16,
+      "should_scrape": false,
+      "skip_reason": "low_tier",
+      "hybrid_score": 0.16
+    },
+    {
+      "result": {
+        "title": "EU-Einwegplastikverbot - NABU",
+        "url": "https://www.nabu.de/umwelt-und-ressourcen/ressourcenschonung/kunststoffe-und-bioplastik/30215.html",
+        "snippet": "Im Bereich Einweggeschirr und To-Go-Verpackungen ist das Einwegplastikverbot damit auf Teller und Besteck inklusive Rührstäbchen und Trinkhalme beschränkt.",
+        "content": ""
+      },
+      "tier": 0,
+      "relevance_score": 0.14,
+      "should_scrape": false,
+      "skip_reason": "low_tier",
+      "hybrid_score": 0.14
+    },
+    {
+      "result": {
+        "title": "Einwegplastik: Verboten, aber online zu kaufen",
+        "url": "https://www.verbraucherzentrale.nrw/wissen/umwelt-haushalt/nachhaltigkeit/einwegplastik-verboten-aber-online-zu-kaufen-85629",
+        "snippet": "05.07.2024 ... Seit dem 3. Juli 2021 sind in der EU viele Wegwerfprodukte aus Kunststoff verboten, darunter Einweggeschirr und Einwegbesteck.",
+        "content": ""
+      },
+      "tier": 0,
+      "relevance_score": 0.14,
+      "should_scrape": false,
+      "skip_reason": "low_tier",
+      "hybrid_score": 0.14
+    },
+    {
+      "result": {
+        "title": "Was das Plastikverbot der EU bedeutet - DER SPIEGEL",
+        "url": "https://www.spiegel.de/wirtschaft/service/eu-plastikverbot-was-es-bedeutet-was-sich-fuer-verbraucher-aendert-a-1244554.html",
+        "snippet": "19. Dez. 2018 · Die EU sagt Plastik den Kampf an: Wegwerfprodukte wie Plastikteller und Trinkhalme sollen künftig verboten werden. Wie sieht die Regelung aus, was ändert sich für den Verbraucher? Ein Überblick.",
+        "content": ""
+      },
+      "tier": 3,
+      "relevance_score": 0.03,
+      "should_scrape": false,
+      "skip_reason": "irrelevant",
+      "hybrid_score": 0.13
+    },
+    {
+      "result": {
+        "title": "Einwegkunststoffprodukte in der Europäischen Union - Your Europe",
+        "url": "https://europa.eu/youreurope/business/product-requirements/recycling-waste-management/single-use-plastics/index_de.htm",
+        "snippet": "12. Nov. 2025 · So befolgen Sie die EU-Vorschriften zu Einwegkunststoffprodukten. Welche Produkte sind verboten, welche Anforderungen an Kennzeichnung und Gestaltung gelten und was hat es mit der erweiterten Herstellerverantwortung auf sich?",
+        "content": ""
+      },
+      "tier": 0,
+      "relevance_score": 0.13,
+      "should_scrape": false,
+      "skip_reason": "low_tier",
+      "hybrid_score": 0.13
+    },
+    {
+      "result": {
+        "title": "EU-Plastikverbot: Wichtiges im Überblick | Duni Deutschland",
+        "url": "https://de.duni.com/de/magazin/eu-plastikverbot-was-2021-wichtig-wird?srsltid=AfmBOorN83psJOGuad8d60l2YVrPHoR2OLcGCIAIYkgVaoO5SAI7XEWL",
+        "snippet": "Das hat das Bundeskabinett mit einer Änderung des Verpackungsgesetzes beschlossen. Damit werden Menüboxen und andere Einwegverpackungen zwar nicht verboten ...",
+        "content": ""
+      },
+      "tier": 0,
+      "relevance_score": 0.11,
+      "should_scrape": false,
+      "skip_reason": "low_tier",
+      "hybrid_score": 0.11
+    },
+    {
+      "result": {
+        "title": "Einwegkunststoffrichtlinie in der EU: Die SUPD im Blick",
+        "url": "https://deutsche-recycling.de/blog/einwegkunststoffrichtlinie-in-der-eu-alle-fakten/",
+        "snippet": "12. Mai 2024 · Die EU-Einwegkunststoffrichtlinie (SUPD) soll die Umweltbelastung durch Plastikabfälle verringern. Verboten sind Einweg-Besteck, -Teller und -Becher aus Plastik. Unternehmen müssen die erweiterte Herstellerverantwortung (EPR) übernehmen, Entsorgungskosten tragen und Produkte kennzeichnen.",
+        "content": ""
+      },
+      "tier": 0,
+      "relevance_score": 0.11,
+      "should_scrape": false,
+      "skip_reason": "low_tier",
+      "hybrid_score": 0.11
+    },
+    {
+      "result": {
+        "title": "Die europäische Verpackungsverordnung 2025 tritt am 11 ...",
+        "url": "https://www.ihk.de/duesseldorf/innovation-umwelt-energie/umwelt/abfall2/die-europaeische-verpackungsverordnung-2025-ppwr--6459764",
+        "snippet": "Die neue europäische Verpackungsverordnung (Packaging and Packaging Waste Regulation, PPWR) bildet den aktualisierten Rechtsrahmen für Verpackungen und Verpackungsabfälle in der EU.",
+        "content": ""
+      },
+      "tier": 0,
+      "relevance_score": 0.1,
+      "should_scrape": false,
+      "skip_reason": "low_tier",
+      "hybrid_score": 0.1
+    },
+    {
+      "result": {
+        "title": "Globales Plastikabkommen ab 2025: Herausforderungen & Fortschritte",
+        "url": "https://terra-institute.eu/globales-plastikabkommen-erausforderungen-und-fortschritte/",
+        "snippet": "Globales Plastikabkommen: Warum die UN das geplante Plastikabkommen für 2025 verschoben hat und welche Maßnahmen die EU trifft.",
+        "content": ""
+      },
+      "tier": 0,
+      "relevance_score": 0.1,
+      "should_scrape": false,
+      "skip_reason": "low_tier",
+      "hybrid_score": 0.1
+    },
+    {
+      "result": {
+        "title": "Rückkehr zum Plastik-Strohhalm? Das plant Capri-Sun für sein Aushängeschild",
+        "url": "https://www.swr.de/swraktuell/baden-wuerttemberg/capri-sun-strohhalm-plastik-100.html",
+        "snippet": "Capri-Sun - da werden Kindheitserinnerungen wach.",
+        "content": ""
+      },
+      "tier": 3,
+      "relevance_score": 0.0,
+      "should_scrape": false,
+      "skip_reason": "irrelevant",
+      "hybrid_score": 0.1
+    },
+    {
+      "result": {
+        "title": "Cyber Resilience Act implementation - Frequently asked questions",
+        "url": "https://digital-strategy.ec.europa.eu/en/library/cyber-resilience-act-implementation-frequently-asked-questions",
+        "snippet": "3. Dez. 2025 · Find the frequently asked questions on the implementation of the Cyber Resilience Act (CRA).",
+        "content": ""
+      },
+      "tier": 0,
+      "relevance_score": 0.1,
+      "should_scrape": false,
+      "skip_reason": "low_tier",
+      "hybrid_score": 0.1
+    },
+    {
+      "result": {
+        "title": "Directive (EU) 2024/1799 on the Repair of Goods",
+        "url": "https://circular-cities-and-regions.ec.europa.eu/support-materials/eu-regulations-legislation/directive-eu-20241799-repair-goods",
+        "snippet": "14. Juli 2025 · Directive (EU) 2024/1799, adopted on 13 June 2024, establishes common rules to promote the repair of goods, aiming to enhance sustainable consumption and support the circular economy within the European Union.",
+        "content": ""
+      },
+      "tier": 0,
+      "relevance_score": 0.1,
+      "should_scrape": false,
+      "skip_reason": "low_tier",
+      "hybrid_score": 0.1
+    },
+    {
+      "result": {
+        "title": "Mikroplastik im Wasser - WWF sieht eine \"Plastifizierung\" der Meere",
+        "url": "https://www.deutschlandfunk.de/studie-zur-plastifizierung-der-meere-100.html",
+        "snippet": "08.02.2022 ... (*) Frau Bergmann wurde in einer früheren Version falsch geschrieben. Wir haben den Fehler korrigiert. Mehr aus der Sendung Umwelt und ...",
+        "content": ""
+      },
+      "tier": 3,
+      "relevance_score": 0.0,
+      "should_scrape": false,
+      "skip_reason": "irrelevant",
+      "hybrid_score": 0.1
+    },
+    {
+      "result": {
+        "title": "Einwegplastik-Richtlinie – wo steht die EU?",
+        "url": "https://www.stiftung-meeresschutz.org/themen/meeresverschmutzung/einwegplastik-richtlinie-eu-wo-steht-europa/",
+        "snippet": "22. Okt. 2022 · Erfahren Sie, wie die EU-Einwegplastik-Richtlinie zur Bekämpfung der Meeresverschmutzung umgesetzt wurde. Eine neue Analyse zeigt positive Entwicklungen und Defizite.",
+        "content": ""
+      },
+      "tier": 0,
+      "relevance_score": 0.09332378223495702,
+      "should_scrape": false,
+      "skip_reason": "low_tier",
+      "hybrid_score": 0.09332378223495702
+    },
+    {
+      "result": {
+        "title": "Freising stellt um: Der lange Abschied vom Plastik",
+        "url": "https://www.merkur.de/lokales/freising/freising-ort28692/freising-stellt-um-der-lange-abschied-vom-plastik-90851724.html",
+        "snippet": "10.07.2021 ... Landkreis - „Fast-Food-Verpackung, Trinkhalme, To-go-Becher: Viele Einwegplastikprodukte sind seit dem 3. Juli in der EU verboten. Eigentlich.",
+        "content": ""
+      },
+      "tier": 2,
+      "relevance_score": 0.06,
+      "should_scrape": false,
+      "skip_reason": "irrelevant",
+      "hybrid_score": 0.09
+    },
+    {
+      "result": {
+        "title": "Quiz: Trennst du deinen Müll richtig? Oder recycelst du falsch?",
+        "url": "https://www.schroedingerskatze.at/muelltrennung/",
+        "snippet": "27.12.2019 ... Ab 2021 will die EU Produkte aus Einwegplastik verbieten. Plastikgabeln, -sackerl und -strohhalme sollen dann Geschichte sein. Diese ...",
+        "content": ""
+      },
+      "tier": 0,
+      "relevance_score": 0.08,
+      "should_scrape": false,
+      "skip_reason": "low_tier",
+      "hybrid_score": 0.08
+    },
+    {
+      "result": {
+        "title": "Ist es falsch von mir als Hundehalter, Hundekotbeutel in fremde ...",
+        "url": "https://www.reddit.com/r/norge/comments/psgg9c/er_det_galt_av_meg_som_hundeeier_%C3%A5_kaste/?tl=de",
+        "snippet": "21.09.2021 ... ... EU-Richtlinie (2019/904) über Einwegplastik legal ... Wenn es sich falsch anfühlt und du unsicher bist, dann ist es garantiert auch falsch.",
+        "content": ""
+      },
+      "tier": 1,
+      "relevance_score": 0.08,
+      "should_scrape": false,
+      "skip_reason": "low_tier",
+      "hybrid_score": 0.08
+    },
+    {
+      "result": {
+        "title": "So setzen die EU-Länder das neue Mehrweg-Modell um",
+        "url": "https://ohn.haendlerbund.de/recht/politik-gesetze/137877-eu-laender-umsetzung-mehrweg-modell",
+        "snippet": "27.03.2023 ... Mehr zum Thema: · Ab Januar 2023: Die neue Mehrweg-Pflicht kommt · Bundestag hat Abgabe für Hersteller von Einweg-Kunststoffprodukten beschlossen ...",
+        "content": ""
+      },
+      "tier": 0,
+      "relevance_score": 0.07999999999999999,
+      "should_scrape": false,
+      "skip_reason": "low_tier",
+      "hybrid_score": 0.07999999999999999
+    },
+    {
+      "result": {
+        "title": "Einweg-Plastikverbot in der EU? Ein Pro und Contra - fluter.de",
+        "url": "https://www.fluter.de/plastikverbot-eu-pro-contra",
+        "snippet": "9. Jan. 2020 · Bald sind Einweggeschirr, Wattestäbchen und Strohhalme in der EU verboten. Ist das Plastikverbot ein richtungweisender Schritt oder bloße Symbolpolitik?",
+        "content": ""
+      },
+      "tier": 0,
+      "relevance_score": 0.03,
+      "should_scrape": false,
+      "skip_reason": "low_tier",
+      "hybrid_score": 0.03
+    },
+    {
+      "result": {
+        "title": "Themen (Aktuell) in Burning Crusade Classic - Allgemeines - World of ...",
+        "url": "https://eu.forums.blizzard.com/de/wow/c/wow-classic/burning-crusade-classic-allgemeines/254",
+        "snippet": "Vor 3 Tagen · Themen (Aktuell) in Burning Crusade Classic - Allgemeines - World of Warcraft Forums",
+        "content": ""
+      },
+      "tier": 0,
+      "relevance_score": 0.0,
+      "should_scrape": false,
+      "skip_reason": "low_tier",
+      "hybrid_score": 0.0
+    },
+    {
+      "result": {
+        "title": "Nachhaltige Verpackungen: Rat beschließt neue Vorschriften ...",
+        "url": "https://www.consilium.europa.eu/de/press/press-releases/2024/12/16/sustainable-packaging-council-signs-off-on-new-rules-for-less-waste-and-more-re-use-in-the-eu/",
+        "snippet": "Dec 16, 2024 · Die neuen Vorschriften werden das Aufkommen von Verpackungsabfällen deutlich verringern, indem verbindliche Wiederverwendungsziele festgelegt, bestimmte Arten von Einwegverpackungen eingeschränkt und die Wirtschaftsakteure verpflichtet werden, möglichst wenig Verpackungen zu verwenden.",
+        "content": ""
+      },
+      "tier": 0,
+      "relevance_score": 0.0,
+      "should_scrape": false,
+      "skip_reason": "low_tier",
+      "hybrid_score": 0.0
+    },
+    {
+      "result": {
+        "title": "Fragen und Antworten (FAQ) - BMUKN",
+        "url": "https://www.bundesumweltministerium.de/presse/fragen-und-antworten-faq/thema/Kreislaufwirtschaft?tx_bmubfaq_faq%5Bfilter%5D%5Bclusters%5D=nonclustered&cHash=3d76f6fb61e5c5d7de5988e2ab884c92",
+        "snippet": "Die Hersteller von Einwegkunststoffprodukten werden künftig in die Verantwortung genommen, indem sie sich an den Kosten für die Entsorgung ihrer Produkte ...",
+        "content": ""
+      },
+      "tier": 0,
+      "relevance_score": 0.0,
+      "should_scrape": false,
+      "skip_reason": "low_tier",
+      "hybrid_score": 0.0
+    },
+    {
+      "result": {
+        "title": "EUR-Lex - Access to European Union law",
+        "url": "https://eur-lex.org/",
+        "snippet": "Note: The EUR-Lex document register provides access to all European Union legislative acts, court decisions, international agreements, preparatory documents, and other official publications of the EU institutions.",
+        "content": ""
+      },
+      "tier": 0,
+      "relevance_score": 0.0,
+      "should_scrape": false,
+      "skip_reason": "low_tier",
+      "hybrid_score": 0.0
+    },
+    {
+      "result": {
+        "title": "EUR-Lex portal - EU Law - EC Library Guides at European Commission Library",
+        "url": "https://ec-europa-eu.libguides.com/eu-law/legislation/eur-lex",
+        "snippet": "Vor 4 Tagen · EUR-Lex is your online gateway to EU Law. It provides the official and most comprehensive access to EU legal documents. It is available in all of the EU’s 24 official languages and is updated daily.",
+        "content": ""
+      },
+      "tier": 0,
+      "relevance_score": 0.0,
+      "should_scrape": false,
+      "skip_reason": "low_tier",
+      "hybrid_score": 0.0
+    },
+    {
+      "result": {
+        "title": "EU-Recht - Publications Office of the EU",
+        "url": "https://op.europa.eu/de/law",
+        "snippet": "Ihr Zugangsportal zum Amtsblatt der Europäischen Union, zum EU-Recht, zur EU-Rechtsprechung, zu nationalen Umsetzungsmaßnahmen sowie zu anderen Rechtsdokumenten und Informationen",
+        "content": ""
+      },
+      "tier": 0,
+      "relevance_score": 0.0,
+      "should_scrape": false,
+      "skip_reason": "low_tier",
+      "hybrid_score": 0.0
+    },
+    {
+      "result": {
+        "title": "Suche nach Rechtstexten | Europäische Union - European Union",
+        "url": "https://european-union.europa.eu/institutions-law-budget/law/find-legislation_de",
+        "snippet": "Finden Sie EU-Rechtsvorschriften, die geltend oder in Vorbereitung sind, auf EUR-Lex und in anderen Verzeichnissen. Erfahren Sie mehr über die EU-Gesetzgebung, die Rechtsvorschriften in Vorbereitung, die Publikationen und die Gründungsverträge.",
+        "content": ""
+      },
+      "tier": 0,
+      "relevance_score": 0.0,
+      "should_scrape": false,
+      "skip_reason": "low_tier",
+      "hybrid_score": 0.0
+    },
+    {
+      "result": {
+        "title": "EUR-Lex Vorschriften und Verträge - Juris",
+        "url": "https://www.juris.de/jportal/nav/produkte/werk/eur-lex-vorschriften-und-vertr%C3%A4ge.jsp",
+        "snippet": "Quelle: © Europäische Union, http://eur-lex.europa.eu/. Jetzt Produkt wählen. Der Titel ist enthalten in: juris DAV · Nutzen Sie Rechtsprechung, Gesetze ...",
+        "content": ""
+      },
+      "tier": 0,
+      "relevance_score": 0.0,
+      "should_scrape": false,
+      "skip_reason": "low_tier",
+      "hybrid_score": 0.0
+    },
+    {
+      "result": {
+        "title": "EU-Recht - Europäische Kommission - European Commission",
+        "url": "https://commission.europa.eu/law/search-law/eu-law_de",
+        "snippet": "EU-Rechtsprechung Suche nach Rechtssachen, Urteilen, Besschlüssen und Stellungnahmen des Europäischen Gerichtshofs.",
+        "content": ""
+      },
+      "tier": 0,
+      "relevance_score": 0.0,
+      "should_scrape": false,
+      "skip_reason": "low_tier",
+      "hybrid_score": 0.0
+    },
+    {
+      "result": {
+        "title": "Felhatalmazáson alapuló rendelet - 208/2015 - EN - EUR-Lex",
+        "url": "https://data.europa.eu/eli/reg_del/2015/208/oj/hun",
+        "snippet": "Do you want to help improving EUR-Lex ? This is a list of experimental features that you can enable. These features are still under development; they are not fully tested, and might reduce EUR-Lex stability. Don't forget to give your feedback!",
+        "content": ""
+      },
+      "tier": 0,
+      "relevance_score": 0.0,
+      "should_scrape": false,
+      "skip_reason": "low_tier",
+      "hybrid_score": 0.0
+    },
+    {
+      "result": {
+        "title": "Homepage - http://eur-lex.europa.eu/legal ... - Bundesnetzagentur",
+        "url": "https://www.bundesnetzagentur.de/SharedDocs/ExterneLinks/DE/Sachgebiete/Telekommunikation/Unternehmen_Institutionen/Netzneutralitaet/binnenmarktVO.html",
+        "snippet": "http://eur-lex.europa.eu/legal-content/DE/ALL/?uri=CELEX%3A32015R2120. Webseite: http://eur-lex.europa.eu/legal-content/DE/ALL/?uri=CELEX%3A32015R2120 ...",
+        "content": ""
+      },
+      "tier": 0,
+      "relevance_score": 0.0,
+      "should_scrape": false,
+      "skip_reason": "low_tier",
+      "hybrid_score": 0.0
+    },
+    {
+      "result": {
+        "title": "Fragen und Antworten: Umsetzung der Einwegkunststoffrichtlinie",
+        "url": "https://www.umweltbundesamt.de/themen/abfall-ressourcen/produktverantwortung-in-der-abfallwirtschaft/verpackungen/fragen-antworten-umsetzung-der",
+        "snippet": "Durch die EU-Richtlinie 2019/904 über die Verringerung der Auswirkungen bestimmter Kunststoffprodukte auf die Umwelt (Einwegkunststoffrichtlinie - EWKRL) werden 10 Produktkategorien mit Maßnahmen belegt, die 86 Prozent der gefundenen Einwegkunststoffprodukte ausmachen.",
+        "content": ""
+      },
+      "tier": 0,
+      "relevance_score": 0.0,
+      "should_scrape": false,
+      "skip_reason": "low_tier",
+      "hybrid_score": 0.0
+    },
+    {
+      "result": {
+        "title": "Richtlinie (EU) 2019/904 (Einwegkunststoff-Richtlinie) - Wikipedia",
+        "url": "https://de.wikipedia.org/wiki/Richtlinie_(EU)_2019/904_(Einwegkunststoff-Richtlinie)",
+        "snippet": "EU-weit einheitliche Normen sollen insbesondere gewährleisten, dass die erforderliche Widerstandsfähigkeit, Verlässlichkeit und Sicherheit von Verschlüssen für Getränkebehälter, einschließlich der Verschlüsse für kohlensäurehaltige Getränke, erhalten bleibt.",
+        "content": ""
+      },
+      "tier": 0,
+      "relevance_score": 0.0,
+      "should_scrape": false,
+      "skip_reason": "low_tier",
+      "hybrid_score": 0.0
+    },
+    {
+      "result": {
+        "title": "Einwegverpackungen wiederverwenden: nachhaltig oder schädlich?",
+        "url": "https://essenzielles.at/einwegverpackungen-wiederverwenden/",
+        "snippet": "15.01.2022 ... Fakten statt Fake News · Für Figurbewusste · Fett-weg-Spritze: Die ... Produkte, die dieses Zeichen tragen, entsprechen den Anforderungen der ...",
+        "content": ""
+      },
+      "tier": 0,
+      "relevance_score": 0.0,
+      "should_scrape": false,
+      "skip_reason": "low_tier",
+      "hybrid_score": 0.0
+    }
+  ],
+  "evidence_items": [
+    {
+      "source": {
+        "url": "https://eur-lex.europa.eu/oj/daily-view/L-series/default.html",
+        "title": "Official Journal L series daily view - EUR-Lex",
+        "domain": "eur-lex.europa.eu",
+        "domain_tier": 5,
+        "publication_date": "2025-07-14",
+        "is_fact_check_org": false,
+        "is_primary_source": false
+      },
+      "excerpt": "Corrigendum to Regulation (EU) 2025/1355 of the European Central Bank of 2 July 2025 on oversight requirements for systemically important payment systems (ECB/2025/22) (OJ L, 2025/1355, 14.7.2025)",
+      "relevance_score": 0.5,
+      "extraction_confidence": 0.3,
+      "source_direction": "neutral",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://www.fr.de/verbraucher/supermarkt-verbot-2025-plastikflaschen-verpackungen-verschwinden-93297965.html",
+        "title": "Verbot ab 2025: Einige Plastikflaschen und Verpackungen verschwinden ...",
+        "domain": "fr.de",
+        "domain_tier": 5,
+        "publication_date": "",
+        "is_fact_check_org": false,
+        "is_primary_source": false
+      },
+      "excerpt": "Ein neues EU-Gesetz, das 2025 in Kraft tritt, wird den Verkauf bestimmter Konserven, Flaschen und Dosen sowie Plastikverpackungen verbieten. Doch was steckt hinter dem Verbot?",
+      "relevance_score": 0.53,
+      "extraction_confidence": 0.3,
+      "source_direction": "neutral",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://www.zeit.de/politik/2024-03/eu-einwegplastik-verbot-gatronomie-muell",
+        "title": "Plastikmüll: EU kommt Einigung zu Verbot von Einwegplastik ... - Die Zeit",
+        "domain": "zeit.de",
+        "domain_tier": 3,
+        "publication_date": "",
+        "is_fact_check_org": false,
+        "is_primary_source": false
+      },
+      "excerpt": "4. März 2024 · 190 Kilogramm Verpackungsmüll produziert ein EU-Bürger pro Jahr – Tendenz steigend. Ein EU-Verbot von Einwegplastik in der Gastronomie soll für weniger Müll sorgen.",
+      "relevance_score": 0.46,
+      "extraction_confidence": 0.3,
+      "source_direction": "neutral",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://www.bussgeldkatalog.net/einwegplastik-verbot/",
+        "title": "Einwegplastik-Verbot der EU: Geltungsbereich und Umfang",
+        "domain": "bussgeldkatalog.net",
+        "domain_tier": 5,
+        "publication_date": "",
+        "is_fact_check_org": false,
+        "is_primary_source": false
+      },
+      "excerpt": "Mehr als 80 Prozent der Abfälle, die im Meer herumtreiben, sind laut Angaben der Europäischen Kommission Plastikmüll. Deshalb hat die Europäische Union (EU) ein Verbot von Einwegplastik und Styroporprodukten beschlossen, das von allen Mitgliedsstaaten umgesetzt werden muss. Es soll die Nutzung von Wegwerfartikeln aus Kunststoff reduzieren. Das Einw...",
+      "relevance_score": 0.49,
+      "extraction_confidence": 0.3,
+      "source_direction": "neutral",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://www.tomorrow.university/de/blog/eu-verbot-einwegplastik-nachhaltige-zukunft",
+        "title": "EU-Verbot gegen Einwegplastik: Ein Schritt zur Nachhaltigkeit",
+        "domain": "tomorrow.university",
+        "domain_tier": 5,
+        "publication_date": "",
+        "is_fact_check_org": false,
+        "is_primary_source": false
+      },
+      "excerpt": "Ein bedeutender Schritt für nachhaltige Entwicklung: Die EU hat beschlossen, bestimmte Einwegplastikartikel zu verbieten. Diese bahnbrechende Entscheidung zielt darauf ab, die Umweltverschmutzung deutlich zu reduzieren und die natürlichen Ressourcen zu schützen.",
+      "relevance_score": 0.49,
+      "extraction_confidence": 0.3,
+      "source_direction": "neutral",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://lebensmittelpraxis.de/verpackung/31152-verpackung-der-markt-liefert-die-antworten.html",
+        "title": "Verpackung - Der Markt liefert die Antworten – Lebensmittelpraxis.de",
+        "domain": "lebensmittelpraxis.de",
+        "domain_tier": 5,
+        "publication_date": "2021-07-15",
+        "is_fact_check_org": false,
+        "is_primary_source": false
+      },
+      "excerpt": "15.07.2021 ... Im Jahr 2018 hat die EU das Verbot von Einwegplastik beschlossen, jetzt tritt es in Kraft ... Ab Samstag, dem 3. Juli 2021, sind viele ...",
+      "relevance_score": 0.49,
+      "extraction_confidence": 0.3,
+      "source_direction": "neutral",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://www1.wdr.de/nachrichten/plastikabkommen-plastik-europaeische-union-100.html",
+        "title": "Plastikmüll: Was die EU-Regeln bringen - Nachrichten - WDR",
+        "domain": "www1.wdr.de",
+        "domain_tier": 5,
+        "publication_date": "",
+        "is_fact_check_org": false,
+        "is_primary_source": false
+      },
+      "excerpt": "15. Aug. 2025 · Die EU hat inzwischen entschieden, dass ab 2030 weitere Einweg-Plastikverpackungen verboten sein werden: Dazu zählen Ketchup-Tütchen im Restaurant und Shampoo-Tütchen im Hotel. Obst und...",
+      "relevance_score": 0.53,
+      "extraction_confidence": 0.3,
+      "source_direction": "neutral",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://www.mdr.de/wissen/einwegplastik-verbot-der-herstellung-in-der-eu-100.html",
+        "title": "Herstellungsverbot für Einwegplastik – Einstieg ins Umdenken? - MDR",
+        "domain": "mdr.de",
+        "domain_tier": 5,
+        "publication_date": "2021-07-03",
+        "is_fact_check_org": false,
+        "is_primary_source": false
+      },
+      "excerpt": "03.07.2021 ... Auch ein Import in die EU ist jetzt verboten. Das soll helfen, Plastikmüll zu vermeiden, der achtlos in die Landschaft geworfen wird und nicht ...",
+      "relevance_score": 0.46,
+      "extraction_confidence": 0.3,
+      "source_direction": "neutral",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://www.t-online.de/klima/politik-wirtschaft/id_100393286/eu-plastik-parlament-erlaesst-neues-verbot.html",
+        "title": "EU | Plastik: Parlament erlässt neues Verbot - t-online.de",
+        "domain": "t-online.de",
+        "domain_tier": 5,
+        "publication_date": "",
+        "is_fact_check_org": false,
+        "is_primary_source": false
+      },
+      "excerpt": "Die EU hat neue Regeln zu Reduktion von Verpackungsmüll beschlossen. Die Plastikflut soll so gestoppt werden. Das Europäische Parlament hat am Mittwoch in Straßburg für ein Verbot bestimmter...",
+      "relevance_score": 0.41,
+      "extraction_confidence": 0.3,
+      "source_direction": "neutral",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://www.bpb.de/themen/medien-journalismus/netzdebatte/282384/von-bio-bis-mikroplastik-wie-gut-kennen-sie-sich-aus/",
+        "title": "Von Bio bis Mikroplastik: Wie gut kennen Sie sich aus?",
+        "domain": "bpb.de",
+        "domain_tier": 1,
+        "publication_date": "",
+        "is_fact_check_org": false,
+        "is_primary_source": true
+      },
+      "excerpt": "Ihre Antwort war falsch. Erläuterung. Insgesamt 18,16 Million Tonnen ... 2019 hat das Kabinett in Ruandas Hauptstadt Kigali – genau wie die EU – einen ...",
+      "relevance_score": 0.3,
+      "extraction_confidence": 0.3,
+      "source_direction": "neutral",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://www.tagesspiegel.de/politik/plastik-verbot-soll-mull-in-europa-reduzieren-5815798.html",
+        "title": "EU-Parlament stimmt über Richtlinie ab: Plastik-Verbot soll Müll in ...",
+        "domain": "tagesspiegel.de",
+        "domain_tier": 3,
+        "publication_date": "2018-10-24",
+        "is_fact_check_org": false,
+        "is_primary_source": false
+      },
+      "excerpt": "24.10.2018 ... Das Verbot soll in Deutschland greifen, sobald die EU-Richtlinie in nationales Recht umgesetzt ist. Dies dürfte bis spätestens 2021 der Fall ...",
+      "relevance_score": 0.38,
+      "extraction_confidence": 0.3,
+      "source_direction": "neutral",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://www.dw.com/de/warum-plastikverbote-nicht-wirken-und-was-sich-%C3%A4ndern-muss/a-75199938",
+        "title": "Warum Plastikverbote nicht wirken - und was sich ändern muss",
+        "domain": "dw.com",
+        "domain_tier": 3,
+        "publication_date": "",
+        "is_fact_check_org": false,
+        "is_primary_source": false
+      },
+      "excerpt": "Jan 1, 2026 · Knapp 40 Prozent davon waren Einwegplastik wie Strohhalme, Take-away-Boxen aus Styropor, Plastik-Besteck oder Teller. Die Idee der EU: Einfach die schlimmsten Übeltäter verbieten und das...",
+      "relevance_score": 0.54,
+      "extraction_confidence": 0.3,
+      "source_direction": "neutral",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://www.tagesschau.de/ausland/europa/eu-verpackungsmuell-plastik-100.html",
+        "title": "EU beschließt Verbot von Einweg-Plastik-Verpackungen ab 2030",
+        "domain": "tagesschau.de",
+        "domain_tier": 3,
+        "publication_date": "",
+        "is_fact_check_org": false,
+        "is_primary_source": false
+      },
+      "excerpt": "24. Apr. 2024 · Die EU sagt dem Einweg-Plastik den Kampf an: Von 2030 an soll jede Verpackung recycelbar sein. Viele kleine Packungen wie Ketchup-Tütchen soll es dann nicht mehr geben. Zudem setzt die EU...",
+      "relevance_score": 0.38,
+      "extraction_confidence": 0.3,
+      "source_direction": "neutral",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://www.bioleaderpack.com/de/eus-2025-kunststoffrichtlinie-zielt-darauf-ab-einwegkunststoffe-zu-halbieren%E2%80%91-was-geschirrhersteller-und-unternehmen-wissen-mussen/",
+        "title": "Die EU-Kunststoffrichtlinie 2025 zielt darauf ab, Einwegkunststoffe zu ...",
+        "domain": "bioleaderpack.com",
+        "domain_tier": 5,
+        "publication_date": "",
+        "is_fact_check_org": false,
+        "is_primary_source": false
+      },
+      "excerpt": "Jun 18, 2025 · Die Richtlinie der Europäischen Union über die Verwendung von Einwegkunststoffen (Richtlinie (EU) 2019/904) zielt darauf ab, den Verbrauch von Einwegkunststoffgeschirr - einschließlich Bechern, Besteck, Tellern, Wattestäbchen und Feuchttüchern - bis 2025 um 50% zu reduzieren.",
+      "relevance_score": 0.53,
+      "extraction_confidence": 0.3,
+      "source_direction": "neutral",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://www.bafu.admin.ch/de/faq-haeufig-gestellte-fragen-zu-kunststoffen-in-der-umwelt",
+        "title": "FAQ - Häufig gestellte Fragen zu Kunststoffen in der Umwelt - BAFU",
+        "domain": "bafu.admin.ch",
+        "domain_tier": 5,
+        "publication_date": "2025-07-31",
+        "is_fact_check_org": false,
+        "is_primary_source": false
+      },
+      "excerpt": "31.07.2025 ... Die Einwegplastik-Richtlinie der EU verlangt, dass bis zum Jahr 2025 mindestens 77 % der PET-Getränkeflaschen für das Recycling gesammelt werden ...",
+      "relevance_score": 0.53,
+      "extraction_confidence": 0.3,
+      "source_direction": "neutral",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://www.lizenzero.de/blog/plastikflaschen-verbot-einwegflaschen-regelungen-ab-2025-2030/",
+        "title": "Plastikflaschen Verbot: Einwegflaschen-Regelungen ab 2025 & 2030",
+        "domain": "lizenzero.de",
+        "domain_tier": 5,
+        "publication_date": "",
+        "is_fact_check_org": false,
+        "is_primary_source": false
+      },
+      "excerpt": "Ab 2025 sind Einweg Plastikflaschen, die hauptsächlich aus PET bestehen verboten, es sei denn sie bestehen zu mindestens 25 % aus recyceltem Material. Außerdem gelten bestimmte Mehrwegflaschen und -dosen als verboten.",
+      "relevance_score": 0.53,
+      "extraction_confidence": 0.3,
+      "source_direction": "neutral",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://www.wwf.de/fileadmin/fm-wwf/Publikationen-PDF/Plastik/Die-Mehrwegangebotspflicht-kein-Gamechanger-gegen-die-Plastikflut.pdf",
+        "title": "(k)ein Gamechanger gegen die Verpackungsflut - WWF Deutschland",
+        "domain": "wwf.de",
+        "domain_tier": 5,
+        "publication_date": "2024-10-25",
+        "is_fact_check_org": false,
+        "is_primary_source": false
+      },
+      "excerpt": "25.10.2024 ... Bereits 2019 haben sich alle EU-Mitgliedstaaten im. Rahmen der EU-Einwegplastik-Richtlinie (SUPD) ... Das. Land Berlin hat ein Verbot von ...",
+      "relevance_score": 0.46,
+      "extraction_confidence": 0.3,
+      "source_direction": "neutral",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://www.nabu.de/umwelt-und-ressourcen/ressourcenschonung/kunststoffe-und-bioplastik/30215.html",
+        "title": "EU-Einwegplastikverbot - NABU",
+        "domain": "nabu.de",
+        "domain_tier": 5,
+        "publication_date": "",
+        "is_fact_check_org": false,
+        "is_primary_source": false
+      },
+      "excerpt": "Im Bereich Einweggeschirr und To-Go-Verpackungen ist das Einwegplastikverbot damit auf Teller und Besteck inklusive Rührstäbchen und Trinkhalme beschränkt.",
+      "relevance_score": 0.49,
+      "extraction_confidence": 0.3,
+      "source_direction": "neutral",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://www.verbraucherzentrale.nrw/wissen/umwelt-haushalt/nachhaltigkeit/einwegplastik-verboten-aber-online-zu-kaufen-85629",
+        "title": "Einwegplastik: Verboten, aber online zu kaufen",
+        "domain": "verbraucherzentrale.nrw",
+        "domain_tier": 5,
+        "publication_date": "2024-07-05",
+        "is_fact_check_org": false,
+        "is_primary_source": false
+      },
+      "excerpt": "05.07.2024 ... Seit dem 3. Juli 2021 sind in der EU viele Wegwerfprodukte aus Kunststoff verboten, darunter Einweggeschirr und Einwegbesteck.",
+      "relevance_score": 0.37,
+      "extraction_confidence": 0.3,
+      "source_direction": "neutral",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://www.spiegel.de/wirtschaft/service/eu-plastikverbot-was-es-bedeutet-was-sich-fuer-verbraucher-aendert-a-1244554.html",
+        "title": "Was das Plastikverbot der EU bedeutet - DER SPIEGEL",
+        "domain": "spiegel.de",
+        "domain_tier": 3,
+        "publication_date": "",
+        "is_fact_check_org": false,
+        "is_primary_source": false
+      },
+      "excerpt": "19. Dez. 2018 · Die EU sagt Plastik den Kampf an: Wegwerfprodukte wie Plastikteller und Trinkhalme sollen künftig verboten werden. Wie sieht die Regelung aus, was ändert sich für den Verbraucher? Ein Überblick.",
+      "relevance_score": 0.38,
+      "extraction_confidence": 0.3,
+      "source_direction": "neutral",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://europa.eu/youreurope/business/product-requirements/recycling-waste-management/single-use-plastics/index_de.htm",
+        "title": "Einwegkunststoffprodukte in der Europäischen Union - Your Europe",
+        "domain": "europa.eu",
+        "domain_tier": 5,
+        "publication_date": "",
+        "is_fact_check_org": false,
+        "is_primary_source": false
+      },
+      "excerpt": "12. Nov. 2025 · So befolgen Sie die EU-Vorschriften zu Einwegkunststoffprodukten. Welche Produkte sind verboten, welche Anforderungen an Kennzeichnung und Gestaltung gelten und was hat es mit der erweiterten Herstellerverantwortung auf sich?",
+      "relevance_score": 0.53,
+      "extraction_confidence": 0.3,
+      "source_direction": "neutral",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://de.duni.com/de/magazin/eu-plastikverbot-was-2021-wichtig-wird?srsltid=AfmBOorN83psJOGuad8d60l2YVrPHoR2OLcGCIAIYkgVaoO5SAI7XEWL",
+        "title": "EU-Plastikverbot: Wichtiges im Überblick | Duni Deutschland",
+        "domain": "de.duni.com",
+        "domain_tier": 5,
+        "publication_date": "",
+        "is_fact_check_org": false,
+        "is_primary_source": false
+      },
+      "excerpt": "Das hat das Bundeskabinett mit einer Änderung des Verpackungsgesetzes beschlossen. Damit werden Menüboxen und andere Einwegverpackungen zwar nicht verboten ...",
+      "relevance_score": 0.36,
+      "extraction_confidence": 0.3,
+      "source_direction": "neutral",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://deutsche-recycling.de/blog/einwegkunststoffrichtlinie-in-der-eu-alle-fakten/",
+        "title": "Einwegkunststoffrichtlinie in der EU: Die SUPD im Blick",
+        "domain": "deutsche-recycling.de",
+        "domain_tier": 5,
+        "publication_date": "",
+        "is_fact_check_org": false,
+        "is_primary_source": false
+      },
+      "excerpt": "12. Mai 2024 · Die EU-Einwegkunststoffrichtlinie (SUPD) soll die Umweltbelastung durch Plastikabfälle verringern. Verboten sind Einweg-Besteck, -Teller und -Becher aus Plastik. Unternehmen müssen die erweiterte Herstellerverantwortung (EPR) übernehmen, Entsorgungskosten tragen und Produkte kennzeichnen.",
+      "relevance_score": 0.46,
+      "extraction_confidence": 0.3,
+      "source_direction": "neutral",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://www.ihk.de/duesseldorf/innovation-umwelt-energie/umwelt/abfall2/die-europaeische-verpackungsverordnung-2025-ppwr--6459764",
+        "title": "Die europäische Verpackungsverordnung 2025 tritt am 11 ...",
+        "domain": "ihk.de",
+        "domain_tier": 5,
+        "publication_date": "",
+        "is_fact_check_org": false,
+        "is_primary_source": false
+      },
+      "excerpt": "Die neue europäische Verpackungsverordnung (Packaging and Packaging Waste Regulation, PPWR) bildet den aktualisierten Rechtsrahmen für Verpackungen und Verpackungsabfälle in der EU.",
+      "relevance_score": 0.5,
+      "extraction_confidence": 0.3,
+      "source_direction": "neutral",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://terra-institute.eu/globales-plastikabkommen-erausforderungen-und-fortschritte/",
+        "title": "Globales Plastikabkommen ab 2025: Herausforderungen & Fortschritte",
+        "domain": "terra-institute.eu",
+        "domain_tier": 5,
+        "publication_date": "",
+        "is_fact_check_org": false,
+        "is_primary_source": false
+      },
+      "excerpt": "Globales Plastikabkommen: Warum die UN das geplante Plastikabkommen für 2025 verschoben hat und welche Maßnahmen die EU trifft.",
+      "relevance_score": 0.5,
+      "extraction_confidence": 0.3,
+      "source_direction": "neutral",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://www.swr.de/swraktuell/baden-wuerttemberg/capri-sun-strohhalm-plastik-100.html",
+        "title": "Rückkehr zum Plastik-Strohhalm? Das plant Capri-Sun für sein Aushängeschild",
+        "domain": "swr.de",
+        "domain_tier": 5,
+        "publication_date": "",
+        "is_fact_check_org": false,
+        "is_primary_source": false
+      },
+      "excerpt": "Capri-Sun - da werden Kindheitserinnerungen wach.",
+      "relevance_score": 0.12,
+      "extraction_confidence": 0.3,
+      "source_direction": "offtopic",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://digital-strategy.ec.europa.eu/en/library/cyber-resilience-act-implementation-frequently-asked-questions",
+        "title": "Cyber Resilience Act implementation - Frequently asked questions",
+        "domain": "digital-strategy.ec.europa.eu",
+        "domain_tier": 2,
+        "publication_date": "",
+        "is_fact_check_org": false,
+        "is_primary_source": true
+      },
+      "excerpt": "3. Dez. 2025 · Find the frequently asked questions on the implementation of the Cyber Resilience Act (CRA).",
+      "relevance_score": 0.5,
+      "extraction_confidence": 0.3,
+      "source_direction": "neutral",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://circular-cities-and-regions.ec.europa.eu/support-materials/eu-regulations-legislation/directive-eu-20241799-repair-goods",
+        "title": "Directive (EU) 2024/1799 on the Repair of Goods",
+        "domain": "circular-cities-and-regions.ec.europa.eu",
+        "domain_tier": 2,
+        "publication_date": "",
+        "is_fact_check_org": false,
+        "is_primary_source": true
+      },
+      "excerpt": "14. Juli 2025 · Directive (EU) 2024/1799, adopted on 13 June 2024, establishes common rules to promote the repair of goods, aiming to enhance sustainable consumption and support the circular economy within the European Union.",
+      "relevance_score": 0.5,
+      "extraction_confidence": 0.3,
+      "source_direction": "neutral",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://www.deutschlandfunk.de/studie-zur-plastifizierung-der-meere-100.html",
+        "title": "Mikroplastik im Wasser - WWF sieht eine \"Plastifizierung\" der Meere",
+        "domain": "deutschlandfunk.de",
+        "domain_tier": 5,
+        "publication_date": "2022-02-08",
+        "is_fact_check_org": false,
+        "is_primary_source": false
+      },
+      "excerpt": "08.02.2022 ... (*) Frau Bergmann wurde in einer früheren Version falsch geschrieben. Wir haben den Fehler korrigiert. Mehr aus der Sendung Umwelt und ...",
+      "relevance_score": 0.12,
+      "extraction_confidence": 0.3,
+      "source_direction": "offtopic",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://www.stiftung-meeresschutz.org/themen/meeresverschmutzung/einwegplastik-richtlinie-eu-wo-steht-europa/",
+        "title": "Einwegplastik-Richtlinie – wo steht die EU?",
+        "domain": "stiftung-meeresschutz.org",
+        "domain_tier": 5,
+        "publication_date": "",
+        "is_fact_check_org": false,
+        "is_primary_source": false
+      },
+      "excerpt": "22. Okt. 2022 · Erfahren Sie, wie die EU-Einwegplastik-Richtlinie zur Bekämpfung der Meeresverschmutzung umgesetzt wurde. Eine neue Analyse zeigt positive Entwicklungen und Defizite.",
+      "relevance_score": 0.38,
+      "extraction_confidence": 0.3,
+      "source_direction": "neutral",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://www.merkur.de/lokales/freising/freising-ort28692/freising-stellt-um-der-lange-abschied-vom-plastik-90851724.html",
+        "title": "Freising stellt um: Der lange Abschied vom Plastik",
+        "domain": "merkur.de",
+        "domain_tier": 5,
+        "publication_date": "2021-07-10",
+        "is_fact_check_org": false,
+        "is_primary_source": false
+      },
+      "excerpt": "10.07.2021 ... Landkreis - „Fast-Food-Verpackung, Trinkhalme, To-go-Becher: Viele Einwegplastikprodukte sind seit dem 3. Juli in der EU verboten. Eigentlich.",
+      "relevance_score": 0.41,
+      "extraction_confidence": 0.3,
+      "source_direction": "neutral",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://www.schroedingerskatze.at/muelltrennung/",
+        "title": "Quiz: Trennst du deinen Müll richtig? Oder recycelst du falsch?",
+        "domain": "schroedingerskatze.at",
+        "domain_tier": 5,
+        "publication_date": "2019-12-27",
+        "is_fact_check_org": false,
+        "is_primary_source": false
+      },
+      "excerpt": "27.12.2019 ... Ab 2021 will die EU Produkte aus Einwegplastik verbieten. Plastikgabeln, -sackerl und -strohhalme sollen dann Geschichte sein. Diese ...",
+      "relevance_score": 0.38,
+      "extraction_confidence": 0.3,
+      "source_direction": "neutral",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://www.reddit.com/r/norge/comments/psgg9c/er_det_galt_av_meg_som_hundeeier_%C3%A5_kaste/?tl=de",
+        "title": "Ist es falsch von mir als Hundehalter, Hundekotbeutel in fremde ...",
+        "domain": "reddit.com",
+        "domain_tier": 5,
+        "publication_date": "2021-09-21",
+        "is_fact_check_org": false,
+        "is_primary_source": false
+      },
+      "excerpt": "21.09.2021 ... ... EU-Richtlinie (2019/904) über Einwegplastik legal ... Wenn es sich falsch anfühlt und du unsicher bist, dann ist es garantiert auch falsch.",
+      "relevance_score": 0.21,
+      "extraction_confidence": 0.3,
+      "source_direction": "neutral",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://ohn.haendlerbund.de/recht/politik-gesetze/137877-eu-laender-umsetzung-mehrweg-modell",
+        "title": "So setzen die EU-Länder das neue Mehrweg-Modell um",
+        "domain": "ohn.haendlerbund.de",
+        "domain_tier": 5,
+        "publication_date": "2023-03-27",
+        "is_fact_check_org": false,
+        "is_primary_source": false
+      },
+      "excerpt": "27.03.2023 ... Mehr zum Thema: · Ab Januar 2023: Die neue Mehrweg-Pflicht kommt · Bundestag hat Abgabe für Hersteller von Einweg-Kunststoffprodukten beschlossen ...",
+      "relevance_score": 0.33,
+      "extraction_confidence": 0.3,
+      "source_direction": "neutral",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://www.fluter.de/plastikverbot-eu-pro-contra",
+        "title": "Einweg-Plastikverbot in der EU? Ein Pro und Contra - fluter.de",
+        "domain": "fluter.de",
+        "domain_tier": 5,
+        "publication_date": "",
+        "is_fact_check_org": false,
+        "is_primary_source": false
+      },
+      "excerpt": "9. Jan. 2020 · Bald sind Einweggeschirr, Wattestäbchen und Strohhalme in der EU verboten. Ist das Plastikverbot ein richtungweisender Schritt oder bloße Symbolpolitik?",
+      "relevance_score": 0.33,
+      "extraction_confidence": 0.3,
+      "source_direction": "neutral",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://eu.forums.blizzard.com/de/wow/c/wow-classic/burning-crusade-classic-allgemeines/254",
+        "title": "Themen (Aktuell) in Burning Crusade Classic - Allgemeines - World of ...",
+        "domain": "eu.forums.blizzard.com",
+        "domain_tier": 5,
+        "publication_date": "",
+        "is_fact_check_org": false,
+        "is_primary_source": false
+      },
+      "excerpt": "Vor 3 Tagen · Themen (Aktuell) in Burning Crusade Classic - Allgemeines - World of Warcraft Forums",
+      "relevance_score": 0.08,
+      "extraction_confidence": 0.3,
+      "source_direction": "offtopic",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://www.consilium.europa.eu/de/press/press-releases/2024/12/16/sustainable-packaging-council-signs-off-on-new-rules-for-less-waste-and-more-re-use-in-the-eu/",
+        "title": "Nachhaltige Verpackungen: Rat beschließt neue Vorschriften ...",
+        "domain": "consilium.europa.eu",
+        "domain_tier": 2,
+        "publication_date": "2024-12-16",
+        "is_fact_check_org": false,
+        "is_primary_source": true
+      },
+      "excerpt": "Dec 16, 2024 · Die neuen Vorschriften werden das Aufkommen von Verpackungsabfällen deutlich verringern, indem verbindliche Wiederverwendungsziele festgelegt, bestimmte Arten von Einwegverpackungen eingeschränkt und die Wirtschaftsakteure verpflichtet werden, möglichst wenig Verpackungen zu verwenden.",
+      "relevance_score": 0.3,
+      "extraction_confidence": 0.3,
+      "source_direction": "neutral",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://www.bundesumweltministerium.de/presse/fragen-und-antworten-faq/thema/Kreislaufwirtschaft?tx_bmubfaq_faq%5Bfilter%5D%5Bclusters%5D=nonclustered&cHash=3d76f6fb61e5c5d7de5988e2ab884c92",
+        "title": "Fragen und Antworten (FAQ) - BMUKN",
+        "domain": "bundesumweltministerium.de",
+        "domain_tier": 5,
+        "publication_date": "",
+        "is_fact_check_org": false,
+        "is_primary_source": false
+      },
+      "excerpt": "Die Hersteller von Einwegkunststoffprodukten werden künftig in die Verantwortung genommen, indem sie sich an den Kosten für die Entsorgung ihrer Produkte ...",
+      "relevance_score": 0.17,
+      "extraction_confidence": 0.3,
+      "source_direction": "offtopic",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://eur-lex.org/",
+        "title": "EUR-Lex - Access to European Union law",
+        "domain": "eur-lex.org",
+        "domain_tier": 5,
+        "publication_date": "",
+        "is_fact_check_org": false,
+        "is_primary_source": false
+      },
+      "excerpt": "Note: The EUR-Lex document register provides access to all European Union legislative acts, court decisions, international agreements, preparatory documents, and other official publications of the EU institutions.",
+      "relevance_score": 0.17,
+      "extraction_confidence": 0.3,
+      "source_direction": "offtopic",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://ec-europa-eu.libguides.com/eu-law/legislation/eur-lex",
+        "title": "EUR-Lex portal - EU Law - EC Library Guides at European Commission Library",
+        "domain": "ec-europa-eu.libguides.com",
+        "domain_tier": 5,
+        "publication_date": "",
+        "is_fact_check_org": false,
+        "is_primary_source": false
+      },
+      "excerpt": "Vor 4 Tagen · EUR-Lex is your online gateway to EU Law. It provides the official and most comprehensive access to EU legal documents. It is available in all of the EU’s 24 official languages and is updated daily.",
+      "relevance_score": 0.17,
+      "extraction_confidence": 0.3,
+      "source_direction": "offtopic",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://op.europa.eu/de/law",
+        "title": "EU-Recht - Publications Office of the EU",
+        "domain": "op.europa.eu",
+        "domain_tier": 5,
+        "publication_date": "",
+        "is_fact_check_org": false,
+        "is_primary_source": false
+      },
+      "excerpt": "Ihr Zugangsportal zum Amtsblatt der Europäischen Union, zum EU-Recht, zur EU-Rechtsprechung, zu nationalen Umsetzungsmaßnahmen sowie zu anderen Rechtsdokumenten und Informationen",
+      "relevance_score": 0.17,
+      "extraction_confidence": 0.3,
+      "source_direction": "offtopic",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://european-union.europa.eu/institutions-law-budget/law/find-legislation_de",
+        "title": "Suche nach Rechtstexten | Europäische Union - European Union",
+        "domain": "european-union.europa.eu",
+        "domain_tier": 5,
+        "publication_date": "",
+        "is_fact_check_org": false,
+        "is_primary_source": false
+      },
+      "excerpt": "Finden Sie EU-Rechtsvorschriften, die geltend oder in Vorbereitung sind, auf EUR-Lex und in anderen Verzeichnissen. Erfahren Sie mehr über die EU-Gesetzgebung, die Rechtsvorschriften in Vorbereitung, die Publikationen und die Gründungsverträge.",
+      "relevance_score": 0.3,
+      "extraction_confidence": 0.3,
+      "source_direction": "neutral",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://www.juris.de/jportal/nav/produkte/werk/eur-lex-vorschriften-und-vertr%C3%A4ge.jsp",
+        "title": "EUR-Lex Vorschriften und Verträge - Juris",
+        "domain": "juris.de",
+        "domain_tier": 5,
+        "publication_date": "",
+        "is_fact_check_org": false,
+        "is_primary_source": false
+      },
+      "excerpt": "Quelle: © Europäische Union, http://eur-lex.europa.eu/. Jetzt Produkt wählen. Der Titel ist enthalten in: juris DAV · Nutzen Sie Rechtsprechung, Gesetze ...",
+      "relevance_score": 0.17,
+      "extraction_confidence": 0.3,
+      "source_direction": "offtopic",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://commission.europa.eu/law/search-law/eu-law_de",
+        "title": "EU-Recht - Europäische Kommission - European Commission",
+        "domain": "commission.europa.eu",
+        "domain_tier": 5,
+        "publication_date": "",
+        "is_fact_check_org": false,
+        "is_primary_source": false
+      },
+      "excerpt": "EU-Rechtsprechung Suche nach Rechtssachen, Urteilen, Besschlüssen und Stellungnahmen des Europäischen Gerichtshofs.",
+      "relevance_score": 0.17,
+      "extraction_confidence": 0.3,
+      "source_direction": "offtopic",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://data.europa.eu/eli/reg_del/2015/208/oj/hun",
+        "title": "Felhatalmazáson alapuló rendelet - 208/2015 - EN - EUR-Lex",
+        "domain": "data.europa.eu",
+        "domain_tier": 5,
+        "publication_date": "2015-06-15",
+        "is_fact_check_org": false,
+        "is_primary_source": false
+      },
+      "excerpt": "Do you want to help improving EUR-Lex ? This is a list of experimental features that you can enable. These features are still under development; they are not fully tested, and might reduce EUR-Lex stability. Don't forget to give your feedback!",
+      "relevance_score": 0.17,
+      "extraction_confidence": 0.3,
+      "source_direction": "offtopic",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://www.bundesnetzagentur.de/SharedDocs/ExterneLinks/DE/Sachgebiete/Telekommunikation/Unternehmen_Institutionen/Netzneutralitaet/binnenmarktVO.html",
+        "title": "Homepage - http://eur-lex.europa.eu/legal ... - Bundesnetzagentur",
+        "domain": "bundesnetzagentur.de",
+        "domain_tier": 5,
+        "publication_date": "",
+        "is_fact_check_org": false,
+        "is_primary_source": false
+      },
+      "excerpt": "http://eur-lex.europa.eu/legal-content/DE/ALL/?uri=CELEX%3A32015R2120. Webseite: http://eur-lex.europa.eu/legal-content/DE/ALL/?uri=CELEX%3A32015R2120 ...",
+      "relevance_score": 0.17,
+      "extraction_confidence": 0.3,
+      "source_direction": "offtopic",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://www.umweltbundesamt.de/themen/abfall-ressourcen/produktverantwortung-in-der-abfallwirtschaft/verpackungen/fragen-antworten-umsetzung-der",
+        "title": "Fragen und Antworten: Umsetzung der Einwegkunststoffrichtlinie",
+        "domain": "umweltbundesamt.de",
+        "domain_tier": 5,
+        "publication_date": "",
+        "is_fact_check_org": false,
+        "is_primary_source": false
+      },
+      "excerpt": "Durch die EU-Richtlinie 2019/904 über die Verringerung der Auswirkungen bestimmter Kunststoffprodukte auf die Umwelt (Einwegkunststoffrichtlinie - EWKRL) werden 10 Produktkategorien mit Maßnahmen belegt, die 86 Prozent der gefundenen Einwegkunststoffprodukte ausmachen.",
+      "relevance_score": 0.3,
+      "extraction_confidence": 0.3,
+      "source_direction": "neutral",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://de.wikipedia.org/wiki/Richtlinie_(EU)_2019/904_(Einwegkunststoff-Richtlinie)",
+        "title": "Richtlinie (EU) 2019/904 (Einwegkunststoff-Richtlinie) - Wikipedia",
+        "domain": "de.wikipedia.org",
+        "domain_tier": 5,
+        "publication_date": "",
+        "is_fact_check_org": false,
+        "is_primary_source": false
+      },
+      "excerpt": "EU-weit einheitliche Normen sollen insbesondere gewährleisten, dass die erforderliche Widerstandsfähigkeit, Verlässlichkeit und Sicherheit von Verschlüssen für Getränkebehälter, einschließlich der Verschlüsse für kohlensäurehaltige Getränke, erhalten bleibt.",
+      "relevance_score": 0.18,
+      "extraction_confidence": 0.3,
+      "source_direction": "offtopic",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://essenzielles.at/einwegverpackungen-wiederverwenden/",
+        "title": "Einwegverpackungen wiederverwenden: nachhaltig oder schädlich?",
+        "domain": "essenzielles.at",
+        "domain_tier": 5,
+        "publication_date": "2022-01-15",
+        "is_fact_check_org": false,
+        "is_primary_source": false
+      },
+      "excerpt": "15.01.2022 ... Fakten statt Fake News · Für Figurbewusste · Fett-weg-Spritze: Die ... Produkte, die dieses Zeichen tragen, entsprechen den Anforderungen der ...",
+      "relevance_score": 0.13,
+      "extraction_confidence": 0.3,
+      "source_direction": "offtopic",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    }
+  ],
+  "quality_signals": {
+    "has_primary_source_any": true,
+    "has_primary_direct_evidence": false,
+    "has_fact_check_any": false,
+    "has_fact_check_direct_match": false,
+    "has_primary_sources": true,
+    "has_fact_check_org_result": false,
+    "source_consensus": "insufficient",
+    "freshness_score": 0.3,
+    "overall_quality": 0.24440000000000003,
+    "top_tier_count": 4,
+    "off_topic_rate": 0.0,
+    "avg_top5_relevance": 0.49400000000000005,
+    "low_trust_rate": 0.0,
+    "direct_evidence_count": 0,
+    "contextual_only_rate": 1.0,
+    "has_direct_refutation": false,
+    "direct_refutation_count": 0
+  },
+  "route_result": {
+    "sources": [
+      {
+        "source_id": "eur_lex",
+        "display_name": "EUR-Lex – EU Law and Official Journal",
+        "source_class": "tools.sources.clients.eur_lex.EURLexClient",
+        "base_url": "https://publications.europa.eu/webapi/rdf/sparql",
+        "auth_mode": "none",
+        "supports_search": true,
+        "supports_detail_fetch": true,
+        "allowed_storage": "cache",
+        "allowed_display": "full",
+        "fulltext_allowed": true,
+        "commercial_reuse_ok": "allowed",
+        "citation_required": true,
+        "claim_domains": [
+          "legal",
+          "regulatory"
+        ],
+        "authority_weight": 0.97,
+        "classifier_domains": [
+          "eur-lex.europa.eu",
+          "publications.europa.eu"
+        ],
+        "jurisdictions": [
+          "eu"
+        ],
+        "rate_limit_rps": 1.0,
+        "requires_registration": false,
+        "notes": "EU Public Domain. Autoritativste Quelle für EU-Recht. Zugang via CELLAR SPARQL-Endpoint (SPARQL 1.1). Alternativ: EUR-Lex FRBR-REST-API für strukturierte Dokument-Metadaten. Volltexte abrufbar. SPARQL-Queries können komplex sein – Client sollte Templates für gängige Anfragen (Verordnung nach Nummer, Richtlinie nach Datum) bereitstellen."
+      },
+      {
+        "source_id": "eurostat",
+        "display_name": "Eurostat – Statistical Office of the European Union",
+        "source_class": "tools.sources.clients.eurostat.EurostatClient",
+        "base_url": "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0",
+        "auth_mode": "none",
+        "supports_search": true,
+        "supports_detail_fetch": true,
+        "allowed_storage": "cache",
+        "allowed_display": "full",
+        "fulltext_allowed": true,
+        "commercial_reuse_ok": "allowed",
+        "citation_required": true,
+        "claim_domains": [
+          "statistical",
+          "economic",
+          "trade",
+          "regulatory"
+        ],
+        "authority_weight": 0.95,
+        "classifier_domains": [
+          "eurostat.ec.europa.eu",
+          "ec.europa.eu/eurostat"
+        ],
+        "jurisdictions": [
+          "eu",
+          "de"
+        ],
+        "rate_limit_rps": 2.0,
+        "requires_registration": false,
+        "notes": "CC BY 4.0. Offizielle EU-Statistikbehörde. JSON:Statistical Data and Metadata eXchange (SDMX). Datensatz-Tabellen über /data/{dataset_code}?format=JSON. Datensatz-Suche über Eurostat Data Browser (kein Such-API; Mapping via bekannte Dataset-Codes nötig). Bereits in source_classifier._TIER_PATTERNS (SourceTier.OFFICIAL)."
+      },
+      {
+        "source_id": "openfda",
+        "display_name": "openFDA – U.S. Food and Drug Administration Open Data",
+        "source_class": "tools.sources.clients.openfda.OpenFDAClient",
+        "base_url": "https://api.fda.gov",
+        "auth_mode": "api_key_optional",
+        "supports_search": true,
+        "supports_detail_fetch": true,
+        "allowed_storage": "cache",
+        "allowed_display": "full",
+        "fulltext_allowed": true,
+        "commercial_reuse_ok": "allowed",
+        "citation_required": true,
+        "claim_domains": [
+          "pharmaceutical",
+          "regulatory",
+          "medical"
+        ],
+        "authority_weight": 0.95,
+        "classifier_domains": [
+          "api.fda.gov",
+          "fda.gov",
+          "open.fda.gov"
+        ],
+        "jurisdictions": [
+          "us"
+        ],
+        "rate_limit_rps": 1.0,
+        "requires_registration": false,
+        "notes": "US Public Domain (Regierungswerk). API-Key optional – erhöht Rate-Limit auf 240 req/min. Endpunkte: /drug/label, /drug/event (Adverse Events), /device/recall, /food/enforcement. ENV: OPENFDA_API_KEY."
+      },
+      {
+        "source_id": "dailymed",
+        "display_name": "DailyMed – FDA Drug Label Information",
+        "source_class": "tools.sources.clients.dailymed.DailyMedClient",
+        "base_url": "https://dailymed.nlm.nih.gov/dailymed/services/v2",
+        "auth_mode": "none",
+        "supports_search": true,
+        "supports_detail_fetch": true,
+        "allowed_storage": "cache",
+        "allowed_display": "excerpt",
+        "fulltext_allowed": false,
+        "commercial_reuse_ok": "allowed",
+        "citation_required": true,
+        "claim_domains": [
+          "pharmaceutical",
+          "medical",
+          "regulatory"
+        ],
+        "authority_weight": 0.94,
+        "classifier_domains": [
+          "dailymed.nlm.nih.gov"
+        ],
+        "jurisdictions": [
+          "us"
+        ],
+        "rate_limit_rps": 5.0,
+        "requires_registration": false,
+        "notes": "US Public Domain. Offizielle FDA-Arzneimittel-Etikettierungsdatenbank. Suche: /drugnames.json?drug_name={name}. Detail via SPL-SetID: /spls/{setid}.json. Enthält: Indikationen, Kontraindikationen, Nebenwirkungen, Dosierung. fulltext_allowed=False: SPL-XML-Volltexte zu groß / zu komplex; strukturierte JSON-Felder als Excerpt."
+      }
+    ],
+    "domains": [
+      "regulatory"
+    ],
+    "jurisdiction": "eu",
+    "site_hints": [
+      "site:eur-lex.europa.eu",
+      "site:eurostat.ec.europa.eu",
+      "site:api.fda.gov",
+      "site:dailymed.nlm.nih.gov"
+    ],
+    "rationale": "Domänen: regulatory | Jurisdiktion: eu | Quellen: EUR-Lex, Eurostat, openFDA (+1) | Konfidenz: 20%",
+    "confidence": 0.2
+  },
+  "backends_used": [
+    "searxng"
+  ],
+  "cache_hits": 0,
+  "cache_misses": 0,
+  "debug_notes": [
+    "Routed: domains=['regulatory'], jurisdiction=eu, confidence=0.20",
+    "Queries (4): ['Die EU hat ab 2025 ein vollständiges Verbot von Einwegplastik-Besteck beschlossen.', 'eur-lex.europa.eu', 'EU Einwegplastik Faktencheck', 'EU Einwegplastik Falschmeldung']",
+    "SearXNG: 99 results",
+    "Merged: 82 unique results",
+    "Evidence items: 49 (direct=0, contextual=49, weak=0)"
+  ]
+}

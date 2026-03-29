@@ -1,0 +1,2711 @@
+{
+  "case_id": "stat-001",
+  "timestamp": "2026-03-29T16:18:02.035736+00:00",
+  "generated_queries": [
+    "Die Kriminalitätsrate in Deutschland ist seit 2015 um 50 Prozent gestiegen.",
+    "destatis.de",
+    "Kriminalität Deutschland Faktencheck",
+    "Kriminalität Deutschland Falschmeldung"
+  ],
+  "deduped_queries": [
+    "Die Kriminalitätsrate in Deutschland ist seit 2015 um 50 Prozent gestiegen.",
+    "destatis.de",
+    "Kriminalität Deutschland Faktencheck",
+    "Kriminalität Deutschland Falschmeldung"
+  ],
+  "searxng_queries": [
+    {
+      "query": "Die Kriminalitätsrate in Deutschland ist seit 2015 um 50 Prozent gestiegen.",
+      "pageno": 1,
+      "categories": "general,science,news",
+      "engines": [
+        "duckduckgo",
+        "brave",
+        "qwant"
+      ]
+    },
+    {
+      "query": "Die Kriminalitätsrate in Deutschland ist seit 2015 um 50 Prozent gestiegen.",
+      "pageno": 2,
+      "categories": "general,science,news",
+      "engines": [
+        "duckduckgo",
+        "brave",
+        "qwant"
+      ]
+    },
+    {
+      "query": "destatis.de",
+      "pageno": 1,
+      "categories": "general,science,news",
+      "engines": [
+        "duckduckgo",
+        "brave",
+        "qwant"
+      ]
+    },
+    {
+      "query": "destatis.de",
+      "pageno": 2,
+      "categories": "general,science,news",
+      "engines": [
+        "duckduckgo",
+        "brave",
+        "qwant"
+      ]
+    },
+    {
+      "query": "Kriminalität Deutschland Faktencheck",
+      "pageno": 1,
+      "categories": "general,science,news",
+      "engines": [
+        "duckduckgo",
+        "brave",
+        "tagesschau"
+      ]
+    },
+    {
+      "query": "Kriminalität Deutschland Falschmeldung",
+      "pageno": 1,
+      "categories": "general,science,news",
+      "engines": [
+        "duckduckgo",
+        "brave",
+        "tagesschau"
+      ]
+    },
+    {
+      "query": "Die Kriminalitätsrate in Deutschland ist seit 2015 um 50 Prozent gestiegen. site:eurostat.ec.europa.eu",
+      "pageno": 1,
+      "categories": "general,science,news",
+      "engines": null
+    },
+    {
+      "query": "Die Kriminalitätsrate in Deutschland ist seit 2015 um 50 Prozent gestiegen. site:worldbank.org",
+      "pageno": 1,
+      "categories": "general,science,news",
+      "engines": null
+    }
+  ],
+  "searxng_results": {
+    "Die Kriminalitätsrate in Deutschland ist seit 2015 um 50 Prozent gestiegen.": [
+      {
+        "title": "Kriminalität in Deutschland | Statista",
+        "url": "https://de.statista.com/themen/94/kriminalitaet/",
+        "snippet": "Dec 17, 2025 · Demnach ist die Zahl der registrierten Straftaten in Deutschland im Jahr 2024 um 1,7 Prozent auf rund 5,84 Millionen gesunken. Als wesentlichen Grund für diesen leichten Rückgang nennt das BKA die Teillegalisierung des Besitzes und Anbaus von Cannabis seit dem 1. April 2024, wodurch entsprechend deutlich weniger Cannabis-Delikte registriert ...",
+        "content": ""
+      },
+      {
+        "title": "Straftaten Deutschland 2024| Statista",
+        "url": "https://de.statista.com/statistik/daten/studie/197/umfrage/straftaten-in-deutschland-seit-1997/",
+        "snippet": "Die Zahl der polizeilich erfassten Straftaten in Deutschland sank im Jahr 2024 um 1,7 Prozent auf rund 5,84 Millionen. Als wesentlichen Grund für diesen ...",
+        "content": ""
+      },
+      {
+        "title": "Speedtest by Ookla - The Global Broadband Speed Test",
+        "url": "https://www.speedtest.net/",
+        "snippet": "Use Speedtest on all your devices with our free desktop and mobile apps.",
+        "content": ""
+      },
+      {
+        "title": "BMI - Kriminalität in Deutschland - Kriminalität in Deutschland",
+        "url": "https://www.bmi.bund.de/DE/themen/sicherheit/kriminalitaetsbekaempfung-und-gefahrenabwehr/daten-zu-kriminalitaet/daten-zu-kriminalitaet-artikel.html",
+        "snippet": "Die Polizeiliche Kriminalstatistik (PKS) erfasst und beschreibt das polizeilich bekannte Kriminalitätsgeschehen in Deutschland. Sie enthält insbesondere Angaben zu: 1. Art und Anzahl der polizeilich erfassten Straftaten 2. Tatort und Tatzeit 3. Opfer und Schäden 4. Aufklärungsergebnisse 5. Alter, Geschlecht, Nationalität und andere Merkmale der Tat... See full list on bmi.bund.de Mithilfe der Dunkelfeldforschungversuchen Wissenschaftlerinnen und Wissenschaftler das Dunkelfeld aufzuhellen und verlässlichere Angaben zur tatsächlichen Kriminalität zu erlangen. Dazu führen sie beispielsweise anonyme Befragungen in der Bevölkerung durch. Dabei werden die Bürgerinnen und Bürger befragt, ob sie selbst Straftaten begangen haben ode... See full list on bmi.bund.de Darüber hinaus veröffentlicht das BKA regelmäßig Bundeslagebilder, Jahresberichte sowie anlassbezogene Berichte. Diese behandeln ausgewählte Deliktsbereiche und enthalten detailliertere Informationen als die PKS, beispielsweise gibt es ein Bundeslagebild zu Cybercrime, zu Organisierter Kriminalität, zu Waffenkriminalität oder zur Gewalt gegen Poliz... See full list on bmi.bund.de",
+        "content": ""
+      },
+      {
+        "title": "BKA - Polizeiliche Kriminalstatistik",
+        "url": "https://www.bka.de/DE/AktuelleInformationen/StatistikenLagebilder/PolizeilicheKriminalstatistik/pks_node.html",
+        "snippet": "Die PKS für die Bundesrepublik Deutschland wird vom BKA auf der Grundlage der von den 16 Landeskriminalämtern gelieferten Landesdaten erstellt.",
+        "content": ""
+      },
+      {
+        "title": "Gewaltkriminalität in Deutschland so hoch wie seit 15 Jahren nicht",
+        "url": "https://www.zeit.de/gesellschaft/2024-04/straftaten-deutschland-kriminalitaetsstatistik-anstieg",
+        "snippet": "06.04.2024 ... Die Anzahl der Straftaten in Deutschland ist im vergangenen Jahr um 5,5 Prozent auf fast sechs Millionen gestiegen. Das geht aus der ...",
+        "content": ""
+      },
+      {
+        "title": "Internet-Geschwindigkeitstest | Fast.com",
+        "url": "https://fast.com/de/",
+        "snippet": "Der einfache Test von FAST.com bestimmt innerhalb von Sekunden die von Ihrem Internetdienstanbieter bereitgestellte Internet-Geschwindigkeit.",
+        "content": ""
+      },
+      {
+        "title": "Kriminalstatistik Weniger Straftaten, mehr Gewaltdelikte",
+        "url": "https://www.tagesschau.de/inland/gesellschaft/polizeiliche-kriminalstatistik-106.html",
+        "snippet": "7. Apr. 2025 · Die Polizeiliche Kriminalstatistik zeigt: Insgesamt ist die Zahl der erfassten Straftaten gesunken - auch wegen des Cannabis-Gesetzes. Anders sieht es bei Gewaltdelikten aus.",
+        "content": ""
+      },
+      {
+        "title": "Polizeiliche Kriminalstatistik: 2015 gab es 6,3 Millionen Straftaten in ...",
+        "url": "https://www.tagesspiegel.de/politik/2015-gab-es-63-millionen-straftaten-in-deutschland-5473624.html",
+        "snippet": "22.05.2016 ... Die Zahl der Straftaten in Deutschland ist im Vergleich zu 2014 um 4,1 Prozent auf 6,33 Millionen Fälle gestiegen. Dieser Anstieg geht vor allem ...",
+        "content": ""
+      },
+      {
+        "title": "DSL Speedtest - CHIP testet Ihre Internet-Geschwindigkeit - CHIP",
+        "url": "https://www.chip.de/static/speedtest_a55d4e7a-ff11-482a-9d14-88686ad6975b.html",
+        "snippet": "Der CHIP-Speedtest für Ihren Internet-Anschluss: Testen Sie Ihre Download- und Upload-Geschwindigkeit sowie die Latenz - schnell, zuverlässig und kostenlos.",
+        "content": ""
+      },
+      {
+        "title": "Kriminalstatistik: Zahl der Straftaten auf fast sechs Millionen gestiegen",
+        "url": "https://www.tagesschau.de/inland/gesellschaft/straftaten-kriminalstatistik-102.html",
+        "snippet": "06.04.2024 ... Im vergangenen Jahr hat die Polizei deutlich mehr Straftaten registriert. Im Vergleich zum Vor-Corona-Jahr 2019 stieg ihre Zahl um 9,3 ...",
+        "content": ""
+      },
+      {
+        "title": "Polizeiliche Kriminalstatistik 2024: Polizei registriert über 5,83 ...",
+        "url": "https://www.bka.de/DE/AktuelleInformationen/StatistikenLagebilder/PolizeilicheKriminalstatistik/PKS2024/Polizeiliche_Kriminalstatistik_2024/Polizeiliche_Kriminalstatistik_2024.html",
+        "snippet": "Die Gewaltkriminalität ist leicht gestiegen, um insgesamt 1,5 Prozent auf 217.277 Fälle. Das ist ein neuer Höchststand (seit 2007). Besonders auffällig ist der Anstieg von Gewaltkriminalität bei tatverdächtigen Kindern und Jugendlichen.",
+        "content": ""
+      },
+      {
+        "title": "DSL Speedtest, Internet Speed Test, Breitbandmessung",
+        "url": "https://www.speedcheck.org/de/",
+        "snippet": "Wie funktioniert ein Internet Speed Test? Ein Speedtest misst die Internetgeschwindigkeit und Verbindungsqualität der verwendeten Internetverbindung. Dazu werden mehrere hintereinander …",
+        "content": ""
+      },
+      {
+        "title": "Vorstellung der Fallzahlen zur Politisch motivierten Kriminalität 2023",
+        "url": "https://www.bka.de/DE/UnsereAufgaben/Deliktsbereiche/PMK/PMKZahlen2023/PMKZahlen2023.html",
+        "snippet": "21.05.2024 ... Gestiegen sind insbesondere die Anzahl der Straftaten in den Phänomenbereichen „ PMK -ausländische Ideologie-“, nämlich um 33,04 Prozent auf ...",
+        "content": ""
+      },
+      {
+        "title": "Speedtest: Internet-Geschwindigkeit messen | Telekom",
+        "url": "https://www.telekom.de/shop/tarife/speedtest",
+        "snippet": "Überprüfen Sie Ihre Internet-Geschwindigkeit sowie die Up- und Downloadraten mit dem Speedtest der Telekom. Probieren Sie es jetzt aus!",
+        "content": ""
+      }
+    ],
+    "Die Kriminalitätsrate in Deutschland ist seit 2015 um 50 Prozent gestiegen.__p2": [
+      {
+        "title": "Kriminalstatistik 2015 - Polizei Münster",
+        "url": "https://muenster.polizei.nrw/sites/default/files/2017-01/Polizeiliche_Kriminalstatistik_2015.pdf",
+        "snippet": "Die Aufklärungsquote, die 2014 noch um 12,4 Prozentpunkte auf 79 Prozent gestiegen war, beträgt jetzt 64,7 Prozent. 1.4.3 Rohheitsdelikte und Straftaten gegen ...",
+        "content": ""
+      },
+      {
+        "title": "Das Parteiensystem in Deutschland ein Jahr nach der Bundestagswahl",
+        "url": "https://www.kas.de/documents/252038/253252/Das+Parteiensystem+in+Deutschland+ein+Jahr+nach+der+Bundestagswahl.pdf/2ade6176-0516-b3c9-9816-cc1647bf76a6?version=1.1",
+        "snippet": "Vorwort Trotz einiger und nachhaltiger Veränderungen in den zurückliegenden dreieinhalb Jahrzehnten galt das Parteiensystem der Bundesrepublik als sehr stabil. Während sich die Parteiensysteme in Nachbarländern Deutschlands stets durch eine höhere Fragmentierung und den Hang zur Kurzlebigkeit der Parteien und Wahlbündnisse auszeichneten, allen voran in Frankreich und in Italien, oder ...",
+        "content": ""
+      },
+      {
+        "title": "Die Ausländerkriminalität in Deutschland steigt – und die ...",
+        "url": "https://www.nzz.ch/der-andere-blick/die-auslaenderkriminalitaet-in-deutschland-steigt-und-die-politik-wacht-auf-ld.1823029",
+        "snippet": "Mar 21, 2024 · Neue Zahlen aus Nordrhein-Westfalen und Bayern zeigen: Der Ausländeranteil in der Kriminalstatistik steigt. Jahre unkontrollierter Massenzuwanderung gehen an einem Land eben nicht spurlos vorüber.",
+        "content": ""
+      },
+      {
+        "title": "\"Importierte Kriminalität\"? - Mediendienst Integration",
+        "url": "https://mediendienst-integration.de/news/importierte-kriminalitaet/",
+        "snippet": "09.09.2025 ... Migration nach Deutschland hat die Kriminalität in den letzten 20 Jahren nicht erhöht: Die Zahl der Ausländer stieg, die Zahl der Straftaten ...",
+        "content": ""
+      },
+      {
+        "title": "Sicherheitslage: Gibt es mehr Kriminalität in Deutschland?",
+        "url": "https://www.zdfheute.de/panorama/kriminalitaet/kriminalitaet-deutschland-sicherheitslage-statistik-100.html",
+        "snippet": "18. Sept. 2024 · Die Politik diskutiert über ein Sicherheitspaket unter anderem mit Verschärfungen des Waffenrechts und mehr Befugnissen für Ermittlungsbehörden. In der Debatte verschwimmen die Themen Migration, Terrorismus und Kriminalität. Dabei ist die allgemeine Entwicklung von Straftaten in Deutschland nicht so düster, wie häufig dargestellt.",
+        "content": ""
+      },
+      {
+        "title": "Kriminalstatistik: Zahl der Straftaten auf fast sechs Millionen gestiegen",
+        "url": "https://www.tagesschau.de/inland/gesellschaft/straftaten-kriminalstatistik-102.html",
+        "snippet": "06.04.2024 ... Im vergangenen Jahr hat die Polizei deutlich mehr Straftaten registriert. Im Vergleich zum Vor-Corona-Jahr 2019 stieg ihre Zahl um 9,3 ...",
+        "content": ""
+      },
+      {
+        "title": "Gewaltkriminalität auf höchstem Stand seit 2015 - Die Stimme Berlins",
+        "url": "https://www.bz-berlin.de/deutschland/kriminalitaet-statistik-vierzig-prozent-der-verdaechtigen-auslaender",
+        "snippet": "Apr 6, 2024 · Gewaltkriminalität auf höchstem Stand seit 2015 Die Gewaltkriminalität hat mit 214.099 Fällen einen neuen Höchststand erreicht: ein Plus von 8,6 Prozent im Vergleich zum Vorjahr.",
+        "content": ""
+      },
+      {
+        "title": "Geburten in Deutschland - Statistisches Bundesamt",
+        "url": "https://www.destatis.de/DE/Themen/Gesellschaft-Umwelt/Bevoelkerung/Geburten/_inhalt.html",
+        "snippet": "Statistische Daten zur Anzahl der Geburten in Deutschland sowie zu Geburtenrate, Geburtenabstand, Kinderlosigkeit etc.",
+        "content": ""
+      },
+      {
+        "title": "Vorstellung der Fallzahlen zur Politisch motivierten Kriminalität 2023",
+        "url": "https://www.bka.de/DE/UnsereAufgaben/Deliktsbereiche/PMK/PMKZahlen2023/PMKZahlen2023.html",
+        "snippet": "21.05.2024 ... Gestiegen sind insbesondere die Anzahl der Straftaten in den Phänomenbereichen „ PMK -ausländische Ideologie-“, nämlich um 33,04 Prozent auf ...",
+        "content": ""
+      },
+      {
+        "title": "Polizeiliche Kriminalstatistik 2021 Ausgewählte Zahlen im Überblick",
+        "url": "https://www.bka.de/SharedDocs/Downloads/DE/Publikationen/PolizeilicheKriminalstatistik/2021/FachlicheBroschueren/IMK-Bericht.pdf?__blob=publicationFile&v=3",
+        "snippet": "Die Innenministerinnen und Innenminister sowie die Innensenatorin und Innensenatoren der Länder und des Bundes haben sich im April 2022 mit der Polizeilichen Kriminalstatistik 2021 befasst und den nachstehenden Bericht durch einstimmigen Beschluss zur Kenntnis genommen.",
+        "content": ""
+      },
+      {
+        "title": "Zahl der tatverdächtigen Zuwanderer steigt um 52,7 Prozent - WELT",
+        "url": "https://www.welt.de/politik/deutschland/article163918666/Bericht-des-BKA-Zahl-der-tatverdaechtigen-Zuwanderer-steigt-um-52-7-Prozent.html",
+        "snippet": "23.04.2017 ... Die neueste Kriminalstatistik von Thomas de Maizière liegt vor. Und sie birgt politischen Sprengstoff. Die Zahl tatverdächtiger Zuwanderer ist ...",
+        "content": ""
+      },
+      {
+        "title": "Ursachen und Konse­quenzen der steigenden Kriminalität",
+        "url": "https://www.bundestag.de/dokumente/textarchiv/2024/kw15-de-aktuelle-stunde-kriminalstatistik-997392",
+        "snippet": "Apr 10, 2024 · Einen Tag nach der Vorstellung der 'Polizeilichen Kriminalstatistik 2023' hat der Bundestag am Mittwoch, 10. April 2024, über Ursachen und Konsequenzen der steigenden Kriminalität in Deutschland debattiert. Die Aktuelle Stunde war auf Verlangen der Unionsfraktion auf die Tagesordnung gesetzt word...",
+        "content": ""
+      },
+      {
+        "title": "Gewaltkriminalität in Deutschland so hoch wie seit 15 ... - Die Zeit",
+        "url": "https://www.zeit.de/gesellschaft/2024-04/straftaten-deutschland-kriminalitaetsstatistik-anstieg",
+        "snippet": "6. Apr. 2024 · Laut einem Medienbericht ist die Zahl der Straftaten in Deutschland auf fast sechs Millionen gestiegen. Besonders stark war der Anstieg bei Gewaltdelikten wie Raub.",
+        "content": ""
+      },
+      {
+        "title": "Steigert Migration die Kriminalität? Ein datenbasierter Blick - ifo Institut",
+        "url": "https://www.ifo.de/DocDL/sd-2025-digital-03-adema-alipour-migration-kriminalitaet.pdf",
+        "snippet": "18.02.2025 ... Abschließend diskutieren wir Maß- nahmen, um Kriminalität unter Migranten vorzubeugen und. Fehlvorstellungen über Migranten und Migration ...",
+        "content": ""
+      },
+      {
+        "title": "BKA - Polizeiliche Kriminalstatistik",
+        "url": "https://www.bka.de/DE/AktuelleInformationen/StatistikenLagebilder/PolizeilicheKriminalstatistik/pks_node.html",
+        "snippet": "Die PKS für die Bundesrepublik Deutschland wird vom BKA auf der Grundlage der von den 16 Landeskriminalämtern gelieferten Landesdaten erstellt.",
+        "content": ""
+      }
+    ],
+    "destatis.de": [
+      {
+        "title": "Startseite - Statistisches Bundesamt",
+        "url": "https://www.destatis.de/",
+        "snippet": "Das Statistische Bundesamt (Destatis) ist die zentrale Aufgabenträgerin für die Erfassung, Aggregation, Auswertung und Veröffentlichung statistischer Daten in Deutschland. Auf der Webseite finden Sie aktuelle Daten, Pressemitteilungen, Themenbereiche, Datenbanken und mehr.",
+        "content": ""
+      },
+      {
+        "title": "Statistisches Bundesamt – Wikipedia",
+        "url": "https://de.wikipedia.org/wiki/Statistisches_Bundesamt",
+        "snippet": "Das Statistische Bundesamt (offiziell abgekürzt StBA, [5] veraltend auch StatBA, [6] inzwischen häufig Destatis; De utsches Stat istik- I nformations s ystem nach seiner Internetadresse) ist eine deutsche Bundesoberbehörde im Geschäftsbereich des Bundesministeriums des Innern.",
+        "content": ""
+      },
+      {
+        "title": "Verbraucherpreisindex und Inflationsrate - Statistisches Bundesamt",
+        "url": "https://www.destatis.de/DE/Themen/Wirtschaft/Preise/Verbraucherpreisindex/_inhalt.html",
+        "snippet": "Der Verbraucherpreisindex misst monatlich die durchschnittliche Preisentwicklung aller Waren und Dienstleistungen, die private Haushalte in Deutschland für Konsumzwecke kaufen. Die Veränderung des Verbraucherpreisindex zum Vorjahresmonat bzw. zum Vorjahr wird als Teuerungsrate oder als Inflationsrate bezeichnet.",
+        "content": ""
+      },
+      {
+        "title": "Startseite | Statistikportal.de",
+        "url": "https://www.statistikportal.de/de",
+        "snippet": "Das Archiv sämtlicher elektronischer Veröffentlichungen der Statistischen Ämter des Bundes und der Länder: Von gemeinsamen Veröffentlichungen aller Ämter bis zu statistischen Berichten einzelner Ämter. Bereitgestellt werden neben den themenorientierten monografischen Publikationen vor allem die statistischen Berichte und Fachserien.",
+        "content": ""
+      },
+      {
+        "title": "IDEV - Statistisches Bundesamt",
+        "url": "https://www-idev.destatis.de/idev/OnlineMeldung",
+        "snippet": "Allgemeine Informationen zu IDEV und zur Passwort-Rücksetzung finden Sie im Erhebungsportal der Statistischen Ämter des Bundes und der Länder. Hier stellen wir Ihnen alle wichtigen Informationen, sowie eine Kurzanleitung und Videos für die erweiterten Funktionen und deren Bedienung bereit.",
+        "content": ""
+      },
+      {
+        "title": "Verbraucherpreisindex: Gesamtindex und 12 Abteilungen",
+        "url": "https://www.destatis.de/DE/Themen/Wirtschaft/Preise/Verbraucherpreisindex/Tabellen/Verbraucherpreise-12Kategorien.html",
+        "snippet": "Per Mail erreichen Sie uns unter: datenschutz@destatis.de. Auswahl bestätigen. Ablehnen Akzeptieren. Loading... Menü. Schließen. Startseite · Themen. Statistik ...",
+        "content": ""
+      },
+      {
+        "title": "Homepage - German Federal Statistical Office",
+        "url": "https://www.destatis.de/EN/Home/_node.html",
+        "snippet": "Website of the Federal Statistical Office of Germany (Statistisches Bundesamt) - Destatis",
+        "content": ""
+      },
+      {
+        "title": "Themen - Statistisches Bundesamt",
+        "url": "https://www.destatis.de/DE/Themen/_inhalt.html",
+        "snippet": "Per Mail erreichen Sie uns unter: datenschutz@destatis.de. Auswahl bestätigen. Ablehnen Akzeptieren. Loading... Springe direkt zu: Inhalt · Hauptmenü · Suche ...",
+        "content": ""
+      },
+      {
+        "title": "Dashboard Konjunktur",
+        "url": "https://www.dashboard-deutschland.de/",
+        "snippet": "Das inhaltliche Profil wird geschärft – im Fokus steht zukünftig stärker die aktuelle konjunkturelle Entwicklung in Deutschland. Weitere Informationen zu den Veränderungen im Datenangebot finden …",
+        "content": ""
+      },
+      {
+        "title": "Statistisches Bundesamt",
+        "url": "https://wwwapp.destatis.de/",
+        "snippet": "Das Statistische Bundesamt (Destatis) stellt aktuelle Statistiken, Pressemitteilungen und Online-Dienste für Deutschland bereit.",
+        "content": ""
+      },
+      {
+        "title": "BMI - Unsere Behörden und Einrichtungen - Statistisches Bundesamt",
+        "url": "https://www.bmi.bund.de/SharedDocs/behoerden/DE/destatis.html",
+        "snippet": "Statistisches Bundesamt Destatis Das Statistische Bundesamt stellt Daten zu allen relevanten gesellschaftlichen und wirtschaftlichen Themen bereit. Diese Informationen sind objektiv, unparteilich …",
+        "content": ""
+      },
+      {
+        "title": "Erhebungsportal",
+        "url": "https://erhebungsportal.estatistik.de/",
+        "snippet": "Geben Sie bitte Ihre E-Mail-Adresse und Ihr Passwort für Ihre Anmeldung am Erhebungsportal ein. Passwort vergessen? Noch keinen Zugang? Jetzt schnell und einfach registrieren. Zum ersten Mal hier? Hier gibt es ein paar Tipps und Tricks zum Meldeverfahren.",
+        "content": ""
+      },
+      {
+        "title": "Daten übermitteln - Statistisches Bundesamt",
+        "url": "https://www.destatis.de/DE/Service/Online-Melden/_inhalt.html",
+        "snippet": "Per Mail erreichen Sie uns unter: datenschutz@destatis.de. Auswahl bestätigen. Ablehnen Akzeptieren. Loading... Springe direkt zu: Inhalt · Hauptmenü · Suche ...",
+        "content": ""
+      },
+      {
+        "title": "DESTATIS - DESTATIS Statistisches Bundesamt - Knowledge for ...",
+        "url": "https://knowledge4policy.ec.europa.eu/organisation/destatis-destatis-statistisches-bundesamt_en",
+        "snippet": "Feb 21, 2023 · Organisation | Last updated: 21 Feb 2023 DESTATIS - DESTATIS Statistisches Bundesamt German Federal Statistical Office. Topics: indicators; national economy; environment; energy; industry; agriculture; constructions; prices; society; etc.",
+        "content": ""
+      },
+      {
+        "title": "Preise - Statistisches Bundesamt",
+        "url": "https://www.destatis.de/DE/Themen/Wirtschaft/Preise/_inhalt.html",
+        "snippet": "Per Mail erreichen Sie uns unter: datenschutz@destatis.de. Auswahl bestätigen. Ablehnen Akzeptieren. Loading... Springe direkt zu: Inhalt · Hauptmenü · Suche ...",
+        "content": ""
+      }
+    ],
+    "destatis.de__p2": [
+      {
+        "title": "Daten übermitteln - Statistisches Bundesamt",
+        "url": "https://www.destatis.de/DE/Service/Online-Melden/_inhalt.html",
+        "snippet": "Per Mail erreichen Sie uns unter: datenschutz@destatis.de. Auswahl bestätigen. Ablehnen Akzeptieren. Loading... Springe direkt zu: Inhalt · Hauptmenü · Suche ...",
+        "content": ""
+      },
+      {
+        "title": "www-genesis.destatis.de",
+        "url": "https://www-genesis.destatis.de/datenbank/online/table/42271-0003/search/s/NDIyNzEtMDAwMw==",
+        "snippet": "Hier sollte eine Beschreibung angezeigt werden, diese Seite lässt dies jedoch nicht zu.",
+        "content": ""
+      },
+      {
+        "title": "Startseite - Statistisches Bundesamt",
+        "url": "https://www.destatis.de/DE/Home/_inhalt.html",
+        "snippet": "Internetangebot des Statistischen Bundesamtes mit aktuellen Informationen, Publikationen, Zahlen und Fakten der amtlichen Statistik.",
+        "content": ""
+      },
+      {
+        "title": "Klassifikationen - Methoden - Statistisches Bundesamt",
+        "url": "https://www.destatis.de/DE/Methoden/Klassifikationen/_inhalt.html",
+        "snippet": "Per Mail erreichen Sie uns unter: datenschutz@destatis.de. Auswahl bestätigen. Ablehnen Akzeptieren. Loading... Springe direkt zu: Inhalt · Hauptmenü · Suche ...",
+        "content": ""
+      },
+      {
+        "title": "Deutscher Bundestag Drucksache 21/4943 Antrag der Abgeordneten Kay ...",
+        "url": "https://dserver.bundestag.de/btd/21/049/2104943.pdf",
+        "snippet": "Antrag der Abgeordneten Kay Gottschalk, Sebastian Münzenmaier, Hauke Finger, Torben Braga, Christian Douglas, Rainer Groß, Reinhard Mixl, Iris Nieland, Diana Zimmer, Christian Reck Leif-Erik Holm, Steffen Kotré, Dr. Malte Kaufmann, Marc Bernhard, Dirk Brandes, Enrico Komning, Raimond Scheirich, Bernd Schattner, Uwe Schulz, Mathias Weiser, Adam Balten, Dr. Rainer Kraft, Andreas Mayer ...",
+        "content": ""
+      },
+      {
+        "title": "Pressemitteilungen - Statistisches Bundesamt",
+        "url": "https://www.destatis.de/DE/Presse/Pressemitteilungen/_inhalt_2.html",
+        "snippet": "Per Mail erreichen Sie uns unter: datenschutz@destatis.de. Auswahl bestätigen ... Wie das Statistische Bundesamt (Destatis) mitteilt, lag ihr Anteil am ...",
+        "content": ""
+      },
+      {
+        "title": "Bevölkerung im Jahr 2024 um 100 000 Menschen gewachsen",
+        "url": "https://www.destatis.de/DE/Presse/Pressemitteilungen/2025/01/PD25_030_124.html",
+        "snippet": "Jan 23, 2025 · Zum Jahresende 2024 lebten fast 83,6 Millionen Menschen in Deutschland. Nach einer ersten Schätzung des Statistischen Bundesamtes (Destatis) wuchs die Bevölkerung Deutschlands damit um knapp 100 000 Menschen gegenüber dem Jahresende 2023. Auch im Jahr 2024 war die Nettozuwanderung die alleinige Ursache des Bevölkerungswachstums. Wie in allen Jahren seit der deutschen Vereinigung fiel die ...",
+        "content": ""
+      },
+      {
+        "title": "Unsere Behörden und Einrichtungen - Statistisches Bundesamt - BMI",
+        "url": "https://www.bmi.bund.de/SharedDocs/behoerden/DE/destatis.html",
+        "snippet": "poststelle@destatis.de · Statistisches Bundesamt (destatis) · Zurück zur Übersicht Unsere Behörden und Einrichtungen. Seitenfunktionen- und informationen ...",
+        "content": ""
+      },
+      {
+        "title": "Veröffentlichungstermine des Statistischen Bundesamtes (DESTATIS) vom ...",
+        "url": "https://www.kulturigo.de/ver-ffentlichungstermine-des-statistischen-bundesamtes-destatis-vom-30-03-2026-bis-03-04-2026-2240957.html/",
+        "snippet": "Vor 2 Tagen · Veröffentlichungstermine des Statistischen Bundesamtes (DESTATIS) - die Veröffentlichung erfolgt in der Regel 08:00 Uhr: Montag, 30.03.2026 - (Nr. 105) Weinerzeugung, Jahr 2025 - (Nr. N020) Camping: Zahl der Übernachtungen nach Reiseregionen und Übernachtungspreise, Jahr 2025 - (Nr. 108) Verbraucherpreisindex (inklusive Harmonisierter Verbraucherpreisindex), vorläufige Ergebnisse, März ...",
+        "content": ""
+      },
+      {
+        "title": "Statistisches Bundesamt (Destatis) - LinkedIn",
+        "url": "https://de.linkedin.com/company/statistisches-bundesamt-destatis",
+        "snippet": "Statistisches Bundesamt (Destatis) | 17.825 Follower:innen auf LinkedIn. Impressum: https://www.destatis.de/DE/Service/Impressum/_inhalt.html Destatis ...",
+        "content": ""
+      },
+      {
+        "title": "Homepage - German Federal Statistical Office",
+        "url": "https://www.destatis.de/EN/Home/_node.html",
+        "snippet": "Website of the Federal Statistical Office of Germany (Statistisches Bundesamt) - Destatis",
+        "content": ""
+      },
+      {
+        "title": "Veröffentlichungstermine des Statistischen Bundesamtes (DESTATIS) vom ...",
+        "url": "https://www.finanznachrichten.de/nachrichten-2026-03/68057398-veroeffentlichungstermine-des-statistischen-bundesamtes-destatis-vom-30-03-2026-bis-03-04-2026-007.htm",
+        "snippet": "Vor 2 Tagen · Wiesbaden (ots) - Veröffentlichungstermine des Statistischen Bundesamtes (DESTATIS) - die Veröffentlichung erfolgt in der Regel 08:00 Uhr:Montag, 30.03.2026- (Nr. 105) Weinerzeugung, Jahr 2025 ...",
+        "content": ""
+      },
+      {
+        "title": "Impressum - Statistisches Bundesamt",
+        "url": "https://www.destatis.de/DE/Service/Impressum/_inhalt.html",
+        "snippet": "... destatis.de) eingerichtet. Dort werden auch Hinweise zu Korruptionsfällen entgegengenommen, für die bisher die Ombudsperson ansprechbar war. Für ...",
+        "content": ""
+      },
+      {
+        "title": "Bevölkerung Deutschland - Statistisches Bundesamt",
+        "url": "https://www.destatis.de/DE/Themen/Gesellschaft-Umwelt/Bevoelkerung/_inhalt.html",
+        "snippet": "Die Bevölkerungsstatistiken bieten u.a. Daten zur aktuellen Gesamtbevölkerung und zur Bevölkerungsentwicklung sowie zu Geburten und Sterbefällen.",
+        "content": ""
+      },
+      {
+        "title": "Statista - das Statistik-Portal: Statistiken, Marktdaten & Studien",
+        "url": "https://de.statista.com/",
+        "snippet": "statista.de; statista.com. Preise & Zugänge. Unternehmenslösungen · Bildung und öffentlicher Sektor. Statistiken. Populäre Statistiken · Themen · Markets.",
+        "content": ""
+      }
+    ],
+    "Kriminalität Deutschland Faktencheck": [
+      {
+        "title": "Kriminalität im Kontext von Zuwanderung - BKA",
+        "url": "https://www.bka.de/DE/AktuelleInformationen/StatistikenLagebilder/Lagebilder/KriminalitaetImKontextVonZuwanderung/KriminalitaetImKontextVonZuwanderung_node.html",
+        "snippet": "Deutschland ist ein Einwanderungsland, in dem jedes Jahr Menschen aus aller Welt aus verschiedensten Gründen Zuflucht suchen.",
+        "content": ""
+      },
+      {
+        "title": "Kriminalität ᐅ Definition, Arten und ihre Bedeutung",
+        "url": "https://www.juraforum.de/lexikon/kriminalitaet",
+        "snippet": "27. Mai 2025 · Begriff Kriminalität, der vom dem lateinischen 'crimen' stammt und für Schuld, Anklage Verbrechen, Beschuldigung steht, definiert sich als Makrophänomen. Das heißt, die Gesamtheit aller …",
+        "content": ""
+      },
+      {
+        "title": "Kriminalität in Deutschland | Statista",
+        "url": "https://de.statista.com/themen/94/kriminalitaet/",
+        "snippet": "17. Dez. 2025 · Steigt die Kriminalität in Deutschland? Diese Frage lässt sich nicht eindeutig beantworten, da die Kriminalitätsentwicklung anhand unterschiedlicher Indikatoren gemessen werden kann. Viel...",
+        "content": ""
+      },
+      {
+        "title": "„Explodierende Gewalt“ durch Zuwanderung: Merz’ Aussagen im Faktencheck",
+        "url": "https://www.rnd.de/politik/explodierende-gewalt-durch-zuwanderung-merz-aussagen-im-faktencheck-DQMOXUAS5FBDHKGG6NHTH5KWMQ.html",
+        "snippet": "Vor 3 Tagen · Friedrich Merz erntet Kritik für seinen Satz, die Gewalt in Deutschland explodiere und komme zu einem „beachtlichen Teil“ von Zuwanderern. Was ist dran an der Aussage des Kanzlers? Ein Blick auf die Daten.",
+        "content": ""
+      },
+      {
+        "title": "Kriminalität in Deutschland | Innere Sicherheit | bpb.de",
+        "url": "https://www.bpb.de/themen/innere-sicherheit/dossier-innere-sicherheit/570901/kriminalitaet-in-deutschland/",
+        "snippet": "3. Dez. 2025 · Kriminalität beschäftigt Bevölkerung, Medien und Politik in besonderer, oft emotionalisierender Art. Wie lässt sich die Kriminalitätslage in Deutschland anhand aktueller Zahlen beschreiben? Die Polizei hat 2024 insgesamt 5.837.445 Verdachtsfälle mutmaßlicher Straftaten registriert und bearbeitet.",
+        "content": ""
+      },
+      {
+        "title": "Im Faktencheck: Ist Deutschland durch die Zuwanderung ...",
+        "url": "https://www.rnd.de/politik/kriminalitaetsstatistik-im-faktencheck-ist-deutschland-durch-die-zuwanderung-unsicherer-geworden-NW2FJKPMY5H3DBKTPSQXPGYGXE.html",
+        "snippet": "Apr 9, 2024 · Kriminalität und Gewalt sind 2023 angestiegen – besonders mit Tatverdächtigen ohne deutschen Pass. Das zeigt die neue Kriminalstatistik, die am Dienstag vorgestellt wurde.",
+        "content": ""
+      },
+      {
+        "title": "Zahlen und Fakten - Bundesamt für Verfassungsschutz",
+        "url": "https://www.verfassungsschutz.de/DE/themen/auslandsbezogener-extremismus/zahlen-und-fakten/zahlen-und-fakten_node.html",
+        "snippet": "So war bei mehr als zwei Drittel der 2024 im auslandsbezogenen Extremismus verübten Straftaten – das bedeutet mehr als 3.000 Delikte (2023: rund 1.700, +76,5 %) ...",
+        "content": ""
+      },
+      {
+        "title": "Organisierte Kriminalität ᐅ Definition, Beispiele, Statistik",
+        "url": "https://www.juraforum.de/lexikon/organisierte-kriminalitaet",
+        "snippet": "25. Dez. 2024 · Überall auf der ganzen Welt gibt es Kriminalität, so auch in Deutschland. Zum Einen gibt es die kleinen Kriminellen, die sich wegen Diebstahl, Betrug, Sachbeschädigung, Unterschlagung …",
+        "content": ""
+      },
+      {
+        "title": "BMI - Kriminalität in Deutschland - Bundesministerium des Innern",
+        "url": "https://www.bmi.bund.de/DE/themen/sicherheit/kriminalitaetsbekaempfung-und-gefahrenabwehr/daten-zu-kriminalitaet/daten-zu-kriminalitaet-node.html",
+        "snippet": "Die Polizeiliche Kriminalstatistik berücksichtigt nur das sogenannte \"Hellfeld\". Darunter versteht man die der Polizei bekannt gewordenen Fälle von Straftaten ...",
+        "content": ""
+      },
+      {
+        "title": "Blog zum \"Duell\": Wenig Angriff, viel Kontrolle - Aussagen von Schweitzer und Schnieder im Check",
+        "url": "https://www.swr.de/swraktuell/wahlen/landtagswahl/liveblog-landtagswahl-rlp-duell-schweitzer-schnieder-faktencheck-106.html",
+        "snippet": "Endspurt vor der Landtagswahl: Ministerpräsident Schweitzer (SPD) und Herausforderer Schnieder (CDU) im Schlagabtausch.",
+        "content": ""
+      },
+      {
+        "title": "Kriminalität in Deutschland: Wie gefährlich ist es wirklich?",
+        "url": "https://www.dw.com/de/kriminalit%C3%A4t-deutschland-gewalt-kriminalstatistik-messerattacke-messer-gang-mord-v2/a-73972297",
+        "snippet": "15. Sept. 2025 · Drogen, Messer, Gewalt auf offener Straße. Medien berichten regelmäßig über Kriminalität in Deutschland. Ist sie angestiegen? Und wie steht Deutschland im internationalen Vergleich da?",
+        "content": ""
+      },
+      {
+        "title": "ᐅ Kriminalitätstheorie: Definition, Begriff und ... - JuraForum.de",
+        "url": "https://www.juraforum.de/lexikon/kriminalitaetstheorie",
+        "snippet": "16. Juli 2025 · Fehlende Selbstkontrolle führe nicht automatisch zu Kriminalität. Sie sei begünstigt durch mangelhafte Erziehung, Kontrolle und Training des Verhaltens.",
+        "content": ""
+      },
+      {
+        "title": "Fragwürdige Berechnungen der Ausländerkriminalität | tagesschau.de",
+        "url": "https://www.tagesschau.de/faktenfinder/kontext/kriminalitaet-nationalitaet-100.html",
+        "snippet": "22.08.2025 ... Ein Fahrzeug der Polizei steht auf einer Straße. Kontext. Kriminalstatistik Fragwürdige Berechnungen der Ausländerkriminalität. Stand: 22.08.",
+        "content": ""
+      },
+      {
+        "title": "Polizeiliche Kriminalstatistik 2024: Polizei registriert über 5,83 ...",
+        "url": "https://www.bka.de/DE/AktuelleInformationen/StatistikenLagebilder/PolizeilicheKriminalstatistik/PKS2024/Polizeiliche_Kriminalstatistik_2024/Polizeiliche_Kriminalstatistik_2024.html",
+        "snippet": "Nach den teils deutlichen Anstiegen der polizeilich registrierten Straftaten in den vergangenen zwei Jahren – nach dem Ende der coronabedingten Beschränkungen – sank die Kriminalität 2024 erstmals wieder leicht.",
+        "content": ""
+      },
+      {
+        "title": "Ausländerkriminalität Definition, Rechtslage & Prävention",
+        "url": "https://www.juraforum.de/lexikon/auslaenderkriminalitaet",
+        "snippet": "18. März 2024 · Ausländerkriminalität bezieht sich auf Straftaten, die von Personen begangen werden, die keine deutsche Staatsbürgerschaft besitzen. Rechtsrahmen: nationale und europäische Ebene …",
+        "content": ""
+      }
+    ],
+    "Kriminalität Deutschland Falschmeldung": [
+      {
+        "title": "Fragwürdige Berechnungen der Ausländerkriminalität | tagesschau.de",
+        "url": "https://www.tagesschau.de/faktenfinder/kontext/kriminalitaet-nationalitaet-100.html",
+        "snippet": "Aug 22, 2025 · Kriminalität auf \"relativ stabilen Niveau\" Hinzu komme, dass sich die Kriminalität in Deutschland in den vergangenen 20 Jahren auf einem relativ stabilen Niveau befinde, so Walburg.",
+        "content": ""
+      },
+      {
+        "title": "Schneller als die Polizei dementieren kann - tagesschau.de",
+        "url": "https://www.tagesschau.de/faktenfinder/fake-news-deutschland-103.html",
+        "snippet": "28. Apr. 2022 · Ein Mord von Flüchtlingen in Gifhorn, eine Terrorzelle in Berlin Rudow, ein islamistischer Anschlag in Heidelberg: drei gezielte Falschmeldungen, die sich zuletzt verbreitet haben - und die der...",
+        "content": ""
+      },
+      {
+        "title": "Falsche Berechnungen zur Ausländerkriminalität in Kriminalstatistiken",
+        "url": "https://www.tagesschau.de/faktenfinder/kontext/kriminalitaet-falsche-berechnungen-100.html",
+        "snippet": "21.03.2025 ... ... Deutschland begangene Straftaten ermittelt. ... Statistiken zur Kriminalität Mörderisches Berlin? Eine Statistik zur Kriminalität wird falsch ...",
+        "content": ""
+      },
+      {
+        "title": "Kriminalität ᐅ Definition, Arten und ihre Bedeutung",
+        "url": "https://www.juraforum.de/lexikon/kriminalitaet",
+        "snippet": "27. Mai 2025 · Begriff Kriminalität, der vom dem lateinischen 'crimen' stammt und für Schuld, Anklage Verbrechen, Beschuldigung steht, definiert sich als Makrophänomen. Das heißt, die Gesamtheit aller …",
+        "content": ""
+      },
+      {
+        "title": "BKA - Statistiken und Lagebilder",
+        "url": "https://www.bka.de/DE/AktuelleInformationen/StatistikenLagebilder/statistikenlagebilder_node.html",
+        "snippet": "Dunkelfeldforschung / Viktimisierungs surveys Das BKA führt aktuell zwei Dunkelfeldstudien durch. Die auf periodische Wiederholung angelegte Dunkelfeldstudie „Sicherheit und Kriminalität in Deutschland (SKiD)“ wird in Zusammenarbeit mit den Polizeien der Bundesländer durchgeführt.",
+        "content": ""
+      },
+      {
+        "title": "Nach Aschaffenburg: Polizei warnt vor Falschnachrichten",
+        "url": "https://www.zdfheute.de/panorama/kriminalitaet/falschmeldungen-messerangriff-aschaffenburg-100.html",
+        "snippet": "30. Jan. 2025 · Nach dem Messerangriff von Aschaffenburg kursieren im Netz Falschmeldungen: von angeblichem Polizeischutz für eine Kita-Gruppe bis zu falschen Fotos eines der Opfer.",
+        "content": ""
+      },
+      {
+        "title": "Kriminalität in Deutschland | Statista",
+        "url": "https://de.statista.com/themen/94/kriminalitaet/",
+        "snippet": "17. Dez. 2025 · Steigt die Kriminalität in Deutschland? Diese Frage lässt sich nicht eindeutig beantworten, da die Kriminalitätsentwicklung anhand unterschiedlicher Indikatoren gemessen werden kann.",
+        "content": ""
+      },
+      {
+        "title": "Kriminalstatistik: Wie Medien Zahlen falsch einordnen",
+        "url": "https://www.ardaudiothek.de/episode/urn:ard:episode:9726b20ca941e5ef/",
+        "snippet": "Kriminalstatistik: Wie Medien Zahlen falsch einordnen. BR24 Medien · 29.03.2026 · 28 Min. Abspielen. Merken. Mehr. BR24 Medien. Erscheinungsdatum.",
+        "content": ""
+      },
+      {
+        "title": "Organisierte Kriminalität ᐅ Definition, Beispiele, Statistik",
+        "url": "https://www.juraforum.de/lexikon/organisierte-kriminalitaet",
+        "snippet": "25. Dez. 2024 · Überall auf der ganzen Welt gibt es Kriminalität, so auch in Deutschland. Zum Einen gibt es die kleinen Kriminellen, die sich wegen Diebstahl, Betrug, Sachbeschädigung, Unterschlagung …",
+        "content": ""
+      },
+      {
+        "title": "Wie sicher ist Deutschland? | Innere Sicherheit | bpb.de",
+        "url": "https://www.bpb.de/themen/innere-sicherheit/dossier-innere-sicherheit/576645/wie-sicher-ist-deutschland/",
+        "snippet": "Vor 2 Tagen · Die Frage nach der Sicherheit in Deutschland dreht sich oft darum, wie sich Kriminalität entwickelt. Viele Menschen interessiert auch, ob Deutschland sicherer oder unsicherer ist als andere Länder. Wegen weltweit unterschiedlicher Gesetze ist es allerdings schwierig, Kriminalitätsraten zwischen Ländern zu vergleichen.",
+        "content": ""
+      },
+      {
+        "title": "DEUTSCHLAND: \"Gezielte Desinformation\" Experte entlarvt falsche ...",
+        "url": "https://www.youtube.com/watch?v=cFsHAKhpwHw",
+        "snippet": "04.08.2025 ... DEUTSCHLAND: \"Gezielte Desinformation\" Experte entlarvt falsche Ausländer-Kriminalitätszahlen! Der renommierte forensische Psychiater Frank ...",
+        "content": ""
+      },
+      {
+        "title": "ᐅ Kriminalitätstheorie: Definition, Begriff und ... - JuraForum.de",
+        "url": "https://www.juraforum.de/lexikon/kriminalitaetstheorie",
+        "snippet": "16. Juli 2025 · Fehlende Selbstkontrolle führe nicht automatisch zu Kriminalität. Sie sei begünstigt durch mangelhafte Erziehung, Kontrolle und Training des Verhaltens.",
+        "content": ""
+      },
+      {
+        "title": "Migrant*innen sind ein „Sicherheitsrisiko”",
+        "url": "https://neuemedienmacher.de/wissen-tools/falschinformationen/migranten/sicherheitsrisiko/",
+        "snippet": "23.04.2024 ... toneshift - Netzwerk gegen Hass im Netz und Desinformation ... Deutschland. Die Argumentation. Dieses Narrativ unterstellt Migrant*innen ...",
+        "content": ""
+      },
+      {
+        "title": "Ausländerkriminalität Definition, Rechtslage & Prävention",
+        "url": "https://www.juraforum.de/lexikon/auslaenderkriminalitaet",
+        "snippet": "18. März 2024 · Ausländerkriminalität bezieht sich auf Straftaten, die von Personen begangen werden, die keine deutsche Staatsbürgerschaft besitzen. Rechtsrahmen: nationale und europäische Ebene …",
+        "content": ""
+      },
+      {
+        "title": "Kriminalstatistik: Polizeichef sagt, was in Deutschland falsch läuft",
+        "url": "https://www.bild.de/politik/inland/kriminalstatistik-polizeichef-sagt-was-in-deutschland-falsch-laeuft-67ed44e04b1cd86042291fd7",
+        "snippet": "02.04.2025 ... Selbst Kinder immer krimineller: Polizeichef sagt, was in Deutschland falsch läuft. Potsdams Polizeichef Christian Hylla (47). Foto: Polizei.",
+        "content": ""
+      }
+    ],
+    "Die Kriminalitätsrate in Deutschland ist seit 2015 um 50 Prozent gestiegen. site:eurostat.ec.europa.eu": [],
+    "Die Kriminalitätsrate in Deutschland ist seit 2015 um 50 Prozent gestiegen. site:worldbank.org": [
+      {
+        "title": "Integrating refugees: Lessons from Germany since 2015–",
+        "url": "https://thedocs.worldbank.org/en/doc/d3bf052f21b05b8b5f87f38b921dfd7e-0050062023/original/WDR-German-case-study-FINAL.pdf",
+        "snippet": "In July 2017, the Act on Better Enforcement of the Obligation to Leave the Country came into force, Here Act\"(Hau-Ab-Gesetz) by nongovernmental organizations. Among other things, the possibilities for imposing detention pending deportation were expanded and changes in data protection were made, which allowed the examination of d",
+        "content": ""
+      },
+      {
+        "title": "Literacy rate, adult total (% of people ages 15 and above)",
+        "url": "https://data.worldbank.org/indicator/SE.ADT.LITR.ZS",
+        "snippet": "Sep 22, 2025 · Explore adult literacy rates for people aged 15 and above with data from The World Bank.",
+        "content": ""
+      },
+      {
+        "title": "Femicide laws worldwide: 50 years of evolution and ongoing gaps",
+        "url": "https://blogs.worldbank.org/en/opendata/femicide-laws-worldwide--50-years-of-evolution-and-ongoing-gaps",
+        "snippet": "Jun 16, 2025 · For most of the past 50 years, femicide was not named in law—reflecting a broader global reluctance to acknowledge the gendered nature of lethal violence. Without specific legal recognition, the gender-based motives behind femicide are often ignored—resulting in lighter sentences, gaps in data, and barriers to justice and policy design.",
+        "content": ""
+      },
+      {
+        "title": "Inflation, consumer prices (annual %) - Germany | Data",
+        "url": "https://data.worldbank.org/indicator/FP.CPI.TOTL.ZG?locations=DE",
+        "snippet": "Access inflation data for Germany, including annual percentage changes in consumer prices, provided by The World Bank.",
+        "content": ""
+      },
+      {
+        "title": "GDP per capita growth (annual %) - Germany | Data",
+        "url": "https://data.worldbank.org/indicator/NY.GDP.PCAP.KD.ZG?locations=DE",
+        "snippet": "Free and open access to global development data",
+        "content": ""
+      },
+      {
+        "title": "GDP per capita (constant 2015 US$) - Germany | Data",
+        "url": "https://data.worldbank.org/indicator/NY.GDP.PCAP.KD?locations=DE",
+        "snippet": "GDP per capita (constant 2015 US$) - Germany Country official statistics, National Statistical Organizations and/or Central Banks; National Accounts data files, Organisation for Economic Co-operation and Development ( OECD ); Staff estimates, World Bank ( WB )",
+        "content": ""
+      },
+      {
+        "title": "Intentional homicides (per 100,000 people) - Chile | Data",
+        "url": "https://data.worldbank.org/indicator/VC.IHR.PSRC.P5?locations=CL",
+        "snippet": "2023 20 Latin America & Caribbean (excluding high income) 2015 21 Least developed countries: UN classification 2023",
+        "content": ""
+      }
+    ]
+  },
+  "langsearch_results": {},
+  "gfc_results": [],
+  "source_client_results": [],
+  "merged_results": [
+    {
+      "title": "Kriminalität in Deutschland | Statista",
+      "url": "https://de.statista.com/themen/94/kriminalitaet/",
+      "snippet": "Dec 17, 2025 · Demnach ist die Zahl der registrierten Straftaten in Deutschland im Jahr 2024 um 1,7 Prozent auf rund 5,84 Millionen gesunken. Als wesentlichen Grund für diesen leichten Rückgang nennt das BKA die Teillegalisierung des Besitzes und Anbaus von Cannabis seit dem 1. April 2024, wodurch entsprechend deutlich weniger Cannabis-Delikte registriert ...",
+      "content": ""
+    },
+    {
+      "title": "Straftaten Deutschland 2024| Statista",
+      "url": "https://de.statista.com/statistik/daten/studie/197/umfrage/straftaten-in-deutschland-seit-1997/",
+      "snippet": "Die Zahl der polizeilich erfassten Straftaten in Deutschland sank im Jahr 2024 um 1,7 Prozent auf rund 5,84 Millionen. Als wesentlichen Grund für diesen ...",
+      "content": ""
+    },
+    {
+      "title": "Speedtest by Ookla - The Global Broadband Speed Test",
+      "url": "https://www.speedtest.net/",
+      "snippet": "Use Speedtest on all your devices with our free desktop and mobile apps.",
+      "content": ""
+    },
+    {
+      "title": "BMI - Kriminalität in Deutschland - Kriminalität in Deutschland",
+      "url": "https://www.bmi.bund.de/DE/themen/sicherheit/kriminalitaetsbekaempfung-und-gefahrenabwehr/daten-zu-kriminalitaet/daten-zu-kriminalitaet-artikel.html",
+      "snippet": "Die Polizeiliche Kriminalstatistik (PKS) erfasst und beschreibt das polizeilich bekannte Kriminalitätsgeschehen in Deutschland. Sie enthält insbesondere Angaben zu: 1. Art und Anzahl der polizeilich erfassten Straftaten 2. Tatort und Tatzeit 3. Opfer und Schäden 4. Aufklärungsergebnisse 5. Alter, Geschlecht, Nationalität und andere Merkmale der Tat... See full list on bmi.bund.de Mithilfe der Dunkelfeldforschungversuchen Wissenschaftlerinnen und Wissenschaftler das Dunkelfeld aufzuhellen und verlässlichere Angaben zur tatsächlichen Kriminalität zu erlangen. Dazu führen sie beispielsweise anonyme Befragungen in der Bevölkerung durch. Dabei werden die Bürgerinnen und Bürger befragt, ob sie selbst Straftaten begangen haben ode... See full list on bmi.bund.de Darüber hinaus veröffentlicht das BKA regelmäßig Bundeslagebilder, Jahresberichte sowie anlassbezogene Berichte. Diese behandeln ausgewählte Deliktsbereiche und enthalten detailliertere Informationen als die PKS, beispielsweise gibt es ein Bundeslagebild zu Cybercrime, zu Organisierter Kriminalität, zu Waffenkriminalität oder zur Gewalt gegen Poliz... See full list on bmi.bund.de",
+      "content": ""
+    },
+    {
+      "title": "BKA - Polizeiliche Kriminalstatistik",
+      "url": "https://www.bka.de/DE/AktuelleInformationen/StatistikenLagebilder/PolizeilicheKriminalstatistik/pks_node.html",
+      "snippet": "Die PKS für die Bundesrepublik Deutschland wird vom BKA auf der Grundlage der von den 16 Landeskriminalämtern gelieferten Landesdaten erstellt.",
+      "content": ""
+    },
+    {
+      "title": "Gewaltkriminalität in Deutschland so hoch wie seit 15 Jahren nicht",
+      "url": "https://www.zeit.de/gesellschaft/2024-04/straftaten-deutschland-kriminalitaetsstatistik-anstieg",
+      "snippet": "06.04.2024 ... Die Anzahl der Straftaten in Deutschland ist im vergangenen Jahr um 5,5 Prozent auf fast sechs Millionen gestiegen. Das geht aus der ...",
+      "content": ""
+    },
+    {
+      "title": "Internet-Geschwindigkeitstest | Fast.com",
+      "url": "https://fast.com/de/",
+      "snippet": "Der einfache Test von FAST.com bestimmt innerhalb von Sekunden die von Ihrem Internetdienstanbieter bereitgestellte Internet-Geschwindigkeit.",
+      "content": ""
+    },
+    {
+      "title": "Kriminalstatistik Weniger Straftaten, mehr Gewaltdelikte",
+      "url": "https://www.tagesschau.de/inland/gesellschaft/polizeiliche-kriminalstatistik-106.html",
+      "snippet": "7. Apr. 2025 · Die Polizeiliche Kriminalstatistik zeigt: Insgesamt ist die Zahl der erfassten Straftaten gesunken - auch wegen des Cannabis-Gesetzes. Anders sieht es bei Gewaltdelikten aus.",
+      "content": ""
+    },
+    {
+      "title": "Polizeiliche Kriminalstatistik: 2015 gab es 6,3 Millionen Straftaten in ...",
+      "url": "https://www.tagesspiegel.de/politik/2015-gab-es-63-millionen-straftaten-in-deutschland-5473624.html",
+      "snippet": "22.05.2016 ... Die Zahl der Straftaten in Deutschland ist im Vergleich zu 2014 um 4,1 Prozent auf 6,33 Millionen Fälle gestiegen. Dieser Anstieg geht vor allem ...",
+      "content": ""
+    },
+    {
+      "title": "DSL Speedtest - CHIP testet Ihre Internet-Geschwindigkeit - CHIP",
+      "url": "https://www.chip.de/static/speedtest_a55d4e7a-ff11-482a-9d14-88686ad6975b.html",
+      "snippet": "Der CHIP-Speedtest für Ihren Internet-Anschluss: Testen Sie Ihre Download- und Upload-Geschwindigkeit sowie die Latenz - schnell, zuverlässig und kostenlos.",
+      "content": ""
+    },
+    {
+      "title": "Kriminalstatistik: Zahl der Straftaten auf fast sechs Millionen gestiegen",
+      "url": "https://www.tagesschau.de/inland/gesellschaft/straftaten-kriminalstatistik-102.html",
+      "snippet": "06.04.2024 ... Im vergangenen Jahr hat die Polizei deutlich mehr Straftaten registriert. Im Vergleich zum Vor-Corona-Jahr 2019 stieg ihre Zahl um 9,3 ...",
+      "content": ""
+    },
+    {
+      "title": "Polizeiliche Kriminalstatistik 2024: Polizei registriert über 5,83 ...",
+      "url": "https://www.bka.de/DE/AktuelleInformationen/StatistikenLagebilder/PolizeilicheKriminalstatistik/PKS2024/Polizeiliche_Kriminalstatistik_2024/Polizeiliche_Kriminalstatistik_2024.html",
+      "snippet": "Die Gewaltkriminalität ist leicht gestiegen, um insgesamt 1,5 Prozent auf 217.277 Fälle. Das ist ein neuer Höchststand (seit 2007). Besonders auffällig ist der Anstieg von Gewaltkriminalität bei tatverdächtigen Kindern und Jugendlichen.",
+      "content": ""
+    },
+    {
+      "title": "DSL Speedtest, Internet Speed Test, Breitbandmessung",
+      "url": "https://www.speedcheck.org/de/",
+      "snippet": "Wie funktioniert ein Internet Speed Test? Ein Speedtest misst die Internetgeschwindigkeit und Verbindungsqualität der verwendeten Internetverbindung. Dazu werden mehrere hintereinander …",
+      "content": ""
+    },
+    {
+      "title": "Vorstellung der Fallzahlen zur Politisch motivierten Kriminalität 2023",
+      "url": "https://www.bka.de/DE/UnsereAufgaben/Deliktsbereiche/PMK/PMKZahlen2023/PMKZahlen2023.html",
+      "snippet": "21.05.2024 ... Gestiegen sind insbesondere die Anzahl der Straftaten in den Phänomenbereichen „ PMK -ausländische Ideologie-“, nämlich um 33,04 Prozent auf ...",
+      "content": ""
+    },
+    {
+      "title": "Speedtest: Internet-Geschwindigkeit messen | Telekom",
+      "url": "https://www.telekom.de/shop/tarife/speedtest",
+      "snippet": "Überprüfen Sie Ihre Internet-Geschwindigkeit sowie die Up- und Downloadraten mit dem Speedtest der Telekom. Probieren Sie es jetzt aus!",
+      "content": ""
+    },
+    {
+      "title": "Kriminalstatistik 2015 - Polizei Münster",
+      "url": "https://muenster.polizei.nrw/sites/default/files/2017-01/Polizeiliche_Kriminalstatistik_2015.pdf",
+      "snippet": "Die Aufklärungsquote, die 2014 noch um 12,4 Prozentpunkte auf 79 Prozent gestiegen war, beträgt jetzt 64,7 Prozent. 1.4.3 Rohheitsdelikte und Straftaten gegen ...",
+      "content": ""
+    },
+    {
+      "title": "Das Parteiensystem in Deutschland ein Jahr nach der Bundestagswahl",
+      "url": "https://www.kas.de/documents/252038/253252/Das+Parteiensystem+in+Deutschland+ein+Jahr+nach+der+Bundestagswahl.pdf/2ade6176-0516-b3c9-9816-cc1647bf76a6?version=1.1",
+      "snippet": "Vorwort Trotz einiger und nachhaltiger Veränderungen in den zurückliegenden dreieinhalb Jahrzehnten galt das Parteiensystem der Bundesrepublik als sehr stabil. Während sich die Parteiensysteme in Nachbarländern Deutschlands stets durch eine höhere Fragmentierung und den Hang zur Kurzlebigkeit der Parteien und Wahlbündnisse auszeichneten, allen voran in Frankreich und in Italien, oder ...",
+      "content": ""
+    },
+    {
+      "title": "Die Ausländerkriminalität in Deutschland steigt – und die ...",
+      "url": "https://www.nzz.ch/der-andere-blick/die-auslaenderkriminalitaet-in-deutschland-steigt-und-die-politik-wacht-auf-ld.1823029",
+      "snippet": "Mar 21, 2024 · Neue Zahlen aus Nordrhein-Westfalen und Bayern zeigen: Der Ausländeranteil in der Kriminalstatistik steigt. Jahre unkontrollierter Massenzuwanderung gehen an einem Land eben nicht spurlos vorüber.",
+      "content": ""
+    },
+    {
+      "title": "\"Importierte Kriminalität\"? - Mediendienst Integration",
+      "url": "https://mediendienst-integration.de/news/importierte-kriminalitaet/",
+      "snippet": "09.09.2025 ... Migration nach Deutschland hat die Kriminalität in den letzten 20 Jahren nicht erhöht: Die Zahl der Ausländer stieg, die Zahl der Straftaten ...",
+      "content": ""
+    },
+    {
+      "title": "Sicherheitslage: Gibt es mehr Kriminalität in Deutschland?",
+      "url": "https://www.zdfheute.de/panorama/kriminalitaet/kriminalitaet-deutschland-sicherheitslage-statistik-100.html",
+      "snippet": "18. Sept. 2024 · Die Politik diskutiert über ein Sicherheitspaket unter anderem mit Verschärfungen des Waffenrechts und mehr Befugnissen für Ermittlungsbehörden. In der Debatte verschwimmen die Themen Migration, Terrorismus und Kriminalität. Dabei ist die allgemeine Entwicklung von Straftaten in Deutschland nicht so düster, wie häufig dargestellt.",
+      "content": ""
+    },
+    {
+      "title": "Gewaltkriminalität auf höchstem Stand seit 2015 - Die Stimme Berlins",
+      "url": "https://www.bz-berlin.de/deutschland/kriminalitaet-statistik-vierzig-prozent-der-verdaechtigen-auslaender",
+      "snippet": "Apr 6, 2024 · Gewaltkriminalität auf höchstem Stand seit 2015 Die Gewaltkriminalität hat mit 214.099 Fällen einen neuen Höchststand erreicht: ein Plus von 8,6 Prozent im Vergleich zum Vorjahr.",
+      "content": ""
+    },
+    {
+      "title": "Geburten in Deutschland - Statistisches Bundesamt",
+      "url": "https://www.destatis.de/DE/Themen/Gesellschaft-Umwelt/Bevoelkerung/Geburten/_inhalt.html",
+      "snippet": "Statistische Daten zur Anzahl der Geburten in Deutschland sowie zu Geburtenrate, Geburtenabstand, Kinderlosigkeit etc.",
+      "content": ""
+    },
+    {
+      "title": "Polizeiliche Kriminalstatistik 2021 Ausgewählte Zahlen im Überblick",
+      "url": "https://www.bka.de/SharedDocs/Downloads/DE/Publikationen/PolizeilicheKriminalstatistik/2021/FachlicheBroschueren/IMK-Bericht.pdf?__blob=publicationFile&v=3",
+      "snippet": "Die Innenministerinnen und Innenminister sowie die Innensenatorin und Innensenatoren der Länder und des Bundes haben sich im April 2022 mit der Polizeilichen Kriminalstatistik 2021 befasst und den nachstehenden Bericht durch einstimmigen Beschluss zur Kenntnis genommen.",
+      "content": ""
+    },
+    {
+      "title": "Zahl der tatverdächtigen Zuwanderer steigt um 52,7 Prozent - WELT",
+      "url": "https://www.welt.de/politik/deutschland/article163918666/Bericht-des-BKA-Zahl-der-tatverdaechtigen-Zuwanderer-steigt-um-52-7-Prozent.html",
+      "snippet": "23.04.2017 ... Die neueste Kriminalstatistik von Thomas de Maizière liegt vor. Und sie birgt politischen Sprengstoff. Die Zahl tatverdächtiger Zuwanderer ist ...",
+      "content": ""
+    },
+    {
+      "title": "Ursachen und Konse­quenzen der steigenden Kriminalität",
+      "url": "https://www.bundestag.de/dokumente/textarchiv/2024/kw15-de-aktuelle-stunde-kriminalstatistik-997392",
+      "snippet": "Apr 10, 2024 · Einen Tag nach der Vorstellung der 'Polizeilichen Kriminalstatistik 2023' hat der Bundestag am Mittwoch, 10. April 2024, über Ursachen und Konsequenzen der steigenden Kriminalität in Deutschland debattiert. Die Aktuelle Stunde war auf Verlangen der Unionsfraktion auf die Tagesordnung gesetzt word...",
+      "content": ""
+    },
+    {
+      "title": "Steigert Migration die Kriminalität? Ein datenbasierter Blick - ifo Institut",
+      "url": "https://www.ifo.de/DocDL/sd-2025-digital-03-adema-alipour-migration-kriminalitaet.pdf",
+      "snippet": "18.02.2025 ... Abschließend diskutieren wir Maß- nahmen, um Kriminalität unter Migranten vorzubeugen und. Fehlvorstellungen über Migranten und Migration ...",
+      "content": ""
+    },
+    {
+      "title": "Startseite - Statistisches Bundesamt",
+      "url": "https://www.destatis.de/",
+      "snippet": "Das Statistische Bundesamt (Destatis) ist die zentrale Aufgabenträgerin für die Erfassung, Aggregation, Auswertung und Veröffentlichung statistischer Daten in Deutschland. Auf der Webseite finden Sie aktuelle Daten, Pressemitteilungen, Themenbereiche, Datenbanken und mehr.",
+      "content": ""
+    },
+    {
+      "title": "Statistisches Bundesamt – Wikipedia",
+      "url": "https://de.wikipedia.org/wiki/Statistisches_Bundesamt",
+      "snippet": "Das Statistische Bundesamt (offiziell abgekürzt StBA, [5] veraltend auch StatBA, [6] inzwischen häufig Destatis; De utsches Stat istik- I nformations s ystem nach seiner Internetadresse) ist eine deutsche Bundesoberbehörde im Geschäftsbereich des Bundesministeriums des Innern.",
+      "content": ""
+    },
+    {
+      "title": "Verbraucherpreisindex und Inflationsrate - Statistisches Bundesamt",
+      "url": "https://www.destatis.de/DE/Themen/Wirtschaft/Preise/Verbraucherpreisindex/_inhalt.html",
+      "snippet": "Der Verbraucherpreisindex misst monatlich die durchschnittliche Preisentwicklung aller Waren und Dienstleistungen, die private Haushalte in Deutschland für Konsumzwecke kaufen. Die Veränderung des Verbraucherpreisindex zum Vorjahresmonat bzw. zum Vorjahr wird als Teuerungsrate oder als Inflationsrate bezeichnet.",
+      "content": ""
+    },
+    {
+      "title": "Startseite | Statistikportal.de",
+      "url": "https://www.statistikportal.de/de",
+      "snippet": "Das Archiv sämtlicher elektronischer Veröffentlichungen der Statistischen Ämter des Bundes und der Länder: Von gemeinsamen Veröffentlichungen aller Ämter bis zu statistischen Berichten einzelner Ämter. Bereitgestellt werden neben den themenorientierten monografischen Publikationen vor allem die statistischen Berichte und Fachserien.",
+      "content": ""
+    },
+    {
+      "title": "IDEV - Statistisches Bundesamt",
+      "url": "https://www-idev.destatis.de/idev/OnlineMeldung",
+      "snippet": "Allgemeine Informationen zu IDEV und zur Passwort-Rücksetzung finden Sie im Erhebungsportal der Statistischen Ämter des Bundes und der Länder. Hier stellen wir Ihnen alle wichtigen Informationen, sowie eine Kurzanleitung und Videos für die erweiterten Funktionen und deren Bedienung bereit.",
+      "content": ""
+    },
+    {
+      "title": "Verbraucherpreisindex: Gesamtindex und 12 Abteilungen",
+      "url": "https://www.destatis.de/DE/Themen/Wirtschaft/Preise/Verbraucherpreisindex/Tabellen/Verbraucherpreise-12Kategorien.html",
+      "snippet": "Per Mail erreichen Sie uns unter: datenschutz@destatis.de. Auswahl bestätigen. Ablehnen Akzeptieren. Loading... Menü. Schließen. Startseite · Themen. Statistik ...",
+      "content": ""
+    },
+    {
+      "title": "Homepage - German Federal Statistical Office",
+      "url": "https://www.destatis.de/EN/Home/_node.html",
+      "snippet": "Website of the Federal Statistical Office of Germany (Statistisches Bundesamt) - Destatis",
+      "content": ""
+    },
+    {
+      "title": "Themen - Statistisches Bundesamt",
+      "url": "https://www.destatis.de/DE/Themen/_inhalt.html",
+      "snippet": "Per Mail erreichen Sie uns unter: datenschutz@destatis.de. Auswahl bestätigen. Ablehnen Akzeptieren. Loading... Springe direkt zu: Inhalt · Hauptmenü · Suche ...",
+      "content": ""
+    },
+    {
+      "title": "Dashboard Konjunktur",
+      "url": "https://www.dashboard-deutschland.de/",
+      "snippet": "Das inhaltliche Profil wird geschärft – im Fokus steht zukünftig stärker die aktuelle konjunkturelle Entwicklung in Deutschland. Weitere Informationen zu den Veränderungen im Datenangebot finden …",
+      "content": ""
+    },
+    {
+      "title": "Statistisches Bundesamt",
+      "url": "https://wwwapp.destatis.de/",
+      "snippet": "Das Statistische Bundesamt (Destatis) stellt aktuelle Statistiken, Pressemitteilungen und Online-Dienste für Deutschland bereit.",
+      "content": ""
+    },
+    {
+      "title": "BMI - Unsere Behörden und Einrichtungen - Statistisches Bundesamt",
+      "url": "https://www.bmi.bund.de/SharedDocs/behoerden/DE/destatis.html",
+      "snippet": "Statistisches Bundesamt Destatis Das Statistische Bundesamt stellt Daten zu allen relevanten gesellschaftlichen und wirtschaftlichen Themen bereit. Diese Informationen sind objektiv, unparteilich …",
+      "content": ""
+    },
+    {
+      "title": "Erhebungsportal",
+      "url": "https://erhebungsportal.estatistik.de/",
+      "snippet": "Geben Sie bitte Ihre E-Mail-Adresse und Ihr Passwort für Ihre Anmeldung am Erhebungsportal ein. Passwort vergessen? Noch keinen Zugang? Jetzt schnell und einfach registrieren. Zum ersten Mal hier? Hier gibt es ein paar Tipps und Tricks zum Meldeverfahren.",
+      "content": ""
+    },
+    {
+      "title": "Daten übermitteln - Statistisches Bundesamt",
+      "url": "https://www.destatis.de/DE/Service/Online-Melden/_inhalt.html",
+      "snippet": "Per Mail erreichen Sie uns unter: datenschutz@destatis.de. Auswahl bestätigen. Ablehnen Akzeptieren. Loading... Springe direkt zu: Inhalt · Hauptmenü · Suche ...",
+      "content": ""
+    },
+    {
+      "title": "DESTATIS - DESTATIS Statistisches Bundesamt - Knowledge for ...",
+      "url": "https://knowledge4policy.ec.europa.eu/organisation/destatis-destatis-statistisches-bundesamt_en",
+      "snippet": "Feb 21, 2023 · Organisation | Last updated: 21 Feb 2023 DESTATIS - DESTATIS Statistisches Bundesamt German Federal Statistical Office. Topics: indicators; national economy; environment; energy; industry; agriculture; constructions; prices; society; etc.",
+      "content": ""
+    },
+    {
+      "title": "Preise - Statistisches Bundesamt",
+      "url": "https://www.destatis.de/DE/Themen/Wirtschaft/Preise/_inhalt.html",
+      "snippet": "Per Mail erreichen Sie uns unter: datenschutz@destatis.de. Auswahl bestätigen. Ablehnen Akzeptieren. Loading... Springe direkt zu: Inhalt · Hauptmenü · Suche ...",
+      "content": ""
+    },
+    {
+      "title": "www-genesis.destatis.de",
+      "url": "https://www-genesis.destatis.de/datenbank/online/table/42271-0003/search/s/NDIyNzEtMDAwMw==",
+      "snippet": "Hier sollte eine Beschreibung angezeigt werden, diese Seite lässt dies jedoch nicht zu.",
+      "content": ""
+    },
+    {
+      "title": "Startseite - Statistisches Bundesamt",
+      "url": "https://www.destatis.de/DE/Home/_inhalt.html",
+      "snippet": "Internetangebot des Statistischen Bundesamtes mit aktuellen Informationen, Publikationen, Zahlen und Fakten der amtlichen Statistik.",
+      "content": ""
+    },
+    {
+      "title": "Klassifikationen - Methoden - Statistisches Bundesamt",
+      "url": "https://www.destatis.de/DE/Methoden/Klassifikationen/_inhalt.html",
+      "snippet": "Per Mail erreichen Sie uns unter: datenschutz@destatis.de. Auswahl bestätigen. Ablehnen Akzeptieren. Loading... Springe direkt zu: Inhalt · Hauptmenü · Suche ...",
+      "content": ""
+    },
+    {
+      "title": "Deutscher Bundestag Drucksache 21/4943 Antrag der Abgeordneten Kay ...",
+      "url": "https://dserver.bundestag.de/btd/21/049/2104943.pdf",
+      "snippet": "Antrag der Abgeordneten Kay Gottschalk, Sebastian Münzenmaier, Hauke Finger, Torben Braga, Christian Douglas, Rainer Groß, Reinhard Mixl, Iris Nieland, Diana Zimmer, Christian Reck Leif-Erik Holm, Steffen Kotré, Dr. Malte Kaufmann, Marc Bernhard, Dirk Brandes, Enrico Komning, Raimond Scheirich, Bernd Schattner, Uwe Schulz, Mathias Weiser, Adam Balten, Dr. Rainer Kraft, Andreas Mayer ...",
+      "content": ""
+    },
+    {
+      "title": "Pressemitteilungen - Statistisches Bundesamt",
+      "url": "https://www.destatis.de/DE/Presse/Pressemitteilungen/_inhalt_2.html",
+      "snippet": "Per Mail erreichen Sie uns unter: datenschutz@destatis.de. Auswahl bestätigen ... Wie das Statistische Bundesamt (Destatis) mitteilt, lag ihr Anteil am ...",
+      "content": ""
+    },
+    {
+      "title": "Bevölkerung im Jahr 2024 um 100 000 Menschen gewachsen",
+      "url": "https://www.destatis.de/DE/Presse/Pressemitteilungen/2025/01/PD25_030_124.html",
+      "snippet": "Jan 23, 2025 · Zum Jahresende 2024 lebten fast 83,6 Millionen Menschen in Deutschland. Nach einer ersten Schätzung des Statistischen Bundesamtes (Destatis) wuchs die Bevölkerung Deutschlands damit um knapp 100 000 Menschen gegenüber dem Jahresende 2023. Auch im Jahr 2024 war die Nettozuwanderung die alleinige Ursache des Bevölkerungswachstums. Wie in allen Jahren seit der deutschen Vereinigung fiel die ...",
+      "content": ""
+    },
+    {
+      "title": "Veröffentlichungstermine des Statistischen Bundesamtes (DESTATIS) vom ...",
+      "url": "https://www.kulturigo.de/ver-ffentlichungstermine-des-statistischen-bundesamtes-destatis-vom-30-03-2026-bis-03-04-2026-2240957.html/",
+      "snippet": "Vor 2 Tagen · Veröffentlichungstermine des Statistischen Bundesamtes (DESTATIS) - die Veröffentlichung erfolgt in der Regel 08:00 Uhr: Montag, 30.03.2026 - (Nr. 105) Weinerzeugung, Jahr 2025 - (Nr. N020) Camping: Zahl der Übernachtungen nach Reiseregionen und Übernachtungspreise, Jahr 2025 - (Nr. 108) Verbraucherpreisindex (inklusive Harmonisierter Verbraucherpreisindex), vorläufige Ergebnisse, März ...",
+      "content": ""
+    },
+    {
+      "title": "Statistisches Bundesamt (Destatis) - LinkedIn",
+      "url": "https://de.linkedin.com/company/statistisches-bundesamt-destatis",
+      "snippet": "Statistisches Bundesamt (Destatis) | 17.825 Follower:innen auf LinkedIn. Impressum: https://www.destatis.de/DE/Service/Impressum/_inhalt.html Destatis ...",
+      "content": ""
+    },
+    {
+      "title": "Veröffentlichungstermine des Statistischen Bundesamtes (DESTATIS) vom ...",
+      "url": "https://www.finanznachrichten.de/nachrichten-2026-03/68057398-veroeffentlichungstermine-des-statistischen-bundesamtes-destatis-vom-30-03-2026-bis-03-04-2026-007.htm",
+      "snippet": "Vor 2 Tagen · Wiesbaden (ots) - Veröffentlichungstermine des Statistischen Bundesamtes (DESTATIS) - die Veröffentlichung erfolgt in der Regel 08:00 Uhr:Montag, 30.03.2026- (Nr. 105) Weinerzeugung, Jahr 2025 ...",
+      "content": ""
+    },
+    {
+      "title": "Impressum - Statistisches Bundesamt",
+      "url": "https://www.destatis.de/DE/Service/Impressum/_inhalt.html",
+      "snippet": "... destatis.de) eingerichtet. Dort werden auch Hinweise zu Korruptionsfällen entgegengenommen, für die bisher die Ombudsperson ansprechbar war. Für ...",
+      "content": ""
+    },
+    {
+      "title": "Bevölkerung Deutschland - Statistisches Bundesamt",
+      "url": "https://www.destatis.de/DE/Themen/Gesellschaft-Umwelt/Bevoelkerung/_inhalt.html",
+      "snippet": "Die Bevölkerungsstatistiken bieten u.a. Daten zur aktuellen Gesamtbevölkerung und zur Bevölkerungsentwicklung sowie zu Geburten und Sterbefällen.",
+      "content": ""
+    },
+    {
+      "title": "Statista - das Statistik-Portal: Statistiken, Marktdaten & Studien",
+      "url": "https://de.statista.com/",
+      "snippet": "statista.de; statista.com. Preise & Zugänge. Unternehmenslösungen · Bildung und öffentlicher Sektor. Statistiken. Populäre Statistiken · Themen · Markets.",
+      "content": ""
+    },
+    {
+      "title": "Kriminalität im Kontext von Zuwanderung - BKA",
+      "url": "https://www.bka.de/DE/AktuelleInformationen/StatistikenLagebilder/Lagebilder/KriminalitaetImKontextVonZuwanderung/KriminalitaetImKontextVonZuwanderung_node.html",
+      "snippet": "Deutschland ist ein Einwanderungsland, in dem jedes Jahr Menschen aus aller Welt aus verschiedensten Gründen Zuflucht suchen.",
+      "content": ""
+    },
+    {
+      "title": "Kriminalität ᐅ Definition, Arten und ihre Bedeutung",
+      "url": "https://www.juraforum.de/lexikon/kriminalitaet",
+      "snippet": "27. Mai 2025 · Begriff Kriminalität, der vom dem lateinischen 'crimen' stammt und für Schuld, Anklage Verbrechen, Beschuldigung steht, definiert sich als Makrophänomen. Das heißt, die Gesamtheit aller …",
+      "content": ""
+    },
+    {
+      "title": "„Explodierende Gewalt“ durch Zuwanderung: Merz’ Aussagen im Faktencheck",
+      "url": "https://www.rnd.de/politik/explodierende-gewalt-durch-zuwanderung-merz-aussagen-im-faktencheck-DQMOXUAS5FBDHKGG6NHTH5KWMQ.html",
+      "snippet": "Vor 3 Tagen · Friedrich Merz erntet Kritik für seinen Satz, die Gewalt in Deutschland explodiere und komme zu einem „beachtlichen Teil“ von Zuwanderern. Was ist dran an der Aussage des Kanzlers? Ein Blick auf die Daten.",
+      "content": ""
+    },
+    {
+      "title": "Kriminalität in Deutschland | Innere Sicherheit | bpb.de",
+      "url": "https://www.bpb.de/themen/innere-sicherheit/dossier-innere-sicherheit/570901/kriminalitaet-in-deutschland/",
+      "snippet": "3. Dez. 2025 · Kriminalität beschäftigt Bevölkerung, Medien und Politik in besonderer, oft emotionalisierender Art. Wie lässt sich die Kriminalitätslage in Deutschland anhand aktueller Zahlen beschreiben? Die Polizei hat 2024 insgesamt 5.837.445 Verdachtsfälle mutmaßlicher Straftaten registriert und bearbeitet.",
+      "content": ""
+    },
+    {
+      "title": "Im Faktencheck: Ist Deutschland durch die Zuwanderung ...",
+      "url": "https://www.rnd.de/politik/kriminalitaetsstatistik-im-faktencheck-ist-deutschland-durch-die-zuwanderung-unsicherer-geworden-NW2FJKPMY5H3DBKTPSQXPGYGXE.html",
+      "snippet": "Apr 9, 2024 · Kriminalität und Gewalt sind 2023 angestiegen – besonders mit Tatverdächtigen ohne deutschen Pass. Das zeigt die neue Kriminalstatistik, die am Dienstag vorgestellt wurde.",
+      "content": ""
+    },
+    {
+      "title": "Zahlen und Fakten - Bundesamt für Verfassungsschutz",
+      "url": "https://www.verfassungsschutz.de/DE/themen/auslandsbezogener-extremismus/zahlen-und-fakten/zahlen-und-fakten_node.html",
+      "snippet": "So war bei mehr als zwei Drittel der 2024 im auslandsbezogenen Extremismus verübten Straftaten – das bedeutet mehr als 3.000 Delikte (2023: rund 1.700, +76,5 %) ...",
+      "content": ""
+    },
+    {
+      "title": "Organisierte Kriminalität ᐅ Definition, Beispiele, Statistik",
+      "url": "https://www.juraforum.de/lexikon/organisierte-kriminalitaet",
+      "snippet": "25. Dez. 2024 · Überall auf der ganzen Welt gibt es Kriminalität, so auch in Deutschland. Zum Einen gibt es die kleinen Kriminellen, die sich wegen Diebstahl, Betrug, Sachbeschädigung, Unterschlagung …",
+      "content": ""
+    },
+    {
+      "title": "BMI - Kriminalität in Deutschland - Bundesministerium des Innern",
+      "url": "https://www.bmi.bund.de/DE/themen/sicherheit/kriminalitaetsbekaempfung-und-gefahrenabwehr/daten-zu-kriminalitaet/daten-zu-kriminalitaet-node.html",
+      "snippet": "Die Polizeiliche Kriminalstatistik berücksichtigt nur das sogenannte \"Hellfeld\". Darunter versteht man die der Polizei bekannt gewordenen Fälle von Straftaten ...",
+      "content": ""
+    },
+    {
+      "title": "Blog zum \"Duell\": Wenig Angriff, viel Kontrolle - Aussagen von Schweitzer und Schnieder im Check",
+      "url": "https://www.swr.de/swraktuell/wahlen/landtagswahl/liveblog-landtagswahl-rlp-duell-schweitzer-schnieder-faktencheck-106.html",
+      "snippet": "Endspurt vor der Landtagswahl: Ministerpräsident Schweitzer (SPD) und Herausforderer Schnieder (CDU) im Schlagabtausch.",
+      "content": ""
+    },
+    {
+      "title": "Kriminalität in Deutschland: Wie gefährlich ist es wirklich?",
+      "url": "https://www.dw.com/de/kriminalit%C3%A4t-deutschland-gewalt-kriminalstatistik-messerattacke-messer-gang-mord-v2/a-73972297",
+      "snippet": "15. Sept. 2025 · Drogen, Messer, Gewalt auf offener Straße. Medien berichten regelmäßig über Kriminalität in Deutschland. Ist sie angestiegen? Und wie steht Deutschland im internationalen Vergleich da?",
+      "content": ""
+    },
+    {
+      "title": "ᐅ Kriminalitätstheorie: Definition, Begriff und ... - JuraForum.de",
+      "url": "https://www.juraforum.de/lexikon/kriminalitaetstheorie",
+      "snippet": "16. Juli 2025 · Fehlende Selbstkontrolle führe nicht automatisch zu Kriminalität. Sie sei begünstigt durch mangelhafte Erziehung, Kontrolle und Training des Verhaltens.",
+      "content": ""
+    },
+    {
+      "title": "Fragwürdige Berechnungen der Ausländerkriminalität | tagesschau.de",
+      "url": "https://www.tagesschau.de/faktenfinder/kontext/kriminalitaet-nationalitaet-100.html",
+      "snippet": "22.08.2025 ... Ein Fahrzeug der Polizei steht auf einer Straße. Kontext. Kriminalstatistik Fragwürdige Berechnungen der Ausländerkriminalität. Stand: 22.08.",
+      "content": ""
+    },
+    {
+      "title": "Ausländerkriminalität Definition, Rechtslage & Prävention",
+      "url": "https://www.juraforum.de/lexikon/auslaenderkriminalitaet",
+      "snippet": "18. März 2024 · Ausländerkriminalität bezieht sich auf Straftaten, die von Personen begangen werden, die keine deutsche Staatsbürgerschaft besitzen. Rechtsrahmen: nationale und europäische Ebene …",
+      "content": ""
+    },
+    {
+      "title": "Schneller als die Polizei dementieren kann - tagesschau.de",
+      "url": "https://www.tagesschau.de/faktenfinder/fake-news-deutschland-103.html",
+      "snippet": "28. Apr. 2022 · Ein Mord von Flüchtlingen in Gifhorn, eine Terrorzelle in Berlin Rudow, ein islamistischer Anschlag in Heidelberg: drei gezielte Falschmeldungen, die sich zuletzt verbreitet haben - und die der...",
+      "content": ""
+    },
+    {
+      "title": "Falsche Berechnungen zur Ausländerkriminalität in Kriminalstatistiken",
+      "url": "https://www.tagesschau.de/faktenfinder/kontext/kriminalitaet-falsche-berechnungen-100.html",
+      "snippet": "21.03.2025 ... ... Deutschland begangene Straftaten ermittelt. ... Statistiken zur Kriminalität Mörderisches Berlin? Eine Statistik zur Kriminalität wird falsch ...",
+      "content": ""
+    },
+    {
+      "title": "BKA - Statistiken und Lagebilder",
+      "url": "https://www.bka.de/DE/AktuelleInformationen/StatistikenLagebilder/statistikenlagebilder_node.html",
+      "snippet": "Dunkelfeldforschung / Viktimisierungs surveys Das BKA führt aktuell zwei Dunkelfeldstudien durch. Die auf periodische Wiederholung angelegte Dunkelfeldstudie „Sicherheit und Kriminalität in Deutschland (SKiD)“ wird in Zusammenarbeit mit den Polizeien der Bundesländer durchgeführt.",
+      "content": ""
+    },
+    {
+      "title": "Nach Aschaffenburg: Polizei warnt vor Falschnachrichten",
+      "url": "https://www.zdfheute.de/panorama/kriminalitaet/falschmeldungen-messerangriff-aschaffenburg-100.html",
+      "snippet": "30. Jan. 2025 · Nach dem Messerangriff von Aschaffenburg kursieren im Netz Falschmeldungen: von angeblichem Polizeischutz für eine Kita-Gruppe bis zu falschen Fotos eines der Opfer.",
+      "content": ""
+    },
+    {
+      "title": "Kriminalstatistik: Wie Medien Zahlen falsch einordnen",
+      "url": "https://www.ardaudiothek.de/episode/urn:ard:episode:9726b20ca941e5ef/",
+      "snippet": "Kriminalstatistik: Wie Medien Zahlen falsch einordnen. BR24 Medien · 29.03.2026 · 28 Min. Abspielen. Merken. Mehr. BR24 Medien. Erscheinungsdatum.",
+      "content": ""
+    },
+    {
+      "title": "Wie sicher ist Deutschland? | Innere Sicherheit | bpb.de",
+      "url": "https://www.bpb.de/themen/innere-sicherheit/dossier-innere-sicherheit/576645/wie-sicher-ist-deutschland/",
+      "snippet": "Vor 2 Tagen · Die Frage nach der Sicherheit in Deutschland dreht sich oft darum, wie sich Kriminalität entwickelt. Viele Menschen interessiert auch, ob Deutschland sicherer oder unsicherer ist als andere Länder. Wegen weltweit unterschiedlicher Gesetze ist es allerdings schwierig, Kriminalitätsraten zwischen Ländern zu vergleichen.",
+      "content": ""
+    },
+    {
+      "title": "DEUTSCHLAND: \"Gezielte Desinformation\" Experte entlarvt falsche ...",
+      "url": "https://www.youtube.com/watch?v=cFsHAKhpwHw",
+      "snippet": "04.08.2025 ... DEUTSCHLAND: \"Gezielte Desinformation\" Experte entlarvt falsche Ausländer-Kriminalitätszahlen! Der renommierte forensische Psychiater Frank ...",
+      "content": ""
+    },
+    {
+      "title": "Migrant*innen sind ein „Sicherheitsrisiko”",
+      "url": "https://neuemedienmacher.de/wissen-tools/falschinformationen/migranten/sicherheitsrisiko/",
+      "snippet": "23.04.2024 ... toneshift - Netzwerk gegen Hass im Netz und Desinformation ... Deutschland. Die Argumentation. Dieses Narrativ unterstellt Migrant*innen ...",
+      "content": ""
+    },
+    {
+      "title": "Kriminalstatistik: Polizeichef sagt, was in Deutschland falsch läuft",
+      "url": "https://www.bild.de/politik/inland/kriminalstatistik-polizeichef-sagt-was-in-deutschland-falsch-laeuft-67ed44e04b1cd86042291fd7",
+      "snippet": "02.04.2025 ... Selbst Kinder immer krimineller: Polizeichef sagt, was in Deutschland falsch läuft. Potsdams Polizeichef Christian Hylla (47). Foto: Polizei.",
+      "content": ""
+    },
+    {
+      "title": "Integrating refugees: Lessons from Germany since 2015–",
+      "url": "https://thedocs.worldbank.org/en/doc/d3bf052f21b05b8b5f87f38b921dfd7e-0050062023/original/WDR-German-case-study-FINAL.pdf",
+      "snippet": "In July 2017, the Act on Better Enforcement of the Obligation to Leave the Country came into force, Here Act\"(Hau-Ab-Gesetz) by nongovernmental organizations. Among other things, the possibilities for imposing detention pending deportation were expanded and changes in data protection were made, which allowed the examination of d",
+      "content": ""
+    },
+    {
+      "title": "Literacy rate, adult total (% of people ages 15 and above)",
+      "url": "https://data.worldbank.org/indicator/SE.ADT.LITR.ZS",
+      "snippet": "Sep 22, 2025 · Explore adult literacy rates for people aged 15 and above with data from The World Bank.",
+      "content": ""
+    },
+    {
+      "title": "Femicide laws worldwide: 50 years of evolution and ongoing gaps",
+      "url": "https://blogs.worldbank.org/en/opendata/femicide-laws-worldwide--50-years-of-evolution-and-ongoing-gaps",
+      "snippet": "Jun 16, 2025 · For most of the past 50 years, femicide was not named in law—reflecting a broader global reluctance to acknowledge the gendered nature of lethal violence. Without specific legal recognition, the gender-based motives behind femicide are often ignored—resulting in lighter sentences, gaps in data, and barriers to justice and policy design.",
+      "content": ""
+    },
+    {
+      "title": "Inflation, consumer prices (annual %) - Germany | Data",
+      "url": "https://data.worldbank.org/indicator/FP.CPI.TOTL.ZG?locations=DE",
+      "snippet": "Access inflation data for Germany, including annual percentage changes in consumer prices, provided by The World Bank.",
+      "content": ""
+    },
+    {
+      "title": "GDP per capita growth (annual %) - Germany | Data",
+      "url": "https://data.worldbank.org/indicator/NY.GDP.PCAP.KD.ZG?locations=DE",
+      "snippet": "Free and open access to global development data",
+      "content": ""
+    },
+    {
+      "title": "GDP per capita (constant 2015 US$) - Germany | Data",
+      "url": "https://data.worldbank.org/indicator/NY.GDP.PCAP.KD?locations=DE",
+      "snippet": "GDP per capita (constant 2015 US$) - Germany Country official statistics, National Statistical Organizations and/or Central Banks; National Accounts data files, Organisation for Economic Co-operation and Development ( OECD ); Staff estimates, World Bank ( WB )",
+      "content": ""
+    },
+    {
+      "title": "Intentional homicides (per 100,000 people) - Chile | Data",
+      "url": "https://data.worldbank.org/indicator/VC.IHR.PSRC.P5?locations=CL",
+      "snippet": "2023 20 Latin America & Caribbean (excluding high income) 2015 21 Least developed countries: UN classification 2023",
+      "content": ""
+    }
+  ],
+  "ranked_sources": [
+    {
+      "result": {
+        "title": "Polizeiliche Kriminalstatistik 2024: Polizei registriert über 5,83 ...",
+        "url": "https://www.bka.de/DE/AktuelleInformationen/StatistikenLagebilder/PolizeilicheKriminalstatistik/PKS2024/Polizeiliche_Kriminalstatistik_2024/Polizeiliche_Kriminalstatistik_2024.html",
+        "snippet": "Die Gewaltkriminalität ist leicht gestiegen, um insgesamt 1,5 Prozent auf 217.277 Fälle. Das ist ein neuer Höchststand (seit 2007). Besonders auffällig ist der Anstieg von Gewaltkriminalität bei tatverdächtigen Kindern und Jugendlichen.",
+        "content": ""
+      },
+      "tier": 5,
+      "relevance_score": 0.24,
+      "should_scrape": true,
+      "skip_reason": null,
+      "hybrid_score": 0.44
+    },
+    {
+      "result": {
+        "title": "Gewaltkriminalität in Deutschland so hoch wie seit 15 Jahren nicht",
+        "url": "https://www.zeit.de/gesellschaft/2024-04/straftaten-deutschland-kriminalitaetsstatistik-anstieg",
+        "snippet": "06.04.2024 ... Die Anzahl der Straftaten in Deutschland ist im vergangenen Jahr um 5,5 Prozent auf fast sechs Millionen gestiegen. Das geht aus der ...",
+        "content": ""
+      },
+      "tier": 3,
+      "relevance_score": 0.333323782234957,
+      "should_scrape": true,
+      "skip_reason": null,
+      "hybrid_score": 0.43332378223495704
+    },
+    {
+      "result": {
+        "title": "Polizeiliche Kriminalstatistik: 2015 gab es 6,3 Millionen Straftaten in ...",
+        "url": "https://www.tagesspiegel.de/politik/2015-gab-es-63-millionen-straftaten-in-deutschland-5473624.html",
+        "snippet": "22.05.2016 ... Die Zahl der Straftaten in Deutschland ist im Vergleich zu 2014 um 4,1 Prozent auf 6,33 Millionen Fälle gestiegen. Dieser Anstieg geht vor allem ...",
+        "content": ""
+      },
+      "tier": 3,
+      "relevance_score": 0.29,
+      "should_scrape": true,
+      "skip_reason": null,
+      "hybrid_score": 0.39
+    },
+    {
+      "result": {
+        "title": "Bevölkerung im Jahr 2024 um 100 000 Menschen gewachsen",
+        "url": "https://www.destatis.de/DE/Presse/Pressemitteilungen/2025/01/PD25_030_124.html",
+        "snippet": "Jan 23, 2025 · Zum Jahresende 2024 lebten fast 83,6 Millionen Menschen in Deutschland. Nach einer ersten Schätzung des Statistischen Bundesamtes (Destatis) wuchs die Bevölkerung Deutschlands damit um knapp 100 000 Menschen gegenüber dem Jahresende 2023. Auch im Jahr 2024 war die Nettozuwanderung die alleinige Ursache des Bevölkerungswachstums. Wie in allen Jahren seit der deutschen Vereinigung fiel die ...",
+        "content": ""
+      },
+      "tier": 5,
+      "relevance_score": 0.16,
+      "should_scrape": true,
+      "skip_reason": null,
+      "hybrid_score": 0.36
+    },
+    {
+      "result": {
+        "title": "Wie sicher ist Deutschland? | Innere Sicherheit | bpb.de",
+        "url": "https://www.bpb.de/themen/innere-sicherheit/dossier-innere-sicherheit/576645/wie-sicher-ist-deutschland/",
+        "snippet": "Vor 2 Tagen · Die Frage nach der Sicherheit in Deutschland dreht sich oft darum, wie sich Kriminalität entwickelt. Viele Menschen interessiert auch, ob Deutschland sicherer oder unsicherer ist als andere Länder. Wegen weltweit unterschiedlicher Gesetze ist es allerdings schwierig, Kriminalitätsraten zwischen Ländern zu vergleichen.",
+        "content": ""
+      },
+      "tier": 5,
+      "relevance_score": 0.1354079254079254,
+      "should_scrape": true,
+      "skip_reason": null,
+      "hybrid_score": 0.3354079254079254
+    },
+    {
+      "result": {
+        "title": "BMI - Kriminalität in Deutschland - Kriminalität in Deutschland",
+        "url": "https://www.bmi.bund.de/DE/themen/sicherheit/kriminalitaetsbekaempfung-und-gefahrenabwehr/daten-zu-kriminalitaet/daten-zu-kriminalitaet-artikel.html",
+        "snippet": "Die Polizeiliche Kriminalstatistik (PKS) erfasst und beschreibt das polizeilich bekannte Kriminalitätsgeschehen in Deutschland. Sie enthält insbesondere Angaben zu: 1. Art und Anzahl der polizeilich erfassten Straftaten 2. Tatort und Tatzeit 3. Opfer und Schäden 4. Aufklärungsergebnisse 5. Alter, Geschlecht, Nationalität und andere Merkmale der Tat... See full list on bmi.bund.de Mithilfe der Dunkelfeldforschungversuchen Wissenschaftlerinnen und Wissenschaftler das Dunkelfeld aufzuhellen und verlässlichere Angaben zur tatsächlichen Kriminalität zu erlangen. Dazu führen sie beispielsweise anonyme Befragungen in der Bevölkerung durch. Dabei werden die Bürgerinnen und Bürger befragt, ob sie selbst Straftaten begangen haben ode... See full list on bmi.bund.de Darüber hinaus veröffentlicht das BKA regelmäßig Bundeslagebilder, Jahresberichte sowie anlassbezogene Berichte. Diese behandeln ausgewählte Deliktsbereiche und enthalten detailliertere Informationen als die PKS, beispielsweise gibt es ein Bundeslagebild zu Cybercrime, zu Organisierter Kriminalität, zu Waffenkriminalität oder zur Gewalt gegen Poliz... See full list on bmi.bund.de",
+        "content": ""
+      },
+      "tier": 5,
+      "relevance_score": 0.12249775381850854,
+      "should_scrape": true,
+      "skip_reason": null,
+      "hybrid_score": 0.32249775381850854
+    },
+    {
+      "result": {
+        "title": "Ursachen und Konse­quenzen der steigenden Kriminalität",
+        "url": "https://www.bundestag.de/dokumente/textarchiv/2024/kw15-de-aktuelle-stunde-kriminalstatistik-997392",
+        "snippet": "Apr 10, 2024 · Einen Tag nach der Vorstellung der 'Polizeilichen Kriminalstatistik 2023' hat der Bundestag am Mittwoch, 10. April 2024, über Ursachen und Konsequenzen der steigenden Kriminalität in Deutschland debattiert. Die Aktuelle Stunde war auf Verlangen der Unionsfraktion auf die Tagesordnung gesetzt word...",
+        "content": ""
+      },
+      "tier": 5,
+      "relevance_score": 0.07999999999999999,
+      "should_scrape": true,
+      "skip_reason": null,
+      "hybrid_score": 0.28
+    },
+    {
+      "result": {
+        "title": "Statistisches Bundesamt",
+        "url": "https://wwwapp.destatis.de/",
+        "snippet": "Das Statistische Bundesamt (Destatis) stellt aktuelle Statistiken, Pressemitteilungen und Online-Dienste für Deutschland bereit.",
+        "content": ""
+      },
+      "tier": 5,
+      "relevance_score": 0.08,
+      "should_scrape": true,
+      "skip_reason": null,
+      "hybrid_score": 0.28
+    },
+    {
+      "result": {
+        "title": "Kriminalität in Deutschland | Statista",
+        "url": "https://de.statista.com/themen/94/kriminalitaet/",
+        "snippet": "Dec 17, 2025 · Demnach ist die Zahl der registrierten Straftaten in Deutschland im Jahr 2024 um 1,7 Prozent auf rund 5,84 Millionen gesunken. Als wesentlichen Grund für diesen leichten Rückgang nennt das BKA die Teillegalisierung des Besitzes und Anbaus von Cannabis seit dem 1. April 2024, wodurch entsprechend deutlich weniger Cannabis-Delikte registriert ...",
+        "content": ""
+      },
+      "tier": 0,
+      "relevance_score": 0.2569079627714581,
+      "should_scrape": false,
+      "skip_reason": "low_tier",
+      "hybrid_score": 0.2569079627714581
+    },
+    {
+      "result": {
+        "title": "Integrating refugees: Lessons from Germany since 2015–",
+        "url": "https://thedocs.worldbank.org/en/doc/d3bf052f21b05b8b5f87f38b921dfd7e-0050062023/original/WDR-German-case-study-FINAL.pdf",
+        "snippet": "In July 2017, the Act on Better Enforcement of the Obligation to Leave the Country came into force, Here Act\"(Hau-Ab-Gesetz) by nongovernmental organizations. Among other things, the possibilities for imposing detention pending deportation were expanded and changes in data protection were made, which allowed the examination of d",
+        "content": ""
+      },
+      "tier": 5,
+      "relevance_score": 0.05,
+      "should_scrape": true,
+      "skip_reason": null,
+      "hybrid_score": 0.25
+    },
+    {
+      "result": {
+        "title": "GDP per capita (constant 2015 US$) - Germany | Data",
+        "url": "https://data.worldbank.org/indicator/NY.GDP.PCAP.KD?locations=DE",
+        "snippet": "GDP per capita (constant 2015 US$) - Germany Country official statistics, National Statistical Organizations and/or Central Banks; National Accounts data files, Organisation for Economic Co-operation and Development ( OECD ); Staff estimates, World Bank ( WB )",
+        "content": ""
+      },
+      "tier": 5,
+      "relevance_score": 0.05,
+      "should_scrape": true,
+      "skip_reason": null,
+      "hybrid_score": 0.25
+    },
+    {
+      "result": {
+        "title": "Femicide laws worldwide: 50 years of evolution and ongoing gaps",
+        "url": "https://blogs.worldbank.org/en/opendata/femicide-laws-worldwide--50-years-of-evolution-and-ongoing-gaps",
+        "snippet": "Jun 16, 2025 · For most of the past 50 years, femicide was not named in law—reflecting a broader global reluctance to acknowledge the gendered nature of lethal violence. Without specific legal recognition, the gender-based motives behind femicide are often ignored—resulting in lighter sentences, gaps in data, and barriers to justice and policy design.",
+        "content": ""
+      },
+      "tier": 5,
+      "relevance_score": 0.05,
+      "should_scrape": false,
+      "skip_reason": "limit_reached",
+      "hybrid_score": 0.25
+    },
+    {
+      "result": {
+        "title": "www-genesis.destatis.de",
+        "url": "https://www-genesis.destatis.de/datenbank/online/table/42271-0003/search/s/NDIyNzEtMDAwMw==",
+        "snippet": "Hier sollte eine Beschreibung angezeigt werden, diese Seite lässt dies jedoch nicht zu.",
+        "content": ""
+      },
+      "tier": 5,
+      "relevance_score": 0.03,
+      "should_scrape": false,
+      "skip_reason": "limit_reached",
+      "hybrid_score": 0.23
+    },
+    {
+      "result": {
+        "title": "Gewaltkriminalität auf höchstem Stand seit 2015 - Die Stimme Berlins",
+        "url": "https://www.bz-berlin.de/deutschland/kriminalitaet-statistik-vierzig-prozent-der-verdaechtigen-auslaender",
+        "snippet": "Apr 6, 2024 · Gewaltkriminalität auf höchstem Stand seit 2015 Die Gewaltkriminalität hat mit 214.099 Fällen einen neuen Höchststand erreicht: ein Plus von 8,6 Prozent im Vergleich zum Vorjahr.",
+        "content": ""
+      },
+      "tier": 0,
+      "relevance_score": 0.2242458100558659,
+      "should_scrape": false,
+      "skip_reason": "low_tier",
+      "hybrid_score": 0.2242458100558659
+    },
+    {
+      "result": {
+        "title": "Kriminalstatistik 2015 - Polizei Münster",
+        "url": "https://muenster.polizei.nrw/sites/default/files/2017-01/Polizeiliche_Kriminalstatistik_2015.pdf",
+        "snippet": "Die Aufklärungsquote, die 2014 noch um 12,4 Prozentpunkte auf 79 Prozent gestiegen war, beträgt jetzt 64,7 Prozent. 1.4.3 Rohheitsdelikte und Straftaten gegen ...",
+        "content": ""
+      },
+      "tier": 0,
+      "relevance_score": 0.22215257244234182,
+      "should_scrape": false,
+      "skip_reason": "low_tier",
+      "hybrid_score": 0.22215257244234182
+    },
+    {
+      "result": {
+        "title": "IDEV - Statistisches Bundesamt",
+        "url": "https://www-idev.destatis.de/idev/OnlineMeldung",
+        "snippet": "Allgemeine Informationen zu IDEV und zur Passwort-Rücksetzung finden Sie im Erhebungsportal der Statistischen Ämter des Bundes und der Länder. Hier stellen wir Ihnen alle wichtigen Informationen, sowie eine Kurzanleitung und Videos für die erweiterten Funktionen und deren Bedienung bereit.",
+        "content": ""
+      },
+      "tier": 5,
+      "relevance_score": 0.0,
+      "should_scrape": false,
+      "skip_reason": "limit_reached",
+      "hybrid_score": 0.2
+    },
+    {
+      "result": {
+        "title": "Deutscher Bundestag Drucksache 21/4943 Antrag der Abgeordneten Kay ...",
+        "url": "https://dserver.bundestag.de/btd/21/049/2104943.pdf",
+        "snippet": "Antrag der Abgeordneten Kay Gottschalk, Sebastian Münzenmaier, Hauke Finger, Torben Braga, Christian Douglas, Rainer Groß, Reinhard Mixl, Iris Nieland, Diana Zimmer, Christian Reck Leif-Erik Holm, Steffen Kotré, Dr. Malte Kaufmann, Marc Bernhard, Dirk Brandes, Enrico Komning, Raimond Scheirich, Bernd Schattner, Uwe Schulz, Mathias Weiser, Adam Balten, Dr. Rainer Kraft, Andreas Mayer ...",
+        "content": ""
+      },
+      "tier": 5,
+      "relevance_score": 0.0,
+      "should_scrape": false,
+      "skip_reason": "limit_reached",
+      "hybrid_score": 0.2
+    },
+    {
+      "result": {
+        "title": "Kriminalstatistik: Zahl der Straftaten auf fast sechs Millionen gestiegen",
+        "url": "https://www.tagesschau.de/inland/gesellschaft/straftaten-kriminalstatistik-102.html",
+        "snippet": "06.04.2024 ... Im vergangenen Jahr hat die Polizei deutlich mehr Straftaten registriert. Im Vergleich zum Vor-Corona-Jahr 2019 stieg ihre Zahl um 9,3 ...",
+        "content": ""
+      },
+      "tier": 3,
+      "relevance_score": 0.08,
+      "should_scrape": false,
+      "skip_reason": "limit_reached",
+      "hybrid_score": 0.18
+    },
+    {
+      "result": {
+        "title": "Die Ausländerkriminalität in Deutschland steigt – und die ...",
+        "url": "https://www.nzz.ch/der-andere-blick/die-auslaenderkriminalitaet-in-deutschland-steigt-und-die-politik-wacht-auf-ld.1823029",
+        "snippet": "Mar 21, 2024 · Neue Zahlen aus Nordrhein-Westfalen und Bayern zeigen: Der Ausländeranteil in der Kriminalstatistik steigt. Jahre unkontrollierter Massenzuwanderung gehen an einem Land eben nicht spurlos vorüber.",
+        "content": ""
+      },
+      "tier": 3,
+      "relevance_score": 0.08,
+      "should_scrape": false,
+      "skip_reason": "limit_reached",
+      "hybrid_score": 0.18
+    },
+    {
+      "result": {
+        "title": "Kriminalität in Deutschland: Wie gefährlich ist es wirklich?",
+        "url": "https://www.dw.com/de/kriminalit%C3%A4t-deutschland-gewalt-kriminalstatistik-messerattacke-messer-gang-mord-v2/a-73972297",
+        "snippet": "15. Sept. 2025 · Drogen, Messer, Gewalt auf offener Straße. Medien berichten regelmäßig über Kriminalität in Deutschland. Ist sie angestiegen? Und wie steht Deutschland im internationalen Vergleich da?",
+        "content": ""
+      },
+      "tier": 0,
+      "relevance_score": 0.13039800995024875,
+      "should_scrape": false,
+      "skip_reason": "low_tier",
+      "hybrid_score": 0.13039800995024875
+    },
+    {
+      "result": {
+        "title": "Kriminalstatistik: Polizeichef sagt, was in Deutschland falsch läuft",
+        "url": "https://www.bild.de/politik/inland/kriminalstatistik-polizeichef-sagt-was-in-deutschland-falsch-laeuft-67ed44e04b1cd86042291fd7",
+        "snippet": "02.04.2025 ... Selbst Kinder immer krimineller: Polizeichef sagt, was in Deutschland falsch läuft. Potsdams Polizeichef Christian Hylla (47). Foto: Polizei.",
+        "content": ""
+      },
+      "tier": 2,
+      "relevance_score": 0.09294151708164447,
+      "should_scrape": false,
+      "skip_reason": "paywall",
+      "hybrid_score": 0.12294151708164447
+    },
+    {
+      "result": {
+        "title": "Im Faktencheck: Ist Deutschland durch die Zuwanderung ...",
+        "url": "https://www.rnd.de/politik/kriminalitaetsstatistik-im-faktencheck-ist-deutschland-durch-die-zuwanderung-unsicherer-geworden-NW2FJKPMY5H3DBKTPSQXPGYGXE.html",
+        "snippet": "Apr 9, 2024 · Kriminalität und Gewalt sind 2023 angestiegen – besonders mit Tatverdächtigen ohne deutschen Pass. Das zeigt die neue Kriminalstatistik, die am Dienstag vorgestellt wurde.",
+        "content": ""
+      },
+      "tier": 0,
+      "relevance_score": 0.11,
+      "should_scrape": false,
+      "skip_reason": "low_tier",
+      "hybrid_score": 0.11
+    },
+    {
+      "result": {
+        "title": "Zahl der tatverdächtigen Zuwanderer steigt um 52,7 Prozent - WELT",
+        "url": "https://www.welt.de/politik/deutschland/article163918666/Bericht-des-BKA-Zahl-der-tatverdaechtigen-Zuwanderer-steigt-um-52-7-Prozent.html",
+        "snippet": "23.04.2017 ... Die neueste Kriminalstatistik von Thomas de Maizière liegt vor. Und sie birgt politischen Sprengstoff. Die Zahl tatverdächtiger Zuwanderer ist ...",
+        "content": ""
+      },
+      "tier": 2,
+      "relevance_score": 0.07999999999999999,
+      "should_scrape": false,
+      "skip_reason": "paywall",
+      "hybrid_score": 0.10999999999999999
+    },
+    {
+      "result": {
+        "title": "Blog zum \"Duell\": Wenig Angriff, viel Kontrolle - Aussagen von Schweitzer und Schnieder im Check",
+        "url": "https://www.swr.de/swraktuell/wahlen/landtagswahl/liveblog-landtagswahl-rlp-duell-schweitzer-schnieder-faktencheck-106.html",
+        "snippet": "Endspurt vor der Landtagswahl: Ministerpräsident Schweitzer (SPD) und Herausforderer Schnieder (CDU) im Schlagabtausch.",
+        "content": ""
+      },
+      "tier": 3,
+      "relevance_score": 0.0,
+      "should_scrape": false,
+      "skip_reason": "irrelevant",
+      "hybrid_score": 0.1
+    },
+    {
+      "result": {
+        "title": "Sicherheitslage: Gibt es mehr Kriminalität in Deutschland?",
+        "url": "https://www.zdfheute.de/panorama/kriminalitaet/kriminalitaet-deutschland-sicherheitslage-statistik-100.html",
+        "snippet": "18. Sept. 2024 · Die Politik diskutiert über ein Sicherheitspaket unter anderem mit Verschärfungen des Waffenrechts und mehr Befugnissen für Ermittlungsbehörden. In der Debatte verschwimmen die Themen Migration, Terrorismus und Kriminalität. Dabei ist die allgemeine Entwicklung von Straftaten in Deutschland nicht so düster, wie häufig dargestellt.",
+        "content": ""
+      },
+      "tier": 0,
+      "relevance_score": 0.09675324675324676,
+      "should_scrape": false,
+      "skip_reason": "low_tier",
+      "hybrid_score": 0.09675324675324676
+    },
+    {
+      "result": {
+        "title": "DEUTSCHLAND: \"Gezielte Desinformation\" Experte entlarvt falsche ...",
+        "url": "https://www.youtube.com/watch?v=cFsHAKhpwHw",
+        "snippet": "04.08.2025 ... DEUTSCHLAND: \"Gezielte Desinformation\" Experte entlarvt falsche Ausländer-Kriminalitätszahlen! Der renommierte forensische Psychiater Frank ...",
+        "content": ""
+      },
+      "tier": 1,
+      "relevance_score": 0.09215257244234182,
+      "should_scrape": false,
+      "skip_reason": "low_tier",
+      "hybrid_score": 0.09215257244234182
+    },
+    {
+      "result": {
+        "title": "\"Importierte Kriminalität\"? - Mediendienst Integration",
+        "url": "https://mediendienst-integration.de/news/importierte-kriminalitaet/",
+        "snippet": "09.09.2025 ... Migration nach Deutschland hat die Kriminalität in den letzten 20 Jahren nicht erhöht: Die Zahl der Ausländer stieg, die Zahl der Straftaten ...",
+        "content": ""
+      },
+      "tier": 0,
+      "relevance_score": 0.08,
+      "should_scrape": false,
+      "skip_reason": "low_tier",
+      "hybrid_score": 0.08
+    },
+    {
+      "result": {
+        "title": "Dashboard Konjunktur",
+        "url": "https://www.dashboard-deutschland.de/",
+        "snippet": "Das inhaltliche Profil wird geschärft – im Fokus steht zukünftig stärker die aktuelle konjunkturelle Entwicklung in Deutschland. Weitere Informationen zu den Veränderungen im Datenangebot finden …",
+        "content": ""
+      },
+      "tier": 0,
+      "relevance_score": 0.08,
+      "should_scrape": false,
+      "skip_reason": "low_tier",
+      "hybrid_score": 0.08
+    },
+    {
+      "result": {
+        "title": "Migrant*innen sind ein „Sicherheitsrisiko”",
+        "url": "https://neuemedienmacher.de/wissen-tools/falschinformationen/migranten/sicherheitsrisiko/",
+        "snippet": "23.04.2024 ... toneshift - Netzwerk gegen Hass im Netz und Desinformation ... Deutschland. Die Argumentation. Dieses Narrativ unterstellt Migrant*innen ...",
+        "content": ""
+      },
+      "tier": 0,
+      "relevance_score": 0.08,
+      "should_scrape": false,
+      "skip_reason": "low_tier",
+      "hybrid_score": 0.08
+    },
+    {
+      "result": {
+        "title": "Das Parteiensystem in Deutschland ein Jahr nach der Bundestagswahl",
+        "url": "https://www.kas.de/documents/252038/253252/Das+Parteiensystem+in+Deutschland+ein+Jahr+nach+der+Bundestagswahl.pdf/2ade6176-0516-b3c9-9816-cc1647bf76a6?version=1.1",
+        "snippet": "Vorwort Trotz einiger und nachhaltiger Veränderungen in den zurückliegenden dreieinhalb Jahrzehnten galt das Parteiensystem der Bundesrepublik als sehr stabil. Während sich die Parteiensysteme in Nachbarländern Deutschlands stets durch eine höhere Fragmentierung und den Hang zur Kurzlebigkeit der Parteien und Wahlbündnisse auszeichneten, allen voran in Frankreich und in Italien, oder ...",
+        "content": ""
+      },
+      "tier": 0,
+      "relevance_score": 0.07999999999999999,
+      "should_scrape": false,
+      "skip_reason": "low_tier",
+      "hybrid_score": 0.07999999999999999
+    },
+    {
+      "result": {
+        "title": "Startseite | Statistikportal.de",
+        "url": "https://www.statistikportal.de/de",
+        "snippet": "Das Archiv sämtlicher elektronischer Veröffentlichungen der Statistischen Ämter des Bundes und der Länder: Von gemeinsamen Veröffentlichungen aller Ämter bis zu statistischen Berichten einzelner Ämter. Bereitgestellt werden neben den themenorientierten monografischen Publikationen vor allem die statistischen Berichte und Fachserien.",
+        "content": ""
+      },
+      "tier": 0,
+      "relevance_score": 0.03,
+      "should_scrape": false,
+      "skip_reason": "low_tier",
+      "hybrid_score": 0.03
+    },
+    {
+      "result": {
+        "title": "Zahlen und Fakten - Bundesamt für Verfassungsschutz",
+        "url": "https://www.verfassungsschutz.de/DE/themen/auslandsbezogener-extremismus/zahlen-und-fakten/zahlen-und-fakten_node.html",
+        "snippet": "So war bei mehr als zwei Drittel der 2024 im auslandsbezogenen Extremismus verübten Straftaten – das bedeutet mehr als 3.000 Delikte (2023: rund 1.700, +76,5 %) ...",
+        "content": ""
+      },
+      "tier": 2,
+      "relevance_score": 0.0,
+      "should_scrape": false,
+      "skip_reason": "irrelevant",
+      "hybrid_score": 0.03
+    },
+    {
+      "result": {
+        "title": "Speedtest by Ookla - The Global Broadband Speed Test",
+        "url": "https://www.speedtest.net/",
+        "snippet": "Use Speedtest on all your devices with our free desktop and mobile apps.",
+        "content": ""
+      },
+      "tier": 0,
+      "relevance_score": 0.0,
+      "should_scrape": false,
+      "skip_reason": "low_tier",
+      "hybrid_score": 0.0
+    },
+    {
+      "result": {
+        "title": "Internet-Geschwindigkeitstest | Fast.com",
+        "url": "https://fast.com/de/",
+        "snippet": "Der einfache Test von FAST.com bestimmt innerhalb von Sekunden die von Ihrem Internetdienstanbieter bereitgestellte Internet-Geschwindigkeit.",
+        "content": ""
+      },
+      "tier": 0,
+      "relevance_score": 0.0,
+      "should_scrape": false,
+      "skip_reason": "low_tier",
+      "hybrid_score": 0.0
+    },
+    {
+      "result": {
+        "title": "DSL Speedtest - CHIP testet Ihre Internet-Geschwindigkeit - CHIP",
+        "url": "https://www.chip.de/static/speedtest_a55d4e7a-ff11-482a-9d14-88686ad6975b.html",
+        "snippet": "Der CHIP-Speedtest für Ihren Internet-Anschluss: Testen Sie Ihre Download- und Upload-Geschwindigkeit sowie die Latenz - schnell, zuverlässig und kostenlos.",
+        "content": ""
+      },
+      "tier": 0,
+      "relevance_score": 0.0,
+      "should_scrape": false,
+      "skip_reason": "low_tier",
+      "hybrid_score": 0.0
+    },
+    {
+      "result": {
+        "title": "DSL Speedtest, Internet Speed Test, Breitbandmessung",
+        "url": "https://www.speedcheck.org/de/",
+        "snippet": "Wie funktioniert ein Internet Speed Test? Ein Speedtest misst die Internetgeschwindigkeit und Verbindungsqualität der verwendeten Internetverbindung. Dazu werden mehrere hintereinander …",
+        "content": ""
+      },
+      "tier": 0,
+      "relevance_score": 0.0,
+      "should_scrape": false,
+      "skip_reason": "low_tier",
+      "hybrid_score": 0.0
+    },
+    {
+      "result": {
+        "title": "Speedtest: Internet-Geschwindigkeit messen | Telekom",
+        "url": "https://www.telekom.de/shop/tarife/speedtest",
+        "snippet": "Überprüfen Sie Ihre Internet-Geschwindigkeit sowie die Up- und Downloadraten mit dem Speedtest der Telekom. Probieren Sie es jetzt aus!",
+        "content": ""
+      },
+      "tier": 0,
+      "relevance_score": 0.0,
+      "should_scrape": false,
+      "skip_reason": "low_tier",
+      "hybrid_score": 0.0
+    },
+    {
+      "result": {
+        "title": "Steigert Migration die Kriminalität? Ein datenbasierter Blick - ifo Institut",
+        "url": "https://www.ifo.de/DocDL/sd-2025-digital-03-adema-alipour-migration-kriminalitaet.pdf",
+        "snippet": "18.02.2025 ... Abschließend diskutieren wir Maß- nahmen, um Kriminalität unter Migranten vorzubeugen und. Fehlvorstellungen über Migranten und Migration ...",
+        "content": ""
+      },
+      "tier": 0,
+      "relevance_score": 0.0,
+      "should_scrape": false,
+      "skip_reason": "low_tier",
+      "hybrid_score": 0.0
+    },
+    {
+      "result": {
+        "title": "Statistisches Bundesamt – Wikipedia",
+        "url": "https://de.wikipedia.org/wiki/Statistisches_Bundesamt",
+        "snippet": "Das Statistische Bundesamt (offiziell abgekürzt StBA, [5] veraltend auch StatBA, [6] inzwischen häufig Destatis; De utsches Stat istik- I nformations s ystem nach seiner Internetadresse) ist eine deutsche Bundesoberbehörde im Geschäftsbereich des Bundesministeriums des Innern.",
+        "content": ""
+      },
+      "tier": 0,
+      "relevance_score": 0.0,
+      "should_scrape": false,
+      "skip_reason": "low_tier",
+      "hybrid_score": 0.0
+    },
+    {
+      "result": {
+        "title": "Erhebungsportal",
+        "url": "https://erhebungsportal.estatistik.de/",
+        "snippet": "Geben Sie bitte Ihre E-Mail-Adresse und Ihr Passwort für Ihre Anmeldung am Erhebungsportal ein. Passwort vergessen? Noch keinen Zugang? Jetzt schnell und einfach registrieren. Zum ersten Mal hier? Hier gibt es ein paar Tipps und Tricks zum Meldeverfahren.",
+        "content": ""
+      },
+      "tier": 0,
+      "relevance_score": 0.0,
+      "should_scrape": false,
+      "skip_reason": "low_tier",
+      "hybrid_score": 0.0
+    },
+    {
+      "result": {
+        "title": "DESTATIS - DESTATIS Statistisches Bundesamt - Knowledge for ...",
+        "url": "https://knowledge4policy.ec.europa.eu/organisation/destatis-destatis-statistisches-bundesamt_en",
+        "snippet": "Feb 21, 2023 · Organisation | Last updated: 21 Feb 2023 DESTATIS - DESTATIS Statistisches Bundesamt German Federal Statistical Office. Topics: indicators; national economy; environment; energy; industry; agriculture; constructions; prices; society; etc.",
+        "content": ""
+      },
+      "tier": 0,
+      "relevance_score": 0.0,
+      "should_scrape": false,
+      "skip_reason": "low_tier",
+      "hybrid_score": 0.0
+    },
+    {
+      "result": {
+        "title": "Veröffentlichungstermine des Statistischen Bundesamtes (DESTATIS) vom ...",
+        "url": "https://www.kulturigo.de/ver-ffentlichungstermine-des-statistischen-bundesamtes-destatis-vom-30-03-2026-bis-03-04-2026-2240957.html/",
+        "snippet": "Vor 2 Tagen · Veröffentlichungstermine des Statistischen Bundesamtes (DESTATIS) - die Veröffentlichung erfolgt in der Regel 08:00 Uhr: Montag, 30.03.2026 - (Nr. 105) Weinerzeugung, Jahr 2025 - (Nr. N020) Camping: Zahl der Übernachtungen nach Reiseregionen und Übernachtungspreise, Jahr 2025 - (Nr. 108) Verbraucherpreisindex (inklusive Harmonisierter Verbraucherpreisindex), vorläufige Ergebnisse, März ...",
+        "content": ""
+      },
+      "tier": 0,
+      "relevance_score": 0.0,
+      "should_scrape": false,
+      "skip_reason": "low_tier",
+      "hybrid_score": 0.0
+    },
+    {
+      "result": {
+        "title": "Statistisches Bundesamt (Destatis) - LinkedIn",
+        "url": "https://de.linkedin.com/company/statistisches-bundesamt-destatis",
+        "snippet": "Statistisches Bundesamt (Destatis) | 17.825 Follower:innen auf LinkedIn. Impressum: https://www.destatis.de/DE/Service/Impressum/_inhalt.html Destatis ...",
+        "content": ""
+      },
+      "tier": 0,
+      "relevance_score": 0.0,
+      "should_scrape": false,
+      "skip_reason": "low_tier",
+      "hybrid_score": 0.0
+    },
+    {
+      "result": {
+        "title": "Veröffentlichungstermine des Statistischen Bundesamtes (DESTATIS) vom ...",
+        "url": "https://www.finanznachrichten.de/nachrichten-2026-03/68057398-veroeffentlichungstermine-des-statistischen-bundesamtes-destatis-vom-30-03-2026-bis-03-04-2026-007.htm",
+        "snippet": "Vor 2 Tagen · Wiesbaden (ots) - Veröffentlichungstermine des Statistischen Bundesamtes (DESTATIS) - die Veröffentlichung erfolgt in der Regel 08:00 Uhr:Montag, 30.03.2026- (Nr. 105) Weinerzeugung, Jahr 2025 ...",
+        "content": ""
+      },
+      "tier": 0,
+      "relevance_score": 0.0,
+      "should_scrape": false,
+      "skip_reason": "low_tier",
+      "hybrid_score": 0.0
+    },
+    {
+      "result": {
+        "title": "Organisierte Kriminalität ᐅ Definition, Beispiele, Statistik",
+        "url": "https://www.juraforum.de/lexikon/organisierte-kriminalitaet",
+        "snippet": "25. Dez. 2024 · Überall auf der ganzen Welt gibt es Kriminalität, so auch in Deutschland. Zum Einen gibt es die kleinen Kriminellen, die sich wegen Diebstahl, Betrug, Sachbeschädigung, Unterschlagung …",
+        "content": ""
+      },
+      "tier": 0,
+      "relevance_score": 0.07999999999999999,
+      "should_scrape": false,
+      "skip_reason": "low_trust",
+      "hybrid_score": 0.0
+    },
+    {
+      "result": {
+        "title": "Kriminalstatistik: Wie Medien Zahlen falsch einordnen",
+        "url": "https://www.ardaudiothek.de/episode/urn:ard:episode:9726b20ca941e5ef/",
+        "snippet": "Kriminalstatistik: Wie Medien Zahlen falsch einordnen. BR24 Medien · 29.03.2026 · 28 Min. Abspielen. Merken. Mehr. BR24 Medien. Erscheinungsdatum.",
+        "content": ""
+      },
+      "tier": 0,
+      "relevance_score": 0.0,
+      "should_scrape": false,
+      "skip_reason": "low_tier",
+      "hybrid_score": 0.0
+    }
+  ],
+  "evidence_items": [
+    {
+      "source": {
+        "url": "https://www.bka.de/DE/AktuelleInformationen/StatistikenLagebilder/PolizeilicheKriminalstatistik/PKS2024/Polizeiliche_Kriminalstatistik_2024/Polizeiliche_Kriminalstatistik_2024.html",
+        "title": "Polizeiliche Kriminalstatistik 2024: Polizei registriert über 5,83 ...",
+        "domain": "bka.de",
+        "domain_tier": 2,
+        "publication_date": "",
+        "is_fact_check_org": false,
+        "is_primary_source": true
+      },
+      "excerpt": "Die Gewaltkriminalität ist leicht gestiegen, um insgesamt 1,5 Prozent auf 217.277 Fälle. Das ist ein neuer Höchststand (seit 2007). Besonders auffällig ist der Anstieg von Gewaltkriminalität bei tatverdächtigen Kindern und Jugendlichen.",
+      "relevance_score": 0.39,
+      "extraction_confidence": 0.3,
+      "source_direction": "neutral",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://www.zeit.de/gesellschaft/2024-04/straftaten-deutschland-kriminalitaetsstatistik-anstieg",
+        "title": "Gewaltkriminalität in Deutschland so hoch wie seit 15 Jahren nicht",
+        "domain": "zeit.de",
+        "domain_tier": 3,
+        "publication_date": "2024-04-06",
+        "is_fact_check_org": false,
+        "is_primary_source": false
+      },
+      "excerpt": "06.04.2024 ... Die Anzahl der Straftaten in Deutschland ist im vergangenen Jahr um 5,5 Prozent auf fast sechs Millionen gestiegen. Das geht aus der ...",
+      "relevance_score": 0.47,
+      "extraction_confidence": 0.3,
+      "source_direction": "neutral",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://www.tagesspiegel.de/politik/2015-gab-es-63-millionen-straftaten-in-deutschland-5473624.html",
+        "title": "Polizeiliche Kriminalstatistik: 2015 gab es 6,3 Millionen Straftaten in ...",
+        "domain": "tagesspiegel.de",
+        "domain_tier": 3,
+        "publication_date": "2016-05-22",
+        "is_fact_check_org": false,
+        "is_primary_source": false
+      },
+      "excerpt": "22.05.2016 ... Die Zahl der Straftaten in Deutschland ist im Vergleich zu 2014 um 4,1 Prozent auf 6,33 Millionen Fälle gestiegen. Dieser Anstieg geht vor allem ...",
+      "relevance_score": 0.59,
+      "extraction_confidence": 0.3,
+      "source_direction": "neutral",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://www.destatis.de/DE/Presse/Pressemitteilungen/2025/01/PD25_030_124.html",
+        "title": "Bevölkerung im Jahr 2024 um 100 000 Menschen gewachsen",
+        "domain": "destatis.de",
+        "domain_tier": 1,
+        "publication_date": "2025-06-15",
+        "is_fact_check_org": false,
+        "is_primary_source": true
+      },
+      "excerpt": "Jan 23, 2025 · Zum Jahresende 2024 lebten fast 83,6 Millionen Menschen in Deutschland. Nach einer ersten Schätzung des Statistischen Bundesamtes (Destatis) wuchs die Bevölkerung Deutschlands damit um knapp 100 000 Menschen gegenüber dem Jahresende 2023. Auch im Jahr 2024 war die Nettozuwanderung die alleinige Ursache des Bevölkerungswachstums. Wie in allen Jahren seit der deutschen Vereinigung fiel die ...",
+      "relevance_score": 0.41,
+      "extraction_confidence": 0.3,
+      "source_direction": "neutral",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://www.bpb.de/themen/innere-sicherheit/dossier-innere-sicherheit/576645/wie-sicher-ist-deutschland/",
+        "title": "Wie sicher ist Deutschland? | Innere Sicherheit | bpb.de",
+        "domain": "bpb.de",
+        "domain_tier": 1,
+        "publication_date": "",
+        "is_fact_check_org": false,
+        "is_primary_source": true
+      },
+      "excerpt": "Vor 2 Tagen · Die Frage nach der Sicherheit in Deutschland dreht sich oft darum, wie sich Kriminalität entwickelt. Viele Menschen interessiert auch, ob Deutschland sicherer oder unsicherer ist als andere Länder. Wegen weltweit unterschiedlicher Gesetze ist es allerdings schwierig, Kriminalitätsraten zwischen Ländern zu vergleichen.",
+      "relevance_score": 0.41,
+      "extraction_confidence": 0.3,
+      "source_direction": "neutral",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://www.bmi.bund.de/DE/themen/sicherheit/kriminalitaetsbekaempfung-und-gefahrenabwehr/daten-zu-kriminalitaet/daten-zu-kriminalitaet-artikel.html",
+        "title": "BMI - Kriminalität in Deutschland - Kriminalität in Deutschland",
+        "domain": "bmi.bund.de",
+        "domain_tier": 2,
+        "publication_date": "",
+        "is_fact_check_org": false,
+        "is_primary_source": true
+      },
+      "excerpt": "Die Polizeiliche Kriminalstatistik (PKS) erfasst und beschreibt das polizeilich bekannte Kriminalitätsgeschehen in Deutschland. Sie enthält insbesondere Angaben zu: 1. Art und Anzahl der polizeilich erfassten Straftaten 2. Tatort und Tatzeit 3. Opfer und Schäden 4. Aufklärungsergebnisse 5. Alter, Geschlecht, Nationalität und andere Merkmale der Tat... See full list on bmi.bund.de Mithilfe der Dunkelfeldforschungversuchen Wissenschaftlerinnen und Wissenschaftler das Dunkelfeld aufzuhellen und verlässlichere Angaben zur tatsächlichen Kriminalität zu erlangen. Dazu führen sie beispielsweise anonyme Befragungen in der Bevölkerung durch. Dabei werden die Bürgerinnen und Bürger befragt, ob sie selbst Straftaten begangen haben ode... See full list on bmi.bund.de Darüber hinaus veröffentlicht das ",
+      "relevance_score": 0.38,
+      "extraction_confidence": 0.3,
+      "source_direction": "neutral",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://www.bundestag.de/dokumente/textarchiv/2024/kw15-de-aktuelle-stunde-kriminalstatistik-997392",
+        "title": "Ursachen und Konse­quenzen der steigenden Kriminalität",
+        "domain": "bundestag.de",
+        "domain_tier": 2,
+        "publication_date": "2024-06-15",
+        "is_fact_check_org": false,
+        "is_primary_source": true
+      },
+      "excerpt": "Apr 10, 2024 · Einen Tag nach der Vorstellung der 'Polizeilichen Kriminalstatistik 2023' hat der Bundestag am Mittwoch, 10. April 2024, über Ursachen und Konsequenzen der steigenden Kriminalität in Deutschland debattiert. Die Aktuelle Stunde war auf Verlangen der Unionsfraktion auf die Tagesordnung gesetzt word...",
+      "relevance_score": 0.38,
+      "extraction_confidence": 0.3,
+      "source_direction": "neutral",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://wwwapp.destatis.de/",
+        "title": "Statistisches Bundesamt",
+        "domain": "wwwapp.destatis.de",
+        "domain_tier": 1,
+        "publication_date": "",
+        "is_fact_check_org": false,
+        "is_primary_source": true
+      },
+      "excerpt": "Das Statistische Bundesamt (Destatis) stellt aktuelle Statistiken, Pressemitteilungen und Online-Dienste für Deutschland bereit.",
+      "relevance_score": 0.38,
+      "extraction_confidence": 0.3,
+      "source_direction": "neutral",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://de.statista.com/themen/94/kriminalitaet/",
+        "title": "Kriminalität in Deutschland | Statista",
+        "domain": "de.statista.com",
+        "domain_tier": 5,
+        "publication_date": "",
+        "is_fact_check_org": false,
+        "is_primary_source": false
+      },
+      "excerpt": "Dec 17, 2025 · Demnach ist die Zahl der registrierten Straftaten in Deutschland im Jahr 2024 um 1,7 Prozent auf rund 5,84 Millionen gesunken. Als wesentlichen Grund für diesen leichten Rückgang nennt das BKA die Teillegalisierung des Besitzes und Anbaus von Cannabis seit dem 1. April 2024, wodurch entsprechend deutlich weniger Cannabis-Delikte registriert ...",
+      "relevance_score": 0.44,
+      "extraction_confidence": 0.3,
+      "source_direction": "neutral",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://thedocs.worldbank.org/en/doc/d3bf052f21b05b8b5f87f38b921dfd7e-0050062023/original/WDR-German-case-study-FINAL.pdf",
+        "title": "Integrating refugees: Lessons from Germany since 2015–",
+        "domain": "thedocs.worldbank.org",
+        "domain_tier": 1,
+        "publication_date": "",
+        "is_fact_check_org": false,
+        "is_primary_source": true
+      },
+      "excerpt": "In July 2017, the Act on Better Enforcement of the Obligation to Leave the Country came into force, Here Act\"(Hau-Ab-Gesetz) by nongovernmental organizations. Among other things, the possibilities for imposing detention pending deportation were expanded and changes in data protection were made, which allowed the examination of d",
+      "relevance_score": 0.35,
+      "extraction_confidence": 0.3,
+      "source_direction": "neutral",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://data.worldbank.org/indicator/NY.GDP.PCAP.KD?locations=DE",
+        "title": "GDP per capita (constant 2015 US$) - Germany | Data",
+        "domain": "data.worldbank.org",
+        "domain_tier": 1,
+        "publication_date": "",
+        "is_fact_check_org": false,
+        "is_primary_source": true
+      },
+      "excerpt": "GDP per capita (constant 2015 US$) - Germany Country official statistics, National Statistical Organizations and/or Central Banks; National Accounts data files, Organisation for Economic Co-operation and Development ( OECD ); Staff estimates, World Bank ( WB )",
+      "relevance_score": 0.35,
+      "extraction_confidence": 0.3,
+      "source_direction": "neutral",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://blogs.worldbank.org/en/opendata/femicide-laws-worldwide--50-years-of-evolution-and-ongoing-gaps",
+        "title": "Femicide laws worldwide: 50 years of evolution and ongoing gaps",
+        "domain": "blogs.worldbank.org",
+        "domain_tier": 1,
+        "publication_date": "",
+        "is_fact_check_org": false,
+        "is_primary_source": true
+      },
+      "excerpt": "Jun 16, 2025 · For most of the past 50 years, femicide was not named in law—reflecting a broader global reluctance to acknowledge the gendered nature of lethal violence. Without specific legal recognition, the gender-based motives behind femicide are often ignored—resulting in lighter sentences, gaps in data, and barriers to justice and policy design.",
+      "relevance_score": 0.17,
+      "extraction_confidence": 0.3,
+      "source_direction": "offtopic",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://www-genesis.destatis.de/datenbank/online/table/42271-0003/search/s/NDIyNzEtMDAwMw==",
+        "title": "www-genesis.destatis.de",
+        "domain": "www-genesis.destatis.de",
+        "domain_tier": 1,
+        "publication_date": "",
+        "is_fact_check_org": false,
+        "is_primary_source": true
+      },
+      "excerpt": "Hier sollte eine Beschreibung angezeigt werden, diese Seite lässt dies jedoch nicht zu.",
+      "relevance_score": 0.28,
+      "extraction_confidence": 0.3,
+      "source_direction": "neutral",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://www.bz-berlin.de/deutschland/kriminalitaet-statistik-vierzig-prozent-der-verdaechtigen-auslaender",
+        "title": "Gewaltkriminalität auf höchstem Stand seit 2015 - Die Stimme Berlins",
+        "domain": "bz-berlin.de",
+        "domain_tier": 5,
+        "publication_date": "",
+        "is_fact_check_org": false,
+        "is_primary_source": false
+      },
+      "excerpt": "Apr 6, 2024 · Gewaltkriminalität auf höchstem Stand seit 2015 Die Gewaltkriminalität hat mit 214.099 Fällen einen neuen Höchststand erreicht: ein Plus von 8,6 Prozent im Vergleich zum Vorjahr.",
+      "relevance_score": 0.41,
+      "extraction_confidence": 0.3,
+      "source_direction": "neutral",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://muenster.polizei.nrw/sites/default/files/2017-01/Polizeiliche_Kriminalstatistik_2015.pdf",
+        "title": "Kriminalstatistik 2015 - Polizei Münster",
+        "domain": "muenster.polizei.nrw",
+        "domain_tier": 5,
+        "publication_date": "",
+        "is_fact_check_org": false,
+        "is_primary_source": false
+      },
+      "excerpt": "Die Aufklärungsquote, die 2014 noch um 12,4 Prozentpunkte auf 79 Prozent gestiegen war, beträgt jetzt 64,7 Prozent. 1.4.3 Rohheitsdelikte und Straftaten gegen ...",
+      "relevance_score": 0.41,
+      "extraction_confidence": 0.3,
+      "source_direction": "neutral",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://www-idev.destatis.de/idev/OnlineMeldung",
+        "title": "IDEV - Statistisches Bundesamt",
+        "domain": "www-idev.destatis.de",
+        "domain_tier": 1,
+        "publication_date": "",
+        "is_fact_check_org": false,
+        "is_primary_source": true
+      },
+      "excerpt": "Allgemeine Informationen zu IDEV und zur Passwort-Rücksetzung finden Sie im Erhebungsportal der Statistischen Ämter des Bundes und der Länder. Hier stellen wir Ihnen alle wichtigen Informationen, sowie eine Kurzanleitung und Videos für die erweiterten Funktionen und deren Bedienung bereit.",
+      "relevance_score": 0.17,
+      "extraction_confidence": 0.3,
+      "source_direction": "offtopic",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://dserver.bundestag.de/btd/21/049/2104943.pdf",
+        "title": "Deutscher Bundestag Drucksache 21/4943 Antrag der Abgeordneten Kay ...",
+        "domain": "dserver.bundestag.de",
+        "domain_tier": 2,
+        "publication_date": "",
+        "is_fact_check_org": false,
+        "is_primary_source": true
+      },
+      "excerpt": "Antrag der Abgeordneten Kay Gottschalk, Sebastian Münzenmaier, Hauke Finger, Torben Braga, Christian Douglas, Rainer Groß, Reinhard Mixl, Iris Nieland, Diana Zimmer, Christian Reck Leif-Erik Holm, Steffen Kotré, Dr. Malte Kaufmann, Marc Bernhard, Dirk Brandes, Enrico Komning, Raimond Scheirich, Bernd Schattner, Uwe Schulz, Mathias Weiser, Adam Balten, Dr. Rainer Kraft, Andreas Mayer ...",
+      "relevance_score": 0.12,
+      "extraction_confidence": 0.3,
+      "source_direction": "offtopic",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://www.tagesschau.de/inland/gesellschaft/straftaten-kriminalstatistik-102.html",
+        "title": "Kriminalstatistik: Zahl der Straftaten auf fast sechs Millionen gestiegen",
+        "domain": "tagesschau.de",
+        "domain_tier": 3,
+        "publication_date": "2024-04-06",
+        "is_fact_check_org": false,
+        "is_primary_source": false
+      },
+      "excerpt": "06.04.2024 ... Im vergangenen Jahr hat die Polizei deutlich mehr Straftaten registriert. Im Vergleich zum Vor-Corona-Jahr 2019 stieg ihre Zahl um 9,3 ...",
+      "relevance_score": 0.28,
+      "extraction_confidence": 0.3,
+      "source_direction": "neutral",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://www.nzz.ch/der-andere-blick/die-auslaenderkriminalitaet-in-deutschland-steigt-und-die-politik-wacht-auf-ld.1823029",
+        "title": "Die Ausländerkriminalität in Deutschland steigt – und die ...",
+        "domain": "nzz.ch",
+        "domain_tier": 3,
+        "publication_date": "",
+        "is_fact_check_org": false,
+        "is_primary_source": false
+      },
+      "excerpt": "Mar 21, 2024 · Neue Zahlen aus Nordrhein-Westfalen und Bayern zeigen: Der Ausländeranteil in der Kriminalstatistik steigt. Jahre unkontrollierter Massenzuwanderung gehen an einem Land eben nicht spurlos vorüber.",
+      "relevance_score": 0.38,
+      "extraction_confidence": 0.3,
+      "source_direction": "neutral",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://www.dw.com/de/kriminalit%C3%A4t-deutschland-gewalt-kriminalstatistik-messerattacke-messer-gang-mord-v2/a-73972297",
+        "title": "Kriminalität in Deutschland: Wie gefährlich ist es wirklich?",
+        "domain": "dw.com",
+        "domain_tier": 3,
+        "publication_date": "",
+        "is_fact_check_org": false,
+        "is_primary_source": false
+      },
+      "excerpt": "15. Sept. 2025 · Drogen, Messer, Gewalt auf offener Straße. Medien berichten regelmäßig über Kriminalität in Deutschland. Ist sie angestiegen? Und wie steht Deutschland im internationalen Vergleich da?",
+      "relevance_score": 0.41,
+      "extraction_confidence": 0.3,
+      "source_direction": "neutral",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://www.bild.de/politik/inland/kriminalstatistik-polizeichef-sagt-was-in-deutschland-falsch-laeuft-67ed44e04b1cd86042291fd7",
+        "title": "Kriminalstatistik: Polizeichef sagt, was in Deutschland falsch läuft",
+        "domain": "bild.de",
+        "domain_tier": 5,
+        "publication_date": "2025-04-02",
+        "is_fact_check_org": false,
+        "is_primary_source": false
+      },
+      "excerpt": "02.04.2025 ... Selbst Kinder immer krimineller: Polizeichef sagt, was in Deutschland falsch läuft. Potsdams Polizeichef Christian Hylla (47). Foto: Polizei.",
+      "relevance_score": 0.38,
+      "extraction_confidence": 0.3,
+      "source_direction": "neutral",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://www.rnd.de/politik/kriminalitaetsstatistik-im-faktencheck-ist-deutschland-durch-die-zuwanderung-unsicherer-geworden-NW2FJKPMY5H3DBKTPSQXPGYGXE.html",
+        "title": "Im Faktencheck: Ist Deutschland durch die Zuwanderung ...",
+        "domain": "rnd.de",
+        "domain_tier": 5,
+        "publication_date": "",
+        "is_fact_check_org": false,
+        "is_primary_source": false
+      },
+      "excerpt": "Apr 9, 2024 · Kriminalität und Gewalt sind 2023 angestiegen – besonders mit Tatverdächtigen ohne deutschen Pass. Das zeigt die neue Kriminalstatistik, die am Dienstag vorgestellt wurde.",
+      "relevance_score": 0.41,
+      "extraction_confidence": 0.3,
+      "source_direction": "neutral",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://www.welt.de/politik/deutschland/article163918666/Bericht-des-BKA-Zahl-der-tatverdaechtigen-Zuwanderer-steigt-um-52-7-Prozent.html",
+        "title": "Zahl der tatverdächtigen Zuwanderer steigt um 52,7 Prozent - WELT",
+        "domain": "welt.de",
+        "domain_tier": 3,
+        "publication_date": "2017-04-23",
+        "is_fact_check_org": false,
+        "is_primary_source": false
+      },
+      "excerpt": "23.04.2017 ... Die neueste Kriminalstatistik von Thomas de Maizière liegt vor. Und sie birgt politischen Sprengstoff. Die Zahl tatverdächtiger Zuwanderer ist ...",
+      "relevance_score": 0.33,
+      "extraction_confidence": 0.3,
+      "source_direction": "neutral",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://www.swr.de/swraktuell/wahlen/landtagswahl/liveblog-landtagswahl-rlp-duell-schweitzer-schnieder-faktencheck-106.html",
+        "title": "Blog zum \"Duell\": Wenig Angriff, viel Kontrolle - Aussagen von Schweitzer und Schnieder im Check",
+        "domain": "swr.de",
+        "domain_tier": 5,
+        "publication_date": "",
+        "is_fact_check_org": false,
+        "is_primary_source": false
+      },
+      "excerpt": "Endspurt vor der Landtagswahl: Ministerpräsident Schweitzer (SPD) und Herausforderer Schnieder (CDU) im Schlagabtausch.",
+      "relevance_score": 0.12,
+      "extraction_confidence": 0.3,
+      "source_direction": "offtopic",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://www.zdfheute.de/panorama/kriminalitaet/kriminalitaet-deutschland-sicherheitslage-statistik-100.html",
+        "title": "Sicherheitslage: Gibt es mehr Kriminalität in Deutschland?",
+        "domain": "zdfheute.de",
+        "domain_tier": 5,
+        "publication_date": "",
+        "is_fact_check_org": false,
+        "is_primary_source": false
+      },
+      "excerpt": "18. Sept. 2024 · Die Politik diskutiert über ein Sicherheitspaket unter anderem mit Verschärfungen des Waffenrechts und mehr Befugnissen für Ermittlungsbehörden. In der Debatte verschwimmen die Themen Migration, Terrorismus und Kriminalität. Dabei ist die allgemeine Entwicklung von Straftaten in Deutschland nicht so düster, wie häufig dargestellt.",
+      "relevance_score": 0.38,
+      "extraction_confidence": 0.3,
+      "source_direction": "neutral",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://www.youtube.com/watch?v=cFsHAKhpwHw",
+        "title": "DEUTSCHLAND: \"Gezielte Desinformation\" Experte entlarvt falsche ...",
+        "domain": "youtube.com",
+        "domain_tier": 5,
+        "publication_date": "2025-08-04",
+        "is_fact_check_org": false,
+        "is_primary_source": false
+      },
+      "excerpt": "04.08.2025 ... DEUTSCHLAND: \"Gezielte Desinformation\" Experte entlarvt falsche Ausländer-Kriminalitätszahlen! Der renommierte forensische Psychiater Frank ...",
+      "relevance_score": 0.38,
+      "extraction_confidence": 0.3,
+      "source_direction": "neutral",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://mediendienst-integration.de/news/importierte-kriminalitaet/",
+        "title": "\"Importierte Kriminalität\"? - Mediendienst Integration",
+        "domain": "mediendienst-integration.de",
+        "domain_tier": 5,
+        "publication_date": "2025-09-09",
+        "is_fact_check_org": false,
+        "is_primary_source": false
+      },
+      "excerpt": "09.09.2025 ... Migration nach Deutschland hat die Kriminalität in den letzten 20 Jahren nicht erhöht: Die Zahl der Ausländer stieg, die Zahl der Straftaten ...",
+      "relevance_score": 0.38,
+      "extraction_confidence": 0.3,
+      "source_direction": "neutral",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://www.dashboard-deutschland.de/",
+        "title": "Dashboard Konjunktur",
+        "domain": "dashboard-deutschland.de",
+        "domain_tier": 5,
+        "publication_date": "",
+        "is_fact_check_org": false,
+        "is_primary_source": false
+      },
+      "excerpt": "Das inhaltliche Profil wird geschärft – im Fokus steht zukünftig stärker die aktuelle konjunkturelle Entwicklung in Deutschland. Weitere Informationen zu den Veränderungen im Datenangebot finden …",
+      "relevance_score": 0.38,
+      "extraction_confidence": 0.3,
+      "source_direction": "neutral",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://neuemedienmacher.de/wissen-tools/falschinformationen/migranten/sicherheitsrisiko/",
+        "title": "Migrant*innen sind ein „Sicherheitsrisiko”",
+        "domain": "neuemedienmacher.de",
+        "domain_tier": 5,
+        "publication_date": "2024-04-23",
+        "is_fact_check_org": false,
+        "is_primary_source": false
+      },
+      "excerpt": "23.04.2024 ... toneshift - Netzwerk gegen Hass im Netz und Desinformation ... Deutschland. Die Argumentation. Dieses Narrativ unterstellt Migrant*innen ...",
+      "relevance_score": 0.38,
+      "extraction_confidence": 0.3,
+      "source_direction": "neutral",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://www.kas.de/documents/252038/253252/Das+Parteiensystem+in+Deutschland+ein+Jahr+nach+der+Bundestagswahl.pdf/2ade6176-0516-b3c9-9816-cc1647bf76a6?version=1.1",
+        "title": "Das Parteiensystem in Deutschland ein Jahr nach der Bundestagswahl",
+        "domain": "kas.de",
+        "domain_tier": 5,
+        "publication_date": "",
+        "is_fact_check_org": false,
+        "is_primary_source": false
+      },
+      "excerpt": "Vorwort Trotz einiger und nachhaltiger Veränderungen in den zurückliegenden dreieinhalb Jahrzehnten galt das Parteiensystem der Bundesrepublik als sehr stabil. Während sich die Parteiensysteme in Nachbarländern Deutschlands stets durch eine höhere Fragmentierung und den Hang zur Kurzlebigkeit der Parteien und Wahlbündnisse auszeichneten, allen voran in Frankreich und in Italien, oder ...",
+      "relevance_score": 0.38,
+      "extraction_confidence": 0.3,
+      "source_direction": "neutral",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://www.statistikportal.de/de",
+        "title": "Startseite | Statistikportal.de",
+        "domain": "statistikportal.de",
+        "domain_tier": 5,
+        "publication_date": "",
+        "is_fact_check_org": false,
+        "is_primary_source": false
+      },
+      "excerpt": "Das Archiv sämtlicher elektronischer Veröffentlichungen der Statistischen Ämter des Bundes und der Länder: Von gemeinsamen Veröffentlichungen aller Ämter bis zu statistischen Berichten einzelner Ämter. Bereitgestellt werden neben den themenorientierten monografischen Publikationen vor allem die statistischen Berichte und Fachserien.",
+      "relevance_score": 0.28,
+      "extraction_confidence": 0.3,
+      "source_direction": "neutral",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://www.verfassungsschutz.de/DE/themen/auslandsbezogener-extremismus/zahlen-und-fakten/zahlen-und-fakten_node.html",
+        "title": "Zahlen und Fakten - Bundesamt für Verfassungsschutz",
+        "domain": "verfassungsschutz.de",
+        "domain_tier": 5,
+        "publication_date": "",
+        "is_fact_check_org": false,
+        "is_primary_source": false
+      },
+      "excerpt": "So war bei mehr als zwei Drittel der 2024 im auslandsbezogenen Extremismus verübten Straftaten – das bedeutet mehr als 3.000 Delikte (2023: rund 1.700, +76,5 %) ...",
+      "relevance_score": 0.12,
+      "extraction_confidence": 0.3,
+      "source_direction": "offtopic",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://www.speedtest.net/",
+        "title": "Speedtest by Ookla - The Global Broadband Speed Test",
+        "domain": "speedtest.net",
+        "domain_tier": 5,
+        "publication_date": "",
+        "is_fact_check_org": false,
+        "is_primary_source": false
+      },
+      "excerpt": "Use Speedtest on all your devices with our free desktop and mobile apps.",
+      "relevance_score": 0.12,
+      "extraction_confidence": 0.3,
+      "source_direction": "offtopic",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://fast.com/de/",
+        "title": "Internet-Geschwindigkeitstest | Fast.com",
+        "domain": "fast.com",
+        "domain_tier": 5,
+        "publication_date": "",
+        "is_fact_check_org": false,
+        "is_primary_source": false
+      },
+      "excerpt": "Der einfache Test von FAST.com bestimmt innerhalb von Sekunden die von Ihrem Internetdienstanbieter bereitgestellte Internet-Geschwindigkeit.",
+      "relevance_score": 0.17,
+      "extraction_confidence": 0.3,
+      "source_direction": "offtopic",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://www.chip.de/static/speedtest_a55d4e7a-ff11-482a-9d14-88686ad6975b.html",
+        "title": "DSL Speedtest - CHIP testet Ihre Internet-Geschwindigkeit - CHIP",
+        "domain": "chip.de",
+        "domain_tier": 5,
+        "publication_date": "",
+        "is_fact_check_org": false,
+        "is_primary_source": false
+      },
+      "excerpt": "Der CHIP-Speedtest für Ihren Internet-Anschluss: Testen Sie Ihre Download- und Upload-Geschwindigkeit sowie die Latenz - schnell, zuverlässig und kostenlos.",
+      "relevance_score": 0.17,
+      "extraction_confidence": 0.3,
+      "source_direction": "offtopic",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://www.speedcheck.org/de/",
+        "title": "DSL Speedtest, Internet Speed Test, Breitbandmessung",
+        "domain": "speedcheck.org",
+        "domain_tier": 5,
+        "publication_date": "",
+        "is_fact_check_org": false,
+        "is_primary_source": false
+      },
+      "excerpt": "Wie funktioniert ein Internet Speed Test? Ein Speedtest misst die Internetgeschwindigkeit und Verbindungsqualität der verwendeten Internetverbindung. Dazu werden mehrere hintereinander …",
+      "relevance_score": 0.17,
+      "extraction_confidence": 0.3,
+      "source_direction": "offtopic",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://www.telekom.de/shop/tarife/speedtest",
+        "title": "Speedtest: Internet-Geschwindigkeit messen | Telekom",
+        "domain": "telekom.de",
+        "domain_tier": 5,
+        "publication_date": "",
+        "is_fact_check_org": false,
+        "is_primary_source": false
+      },
+      "excerpt": "Überprüfen Sie Ihre Internet-Geschwindigkeit sowie die Up- und Downloadraten mit dem Speedtest der Telekom. Probieren Sie es jetzt aus!",
+      "relevance_score": 0.13,
+      "extraction_confidence": 0.3,
+      "source_direction": "offtopic",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://www.ifo.de/DocDL/sd-2025-digital-03-adema-alipour-migration-kriminalitaet.pdf",
+        "title": "Steigert Migration die Kriminalität? Ein datenbasierter Blick - ifo Institut",
+        "domain": "ifo.de",
+        "domain_tier": 5,
+        "publication_date": "2025-02-18",
+        "is_fact_check_org": false,
+        "is_primary_source": false
+      },
+      "excerpt": "18.02.2025 ... Abschließend diskutieren wir Maß- nahmen, um Kriminalität unter Migranten vorzubeugen und. Fehlvorstellungen über Migranten und Migration ...",
+      "relevance_score": 0.17,
+      "extraction_confidence": 0.3,
+      "source_direction": "offtopic",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://de.wikipedia.org/wiki/Statistisches_Bundesamt",
+        "title": "Statistisches Bundesamt – Wikipedia",
+        "domain": "de.wikipedia.org",
+        "domain_tier": 5,
+        "publication_date": "",
+        "is_fact_check_org": false,
+        "is_primary_source": false
+      },
+      "excerpt": "Das Statistische Bundesamt (offiziell abgekürzt StBA, [5] veraltend auch StatBA, [6] inzwischen häufig Destatis; De utsches Stat istik- I nformations s ystem nach seiner Internetadresse) ist eine deutsche Bundesoberbehörde im Geschäftsbereich des Bundesministeriums des Innern.",
+      "relevance_score": 0.08,
+      "extraction_confidence": 0.3,
+      "source_direction": "offtopic",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://erhebungsportal.estatistik.de/",
+        "title": "Erhebungsportal",
+        "domain": "erhebungsportal.estatistik.de",
+        "domain_tier": 5,
+        "publication_date": "",
+        "is_fact_check_org": false,
+        "is_primary_source": false
+      },
+      "excerpt": "Geben Sie bitte Ihre E-Mail-Adresse und Ihr Passwort für Ihre Anmeldung am Erhebungsportal ein. Passwort vergessen? Noch keinen Zugang? Jetzt schnell und einfach registrieren. Zum ersten Mal hier? Hier gibt es ein paar Tipps und Tricks zum Meldeverfahren.",
+      "relevance_score": 0.12,
+      "extraction_confidence": 0.3,
+      "source_direction": "offtopic",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://knowledge4policy.ec.europa.eu/organisation/destatis-destatis-statistisches-bundesamt_en",
+        "title": "DESTATIS - DESTATIS Statistisches Bundesamt - Knowledge for ...",
+        "domain": "knowledge4policy.ec.europa.eu",
+        "domain_tier": 2,
+        "publication_date": "",
+        "is_fact_check_org": false,
+        "is_primary_source": true
+      },
+      "excerpt": "Feb 21, 2023 · Organisation | Last updated: 21 Feb 2023 DESTATIS - DESTATIS Statistisches Bundesamt German Federal Statistical Office. Topics: indicators; national economy; environment; energy; industry; agriculture; constructions; prices; society; etc.",
+      "relevance_score": 0.12,
+      "extraction_confidence": 0.3,
+      "source_direction": "offtopic",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://www.kulturigo.de/ver-ffentlichungstermine-des-statistischen-bundesamtes-destatis-vom-30-03-2026-bis-03-04-2026-2240957.html/",
+        "title": "Veröffentlichungstermine des Statistischen Bundesamtes (DESTATIS) vom ...",
+        "domain": "kulturigo.de",
+        "domain_tier": 5,
+        "publication_date": "2026-03-30",
+        "is_fact_check_org": false,
+        "is_primary_source": false
+      },
+      "excerpt": "Vor 2 Tagen · Veröffentlichungstermine des Statistischen Bundesamtes (DESTATIS) - die Veröffentlichung erfolgt in der Regel 08:00 Uhr: Montag, 30.03.2026 - (Nr. 105) Weinerzeugung, Jahr 2025 - (Nr. N020) Camping: Zahl der Übernachtungen nach Reiseregionen und Übernachtungspreise, Jahr 2025 - (Nr. 108) Verbraucherpreisindex (inklusive Harmonisierter Verbraucherpreisindex), vorläufige Ergebnisse, März ...",
+      "relevance_score": 0.17,
+      "extraction_confidence": 0.3,
+      "source_direction": "offtopic",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://de.linkedin.com/company/statistisches-bundesamt-destatis",
+        "title": "Statistisches Bundesamt (Destatis) - LinkedIn",
+        "domain": "de.linkedin.com",
+        "domain_tier": 5,
+        "publication_date": "",
+        "is_fact_check_org": false,
+        "is_primary_source": false
+      },
+      "excerpt": "Statistisches Bundesamt (Destatis) | 17.825 Follower:innen auf LinkedIn. Impressum: https://www.destatis.de/DE/Service/Impressum/_inhalt.html Destatis ...",
+      "relevance_score": 0.12,
+      "extraction_confidence": 0.3,
+      "source_direction": "offtopic",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://www.finanznachrichten.de/nachrichten-2026-03/68057398-veroeffentlichungstermine-des-statistischen-bundesamtes-destatis-vom-30-03-2026-bis-03-04-2026-007.htm",
+        "title": "Veröffentlichungstermine des Statistischen Bundesamtes (DESTATIS) vom ...",
+        "domain": "finanznachrichten.de",
+        "domain_tier": 5,
+        "publication_date": "2026-03-30",
+        "is_fact_check_org": false,
+        "is_primary_source": false
+      },
+      "excerpt": "Vor 2 Tagen · Wiesbaden (ots) - Veröffentlichungstermine des Statistischen Bundesamtes (DESTATIS) - die Veröffentlichung erfolgt in der Regel 08:00 Uhr:Montag, 30.03.2026- (Nr. 105) Weinerzeugung, Jahr 2025 ...",
+      "relevance_score": 0.17,
+      "extraction_confidence": 0.3,
+      "source_direction": "offtopic",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://www.juraforum.de/lexikon/organisierte-kriminalitaet",
+        "title": "Organisierte Kriminalität ᐅ Definition, Beispiele, Statistik",
+        "domain": "juraforum.de",
+        "domain_tier": 5,
+        "publication_date": "",
+        "is_fact_check_org": false,
+        "is_primary_source": false
+      },
+      "excerpt": "25. Dez. 2024 · Überall auf der ganzen Welt gibt es Kriminalität, so auch in Deutschland. Zum Einen gibt es die kleinen Kriminellen, die sich wegen Diebstahl, Betrug, Sachbeschädigung, Unterschlagung …",
+      "relevance_score": 0.23,
+      "extraction_confidence": 0.3,
+      "source_direction": "neutral",
+      "evidence_type": "weak",
+      "claim_scope_score": 0.5
+    },
+    {
+      "source": {
+        "url": "https://www.ardaudiothek.de/episode/urn:ard:episode:9726b20ca941e5ef/",
+        "title": "Kriminalstatistik: Wie Medien Zahlen falsch einordnen",
+        "domain": "ardaudiothek.de",
+        "domain_tier": 5,
+        "publication_date": "2026-03-29",
+        "is_fact_check_org": false,
+        "is_primary_source": false
+      },
+      "excerpt": "Kriminalstatistik: Wie Medien Zahlen falsch einordnen. BR24 Medien · 29.03.2026 · 28 Min. Abspielen. Merken. Mehr. BR24 Medien. Erscheinungsdatum.",
+      "relevance_score": 0.17,
+      "extraction_confidence": 0.3,
+      "source_direction": "offtopic",
+      "evidence_type": "contextual",
+      "claim_scope_score": 0.5
+    }
+  ],
+  "quality_signals": {
+    "has_primary_source_any": true,
+    "has_primary_direct_evidence": false,
+    "has_fact_check_any": false,
+    "has_fact_check_direct_match": false,
+    "has_primary_sources": true,
+    "has_fact_check_org_result": false,
+    "source_consensus": "insufficient",
+    "freshness_score": 0.3,
+    "overall_quality": 0.24040000000000003,
+    "top_tier_count": 13,
+    "off_topic_rate": 0.0,
+    "avg_top5_relevance": 0.454,
+    "low_trust_rate": 0.0,
+    "direct_evidence_count": 0,
+    "contextual_only_rate": 1.0,
+    "has_direct_refutation": false,
+    "direct_refutation_count": 0
+  },
+  "route_result": {
+    "sources": [
+      {
+        "source_id": "eurostat",
+        "display_name": "Eurostat – Statistical Office of the European Union",
+        "source_class": "tools.sources.clients.eurostat.EurostatClient",
+        "base_url": "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0",
+        "auth_mode": "none",
+        "supports_search": true,
+        "supports_detail_fetch": true,
+        "allowed_storage": "cache",
+        "allowed_display": "full",
+        "fulltext_allowed": true,
+        "commercial_reuse_ok": "allowed",
+        "citation_required": true,
+        "claim_domains": [
+          "statistical",
+          "economic",
+          "trade",
+          "regulatory"
+        ],
+        "authority_weight": 0.95,
+        "classifier_domains": [
+          "eurostat.ec.europa.eu",
+          "ec.europa.eu/eurostat"
+        ],
+        "jurisdictions": [
+          "eu",
+          "de"
+        ],
+        "rate_limit_rps": 2.0,
+        "requires_registration": false,
+        "notes": "CC BY 4.0. Offizielle EU-Statistikbehörde. JSON:Statistical Data and Metadata eXchange (SDMX). Datensatz-Tabellen über /data/{dataset_code}?format=JSON. Datensatz-Suche über Eurostat Data Browser (kein Such-API; Mapping via bekannte Dataset-Codes nötig). Bereits in source_classifier._TIER_PATTERNS (SourceTier.OFFICIAL)."
+      },
+      {
+        "source_id": "world_bank",
+        "display_name": "World Bank Open Data",
+        "source_class": "tools.sources.clients.world_bank.WorldBankClient",
+        "base_url": "https://api.worldbank.org/v2",
+        "auth_mode": "none",
+        "supports_search": true,
+        "supports_detail_fetch": true,
+        "allowed_storage": "cache",
+        "allowed_display": "full",
+        "fulltext_allowed": true,
+        "commercial_reuse_ok": "allowed",
+        "citation_required": true,
+        "claim_domains": [
+          "economic",
+          "statistical",
+          "financial",
+          "trade"
+        ],
+        "authority_weight": 0.88,
+        "classifier_domains": [
+          "worldbank.org",
+          "data.worldbank.org"
+        ],
+        "jurisdictions": [
+          "global"
+        ],
+        "rate_limit_rps": 10.0,
+        "requires_registration": false,
+        "notes": "CC BY 4.0. Über 16.000 Entwicklungsindikatoren. Indicator-API: /country/{iso}/indicator/{code}. Volltextabruf ist möglich, Citation-Policy beachten."
+      },
+      {
+        "source_id": "crossref",
+        "display_name": "Crossref – DOI Metadata Registry",
+        "source_class": "tools.sources.clients.crossref.CrossrefClient",
+        "base_url": "https://api.crossref.org",
+        "auth_mode": "email_polite",
+        "supports_search": true,
+        "supports_detail_fetch": true,
+        "allowed_storage": "cache",
+        "allowed_display": "excerpt",
+        "fulltext_allowed": false,
+        "commercial_reuse_ok": "allowed",
+        "citation_required": false,
+        "claim_domains": [
+          "scientific",
+          "medical",
+          "statistical"
+        ],
+        "authority_weight": 0.82,
+        "classifier_domains": [
+          "api.crossref.org",
+          "crossref.org",
+          "doi.org"
+        ],
+        "jurisdictions": [
+          "global"
+        ],
+        "rate_limit_rps": 5.0,
+        "requires_registration": false,
+        "notes": "CC0. DOI-Metadaten-Registry mit über 150 Mio. Einträgen. Polite Pool via mailto-Parameter (ENV: POLITE_POOL_EMAIL). Suche: /works?query={text}. Detailabfrage: /works/{doi}. Nur Metadaten (kein Volltext). fulltext_allowed=False: Crossref liefert Metadaten, keine Paper."
+      }
+    ],
+    "domains": [
+      "statistical",
+      "economic"
+    ],
+    "jurisdiction": "de",
+    "site_hints": [
+      "site:eurostat.ec.europa.eu",
+      "site:worldbank.org",
+      "site:api.crossref.org"
+    ],
+    "rationale": "Domänen: statistical, economic | Jurisdiktion: de | Quellen: Eurostat, World Bank Open Data, Crossref | Konfidenz: 35%",
+    "confidence": 0.35
+  },
+  "backends_used": [
+    "searxng"
+  ],
+  "cache_hits": 0,
+  "cache_misses": 0,
+  "debug_notes": [
+    "Routed: domains=['statistical', 'economic'], jurisdiction=de, confidence=0.35",
+    "Queries (4): ['Die Kriminalitätsrate in Deutschland ist seit 2015 um 50 Prozent gestiegen.', 'destatis.de', 'Kriminalität Deutschland Faktencheck', 'Kriminalität Deutschland Falschmeldung']",
+    "SearXNG: 97 results",
+    "Merged: 82 unique results",
+    "Evidence items: 46 (direct=0, contextual=45, weak=1)"
+  ]
+}
