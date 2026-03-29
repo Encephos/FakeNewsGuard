@@ -32,7 +32,6 @@ Orchestrator
   │           └── ClaimPrioritizerAgent
   │
   ├── FactCheckerAgent       (Facade → EvidenceBuilder + CoVe + Verdict)
-  │     ├── _LegacyFallbackMixin   [Fallback bei v2-Fehler – entfällt wenn v2 stabil]
   │     ├── EvidenceBuilderAgent
   │     │     ├── SearXNGClient      (primäres Suchbackend)
   │     │     ├── LangSearchClient   (LangSearch API)

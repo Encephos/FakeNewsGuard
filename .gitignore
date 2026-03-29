@@ -18,6 +18,8 @@ PLAN.md
 *.db-wal
 
 # Evaluation snapshots (live-generated; seed snapshots are committed)
+eval/data
+eval/
 eval/snapshots/*.json
 !eval/snapshots/stat-001.json
 !eval/snapshots/reg-001.json
