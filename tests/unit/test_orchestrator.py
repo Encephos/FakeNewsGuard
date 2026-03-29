@@ -1,4 +1,7 @@
-"""Tests für orchestrator.py."""
+"""Legacy-Orchestrator-Tests – kept for v1 API regression coverage.
+
+Die v2-Orchestrator-Tests befinden sich in test_orchestrator_v2.py.
+"""
 
 from __future__ import annotations
 

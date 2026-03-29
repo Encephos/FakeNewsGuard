@@ -183,6 +183,10 @@ class SourceConfig:
             Domain-Muster (Substrings des Hostnames) für die automatische
             Erweiterung von ``source_classifier._TIER_PATTERNS``.
             Leer = keine automatische Classifier-Integration.
+        jurisdictions:
+            Jurisdiktions-Tags (``"eu"``, ``"uk"``, ``"us"``, ``"de"``,
+            ``"global"``). Ermöglicht jurisdiction-basiertes Routing über
+            ``SourceRegistry.by_jurisdiction()``.
         rate_limit_rps:
             Maximale Requests pro Sekunde. ``None`` = unbekannt / unbegrenzt.
         requires_registration:
@@ -206,6 +210,7 @@ class SourceConfig:
     claim_domains: tuple[ClaimDomain, ...]
     authority_weight: float  # [0.0, 1.0]
     classifier_domains: tuple[str, ...] = ()
+    jurisdictions: tuple[str, ...] = ()
     rate_limit_rps: float | None = None
     requires_registration: bool = False
     notes: str = ""
@@ -234,6 +239,37 @@ class SourceConfig:
     def is_commercial_safe(self) -> bool:
         """Gibt ``True`` zurück wenn kommerzielle Nutzung eindeutig erlaubt ist."""
         return self.commercial_reuse_ok == CommercialUsePolicy.ALLOWED
+
+    def is_runtime_allowed(self) -> bool:
+        """Darf diese Quelle im Standardpfad geroutet werden?
+
+        Nur Quellen mit eindeutig erlaubter kommerzieller Nutzung (ALLOWED)
+        werden im Default-Pipeline-Pfad verwendet. CHECK_TERMS, RESTRICTED
+        und UNKNOWN sind ausgeschlossen.
+        """
+        return self.commercial_reuse_ok == CommercialUsePolicy.ALLOWED
+
+    def can_cache(self) -> bool:
+        """Darf persistent gecacht werden (SQLite)?
+
+        Nur Quellen mit ``AllowedStorage.CACHE`` erlauben persistenten Cache.
+        SESSION_ONLY und NO_STORAGE werden nicht in SQLite gespeichert.
+        """
+        return self.allowed_storage == AllowedStorage.CACHE
+
+    def max_excerpt_length(self) -> int:
+        """Maximale Excerpt-Länge basierend auf display_policy + fulltext_allowed.
+
+        Returns:
+            0   für METADATA_ONLY (kein Inhalt erlaubt)
+            400 für EXCERPT oder wenn fulltext_allowed=False (konservativ)
+            800 für FULL mit fulltext_allowed=True
+        """
+        if self.allowed_display == AllowedDisplay.METADATA_ONLY:
+            return 0
+        if not self.fulltext_allowed or self.allowed_display == AllowedDisplay.EXCERPT:
+            return 400
+        return 800
 
     def covers_domain(self, domain: ClaimDomain) -> bool:
         """Gibt ``True`` zurück wenn diese Quelle die gegebene ClaimDomain abdeckt."""

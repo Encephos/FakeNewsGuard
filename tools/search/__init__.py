@@ -1,4 +1,7 @@
-"""Web-Search-Abstraktionsschicht – unterstützt Tavily, LangSearch, SearXNG, Serper, Brave.
+"""Web-Search-Abstraktionsschicht – SearXNG (primär), LangSearch (semantisch), + optionale Plugins.
+
+Kern-Clients: SearXNGClient, LangSearchClient
+Optionale Plugins: TavilyClient, Serper, Brave (via WebSearchClient Provider-Router)
 
 Alle Klassen werden hier re-exportiert für Backward-Kompatibilität:
     from tools.web_search import SearchResult, WebSearchClient, ...

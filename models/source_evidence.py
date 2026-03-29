@@ -512,6 +512,13 @@ class OfficialEvidenceItem(BaseModel):
         snippets = [f.source_snippet for f in self.normalized_facts if f.source_snippet]
         excerpt = (snippets[0] if snippets else self.abstract)[:800]
 
+        # Policy-Durchsetzung: Excerpt gemäß display_policy begrenzen
+        if self.display_policy == AllowedDisplay.METADATA_ONLY:
+            excerpt = ""
+        else:
+            max_len = 400 if self.display_policy == AllowedDisplay.EXCERPT else 800
+            excerpt = excerpt[:max_len]
+
         return EvidenceItem(
             source=EvidenceSource(
                 url=self.url,

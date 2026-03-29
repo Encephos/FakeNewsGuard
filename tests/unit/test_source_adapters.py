@@ -146,6 +146,7 @@ class TestOfficialEvidenceItemNormalization:
             abstract="Abstract text",
             authority_score=0.91,
             claim_relevance=0.70,
+            display_policy=AllowedDisplay.EXCERPT,
             normalized_facts=[
                 NormalizedFact(
                     fact_type=FactType.TRIAL_STATUS,

@@ -42,6 +42,7 @@ from enum import Enum
 from typing import Any, Callable, Generic, Optional, TypeVar
 
 from models.source_evidence import OfficialEvidenceItem
+from tools.sources.types import AllowedStorage
 
 logger = logging.getLogger(__name__)
 
@@ -452,6 +453,12 @@ class AdapterGuardian:
         """
         source_id = adapter.config.source_id
 
+        # 0. Storage-Policy durchsetzen: kein persistenter Cache für SESSION_ONLY/NO_STORAGE
+        if not adapter.config.can_cache():
+            use_cache = False
+            logger.debug("Storage policy %s → cache disabled for %s",
+                         adapter.config.allowed_storage.value, source_id)
+
         # 1. Cache-Check
         if use_cache:
             cached = self.cache.get(source_id, query)
@@ -489,7 +496,7 @@ class AdapterGuardian:
             logger.error("Search failed for %s: %s", source_id, exc)
             return []
 
-        # 4. Cache-Speicherung
+        # 4. Cache-Speicherung (nur wenn Storage-Policy erlaubt)
         if use_cache and results:
             ttl = self._get_ttl_for_source(source_id)
             self.cache.set(source_id, results, query=query, ttl_hours=ttl)
@@ -513,6 +520,12 @@ class AdapterGuardian:
             Normalisiertes Evidence-Item oder None
         """
         source_id = adapter.config.source_id
+
+        # 0. Storage-Policy durchsetzen
+        if not adapter.config.can_cache():
+            use_cache = False
+            logger.debug("Storage policy %s → cache disabled for %s",
+                         adapter.config.allowed_storage.value, source_id)
 
         # 1. Cache-Check
         if use_cache:
@@ -546,7 +559,7 @@ class AdapterGuardian:
             logger.error("Fetch details failed for %s: %s", source_id, exc)
             return None
 
-        # 4. Cache-Speicherung
+        # 4. Cache-Speicherung (nur wenn Storage-Policy erlaubt)
         if use_cache and result:
             ttl = self._get_ttl_for_source(source_id)
             self.cache.set(source_id, [result], record_id=record_id, ttl_hours=ttl)

@@ -2,7 +2,7 @@
 
 Verantwortlichkeiten:
     1. Query-Erstellung (LLM-optimiert)
-    2. Retrieval via Tavily + LangSearch (primär) + SearXNG (unterstützend, parallel)
+    2. Retrieval via SearXNG (primär, breit) + LangSearch (semantisch, parallel)
     3. Google Fact Check API (separate Priority-Schicht)
     4. Deduplication + Quality-Aware Ranking
     5. Scraping der Top-K Quellen
@@ -68,6 +68,33 @@ from agents.evidence_scoring import (
     _relevance_score,
 )
 
+import re as _re
+
+
+def _dedup_queries(queries: list[str]) -> list[str]:
+    """Dedupliziere Queries nach Normalisierung (lowercase, whitespace, Satzzeichen)."""
+    seen: set[str] = set()
+    result: list[str] = []
+    for q in queries:
+        norm = _re.sub(r"\s+", " ", q.strip().lower()).rstrip(".,;:!?")
+        if norm and norm not in seen:
+            seen.add(norm)
+            result.append(q)
+    return result
+
+
+def _dedup_searxng_queries(queries: list[SearXNGQuery]) -> list[SearXNGQuery]:
+    """Dedupliziere SearXNGQuery-Liste nach (normalized_query, pageno)."""
+    seen: set[tuple[str, int]] = set()
+    result: list[SearXNGQuery] = []
+    for sq in queries:
+        norm = _re.sub(r"\s+", " ", sq.query.strip().lower()).rstrip(".,;:!?")
+        key = (norm, sq.pageno)
+        if key not in seen:
+            seen.add(key)
+            result.append(sq)
+    return result
+
 
 # ── EvidenceBuilderAgent ──────────────────────────────────────────────────────
 
@@ -90,6 +117,10 @@ class EvidenceBuilderAgent(BaseAgent):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
+        # Search Cache (Valkey wenn verfügbar, sonst In-Memory)
+        from tools.db.factory import create_search_cache
+        self._search_cache = create_search_cache(self.config)
+
         # Google Fact Check Client
         self._gfc_client = FactCheckDatabaseClient(
             config=FactCheckDatabaseConfig(
@@ -103,6 +134,7 @@ class EvidenceBuilderAgent(BaseAgent):
         self._langsearch = LangSearchClient(
             config=self.config.langsearch,
             retry=self.config.retry,
+            search_cache=self._search_cache,
         )
 
         # SearXNG Client (unterstützend – kostenlos, alle Queries, self-hosted)
@@ -111,7 +143,12 @@ class EvidenceBuilderAgent(BaseAgent):
         self._searxng = SearXNGClient(
             config=self.config.searxng,
             retry=self.config.retry,
+            search_cache=self._search_cache,
         )
+
+        # ClaimRouter (einmalig instanziiert, nicht pro Claim)
+        from tools.claim_router import ClaimRouter
+        self._router = ClaimRouter()
 
     def _get_source_adapter(self, source_config: "SourceConfig"):  # type: ignore[name-defined]
         """Instanziiere oder hole Source Adapter via AdapterGuardian (mit Caching).
@@ -196,6 +233,22 @@ class EvidenceBuilderAgent(BaseAgent):
                     url = item.get("url", "") if isinstance(item, dict) else getattr(item, "url", "")
                     excerpt = item.get("excerpt", "") if isinstance(item, dict) else getattr(item, "excerpt", "")
                     full_text = item.get("full_text", "") if isinstance(item, dict) else getattr(item, "full_text", "")
+
+                    # Display-Policy durchsetzen
+                    display_policy = (
+                        item.get("display_policy", "metadata")
+                        if isinstance(item, dict)
+                        else getattr(item, "display_policy", "metadata")
+                    )
+                    # Normalisiere Enum-Werte zu Strings
+                    dp = display_policy.value if hasattr(display_policy, "value") else str(display_policy)
+
+                    if dp == "metadata":
+                        excerpt = ""
+                        full_text = ""
+                    elif dp == "excerpt":
+                        full_text = ""
+                        excerpt = (excerpt or "")[:400]
 
                     result = SearchResult(
                         title=title,
@@ -283,9 +336,8 @@ class EvidenceBuilderAgent(BaseAgent):
         """Async-Version – Retrieval läuft parallel.
 
         Retrieval-Rollen (klar getrennt, Priorität bei Fusion):
+            SearXNG    = primäre Breitensuche (alle Queries, kostenlos, self-hosted)
             LangSearch = semantische Hauptsuche (adaptiv 3–5 Queries, Dedup-Priorität)
-            SearXNG    = unterstützende Breitensuche (alle Queries, kostenlos, self-hosted)
-            Tavily     = budgetierter Content-/Discovery-Layer (1 Query primary, max 3/Claim)
             GFC        = strukturierter Shortcut-Layer (höchste Priorität)
         """
         claim: Claim = input_data
@@ -316,21 +368,18 @@ class EvidenceBuilderAgent(BaseAgent):
                 )
 
         # ── 2. Adaptives paralleles Retrieval ────────────────────────────────
-        # Rollen: LangSearch = semantische Hauptsuche, Tavily = budgetiert/content-stark,
-        #         SearXNG = breite kostenlose Ergänzung, GFC = Shortcut-Layer,
-        #         SourceClients = hochwertige institutionelle Datenquellen (NEW)
+        # Rollen: SearXNG = primäre Breitensuche, LangSearch = semantische Hauptsuche,
+        #         GFC = Shortcut-Layer, SourceClients = institutionelle Datenquellen
         from agents.fact_checker import _categories_for_claim, _is_current_state_claim
-        from tools.claim_router import ClaimRouter
 
         categories = _categories_for_claim(claim)
         retrieval_cfg = self.config.evidence_retrieval
 
-        # Route claim für Source Client selection (NEW)
+        # Route claim für Source Client selection
         route_result = None
         try:
             if isinstance(claim, ProcessedClaim):
-                router = ClaimRouter()
-                route_result, _ = router.route_and_apply(claim)
+                route_result, _ = self._router.route_and_apply(claim)
         except Exception as e:
             self._log(f"ClaimRouter error: {type(e).__name__}")
 
@@ -353,6 +402,10 @@ class EvidenceBuilderAgent(BaseAgent):
                 f"Recency-Override: News-Kategorien ({categories}), "
                 f"Jahr {_current_year} + 'aktuell' ergänzt für Aktuell-Zustand-Claim"
             )
+
+        # Query-Deduplizierung: entferne normalisierte Duplikate
+        queries_before_dedup = len(queries)
+        queries = _dedup_queries(queries)
 
         # LangSearch: adaptiv nach Claim-Komplexität (2–4 Queries)
         ls_count = _langsearch_query_count(claim, retrieval_cfg)
@@ -384,6 +437,16 @@ class EvidenceBuilderAgent(BaseAgent):
                     pageno=2,
                 )
                 searxng_queries.append(sq2)
+
+        # Site-Hints aus ClaimRouter als zusätzliche SearXNG-Queries
+        if route_result and route_result.site_hints and queries:
+            for hint in route_result.site_hints[:2]:
+                searxng_queries.append(SearXNGQuery(
+                    query=f"{queries[0]} {hint}",
+                    categories=categories,
+                ))
+
+        searxng_queries = _dedup_searxng_queries(searxng_queries)
         searxng_task = self._searxng.multi_search_async(
             searxng_queries, max_results=self.config.searxng.max_results,
         )
@@ -421,7 +484,7 @@ class EvidenceBuilderAgent(BaseAgent):
 
         # ── 3. LangSearch-Retry bei schwacher erster Evidenz ─────────────────
         # LangSearch ist die primäre semantische Suchquelle – bei schwacher
-        # erster Runde wird ZUERST LangSearch erweitert, nicht Tavily.
+        # erster Runde wird LangSearch mit zusätzlichen Queries erweitert.
         if (
             retrieval_cfg.langsearch_retry_on_weak
             and self.config.langsearch.enabled
@@ -601,11 +664,27 @@ class EvidenceBuilderAgent(BaseAgent):
             source_count=len(unique_results),
         )
 
-        self._log(
-            f"Claim {claim.id}: {len(evidence_items)} Items, "
-            f"Qualität={quality.overall_quality:.2f}, "
-            f"{len(gfc_matches)} GFC-Treffer"
-        )
+        # ── Retrieval-Metriken ────────────────────────────────────────────────
+        scrape_attempted = len([r for r in ranked if r.should_scrape])
+        scrape_succeeded = len(scraped)
+        cache_stats = self._search_cache.stats() if self._search_cache else {}
+        metrics = {
+            "queries_generated": queries_before_dedup,
+            "queries_after_dedup": len(queries),
+            "searxng_results": searxng_count,
+            "langsearch_results": langsearch_count,
+            "gfc_matches": len(gfc_matches),
+            "source_client_results": source_clients_count,
+            "unique_after_dedup": len(unique_results),
+            "scrape_attempted": scrape_attempted,
+            "scrape_succeeded": scrape_succeeded,
+            "iterative_rounds": iterative_round,
+            "cache_hit_rate": cache_stats.get("hit_rate", 0.0),
+        }
+        metrics_line = " | ".join(f"{k}={v}" for k, v in metrics.items())
+        self._log(f"Claim {claim.id}: {metrics_line}")
+        notes.append(f"Retrieval-Metriken: {metrics_line}")
+
         return pack
 
     async def _build_queries_async(self, claim: Claim, context: str) -> list[str]:
@@ -622,7 +701,6 @@ class EvidenceBuilderAgent(BaseAgent):
         loop = _asyncio.get_event_loop()
 
         from agents.fact_checker import _build_search_queries, _optimize_queries_with_llm
-        from tools.claim_router import ClaimRouter
         from tools.query_expansion import QueryExpansionEngine
 
         # Phase 1: Profile-basierte Queries (wie zuvor)
@@ -634,8 +712,7 @@ class EvidenceBuilderAgent(BaseAgent):
                 # Nur wenn claim eine ProcessedClaim mit SearchProfile ist
                 if isinstance(claim, ProcessedClaim) and claim.search_profile:
                     # Route claim für Domain/Jurisdiction-aware expansion
-                    router = ClaimRouter()
-                    route_result, _ = router.route_and_apply(claim)
+                    route_result, _ = self._router.route_and_apply(claim)
 
                     # Expand queries via QueryExpansionEngine
                     expander = QueryExpansionEngine()
@@ -780,7 +857,7 @@ class EvidenceBuilderAgent(BaseAgent):
 
             # Excerpt-Priorisierung:
             # 1. Gescrapte Passage (höchste Qualität)
-            # 2. Tavily/LangSearch-Volltext aus SearchResult.content (gut strukturiert)
+            # 2. LangSearch-Volltext aus SearchResult.content (gut strukturiert)
             # 3. Snippet (Fallback)
             if sc and sc.fetch_success and sc.passage:
                 raw_excerpt = sc.passage
@@ -870,14 +947,11 @@ class EvidenceBuilderAgent(BaseAgent):
         claim: Claim,
         original_queries: list[str],
     ) -> list[SearchResult]:
-        """Fallback-Suche mit alternativen Queries – LangSearch + SearXNG + ggf. Tavily.
+        """Fallback-Suche mit alternativen Queries – LangSearch + SearXNG.
 
         Priorität im Fallback:
             1. LangSearch (semantisch stark, immer aktiv wenn enabled)
             2. SearXNG (breit, kostenlos)
-            3. Tavily nur wenn: Budget verfügbar UND Evidenzqualität niedrig
-
-        Tavily wird im Fallback budgetiert: max. 1 zusätzlicher Request.
         """
         from agents.fact_checker import _build_fallback_queries
         fallback_queries = _build_fallback_queries(claim, original_queries)

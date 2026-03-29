@@ -189,28 +189,29 @@ class SynthesizerConfig:
 class EvidenceRetrievalConfig:
     """Konfiguration für das adaptive Retrieval im EvidenceBuilderAgent.
 
-    Trennt die Rollen von Tavily (breit/content-stark) und LangSearch (semantisch)
-    und macht Schwellenwerte konfigurierbar statt hart codiert.
-
-    Rollen:
+    Kern-Retrieval (immer aktiv):
         SearXNG    = primäre Breitensuche (self-hosted, kostenlos, alle Queries)
         LangSearch = semantisch-präzise Ergänzung (adaptiv je nach Claim-Komplexität)
-        Tavily     = optionaler Content-Layer (standardmäßig deaktiviert, budgetiert)
         GFC        = strukturierter Shortcut-Layer (kein Query-Budget nötig)
 
-    Env-Vars:
+    Optionale Plugins (deaktiviert per Default):
+        Tavily     = kostenpflichtiger Content-Layer (nur wenn TavilyConfig.enabled=True)
+
+    Env-Vars (Kern):
         LANGSEARCH_QUERIES_SIMPLE     – Queries für einfache Claims (Default: 2)
         LANGSEARCH_QUERIES_COMPLEX    – Queries für komplexe/statistische Claims (Default: 4)
         LANGSEARCH_RETRY_ON_WEAK      – Zweite Runde bei schwacher erster Evidenz (Default: true)
-        TAVILY_PRIMARY_QUERIES        – Tavily-Queries in Primärrunde (Default: 1)
-        TAVILY_MAX_QUERIES_PER_CLAIM  – Max. Tavily-Queries pro Claim inkl. Expansion (Default: 3)
-        TAVILY_EXPAND_ON_LOW_QUALITY  – Tavily-Expansion bei schwacher Evidenz (Default: true)
-        TAVILY_REQUEST_BUDGET         – Max. Tavily-Requests pro Analyse-Lauf (Default: 10)
         WEAK_EVIDENCE_THRESHOLD       – Avg-Relevanz-Schwelle für LangSearch-Retry (Default: 0.25)
         LOW_TRUST_CONFIDENCE_PENALTY  – Penalty-Faktor für Low-Trust-Rate in overall_quality (Default: 0.20)
         PRE_SCRAPE_OFFTOPIC_PENALTY   – Mindest-Penalty damit Kandidat vor Scraping entfernt wird (Default: 0.70)
         CLAIM_SCOPE_MIN_DIRECT        – Min. claim_scope_score für direct evidence (Default: 0.60)
         CURRENT_STATE_TIME_RANGE      – SearXNG time_range für Aktuell-Zustand-Claims (Default: month)
+
+    Env-Vars (optionales Tavily-Plugin, nur bei TavilyConfig.enabled=True wirksam):
+        TAVILY_PRIMARY_QUERIES        – Tavily-Queries in Primärrunde (Default: 1)
+        TAVILY_MAX_QUERIES_PER_CLAIM  – Max. Tavily-Queries pro Claim inkl. Expansion (Default: 3)
+        TAVILY_EXPAND_ON_LOW_QUALITY  – Tavily-Expansion bei schwacher Evidenz (Default: true)
+        TAVILY_REQUEST_BUDGET         – Max. Tavily-Requests pro Analyse-Lauf (Default: 10)
     """
 
     langsearch_queries_simple: int = 3
@@ -218,11 +219,11 @@ class EvidenceRetrievalConfig:
     langsearch_retry_on_weak: bool = True
     # ── Query Expansion ────────────────────────────────────────────────────────
     query_expansion_enabled: bool = True
-    # ── Tavily-Budgetierung ───────────────────────────────────────────────────
-    tavily_primary_queries: int = 1
-    tavily_max_queries_per_claim: int = 3
-    tavily_expand_on_low_quality: bool = True
-    tavily_request_budget: int = 10
+    # ── Tavily-Plugin-Budgetierung (nur wirksam bei TavilyConfig.enabled=True) ─
+    tavily_primary_queries: int = 1              # Optional plugin
+    tavily_max_queries_per_claim: int = 3        # Optional plugin
+    tavily_expand_on_low_quality: bool = True     # Optional plugin
+    tavily_request_budget: int = 10               # Optional plugin
     # ── Schwellenwerte ────────────────────────────────────────────────────────
     weak_evidence_threshold: float = 0.25
     low_trust_confidence_penalty: float = 0.20

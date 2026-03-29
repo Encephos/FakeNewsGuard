@@ -10,4 +10,4 @@ class SearchResult:
     title: str
     url: str
     snippet: str
-    content: str = ""  # Volltext, falls verfügbar (Tavily)
+    content: str = ""  # Volltext, falls verfügbar (LangSearch, Tavily)

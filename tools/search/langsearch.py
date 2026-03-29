@@ -25,9 +25,11 @@ class LangSearchClient:
         self,
         config: LangSearchConfig,
         retry: RetryConfig | None = None,
+        search_cache=None,
     ) -> None:
         self.config = config
         self._retry = retry or RetryConfig()
+        self._cache = search_cache
 
     def search(
         self, query: str, max_results: int | None = None
@@ -37,6 +39,12 @@ class LangSearchClient:
             return []
 
         n = max_results or self.config.max_results
+
+        # Cache-Check
+        if self._cache:
+            cached = self._cache.get(query, "langsearch")
+            if cached is not None:
+                return [SearchResult(**r) for r in cached]
 
         def _call():
             resp = httpx.post(
@@ -68,7 +76,17 @@ class LangSearchClient:
             print(f"  ⚠ LangSearch fehlgeschlagen: {type(e).__name__}: {e}", file=sys.stderr)
             return []
 
-        return self._parse_response(data, n)
+        results = self._parse_response(data, n)
+
+        # Cache-Store
+        if self._cache and results:
+            self._cache.set(
+                query,
+                [{"title": r.title, "url": r.url, "snippet": r.snippet, "content": r.content} for r in results],
+                "langsearch",
+            )
+
+        return results
 
     async def search_async(
         self, query: str, max_results: int | None = None
@@ -78,6 +96,12 @@ class LangSearchClient:
             return []
 
         n = max_results or self.config.max_results
+
+        # Cache-Check
+        if self._cache:
+            cached = self._cache.get(query, "langsearch")
+            if cached is not None:
+                return [SearchResult(**r) for r in cached]
 
         async def _call():
             async with httpx.AsyncClient(timeout=30.0) as client:
@@ -109,7 +133,17 @@ class LangSearchClient:
             print(f"  ⚠ LangSearch async fehlgeschlagen: {type(e).__name__}: {e}", file=sys.stderr)
             return []
 
-        return self._parse_response(data, n)
+        results = self._parse_response(data, n)
+
+        # Cache-Store
+        if self._cache and results:
+            self._cache.set(
+                query,
+                [{"title": r.title, "url": r.url, "snippet": r.snippet, "content": r.content} for r in results],
+                "langsearch",
+            )
+
+        return results
 
     async def multi_search_async(
         self,

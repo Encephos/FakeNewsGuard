@@ -8,7 +8,7 @@ Hybrid-Ranking (inspiriert von arxiv-sanity-preserver TF-IDF + SearXNG BM25):
     - Semantisches Profil-Anchor-Scoring (wenn ClaimSearchProfile vorhanden)
     - Source-Tier / Authority-Bonus
     - Low-Trust-Penalty
-    - Tavily-Content-Bonus (wenn content verfügbar)
+    - Content-Bonus (wenn content verfügbar)
 """
 
 from __future__ import annotations
@@ -230,7 +230,7 @@ def rank_sources(
         1. BM25 + Keyword-Overlap + Profil-Anchor-Fit → hybrid_score
         2. Source-Tier-Authority-Bonus
         3. Low-Trust-Penalty (vor dem Scraping!)
-        4. Tavily-Content-Bonus
+        4. Content-Bonus
         5. Scrape-Entscheidung basierend auf hybrid_score
 
     Args:

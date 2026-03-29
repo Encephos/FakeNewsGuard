@@ -343,13 +343,26 @@ class ClaimRouter:
         Für einfache ``Claim``-Objekte ohne SearchProfile wird das Original
         unverändert zurückgegeben.
 
+        Ergebnisse werden pro Claim-Text gecacht, um redundante Regex-Arbeit
+        bei wiederholten Aufrufen mit demselben Claim zu vermeiden.
+
         Args:
             claim: Originaler ``Claim`` oder ``ProcessedClaim``.
 
         Returns:
             Tupel aus ``RouteResult`` und (ggf. augmentiertem) Claim.
         """
-        route_result = self.route(claim)
+        # Route-Cache: canonical_text bevorzugt, sonst claim.text
+        cache_key = (
+            getattr(claim, "canonical_text", None) or getattr(claim, "text", "")
+        ).strip().lower()
+        if not hasattr(self, "_route_cache"):
+            self._route_cache: dict[str, RouteResult] = {}
+        if cache_key in self._route_cache:
+            route_result = self._route_cache[cache_key]
+        else:
+            route_result = self.route(claim)
+            self._route_cache[cache_key] = route_result
         augmented = self._apply_hints(claim, route_result)
         return route_result, augmented
 
@@ -513,8 +526,9 @@ class ClaimRouter:
         Gewichtung. Filtert auf kommerziell sichere Quellen.
         """
         if not domains:
-            # Kein Domain erkannt → hochrangige allgemeine Primärquellen
-            return SourceRegistry.by_domain_tier(max_tier=1)[:3]
+            # Kein Domain erkannt → hochrangige allgemeine Primärquellen (nur kommerziell sichere)
+            return [s for s in SourceRegistry.by_domain_tier(max_tier=1)
+                    if s.is_runtime_allowed()][:3]
 
         boost = _JURISDICTION_BOOST.get(jurisdiction, {})
         seen_ids: set[str] = set()
@@ -522,7 +536,7 @@ class ClaimRouter:
 
         for domain in domains:
             domain_weight = domain_scores.get(domain, 0.0)
-            for src in SourceRegistry.by_domain(domain):
+            for src in SourceRegistry.by_domain_safe(domain):
                 if src.source_id in seen_ids:
                     continue
                 seen_ids.add(src.source_id)

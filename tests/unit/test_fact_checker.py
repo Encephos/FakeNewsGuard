@@ -1,4 +1,10 @@
-"""Tests für agents/fact_checker.py."""
+"""Tests für agents/fact_checker.py.
+
+Testet primär die shared Query-Building-Utilities (via agents/query_builder.py)
+und den Legacy-Fallback-Pfad. Die v2-Pipeline (EvidenceBuilder → CoVe →
+VerdictAgent) wird in test_evidence_builder.py, test_cove_processor.py und
+test_verdict_agent.py getestet.
+"""
 
 from __future__ import annotations
 
@@ -556,3 +562,92 @@ class TestBuildQueriesForUnderspecifiedClaim:
             "gebäudeenergiegesetz" in q.lower() or claim.text in q
             for q in queries
         )
+
+
+# ── TestFactCheckerPathSeparation ────────────────────────────────────────────
+
+
+class TestFactCheckerPathSeparation:
+    """Stellt sicher, dass v2-Hauptpfad und Legacy-Fallback sauber getrennt sind."""
+
+    def test_standard_path_bypasses_legacy(
+        self, minimal_config, mocker, mock_search_client, sample_factual_claim, sample_evidence_pack
+    ):
+        """Wenn EvidenceBuilder + VerdictAgent erfolgreich sind, wird Legacy NICHT aufgerufen."""
+        from models.schemas import FactCheckResult, FactRating
+
+        expected = FactCheckResult(
+            claim_id=sample_factual_claim.id,
+            rating=FactRating.TRUE,
+            evidence="v2-Evidenz",
+            sources=["https://destatis.de"],
+        )
+
+        agent = FactCheckerAgent(minimal_config, mocker.MagicMock(), mock_search_client)
+        agent._evidence_builder.run_safe = mocker.MagicMock(return_value=(sample_evidence_pack, None))
+        agent._verdict_agent.run_safe = mocker.MagicMock(return_value=(expected, None))
+        legacy_spy = mocker.patch.object(agent, "_legacy_fact_check")
+
+        result = agent.execute(sample_factual_claim)
+
+        legacy_spy.assert_not_called()
+        assert result.rating == FactRating.TRUE
+        assert result.evidence == "v2-Evidenz"
+
+    def test_fallback_on_evidence_builder_failure(
+        self, minimal_config, mocker, mock_llm_client, mock_search_client, sample_factual_claim
+    ):
+        """Wenn EvidenceBuilder fehlschlägt, wird der Legacy-Pfad ausgelöst."""
+        agent = FactCheckerAgent(minimal_config, mock_llm_client, mock_search_client)
+        agent._evidence_builder.run_safe = mocker.MagicMock(return_value=(None, "Simulated EvidenceBuilder error"))
+
+        legacy_spy = mocker.patch.object(agent, "_legacy_fact_check", wraps=agent._legacy_fact_check)
+
+        agent.execute(sample_factual_claim)
+
+        legacy_spy.assert_called_once_with(sample_factual_claim, "")
+
+    def test_fallback_on_verdict_agent_failure(
+        self, minimal_config, mocker, mock_llm_client, mock_search_client,
+        sample_factual_claim, sample_evidence_pack
+    ):
+        """Wenn VerdictAgent fehlschlägt (aber EvidenceBuilder OK), wird Legacy ausgelöst."""
+        agent = FactCheckerAgent(minimal_config, mock_llm_client, mock_search_client)
+        agent._evidence_builder.run_safe = mocker.MagicMock(return_value=(sample_evidence_pack, None))
+        agent._verdict_agent.run_safe = mocker.MagicMock(return_value=(None, "Simulated VerdictAgent error"))
+
+        legacy_spy = mocker.patch.object(agent, "_legacy_fact_check", wraps=agent._legacy_fact_check)
+
+        agent.execute(sample_factual_claim)
+
+        legacy_spy.assert_called_once_with(sample_factual_claim, "")
+
+    async def test_async_fallback_on_evidence_builder_failure(
+        self, minimal_config, mocker, mock_llm_client, mock_search_client, sample_factual_claim
+    ):
+        """Async: Wenn EvidenceBuilder fehlschlägt, wird _legacy_fact_check_async aufgerufen."""
+        from models.schemas import FactCheckResult, FactRating
+
+        agent = FactCheckerAgent(minimal_config, mock_llm_client, mock_search_client)
+
+        async def _raise(*_args, **_kwargs):
+            raise RuntimeError("Simulated async EvidenceBuilder error")
+
+        agent._evidence_builder.execute_async = _raise
+
+        fallback_result = FactCheckResult(
+            claim_id=sample_factual_claim.id,
+            rating=FactRating.UNVERIFIABLE,
+            evidence="async-legacy",
+            sources=[],
+        )
+
+        async def _mock_legacy_async(claim, context):
+            return fallback_result
+
+        mocker.patch.object(agent, "_legacy_fact_check_async", side_effect=_mock_legacy_async)
+
+        result = await agent.execute_async(sample_factual_claim)
+
+        agent._legacy_fact_check_async.assert_called_once_with(sample_factual_claim, "")
+        assert result.rating == FactRating.UNVERIFIABLE

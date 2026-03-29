@@ -32,10 +32,12 @@ Orchestrator
   │           └── ClaimPrioritizerAgent
   │
   ├── FactCheckerAgent       (Facade → EvidenceBuilder + CoVe + Verdict)
+  │     ├── _LegacyFallbackMixin   [Fallback bei v2-Fehler – entfällt wenn v2 stabil]
   │     ├── EvidenceBuilderAgent
-  │     │     ├── WebSearchClient    (SearXNG)
+  │     │     ├── SearXNGClient      (primäres Suchbackend)
   │     │     ├── LangSearchClient   (LangSearch API)
-  │     │     └── GoogleFactCheckAPI
+  │     │     ├── GoogleFactCheckAPI
+  │     │     └── ClaimRouter → SourceClients (14 institutionelle Quellen)
   │     ├── CoVeProcessor
   │     └── VerdictAgent
   │
@@ -98,9 +100,10 @@ ProcessedClaim
     ▼
 Query-Generierung (LLM)
     │
-    ├── SearXNG.multi_search_async()  ──┐
-    ├── LangSearchClient.multi_search() ├── asyncio.gather() parallel
-    └── GoogleFactCheckAPI()           ──┘
+    ├── SearXNGClient.multi_search_async()  ──┐
+    ├── LangSearchClient.multi_search_async() ├── asyncio.gather() parallel
+    ├── GoogleFactCheckAPI()               ──┘
+    └── ClaimRouter → SourceClients (institutional, optional)
     │
     ▼
 _dedup_results()        (URL-Normalisierung, Trailing-Slash, etc.)
@@ -133,6 +136,32 @@ score = domain_tier_score * 0.40
 | 3 | reuters.com, dpa.de, faz.net, zeit.de | Qualitätsjournalismus |
 | 4 | correctiv.org, faktenfuchs.de, snopes.com | Faktenchecker-Organisationen |
 | 5 | (alle anderen) | Unbekannte Quellen |
+
+### Source Layer (Institutionelle Primärquellen)
+
+`tools/claim_router.py` → `ClaimRouter` · `tools/sources/registry.py` → `SourceRegistry`
+
+`ClaimRouter.route_and_apply(claim)` mappt Claim-Signale **heuristisch** (kein LLM) auf eine
+priorisierte Liste kommerziell sicherer Quellen aus der `SourceRegistry`. Bei Routing-Konfidenz
+≥ `source_clients.min_confidence` (default: 0.5) werden bis zu `max_sources_per_claim` Clients
+aufgerufen und die Ergebnisse in das `EvidencePack` integriert.
+
+14 verfügbare Clients (authority weight 0.70–0.97):
+
+| Gruppe | Quellen |
+|--------|---------|
+| EU/Statistik | Eurostat (0.92), EUR-Lex (0.94) |
+| US Regulatorik | openFDA (0.95), DailyMed (0.90), ClinicalTrials (0.89), USPTO (0.90) |
+| Korporativ | Companies House (0.91), GLEIF (0.92) |
+| Global/Wissenschaft | World Bank (0.88), OpenAlex (0.78), Crossref, CERN OpenData |
+| Wissenschaftlich* | arXiv (0.70), PubMed (0.82) |
+
+\* arXiv und PubMed sind `CommercialUsePolicy.CHECK_TERMS` → zur Laufzeit ausgeschlossen
+(`SourceRegistry.by_jurisdiction_safe()` filtert sie heraus).
+
+Ergebnisse werden via `SourceCache` zwischengespeichert (24 h default, 168 h für statische Quellen).
+
+---
 
 ### Trust Boundary
 
@@ -192,7 +221,7 @@ CoVeTrace
 
 | Config | Default | Beschreibung |
 |--------|---------|--------------|
-| `cove.enabled` | `false` | CoVe global aktivieren |
+| `cove.enabled` | `true` | CoVe global aktivieren |
 | `cove.max_verification_questions` | `3` | Max. Fragen pro Claim (0 = CoVe überspringen) |
 | `cove.max_additional_searches` | `2` | Max. zusätzliche Web-Suchen während CoVe |
 
@@ -282,67 +311,115 @@ FinalVerdictMeta
 
 ## Konfiguration
 
-`config.py` liest alle Werte aus Umgebungsvariablen (`.env`).
+`config/` (Package) liest alle Werte aus Umgebungsvariablen (`.env`).
+Module: `app.py`, `llm.py`, `search.py`, `processing.py`, `database.py`, `infrastructure.py`
 
 ```python
 @dataclass
 class AppConfig:
+    # ── Kern (immer erforderlich) ─────────────────────────────────────
     llm: LLMConfig
-    search: SearchConfig
-    langsearch: LangSearchConfig          # NEU
-    google_fact_check: GoogleFactCheckConfig  # NEU
-    claim_processing: ClaimProcessingConfig   # NEU
-    cove: CoVeConfig                          # NEU
     retry: RetryConfig
-    cache: CacheConfig
+
+    # ── Primäre Suche ─────────────────────────────────────────────────
+    searxng: SearXNGConfig          # Haupt-Backend (self-hosted, Env: SEARXNG_URL)
+
+    # ── Optionale Suchplugins ─────────────────────────────────────────
+    search: SearchConfig            # [Legacy – Backward-Compat-Routing-Layer]
+    langsearch: LangSearchConfig    # auto-aktiviert wenn LANGSEARCH_API_KEY gesetzt
+    tavily: TavilyConfig            # disabled by default, aktiviert via TAVILY_ENABLED=true
+    google_fact_check: GoogleFactCheckConfig  # auto-aktiviert wenn Key gesetzt
+
+    # ── Feature-Configs ───────────────────────────────────────────────
+    claim_processing: ClaimProcessingConfig
+    cove: CoVeConfig                # enabled=True by default
+    evidence_retrieval: EvidenceRetrievalConfig
+    synthesizer: SynthesizerConfig
+
+    # ── Source Layer ──────────────────────────────────────────────────
+    source_layer: SourceLayerConfig     # API-Keys für institutionelle Quellen
+    source_clients: SourceClientsConfig # 14 Clients, min_confidence, max_sources_per_claim
+
+    # ── Infrastruktur ─────────────────────────────────────────────────
+    cache: CacheConfig              # Claim-Cache (SQLite dev default)
+    search_cache: SearchCacheConfig
+    archive: ArchiveConfig
+    user_db: UserDBConfig
+    telegram: TelegramConfig
+    rate_limit: RateLimitConfig
+    graph: GraphConfig
+
+    # ── Produktions-Backends ──────────────────────────────────────────
+    valkey: ValkeyConfig            # aktiviert via CACHE_BACKEND=valkey
+    postgres: PostgreSQLConfig      # aktiviert via DB_BACKEND=postgres
+
+    # ── Skalare ───────────────────────────────────────────────────────
+    tier: ScoutTier                 # lite / pro / max
     verbose: bool
+    language: str
     max_input_chars: int
+    cors_origins: list[str]
 ```
 
-LangSearch und Google Fact Check sind **optional** – fehlen die API-Keys, werden sie automatisch deaktiviert (Warning statt Fehler).
+Optionale Features (LangSearch, Tavily, Google Fact Check) werden automatisch deaktiviert wenn
+kein API-Key gesetzt ist (Warning statt Fehler). Produktions-Backends (PostgreSQL, Valkey) müssen
+explizit via `DB_BACKEND=postgres` / `CACHE_BACKEND=valkey` aktiviert werden; SQLite ist der
+Dev-Default.
 
 ---
 
 ## Testarchitektur
 
-Alle Tests sind mock-basiert und benötigen keine echten API-Keys.
+Alle Unit-Tests sind mock-basiert und benötigen keine echten API-Keys. Netzwerkaufrufe werden
+im `tests/unit/conftest.py` via `autouse`-Fixture global gemockt.
 
 ```
 tests/
-├── conftest.py                    # minimal_config, sample_processed_claim, sample_evidence_pack
+├── conftest.py                        # AppConfig-Fixtures, sample_processed_claim, etc.
+├── test_retrieval_refactor.py         # Hybrid-Ranking, Evidence-Typing, Tavily-Budget
 └── unit/
-    ├── test_claim_processor.py    # 22 Tests: Pipeline, Hash, ProcessedClaim, Prioritizer
-    ├── test_evidence_builder.py   # 18 Tests: Dedup, Tier, Relevanz, Qualität, Format
-    ├── test_cove_processor.py     # 7 Tests: CoVeTrace, Budget, Reconciliation
-    ├── test_verdict_agent.py      # 7 Tests: Verdict, GFC, CoVe-Integration, Sources
-    └── test_orchestrator_v2.py    # 10 Tests: Top-N, Workflow, Fehlerbehandlung
+    ├── test_claim_processor.py        # Pipeline, Hash, ProcessedClaim, Prioritizer
+    ├── test_claim_router.py           # ClaimRouter, Heuristiken, Jurisdiktion
+    ├── test_claim_validator.py
+    ├── test_evidence_builder.py       # Dedup, Tier, Relevanz, Qualität, Format
+    ├── test_evidence_quality.py
+    ├── test_evidence_rating_integrity.py
+    ├── test_fact_checker.py           # Legacy-Pfad, v2-Pfad-Trennung, Query-Bau
+    ├── test_hint_generation.py        # _derive_source_hints, _infer_jurisdiction
+    ├── test_source_adapters.py        # SourceRegistry, SourceCache, CircuitBreaker
+    ├── test_source_policy_enforcement.py  # CHECK_TERMS, Display-Limits, Policies
+    ├── test_synthesizer_aggregation.py
+    ├── test_verdict_agent.py          # Verdikt, CoVe-Integration, Confidence-Ceilings
+    ├── test_verdict_rating_calibration.py
+    └── ... (weitere: adaptive_search, api, confidence_*, image_analyzer,
+             input_validation, regression_*, regulatory_claim_handling,
+             retrieval_robustness, current_state_claims)
+
+    # Standard-Run ausgeschlossen (pytest.ini --ignore):
+    ├── test_orchestrator.py      [Legacy v1-API – nicht mit aktueller Signatur kompatibel]
+    ├── test_orchestrator_v2.py   [v2-API – temporär übersprungen]
+    └── test_cove_processor.py    [separates manuelles Testregime]
 ```
 
-**Wichtige Fixtures (`conftest.py`):**
+**Autouse-Mock-Fixture (`tests/unit/conftest.py`):**
 
 ```python
-@pytest.fixture
-def minimal_config():
-    """AppConfig mit allen optionalen Features deaktiviert."""
-    return AppConfig(
-        llm=LLMConfig(provider="anthropic", api_key="test-key"),
-        search=SearchConfig(provider="searxng", base_url="http://localhost:8888"),
-        langsearch=LangSearchConfig(api_key="", enabled=False),
-        google_fact_check=GoogleFactCheckConfig(api_key="", enabled=False),
-        claim_processing=ClaimProcessingConfig(top_n=0),
-        cove=CoVeConfig(enabled=False),
-        ...
-    )
-
-@pytest.fixture
-def sample_evidence_pack():
-    """EvidencePack mit einem GFC-Match und einem destatis.de-Item."""
-    ...
-
-@pytest.fixture
-def sample_processed_claim():
-    """ProcessedClaim C1 mit allen neuen Feldern gesetzt."""
-    ...
+@pytest.fixture(autouse=True)
+def mock_network_calls(mocker):
+    """Mockt alle externen Aufrufe in unit/-Tests automatisch."""
+    mocker.patch.object(LangSearchClient,  "multi_search_async", return_value={})
+    mocker.patch.object(SearXNGClient,     "multi_search_async", return_value={})
+    mocker.patch.object(FactCheckDatabaseClient, "search_async", return_value=[])
+    mocker.patch("tools.source_scraper.scrape_sources", return_value=[])
+    mocker.patch("tools.scrape_ranker.rank_sources",   return_value=[])
 ```
 
-Agenten werden über `Orchestrator.__new__()` oder direkte Instanzierung mit `MagicMock`-LLM und -Search-Client getestet – keine echten HTTP-Calls.
+**Wichtige Fixtures (`tests/conftest.py`):**
+
+```python
+minimal_config()          # AppConfig mit deaktivierten optionalen Features
+sample_processed_claim()  # ProcessedClaim mit allen Feldern gesetzt
+sample_evidence_pack()    # EvidencePack mit GFC-Match + destatis.de-Item
+mock_llm_client()         # Gibt festes Rating zurück (MISLEADING)
+mock_search_client()      # Gibt SearchResult mit Testdaten zurück
+```

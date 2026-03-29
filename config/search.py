@@ -1,4 +1,8 @@
-"""Such-Konfigurationen – SearXNG, LangSearch, Tavily, Google Fact Check."""
+"""Such-Konfigurationen – SearXNG, LangSearch, Google Fact Check (+ optionale Plugins).
+
+Hauptpfad:  SearXNGConfig  → wird als config.searxng instanziiert (self-hosted, kein Routing).
+Legacy:     SearchConfig   → Backward-Compat-Routing-Layer für optionale Cloud-Provider.
+"""
 
 from __future__ import annotations
 
@@ -6,11 +10,15 @@ import os
 from dataclasses import dataclass, field
 
 
+# ── Legacy: Backward-Compatibility-Layer ─────────────────────────────────────
+# Primäres Suchbackend ist SearXNGConfig (config.searxng).
+# SearchConfig dient als Routing-Fallback für optionale Cloud-Provider
+# (tavily, serper, brave) und für Legacy-Codepfade.
 @dataclass
 class SearchConfig:
-    """Konfiguration für die Web-Suche."""
+    """Konfiguration für die Web-Suche. [Legacy – Backward-Compat-Routing-Layer]"""
 
-    provider: str = "searxng"  # "searxng" | "tavily" | "serper" | "brave"
+    provider: str = "searxng"  # "searxng" (default) | "tavily" | "serper" | "brave"
     api_key: str = ""
     base_url: str = ""  # Für SearXNG: URL der Instanz (z.B. http://localhost:8888)
     engines: str = ""   # SearXNG: kommaseparierte Engine-Liste (z.B. "google,duckduckgo,bing")
@@ -42,9 +50,12 @@ class SearchConfig:
             self.scrape_timeout = float(env_scrape_timeout)
 
 
+# ── Primär: SearXNG-Konfiguration – Haupt-Suchbackend ────────────────────────
+# Wird als config.searxng instanziiert. Kein Provider-Routing – explizit SearXNG-only.
+# Env: SEARXNG_URL (Pflicht in Produktion), SEARXNG_ENGINES, SEARXNG_CATEGORIES.
 @dataclass
 class SearXNGConfig:
-    """Konfiguration für den dedizierten SearXNG-Client.
+    """Konfiguration für den dedizierten SearXNG-Client (primäres Suchbackend).
 
     SearXNG dient als unterstützende Breitensuche (self-hosted, kostenlos).
     Kein Provider-Routing – explizit SearXNG-only.

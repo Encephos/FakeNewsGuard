@@ -12,14 +12,25 @@ from typing import Any
 from config import CacheConfig
 
 
-def _claim_key(claim_text: str, agent_name: str, context: str = "") -> str:
+def _claim_key(
+    claim_text: str,
+    agent_name: str,
+    context: str = "",
+    canonical_text: str | None = None,
+    use_canonical: bool = False,
+) -> str:
     """Erstelle einen stabilen Cache-Key aus Claim-Text, Agent-Name und Kontext.
 
     Der Kontext (erste 100 Zeichen) wird mit einbezogen, damit gleicher
     Claim-Text in unterschiedlichem Kontext separate Einträge erhält.
+
+    Wenn use_canonical=True und canonical_text vorhanden, wird der kanonische
+    Text statt des Roh-Texts verwendet. Damit erzeugen unterschiedliche
+    Formulierungen desselben Claims denselben Cache-Key.
     """
+    text = canonical_text if (use_canonical and canonical_text) else claim_text
     context_part = context.strip().lower()[:100] if context else ""
-    raw = f"{agent_name}::{claim_text.strip().lower()}::{context_part}"
+    raw = f"{agent_name}::{text.strip().lower()}::{context_part}"
     return hashlib.sha256(raw.encode()).hexdigest()
 
 
@@ -61,12 +72,19 @@ class ClaimCache:
             )
             conn.commit()
 
-    def get(self, claim_text: str, agent_name: str, context: str = "") -> dict | None:
+    def get(
+        self,
+        claim_text: str,
+        agent_name: str,
+        context: str = "",
+        canonical_text: str | None = None,
+        use_canonical: bool = False,
+    ) -> dict | None:
         """Lies ein gecachtes Ergebnis.  Gibt None zurück, wenn kein gültiger Cache."""
         if not self.config.enabled:
             return None
 
-        key = _claim_key(claim_text, agent_name, context)
+        key = _claim_key(claim_text, agent_name, context, canonical_text, use_canonical)
         with self._lock:
             conn = self._get_conn()
             row = conn.execute(
@@ -80,17 +98,25 @@ class ClaimCache:
         result_json, created_at = row
         age = time.time() - created_at
         if age > self._ttl_seconds:
-            self.delete(claim_text, agent_name, context)
+            self.delete(claim_text, agent_name, context, canonical_text, use_canonical)
             return None
 
         return json.loads(result_json)
 
-    def set(self, claim_text: str, agent_name: str, result: dict, context: str = "") -> None:
+    def set(
+        self,
+        claim_text: str,
+        agent_name: str,
+        result: dict,
+        context: str = "",
+        canonical_text: str | None = None,
+        use_canonical: bool = False,
+    ) -> None:
         """Speichere ein Ergebnis im Cache."""
         if not self.config.enabled:
             return
 
-        key = _claim_key(claim_text, agent_name, context)
+        key = _claim_key(claim_text, agent_name, context, canonical_text, use_canonical)
         with self._lock:
             conn = self._get_conn()
             conn.execute(
@@ -102,9 +128,16 @@ class ClaimCache:
             )
             conn.commit()
 
-    def delete(self, claim_text: str, agent_name: str, context: str = "") -> None:
+    def delete(
+        self,
+        claim_text: str,
+        agent_name: str,
+        context: str = "",
+        canonical_text: str | None = None,
+        use_canonical: bool = False,
+    ) -> None:
         """Lösche einen einzelnen Cache-Eintrag."""
-        key = _claim_key(claim_text, agent_name, context)
+        key = _claim_key(claim_text, agent_name, context, canonical_text, use_canonical)
         with self._lock:
             conn = self._get_conn()
             conn.execute("DELETE FROM claim_cache WHERE cache_key = ?", (key,))
