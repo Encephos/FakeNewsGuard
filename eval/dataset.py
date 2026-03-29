@@ -46,6 +46,31 @@ def filter_cases(
     return result
 
 
+def build_live_claim(case: EvalCase) -> tuple["ProcessedClaim", "RouteResult | None"]:
+    """Build a production-grade ProcessedClaim for live evaluation.
+
+    Starts with the base claim from build_processed_claim(), then runs it
+    through ClaimRouter.route_and_apply() to enrich the search_profile
+    with institutional source hints — the same enrichment that happens
+    in the production pipeline.
+
+    Returns:
+        (augmented_claim, route_result) or (base_claim, None) on routing failure.
+    """
+    claim = build_processed_claim(case)
+    try:
+        from tools.claim_router import ClaimRouter
+        router = ClaimRouter()
+        route_result, augmented = router.route_and_apply(claim)
+        return augmented, route_result
+    except Exception as exc:
+        import logging
+        logging.getLogger(__name__).warning(
+            "Case %s: route_and_apply failed (%s), using base claim", case.id, exc,
+        )
+        return claim, None
+
+
 def build_processed_claim(case: EvalCase) -> "ProcessedClaim":
     """Construct a minimal ProcessedClaim from an EvalCase for pipeline use."""
     from models.schemas import ClaimFrame, ClaimSearchProfile, ClaimType, ProcessedClaim

@@ -51,6 +51,9 @@ class RetrievalSnapshot(BaseModel):
     cache_hits: int = 0
     cache_misses: int = 0
 
+    # Debug / provenance notes (query sources, recency overrides, etc.)
+    debug_notes: list[str] = Field(default_factory=list)
+
 
 def save_snapshot(snapshot: RetrievalSnapshot, snapshots_dir: Path) -> Path:
     """Save a snapshot to disk as JSON."""
