@@ -95,3 +95,69 @@ def test_cache_delete(cache_config):
     cache.set("claim", "Agent", {"x": 1})
     cache.delete("claim", "Agent")
     assert cache.get("claim", "Agent") is None
+
+
+# ── Semantic Cache ──────────────────────────────────────────────────
+
+
+def test_semantic_cache_disabled_by_default(cache_config):
+    """Semantic cache ist standardmäßig deaktiviert."""
+    cache = ClaimCache(cache_config)
+    assert cache._semantic_enabled is False
+
+
+def test_semantic_lookup_returns_none_without_model(tmp_path):
+    """Ohne sentence-transformers gibt _semantic_lookup None zurück."""
+    import tools.cache as cache_module
+    # Sicherstellen, dass das Modell als "nicht verfügbar" markiert ist
+    old_model = cache_module._embedding_model
+    cache_module._embedding_model = False
+    try:
+        config = CacheConfig(
+            enabled=True,
+            db_path=str(tmp_path / "sem.db"),
+            semantic_cache=True,
+        )
+        cache = ClaimCache(config)
+        cache.set("original claim", "Agent", {"rating": "TRUE"})
+        # Exakter Key-Miss, semantic lookup fällt auf None zurück (kein Modell)
+        result = cache.get("paraphrased claim", "Agent")
+        assert result is None
+    finally:
+        cache_module._embedding_model = old_model
+
+
+def test_semantic_lookup_with_mocked_embeddings(tmp_path):
+    """Semantische Suche findet ähnliche Claims über Embedding-Similarity."""
+    import struct
+    import tools.cache as cache_module
+
+    # Mock: Einfaches Embedding als normalisierte 3D-Vektoren
+    class FakeModel:
+        def encode(self, text, normalize_embeddings=True):
+            # Ähnliche Texte → identische Vektoren (sim=1.0)
+            if "inflation" in text.lower():
+                return [0.577, 0.577, 0.577]
+            return [0.0, 0.0, 1.0]  # Orthogonal → sim ≈ 0.577
+
+    old_model = cache_module._embedding_model
+    cache_module._embedding_model = FakeModel()
+    try:
+        config = CacheConfig(
+            enabled=True,
+            db_path=str(tmp_path / "sem2.db"),
+            semantic_cache=True,
+        )
+        cache = ClaimCache(config)
+        cache.set("Die Inflation stieg", "Agent", {"rating": "MISLEADING"})
+
+        # Paraphrase mit "inflation" → ähnlicher Vektor → Cache-Hit
+        result = cache.get("Inflation ist gestiegen", "Agent")
+        # Cosine sim von [0.9,0.3,0.1] mit [0.9,0.3,0.1] = 1.0 (identisch)
+        assert result == {"rating": "MISLEADING"}
+
+        # Komplett anderer Text → kein Hit (Similarity zu niedrig)
+        result2 = cache.get("Das Wetter ist schön", "Agent")
+        assert result2 is None
+    finally:
+        cache_module._embedding_model = old_model

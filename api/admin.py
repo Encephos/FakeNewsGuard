@@ -91,3 +91,61 @@ async def admin_logs(
     """Letzte Log-Eintraege aus dem In-Memory-Puffer. Admin only."""
     require_admin(request)
     return {"logs": get_recent_logs(limit=limit, level=level)}
+
+
+@router.post("/api/admin/reload-data")
+async def admin_reload_data(request: Request) -> dict:
+    """YAML-Daten (Domain-Tiers, Scoring-Weights, etc.) neu laden. Admin only."""
+    require_admin(request)
+    from tools.data_loader import reload_all
+
+    count = reload_all()
+    return {"ok": True, "caches_cleared": count}
+
+
+@router.get("/api/admin/calibration")
+async def admin_calibration(request: Request) -> dict:
+    """Confidence-Calibration-Report (Brier Score + Reliability-Diagramm). Admin only."""
+    require_admin(request)
+    from tools.calibration_tracker import CalibrationTracker
+
+    tracker = CalibrationTracker()
+    report = tracker.compute_report()
+    stats = tracker.stats()
+    tracker.close()
+    return {
+        "brier_score": report.brier_score,
+        "total_predictions": report.total_predictions,
+        "correct_predictions": report.correct_predictions,
+        "accuracy": report.accuracy,
+        "buckets": [
+            {
+                "bin": f"{b.bin_start:.1f}-{b.bin_end:.1f}",
+                "predicted_mean": b.predicted_mean,
+                "observed_rate": b.observed_rate,
+                "count": b.count,
+            }
+            for b in report.buckets
+        ],
+        **stats,
+    }
+
+
+@router.post("/api/admin/calibration/ground-truth")
+async def admin_calibration_ground_truth(request: Request) -> dict:
+    """Ground-Truth für einen Claim setzen. Body: {claim_id, is_correct}. Admin only."""
+    require_admin(request)
+    body = await request.json()
+    claim_id = body.get("claim_id")
+    is_correct = body.get("is_correct")
+    if not claim_id or is_correct is None:
+        raise HTTPException(status_code=400, detail="claim_id und is_correct erforderlich")
+
+    from tools.calibration_tracker import CalibrationTracker
+
+    tracker = CalibrationTracker()
+    updated = tracker.record_ground_truth(claim_id, bool(is_correct))
+    tracker.close()
+    if updated == 0:
+        raise HTTPException(status_code=404, detail="Kein offener Eintrag für diesen Claim gefunden")
+    return {"ok": True, "updated": updated}
