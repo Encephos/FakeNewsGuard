@@ -131,7 +131,15 @@ class SynthesizerAgent(BaseAgent):
         except ValueError:
             llm_rating = OverallRating.MIXED
 
-        rating = self._apply_rating_guardrails(llm_rating, signals)
+        rating = self._apply_rating_guardrails(llm_rating, signals, fact_checks)
+
+        # Wenn Guardrail das Rating korrigiert hat und alle Claims positiv sind,
+        # ist die LLM-Summary wahrscheinlich widersprüchlich → ersetzen.
+        summary = raw.get("summary", "")
+        if rating != llm_rating and fact_checks:
+            positive_ratings = {FactRating.TRUE, FactRating.MOSTLY_TRUE}
+            if all(fc.rating in positive_ratings for fc in fact_checks):
+                summary = self._build_evidence_based_summary(fact_checks)
 
         # Confidence: Kalibrierte Per-Claim-Confidences aus VerdictAgent verwenden.
         raw_confidence = min(1.0, max(0.0, float(raw.get("confidence", 0.5))))
@@ -164,7 +172,7 @@ class SynthesizerAgent(BaseAgent):
         return SynthesisResult(
             overall_rating=rating,
             confidence=confidence,
-            summary=raw.get("summary", ""),
+            summary=summary,
             claims_analysis=fact_checks,
             number_audits=number_audits,
             key_corrections=raw.get("key_corrections", []),
@@ -221,7 +229,10 @@ class SynthesizerAgent(BaseAgent):
         return signals
 
     def _apply_rating_guardrails(
-        self, llm_rating: OverallRating, signals: AggregationSignals
+        self,
+        llm_rating: OverallRating,
+        signals: AggregationSignals,
+        fact_checks: list[FactCheckResult] | None = None,
     ) -> OverallRating:
         """Regelbasierte Korrekturen am LLM-Vorschlag.
 
@@ -232,8 +243,34 @@ class SynthesizerAgent(BaseAgent):
         """
         rating = llm_rating
         cfg = self.config.synthesizer
+        fact_checks = fact_checks or []
 
-        # Regel 1: FABRICATED nur bei ausreichend starker Evidenzbasis
+        # ── Regel 0: Evidenz-Konsistenz ──────────────────────────────
+        # Wenn alle Fact-Checks TRUE/MOSTLY_TRUE sind, darf das Rating
+        # nicht schlechter als MOSTLY_RELIABLE sein. Das LLM darf nicht
+        # sein eigenes (möglicherweise veraltetes) Weltwissen über die
+        # evidenzbasierten Pipeline-Ergebnisse stellen.
+        if fact_checks:
+            positive_ratings = {FactRating.TRUE, FactRating.MOSTLY_TRUE}
+            all_positive = all(fc.rating in positive_ratings for fc in fact_checks)
+            all_negative = all(
+                fc.rating in (FactRating.FALSE, FactRating.MOSTLY_FALSE)
+                for fc in fact_checks
+            )
+
+            if all_positive:
+                # Cap: nie schlechter als MOSTLY_RELIABLE wenn alle Claims bestätigt
+                max_allowed = OverallRating.MOSTLY_RELIABLE
+                if _RATING_ORDER[rating] > _RATING_ORDER[max_allowed]:
+                    rating = max_allowed
+
+            elif all_negative and signals.n_claims > 0:
+                # Floor: mindestens HIGHLY_MISLEADING wenn alle Claims widerlegt
+                min_allowed = OverallRating.HIGHLY_MISLEADING
+                if _RATING_ORDER[rating] < _RATING_ORDER[min_allowed]:
+                    rating = min_allowed
+
+        # ── Regel 1: FABRICATED nur bei ausreichend starker Evidenzbasis
         # → braucht: ≥ fabricated_min_refuted_ratio direkt widerlegte Claims UND Primärquellen
         if rating == OverallRating.FABRICATED:
             if (
@@ -242,7 +279,7 @@ class SynthesizerAgent(BaseAgent):
             ):
                 rating = OverallRating.HIGHLY_MISLEADING
 
-        # Regel 2: Hohe Rhetorik-Manipulation + hoher Anteil unbelegter Claims
+        # ── Regel 2: Hohe Rhetorik-Manipulation + hoher Anteil unbelegter Claims
         # → mindestens MISLEADING, auch wenn LLM MIXED oder besser vergeben hat
         if (
             signals.rhetoric_score >= cfg.rhetoric_floor_misleading
@@ -250,9 +287,14 @@ class SynthesizerAgent(BaseAgent):
             and signals.n_claims > 0
         ):
             if _RATING_ORDER[rating] < _RATING_ORDER[OverallRating.MISLEADING]:
-                rating = OverallRating.MISLEADING
+                # But don't override Regel 0 — respect evidence consistency
+                if not (fact_checks and all(
+                    fc.rating in {FactRating.TRUE, FactRating.MOSTLY_TRUE}
+                    for fc in fact_checks
+                )):
+                    rating = OverallRating.MISLEADING
 
-        # Regel 3: Sehr starke Rhetorik + überwiegend unbelegt + kaum widerlegt
+        # ── Regel 3: Sehr starke Rhetorik + überwiegend unbelegt + kaum widerlegt
         # → Text ist stark irreführend auch ohne direkte Widerlegung
         if (
             signals.rhetoric_score >= cfg.rhetoric_floor_highly
@@ -261,9 +303,37 @@ class SynthesizerAgent(BaseAgent):
             and signals.n_claims > 0
         ):
             if _RATING_ORDER[rating] < _RATING_ORDER[OverallRating.HIGHLY_MISLEADING]:
-                rating = OverallRating.HIGHLY_MISLEADING
+                # But don't override Regel 0
+                if not (fact_checks and all(
+                    fc.rating in {FactRating.TRUE, FactRating.MOSTLY_TRUE}
+                    for fc in fact_checks
+                )):
+                    rating = OverallRating.HIGHLY_MISLEADING
 
         return rating
+
+    # ── Evidence-basierte Summary ─────────────────────────────────
+
+    @staticmethod
+    def _build_evidence_based_summary(fact_checks: list[FactCheckResult]) -> str:
+        """Erzeugt eine Summary direkt aus den Fact-Check-Ergebnissen.
+
+        Wird aufgerufen wenn der Guardrail das LLM-Rating korrigiert hat,
+        da die LLM-Summary dann wahrscheinlich dem korrigierten Rating
+        widerspricht (z.B. LLM sagt 'falsch' aber Evidenz sagt 'wahr').
+        """
+        parts: list[str] = []
+        for fc in fact_checks:
+            rating_label = {
+                FactRating.TRUE: "bestätigt",
+                FactRating.MOSTLY_TRUE: "größtenteils bestätigt",
+            }.get(fc.rating, "geprüft")
+            evidence_short = fc.evidence[:300] if fc.evidence else ""
+            parts.append(
+                f"Die Behauptung wurde durch die Quellenanalyse {rating_label}. "
+                f"{evidence_short}"
+            )
+        return " ".join(parts).strip()
 
     # ── Hilfsmethoden ────────────────────────────────────────────
 

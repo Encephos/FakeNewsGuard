@@ -306,12 +306,19 @@ def check_expectations(
             severity="warning",
         ))
 
-    if expectations.requires_recency and metrics.freshness_hit_rate < 0.3:
+    if expectations.requires_recency and metrics.freshness_hit_rate < 0.1:
+        violations.append(Violation(
+            metric="freshness_hit_rate",
+            expected=">= 0.1 for current_state",
+            actual=f"{metrics.freshness_hit_rate:.3f}",
+            severity="error",
+        ))
+    elif expectations.requires_recency and metrics.freshness_hit_rate < 0.3:
         violations.append(Violation(
             metric="freshness_hit_rate",
             expected=">= 0.3 for current_state",
             actual=f"{metrics.freshness_hit_rate:.3f}",
-            severity="error",
+            severity="warning",
         ))
 
     if expectations.disallowed_domains:

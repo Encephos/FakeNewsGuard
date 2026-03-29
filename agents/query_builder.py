@@ -669,22 +669,22 @@ def _categories_for_claim(claim: Claim) -> str:
 
 
 def _is_current_state_claim(claim_text: str) -> bool:
-    """Erkennt Claims über aktuelle Amts-/Rolleninhaber (zeitkritisch).
+    """Erkennt zeitkritische Claims, die frische Quellen benötigen.
 
-    Prüft zwei Bedingungen:
-      1. Ein Zustandsverb (ist, war, bleibt, wurde) → beschreibt aktuellen Zustand
-      2. Ein Positionsbegriff (Bundeskanzler, Präsident, CEO, ...) → eine Rolle/Amt
-
-    Beide Bedingungen müssen erfüllt sein, um False-Positives auf generische
-    „ist"-Sätze zu vermeiden.
+    Drei unabhängige Erkennungspfade (OR-Logik):
+      1. Amtsträger: Zustandsverb + Positionsbegriff
+      2. Aktuelle Daten: Zustandsverb + wirtschaftliche/statistische Kennzahl
+      3. Explizite Aktualität: Temporale Signalwörter ("aktuell", "derzeit", etc.)
     """
+    text_lower = claim_text.lower()
+
     _STATE_VERBS = (
         r"\b(ist|war|ist\s+derzeit|ist\s+aktuell|ist\s+seit|bleibt|wurde\s+zum?|"
-        r"amtiert|fungiert|dient|steht\s+vor|leitet|regiert)\b"
+        r"amtiert|fungiert|dient|steht\s+vor|leitet|regiert|liegt\s+bei|"
+        r"betr[äa]gt|hat\s+ge(?:senkt|hoben|[äa]ndert)|hat\s+beschlossen)\b"
     )
     _POSITION_KEYWORDS = (
         r"\b(bundeskanzler(?:in)?|kanzler(?:in)?|pr[äa]sident(?:in)?|vizepr[äa]sident(?:in)?|"
-        # Compound-fähig: (?:\w+)? erlaubt Präfix wie "Gesundheits-", "Partei-"
         r"(?:\w+)?minister(?:in)?|senator(?:in)?|"
         r"b[üu]rgermeister(?:in)?|oberbürgermeister(?:in)?|"
         r"(?:\w+)?premier(?:minister(?:in)?)?|(?:\w+)?vorsitzende[rn]?|"
@@ -694,10 +694,33 @@ def _is_current_state_claim(claim_text: str) -> bool:
         r"papst|k[öo]nig(?:in)?|monarch(?:in)?|"
         r"regierungschef(?:in)?|staatschef(?:in)?|staatsoberhaup[t]?)\b"
     )
-    text_lower = claim_text.lower()
-    return bool(re.search(_STATE_VERBS, text_lower, re.IGNORECASE)) and bool(
-        re.search(_POSITION_KEYWORDS, text_lower, re.IGNORECASE)
+
+    # Pfad 1: Amtsträger-Claims
+    has_state_verb = bool(re.search(_STATE_VERBS, text_lower, re.IGNORECASE))
+    if has_state_verb and re.search(_POSITION_KEYWORDS, text_lower, re.IGNORECASE):
+        return True
+
+    # Pfad 2: Wirtschafts-/Statistik-Claims mit aktuellem Bezug
+    _ECON_KEYWORDS = (
+        r"\b(inflationsrate|leitzins|arbeitslosenquote|bip|bruttoinlandsprodukt|"
+        r"wirtschaftswachstum|zinssatz|basispunkt[e]?|verbraucherpreisindex|"
+        r"ezb|europäische\s+zentralbank|bundesbank|fed|"
+        r"konjunktur|rezession|wachstumsrate)\b"
     )
+    if has_state_verb and re.search(_ECON_KEYWORDS, text_lower, re.IGNORECASE):
+        return True
+
+    # Pfad 3: Explizite Aktualitätssignale
+    _RECENCY_SIGNALS = (
+        r"\b(aktuell|derzeit|momentan|gegenwärtig|zur\s+zeit|"
+        r"seit\s+kurzem|jüngst|kürzlich|neuerdings|"
+        r"ab\s+sofort|seit\s+(?:januar|februar|märz|april|mai|juni|"
+        r"juli|august|september|oktober|november|dezember)\s+20[2-3]\d)\b"
+    )
+    if re.search(_RECENCY_SIGNALS, text_lower, re.IGNORECASE):
+        return True
+
+    return False
 
 
 def _build_enriched_context(

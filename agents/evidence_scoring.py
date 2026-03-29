@@ -872,6 +872,14 @@ def _rank_evidence_items(
                 score += 0.12
             else:
                 score -= 0.05
+            # Freshness-Boost: frische Quellen bevorzugen, stale abwerten
+            freshness = _compute_freshness(item.source.publication_date)
+            if freshness >= 0.8:
+                score += 0.15  # letzte Woche: starker Boost
+            elif freshness >= 0.5:
+                score += 0.05  # letzter Monat: leichter Boost
+            elif freshness <= 0.3 and freshness != 0.5:
+                score -= 0.10  # älter als 1 Jahr: Abwertung
 
         # ── Metadaten erhalten, nur relevance_score aktualisieren ──
         updated_item = item.model_copy(

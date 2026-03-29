@@ -619,7 +619,6 @@ class EvidenceBuilderAgent(BaseAgent):
             fallback_results = await self._fallback_retrieval(claim, queries)
             if refined_queries:
                 # Refinement-Queries über SearXNG
-                from tools.web_search import SearXNGQuery
                 refinement_sq = [SearXNGQuery(query=q) for q in refined_queries]
                 refinement_results = await self._searxng.multi_search_async(refinement_sq)
                 for results_list in refinement_results.values():

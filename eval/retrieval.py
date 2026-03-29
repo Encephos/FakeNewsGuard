@@ -24,8 +24,15 @@ def build_production_queries(
     claim: "ProcessedClaim",  # noqa: F821
     route_result: Optional[Any] = None,
     config: Optional[Any] = None,
+    *,
+    force_current_state: Optional[bool] = None,
 ) -> tuple[list[str], list["SearXNGQuery"]]:  # noqa: F821
     """Build search queries using the production pipeline logic.
+
+    Args:
+        force_current_state: If set, overrides the heuristic detection.
+            Used by eval to honour the case category (the heuristic only
+            detects office-holder claims, not all time-sensitive ones).
 
     Returns:
         (plain_queries, searxng_queries) where plain_queries is the
@@ -59,7 +66,11 @@ def build_production_queries(
     categories = _categories_for_claim(claim)
 
     # --- Phase 3: Current-state recency override ---------------------------
-    is_current_state = _is_current_state_claim(claim.text)
+    is_current_state = (
+        force_current_state
+        if force_current_state is not None
+        else _is_current_state_claim(claim.text)
+    )
     if is_current_state:
         current_year = str(datetime.now(timezone.utc).year)
         categories = "general,news"
@@ -135,17 +146,47 @@ def _extract_date_from_snippet(snippet: str, url: str) -> str:
     """
     import re
 
+    _GERMAN_MONTHS = {
+        "jan": "01", "januar": "01", "feb": "02", "februar": "02",
+        "mär": "03", "märz": "03", "mar": "03", "apr": "04", "april": "04",
+        "mai": "05", "jun": "06", "juni": "06", "jul": "07", "juli": "07",
+        "aug": "08", "august": "08", "sep": "09", "september": "09",
+        "okt": "10", "oktober": "10", "oct": "10", "nov": "11", "november": "11",
+        "dez": "12", "dezember": "12", "dec": "12",
+    }
+
     # Pattern 1: ISO-like dates in URL (e.g. /2024/03/15/ or /2024-03-15)
     m = re.search(r"/(20[12]\d)[/-](\d{2})[/-](\d{2})", url)
     if m:
         return f"{m.group(1)}-{m.group(2)}-{m.group(3)}"
 
-    # Pattern 2: German date in snippet (e.g. "15.03.2024", "15. März 2024")
+    # Pattern 2: German numeric date in snippet (e.g. "15.03.2024")
     m = re.search(r"(\d{1,2})\.(\d{1,2})\.(20[12]\d)", snippet)
     if m:
         return f"{m.group(3)}-{m.group(2).zfill(2)}-{m.group(1).zfill(2)}"
 
-    # Pattern 3: Year-only in URL path (e.g. /2024/ or /2025/)
+    # Pattern 3: German/English named-month date in snippet
+    # e.g. "28. Feb. 2025", "14. März 2025", "11 Mar 2026", "Feb 28, 2025"
+    m = re.search(
+        r"(\d{1,2})\.?\s+([A-Za-zÄäÖöÜü]+)\.?\s+(20[12]\d)", snippet
+    )
+    if m:
+        month_key = m.group(2).lower().rstrip(".")
+        month_num = _GERMAN_MONTHS.get(month_key)
+        if month_num:
+            return f"{m.group(3)}-{month_num}-{m.group(1).zfill(2)}"
+
+    # Pattern 3b: English "Month DD, YYYY" (e.g. "Feb 28, 2025", "March 11, 2026")
+    m = re.search(
+        r"([A-Za-z]+)\s+(\d{1,2}),?\s+(20[12]\d)", snippet
+    )
+    if m:
+        month_key = m.group(1).lower().rstrip(".")
+        month_num = _GERMAN_MONTHS.get(month_key)
+        if month_num:
+            return f"{m.group(3)}-{month_num}-{m.group(2).zfill(2)}"
+
+    # Pattern 4: Year-only in URL path (e.g. /2024/ or /2025/)
     m = re.search(r"/(20[12]\d)/", url)
     if m:
         return f"{m.group(1)}-06-15"  # mid-year estimate
