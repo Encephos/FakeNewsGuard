@@ -144,6 +144,21 @@ class ReplayRunner:
             except Exception as exc:
                 logger.warning("Case %s: re-ranking failed: %s", case.id, exc)
 
+        # 3b. Re-compute evidence items from re-ranked sources
+        if snapshot.ranked_sources:
+            try:
+                from eval.retrieval import build_lite_evidence_items
+                profile = claim.search_profile if 'claim' in dir() else None
+                evidence_items = build_lite_evidence_items(
+                    snapshot.ranked_sources, case.claim_text, profile,
+                )
+                if evidence_items:
+                    snapshot = snapshot.model_copy(
+                        update={"evidence_items": evidence_items}
+                    )
+            except Exception as exc:
+                logger.warning("Case %s: evidence item recompute failed: %s", case.id, exc)
+
         # 4. Re-run quality signal computation on evidence items
         if snapshot.evidence_items:
             try:

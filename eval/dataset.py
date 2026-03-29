@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Optional
 
@@ -71,6 +72,113 @@ def build_live_claim(case: EvalCase) -> tuple["ProcessedClaim", "RouteResult | N
         return claim, None
 
 
+def _extract_profile_fields(claim_text: str, entities: list[str]) -> dict:
+    """Extract structured profile fields from claim text and entity list.
+
+    Populates institutions, locations, policy_terms, number_terms, and
+    action_terms so that _compute_claim_scope_score() can produce meaningful
+    scores above 0.5.
+    """
+    text = claim_text
+
+    # --- Institutions: known org patterns from entities + claim text ---
+    known_institutions = {
+        "EU", "EZB", "ECB", "EuGH", "WHO", "NATO", "BASF", "Volkswagen",
+        "Destatis", "BKA", "EMA", "Bundesbank", "Bundestag", "Bundesrat",
+        "Europäische Kommission", "Europäischer Rat", "Europäisches Parlament",
+    }
+    institutions: list[str] = []
+    for e in entities:
+        if e in known_institutions or e.isupper() and len(e) >= 2:
+            institutions.append(e)
+    # Also find institution-like patterns in text (capitalized multi-word or abbrevs)
+    for inst in known_institutions:
+        # Use word boundaries for short terms to avoid false positives
+        # (e.g., "EU" matching inside "Euro" or "Neubau")
+        if len(inst) <= 4:
+            if re.search(r"\b" + re.escape(inst) + r"\b", text) and inst not in institutions:
+                institutions.append(inst)
+        elif inst.lower() in text.lower() and inst not in institutions:
+            institutions.append(inst)
+
+    # --- Locations ---
+    known_locations = {
+        "Deutschland", "Germany", "Österreich", "Austria", "Schweiz",
+        "France", "Frankreich", "Europa", "Europe", "EU",
+        "Berlin", "München", "Hamburg", "Hannover",
+    }
+    locations: list[str] = []
+    for loc in known_locations:
+        if len(loc) <= 4:
+            if re.search(r"\b" + re.escape(loc) + r"\b", text):
+                locations.append(loc)
+        elif loc.lower() in text.lower():
+            locations.append(loc)
+    # Entities that look like locations but aren't in known_institutions
+    for e in entities:
+        if e in known_locations and e not in locations:
+            locations.append(e)
+
+    # --- Number terms: extract numeric expressions from claim text ---
+    number_terms: list[str] = []
+    # Patterns: "2,3 Prozent", "6.000 Stellen", "20 Millionen Euro", "1,35 Kindern"
+    for m in re.finditer(
+        r"\d[\d.,]*\s*(?:Prozent|%|Milliarden?|Millionen?|Euro|Dollar|Stellen?|Kindern?|Jahren?)",
+        text,
+    ):
+        number_terms.append(m.group(0).strip())
+    # Also bare numbers with context: "2025", "2024", "seit 2015"
+    for m in re.finditer(r"(?:seit |ab |im |bis )?(?:Ende )?\d{4}", text):
+        term = m.group(0).strip()
+        if term not in number_terms:
+            number_terms.append(term)
+
+    # --- Policy terms: domain-specific nouns from entities + claim text ---
+    policy_terms: list[str] = []
+    # Entities that aren't institutions or locations are likely policy terms
+    for e in entities:
+        if e not in institutions and e not in locations and e not in known_locations:
+            policy_terms.append(e)
+    # Known policy-term patterns
+    policy_patterns = [
+        r"Inflationsrate", r"Leitzins", r"Arbeitslosenquote", r"Geburtenrate",
+        r"Kriminalität(?:srate)?", r"Verbraucherpreisindex",
+        r"Vorratsdatenspeicherung", r"Datenschutzgrundverordnung", r"DSGVO",
+        r"Gebäudeenergiegesetz", r"Impfpflicht", r"Einwegplastik",
+        r"Nettoverlust", r"Stellenabbau", r"Adipositas",
+        r"BIP", r"Verteidigung", r"Wärmepumpen?",
+        r"negative interest rates", r"vols intérieurs",
+        r"Bußgeld(?:er)?", r"Wegovy", r"Ivermectin", r"COVID-19",
+    ]
+    for pat in policy_patterns:
+        if re.search(pat, text, re.IGNORECASE):
+            match = re.search(pat, text, re.IGNORECASE)
+            if match and match.group(0) not in policy_terms:
+                policy_terms.append(match.group(0))
+
+    # --- Action terms: verbs/actions from claim text ---
+    action_terms: list[str] = []
+    action_patterns = [
+        r"beschlossen", r"gesenkt", r"gestiegen", r"zugelassen",
+        r"entschieden", r"verbucht", r"angekündigt", r"abzubauen",
+        r"vorschreibt", r"gilt", r"verboten", r"interdit",
+        r"gesunken", r"erhöht", r"eingeführt", r"abgeschafft",
+    ]
+    for pat in action_patterns:
+        if re.search(pat, text, re.IGNORECASE):
+            match = re.search(pat, text, re.IGNORECASE)
+            if match:
+                action_terms.append(match.group(0))
+
+    return {
+        "institutions": institutions,
+        "locations": locations,
+        "number_terms": number_terms,
+        "policy_terms": policy_terms,
+        "action_terms": action_terms,
+    }
+
+
 def build_processed_claim(case: EvalCase) -> "ProcessedClaim":
     """Construct a minimal ProcessedClaim from an EvalCase for pipeline use."""
     from models.schemas import ClaimFrame, ClaimSearchProfile, ClaimType, ProcessedClaim
@@ -90,10 +198,18 @@ def build_processed_claim(case: EvalCase) -> "ProcessedClaim":
 
     claim_type = type_map.get(case.category, ClaimType.FACTUAL)
 
-    # Build search profile from expectations
+    # Extract structured fields from claim text and entities
     exp = case.expectations
+    fields = _extract_profile_fields(case.claim_text, exp.must_have_entities)
+
+    # Build search profile with properly populated fields
     profile = ClaimSearchProfile(
         core_entities=exp.must_have_entities,
+        institutions=fields["institutions"],
+        locations=fields["locations"],
+        policy_terms=fields["policy_terms"],
+        number_terms=fields["number_terms"],
+        action_terms=fields["action_terms"],
         official_source_hints=[
             f"{d}" for d in exp.preferred_domains if d
         ],

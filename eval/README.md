@@ -142,6 +142,18 @@ python -m eval smoke
 | off_topic_traps        | trap-001  |
 | multilingual           | ml-001    |
 
+## Known findings from replay evaluation
+
+The replay evaluation (with production-recomputed evidence items) reveals:
+
+- `ecb.europa.eu` and `curia.europa.eu` are classified as tier 5 by `_domain_tier()`
+  instead of tier 1-2 (official). This reduces `official_source_recall_at_k` for
+  multilingual and legal_eu cases. Production fix needed in `agents/evidence_scoring.py`.
+- `volkswagen-group.com` is tier 5 instead of tier 2 (corporate primary source).
+- Snippet-based `claim_scope_score` tends to be lower than scrape-based scores because
+  snippets contain less text. This causes more items to be classified as CONTEXTUAL
+  instead of DIRECT. This is expected behavior in lite eval mode.
+
 ## Exit codes
 
 | Code | Meaning                                    |
