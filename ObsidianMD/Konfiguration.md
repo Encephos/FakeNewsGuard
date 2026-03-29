@@ -8,25 +8,52 @@
 
 ## AppConfig – Haupt-Konfiguration
 
+`config/app.py` – 21 Felder, gruppiert nach Zuständigkeit:
+
 ```python
 @dataclass
 class AppConfig:
-    tier: ScoutTier = ScoutTier.PRO
-    language: str = "de"              # "de" | "en"
-    max_input_chars: int = 10_000
-    cors_origins: list[str] = ("*",)
-    auth_enabled: bool = False
+    # ── Kern (immer erforderlich) ─────────────────────────────────────
+    llm: LLMConfig
+    retry: RetryConfig
 
-    # Unter-Configs
-    llm: LLMConfig = field(default_factory=LLMConfig)
-    search: SearchConfig = field(default_factory=SearchConfig)
-    retry: RetryConfig = field(default_factory=RetryConfig)
-    cache: CacheConfig = field(default_factory=CacheConfig)
-    archive: ArchiveConfig = field(default_factory=ArchiveConfig)
-    user_db: UserDBConfig = field(default_factory=UserDBConfig)
-    rate_limit: RateLimitConfig = field(default_factory=RateLimitConfig)
-    graph: GraphConfig = field(default_factory=GraphConfig)
-    telegram: TelegramConfig = field(default_factory=TelegramConfig)
+    # ── Primäre Suche ─────────────────────────────────────────────────
+    searxng: SearXNGConfig          # Haupt-Backend (Env: SEARXNG_URL)
+
+    # ── Optionale Suchplugins ─────────────────────────────────────────
+    search: SearchConfig            # [Legacy – Backward-Compat-Routing-Layer]
+    langsearch: LangSearchConfig    # auto-aktiviert wenn LANGSEARCH_API_KEY gesetzt
+    tavily: TavilyConfig            # aktiviert via TAVILY_ENABLED=true
+    google_fact_check: GoogleFactCheckConfig  # auto-aktiviert wenn Key gesetzt
+
+    # ── Feature-Configs ───────────────────────────────────────────────
+    claim_processing: ClaimProcessingConfig
+    cove: CoVeConfig                # enabled=True by default
+    evidence_retrieval: EvidenceRetrievalConfig
+    synthesizer: SynthesizerConfig
+
+    # ── Source Layer ──────────────────────────────────────────────────
+    source_layer: SourceLayerConfig     # API-Keys für institutionelle Quellen
+    source_clients: SourceClientsConfig # 14 Clients, Konfidenz-Schwelle, Max pro Claim
+
+    # ── Infrastruktur ─────────────────────────────────────────────────
+    cache: CacheConfig              # Claim-Cache (SQLite dev default)
+    search_cache: SearchCacheConfig
+    archive: ArchiveConfig
+    user_db: UserDBConfig
+    telegram: TelegramConfig
+    rate_limit: RateLimitConfig
+    graph: GraphConfig
+
+    # ── Produktions-Backends ──────────────────────────────────────────
+    valkey: ValkeyConfig            # aktiviert via CACHE_BACKEND=valkey
+    postgres: PostgreSQLConfig      # aktiviert via DB_BACKEND=postgres
+
+    # ── Skalare ───────────────────────────────────────────────────────
+    tier: ScoutTier                 # lite / pro / max
+    language: str = "de"
+    max_input_chars: int = 10_000
+    cors_origins: list[str] = ["*"]
 ```
 
 ---
@@ -52,22 +79,63 @@ class LLMConfig:
 
 ---
 
-### SearchConfig
+### SearXNGConfig (primär)
+
+Primäres Suchbackend – self-hosted SearXNG. Wird als `config.searxng` instanziiert.
+
+```python
+@dataclass
+class SearXNGConfig:
+    base_url: str = ""              # Env: SEARXNG_URL (Default: http://localhost:8888)
+    engines: list[str] = []         # Env: SEARXNG_ENGINES
+    categories: list[str] = ["general", "news"]
+    language: str = "de"            # Env: SEARXNG_LANGUAGE
+    max_results: int = 15
+    scrape_top_n: int = 10
+    inter_query_delay: float = 1.5
+    engine_rotation_enabled: bool = True
+```
+
+**Env-Vars:** `SEARXNG_URL`, `SEARXNG_ENGINES`, `SEARXNG_CATEGORIES`, `SEARXNG_LANGUAGE`
+
+---
+
+### SearchConfig (Legacy)
+
+Backward-Compatibility-Routing-Layer. Primäres Backend ist `SearXNGConfig`.
+Wird für optionale Cloud-Provider (Tavily, Serper, Brave) und Legacy-Codepfade verwendet.
 
 ```python
 @dataclass
 class SearchConfig:
+    # [Legacy – Backward-Compat-Routing-Layer]
+    # Primäres Backend: SearXNGConfig (config.searxng)
     provider: str = "searxng"       # searxng | tavily | serper | brave
-    base_url: str = "http://localhost:8888"
     api_key: str = ""
-    max_results: int = 10
-    scrape_top_n: int = 8
-    scrape_timeout: int = 30
+    base_url: str = ""
+    max_results: int = 15
+    scrape_top_n: int = 10
 ```
 
-**Env-Vars:** `SEARCH_PROVIDER`, `SEARXNG_URL`, `TAVILY_API_KEY`, `SERPER_API_KEY`, `BRAVE_API_KEY`
-
 → [[Websuche]]
+
+---
+
+### EvidenceRetrievalConfig
+
+Steuert die adaptive Retrieval-Strategie im `EvidenceBuilderAgent`.
+
+```python
+@dataclass
+class EvidenceRetrievalConfig:
+    iterative_search_enabled: bool = False  # Env: ITERATIVE_SEARCH_ENABLED
+    iterative_min_quality: float = 0.6      # Env: ITERATIVE_MIN_QUALITY
+    iterative_max_rounds: int = 2           # Env: ITERATIVE_MAX_ROUNDS
+    langsearch_queries_simple: int = 2      # Env: LANGSEARCH_QUERIES_SIMPLE
+    langsearch_queries_complex: int = 4     # Env: LANGSEARCH_QUERIES_COMPLEX
+    tavily_primary_queries: int = 2         # Env: TAVILY_PRIMARY_QUERIES
+    # ... weitere Freshness- und Quality-Schwellen
+```
 
 ---
 
@@ -186,16 +254,19 @@ LLM_PROVIDER=openrouter
 LLM_MODEL=auto
 SCOUT_TIER=pro
 
-# Suche
-SEARCH_PROVIDER=searxng
+# Primäre Suche (SearXNGConfig)
 SEARXNG_URL=http://searxng:8888
+
+# Optionale Suchplugins
+# LANGSEARCH_API_KEY=ls-...        # aktiviert automatisch wenn gesetzt
 # TAVILY_API_KEY=tvly-...
+# TAVILY_ENABLED=true              # muss explizit aktiviert werden
+# GOOGLE_FACT_CHECK_API_KEY=...    # aktiviert automatisch wenn gesetzt
 
 # Sprache
 LANGUAGE=de
 
 # Auth
-AUTH_ENABLED=false
 JWT_SECRET=dein-sicherer-schluessel
 SECURE_COOKIES=false
 
@@ -211,6 +282,13 @@ GRAPH_DB_PATH=/app/data/graph.db
 # Rate-Limiting
 RATE_LIMIT_RPM=10
 RATE_LIMIT_BURST=3
+
+# Produktions-Backends (optional, Default: SQLite/SQLite)
+# DB_BACKEND=postgres
+# POSTGRES_HOST=localhost
+# POSTGRES_DB=fakeguard
+# CACHE_BACKEND=valkey
+# VALKEY_HOST=localhost
 ```
 
 ---

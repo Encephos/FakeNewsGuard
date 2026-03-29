@@ -35,6 +35,8 @@ class ValkeySearchCache:
         self._cfg = cache_cfg
         self._ttl = cache_cfg.ttl_hours * 3600
         self._client = self._connect(valkey_cfg)
+        self.hit_count = 0
+        self.miss_count = 0
 
     @staticmethod
     def _connect(cfg: ValkeyConfig):
@@ -54,7 +56,9 @@ class ValkeySearchCache:
         key = _search_key(query, categories)
         raw = self._client.get(key)
         if raw is None:
+            self.miss_count += 1
             return None
+        self.hit_count += 1
         return json.loads(raw)
 
     def set(self, query: str, results: list[dict], categories: str = "") -> None:
@@ -84,11 +88,15 @@ class ValkeySearchCache:
             count += len(keys)
             if cursor == 0:
                 break
+        total = self.hit_count + self.miss_count
         return {
             "enabled": True,
             "backend": "valkey",
             "total_entries": count,
             "ttl_hours": self._cfg.ttl_hours,
+            "hit_count": self.hit_count,
+            "miss_count": self.miss_count,
+            "hit_rate": self.hit_count / total if total > 0 else 0.0,
         }
 
 
@@ -103,6 +111,8 @@ class InMemorySearchCache:
         self._cfg = cache_cfg
         self._ttl = cache_cfg.ttl_hours * 3600
         self._store: dict[str, tuple[float, list[dict]]] = {}
+        self.hit_count = 0
+        self.miss_count = 0
 
     def get(self, query: str, categories: str = "") -> list[dict] | None:
         if not self._cfg.enabled:
@@ -111,11 +121,14 @@ class InMemorySearchCache:
         key = _search_key(query, categories)
         entry = self._store.get(key)
         if entry is None:
+            self.miss_count += 1
             return None
         created_at, results = entry
         if time.time() - created_at > self._ttl:
             del self._store[key]
+            self.miss_count += 1
             return None
+        self.hit_count += 1
         return results
 
     def set(self, query: str, results: list[dict], categories: str = "") -> None:
@@ -131,9 +144,13 @@ class InMemorySearchCache:
     def stats(self) -> dict[str, Any]:
         if not self._cfg.enabled:
             return {"enabled": False}
+        total = self.hit_count + self.miss_count
         return {
             "enabled": True,
             "backend": "in-memory",
             "total_entries": len(self._store),
             "ttl_hours": self._cfg.ttl_hours,
+            "hit_count": self.hit_count,
+            "miss_count": self.miss_count,
+            "hit_rate": self.hit_count / total if total > 0 else 0.0,
         }

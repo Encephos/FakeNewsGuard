@@ -150,8 +150,11 @@ class TestBuildSearchProfile:
         assert "100" in profile.number_terms or "250" in profile.number_terms
         assert profile.sanction_terms  # mindestens Bußgeld oder Kamera
 
-    def test_profile_official_source_hint_hannover(self):
-        """Hannover-Frame muss site:hannover.de als Hint erzeugen."""
+    def test_profile_official_source_hint_de_jurisdiction(self):
+        """DE-Jurisdiktions-Frame muss Registry- oder Regierungs-Domain als Hint erzeugen."""
+        from tools.data_loader import government_domains
+        from tools.sources.registry import SourceRegistry
+
         frame = ClaimFrame(
             raw_text="Hannover Stadtrat 15-Minuten-Stadt",
             institution="Stadtrat Hannover",
@@ -159,13 +162,29 @@ class TestBuildSearchProfile:
             policy_context="15-Minuten-Stadt",
         )
         profile = _build_search_profile(frame)
-        assert any("hannover.de" in h for h in profile.official_source_hints)
+        assert profile.official_source_hints, "Mindestens ein official_source_hint erwartet"
+        # Hints müssen aus government_domains oder SourceRegistry stammen
+        gov = government_domains()
+        registry_domains = {
+            d for src in SourceRegistry.by_jurisdiction_safe("de")
+            for d in src.classifier_domains
+        }
+        valid = gov | registry_domains
+        for hint in profile.official_source_hints:
+            domain = hint.replace("site:", "")
+            assert domain in valid, f"Hint '{hint}' nicht in government_domains oder Registry"
 
     def test_profile_fact_check_hints_always_present(self):
-        """Fact-Check-Hints (correctiv.org, dpa-factchecking.com) müssen immer gesetzt sein."""
+        """Fact-Check-Hints müssen immer gesetzt sein und aus domain_tiers stammen."""
+        from tools.data_loader import fact_checker_domains
+
         frame = ClaimFrame(raw_text="Irgendeine Behauptung", institution="Testbehörde")
         profile = _build_search_profile(frame)
-        assert any("correctiv.org" in h for h in profile.fact_check_hints)
+        assert profile.fact_check_hints, "Mindestens ein fact_check_hint erwartet"
+        fc_set = set(fact_checker_domains())
+        for hint in profile.fact_check_hints:
+            domain = hint.replace("site:", "")
+            assert domain in fc_set, f"Hint '{hint}' nicht in tier4_fact_checkers"
 
 
 # ── 2. Decomposer Context-Integrity-Filter ────────────────────────────────────

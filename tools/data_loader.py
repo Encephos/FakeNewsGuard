@@ -56,6 +56,19 @@ def domain_tiers() -> dict[str, set[str]]:
 
 
 @lru_cache(maxsize=1)
+def government_domains() -> frozenset[str]:
+    """Tier-1 (amtliche Statistik) + Tier-2 (Regierung) Domains aus domain_tiers.yaml."""
+    tiers = domain_tiers()
+    return frozenset(tiers["tier1"] | tiers["tier2"])
+
+
+@lru_cache(maxsize=1)
+def fact_checker_domains() -> tuple[str, ...]:
+    """Tier-4 Fact-Checker-Domains, sortiert für Determinismus."""
+    return tuple(sorted(domain_tiers()["tier4"]))
+
+
+@lru_cache(maxsize=1)
 def classifier_tier_patterns() -> list[tuple[int, list[str]]]:
     """Lade Tier-Patterns für source_classifier.py.
 

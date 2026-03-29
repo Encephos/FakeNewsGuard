@@ -20,10 +20,17 @@ from typing import Any
 from config import CacheConfig, ValkeyConfig
 
 
-def _claim_key(claim_text: str, agent_name: str, context: str = "") -> str:
+def _claim_key(
+    claim_text: str,
+    agent_name: str,
+    context: str = "",
+    canonical_text: str | None = None,
+    use_canonical: bool = False,
+) -> str:
     """Stabiler Cache-Key – identisch mit tools/cache._claim_key."""
+    text = canonical_text if (use_canonical and canonical_text) else claim_text
     context_part = context.strip().lower()[:100] if context else ""
-    raw = f"{agent_name}::{claim_text.strip().lower()}::{context_part}"
+    raw = f"{agent_name}::{text.strip().lower()}::{context_part}"
     return "fng:cache:" + hashlib.sha256(raw.encode()).hexdigest()
 
 
@@ -52,26 +59,48 @@ class ValkeyClaimCache:
 
     # ── Öffentliche Schnittstelle (kompatibel mit ClaimCache) ─────────────────
 
-    def get(self, claim_text: str, agent_name: str, context: str = "") -> dict | None:
+    def get(
+        self,
+        claim_text: str,
+        agent_name: str,
+        context: str = "",
+        canonical_text: str | None = None,
+        use_canonical: bool = False,
+    ) -> dict | None:
         """Lies ein gecachtes Ergebnis. None wenn nicht vorhanden oder deaktiviert."""
         if not self._cfg.enabled:
             return None
-        key = _claim_key(claim_text, agent_name, context)
+        key = _claim_key(claim_text, agent_name, context, canonical_text, use_canonical)
         raw = self._client.get(key)
         if raw is None:
             return None
         return json.loads(raw)
 
-    def set(self, claim_text: str, agent_name: str, result: dict, context: str = "") -> None:
+    def set(
+        self,
+        claim_text: str,
+        agent_name: str,
+        result: dict,
+        context: str = "",
+        canonical_text: str | None = None,
+        use_canonical: bool = False,
+    ) -> None:
         """Speichere ein Ergebnis. TTL wird automatisch von Valkey verwaltet."""
         if not self._cfg.enabled:
             return
-        key = _claim_key(claim_text, agent_name, context)
+        key = _claim_key(claim_text, agent_name, context, canonical_text, use_canonical)
         self._client.setex(key, self._ttl, json.dumps(result))
 
-    def delete(self, claim_text: str, agent_name: str, context: str = "") -> None:
+    def delete(
+        self,
+        claim_text: str,
+        agent_name: str,
+        context: str = "",
+        canonical_text: str | None = None,
+        use_canonical: bool = False,
+    ) -> None:
         """Lösche einen einzelnen Cache-Eintrag."""
-        key = _claim_key(claim_text, agent_name, context)
+        key = _claim_key(claim_text, agent_name, context, canonical_text, use_canonical)
         self._client.delete(key)
 
     def clear_expired(self) -> int:

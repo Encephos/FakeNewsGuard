@@ -9,9 +9,13 @@ Nutzung:
 Umgebungsvariablen (in .env):
     ANTHROPIC_API_KEY    – Für Claude als LLM
     OPENAI_API_KEY       – Für GPT als LLM
-    TAVILY_API_KEY       – Für Web-Suche (empfohlen)
-    SERPER_API_KEY       – Alternative Web-Suche
-    BRAVE_API_KEY        – Alternative Web-Suche
+    SEARXNG_URL          – SearXNG-Instanz (Default: http://localhost:8888)
+    LANGSEARCH_API_KEY   – LangSearch API-Key (optional, semantische Suche)
+
+    Optional (kostenpflichtige Plugins):
+    TAVILY_API_KEY       – Tavily Web-Suche (deaktiviert per Default)
+    SERPER_API_KEY       – Serper Web-Suche
+    BRAVE_API_KEY        – Brave Web-Suche
 """
 
 from __future__ import annotations
@@ -201,9 +205,9 @@ def main() -> None:
 
     # Search
     parser.add_argument(
-        "--search-provider", default="tavily",
-        choices=["tavily", "serper", "brave"],
-        help="Web-Search Provider (default: tavily)",
+        "--search-provider", default="searxng",
+        choices=["searxng", "tavily", "serper", "brave"],
+        help="Web-Search Provider (default: searxng)",
     )
 
     # Output

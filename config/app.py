@@ -49,15 +49,26 @@ from config.search import (  # noqa: E402
 
 @dataclass
 class AppConfig:
+    # ── Kern (immer erforderlich) ─────────────────────────────────────────────
     llm: LLMConfig = field(default_factory=LLMConfig)
-    search: SearchConfig = field(default_factory=SearchConfig)
+    retry: RetryConfig = field(default_factory=RetryConfig)
+    # ── Suche: Primäres Backend ───────────────────────────────────────────────
     searxng: SearXNGConfig = field(default_factory=SearXNGConfig)
+    # ── Suche: Legacy-Routing-Layer (Backward-Compat) ─────────────────────────
+    search: SearchConfig = field(default_factory=SearchConfig)
+    # ── Suche: Optionale Plugins ──────────────────────────────────────────────
     langsearch: LangSearchConfig = field(default_factory=LangSearchConfig)
-    tavily: TavilyConfig = field(default_factory=TavilyConfig)
+    tavily: TavilyConfig = field(default_factory=TavilyConfig)  # disabled by default
     google_fact_check: GoogleFactCheckConfig = field(default_factory=GoogleFactCheckConfig)
+    # ── Feature-Configs ───────────────────────────────────────────────────────
     claim_processing: ClaimProcessingConfig = field(default_factory=ClaimProcessingConfig)
     cove: CoVeConfig = field(default_factory=CoVeConfig)
-    retry: RetryConfig = field(default_factory=RetryConfig)
+    evidence_retrieval: EvidenceRetrievalConfig = field(default_factory=EvidenceRetrievalConfig)
+    synthesizer: SynthesizerConfig = field(default_factory=SynthesizerConfig)
+    # ── Source Layer (institutionelle Primärquellen) ──────────────────────────
+    source_layer: SourceLayerConfig = field(default_factory=SourceLayerConfig)
+    source_clients: SourceClientsConfig = field(default_factory=SourceClientsConfig)
+    # ── Infrastruktur ─────────────────────────────────────────────────────────
     cache: CacheConfig = field(default_factory=CacheConfig)
     search_cache: SearchCacheConfig = field(default_factory=SearchCacheConfig)
     archive: ArchiveConfig = field(default_factory=ArchiveConfig)
@@ -65,10 +76,6 @@ class AppConfig:
     telegram: TelegramConfig = field(default_factory=TelegramConfig)
     rate_limit: RateLimitConfig = field(default_factory=RateLimitConfig)
     graph: GraphConfig = field(default_factory=GraphConfig)
-    evidence_retrieval: EvidenceRetrievalConfig = field(default_factory=EvidenceRetrievalConfig)
-    synthesizer: SynthesizerConfig = field(default_factory=SynthesizerConfig)
-    source_layer: SourceLayerConfig = field(default_factory=SourceLayerConfig)
-    source_clients: SourceClientsConfig = field(default_factory=SourceClientsConfig)
     # ── Produktions-Backends ──────────────────────────────────────────────────
     valkey: ValkeyConfig = field(default_factory=ValkeyConfig)
     postgres: PostgreSQLConfig = field(default_factory=PostgreSQLConfig)

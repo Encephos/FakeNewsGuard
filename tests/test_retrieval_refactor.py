@@ -1,7 +1,9 @@
-"""Tests für den Retrieval-Refactor: hybrides Ranking, Tavily-Budget,
-Evidence-Typing, Support-Leakage-Schutz, Confidence-Ceilings.
+"""Tests für den Retrieval-Refactor: hybrides Ranking, Evidence-Typing,
+Support-Leakage-Schutz, Confidence-Ceilings.
 
-Prüft alle in der Aufgabenstellung geforderten Eigenschaften.
+Enthält auch Tests für die optionale Tavily-Plugin-Budgetierung
+(TestTavilyBudget, TestTavilyContentPreScrape), die nur bei
+aktiviertem Tavily-Plugin relevant sind.
 """
 
 from __future__ import annotations
@@ -193,7 +195,7 @@ class TestLangSearchAdaptive:
 
 
 class TestTavilyBudget:
-    """Prüft, dass Tavily budgetiert genutzt wird."""
+    """Prüft Tavily-Plugin-Budgetierung (optionales Plugin, nicht Teil der Kern-Pipeline)."""
 
     def test_budget_config_defaults(self):
         cfg = EvidenceRetrievalConfig()
@@ -247,7 +249,7 @@ class TestTavilyBudget:
 
 
 class TestTavilyContentPreScrape:
-    """Prüft, dass Tavily-Content vor dem Scraping sinnvoll genutzt wird."""
+    """Prüft Content-Nutzung vor Scraping (optionales Tavily-Plugin)."""
 
     def test_hybrid_score_with_content_bonus(self, regulatory_profile):
         """Result mit Tavily-Content bekommt höheren hybrid_score."""

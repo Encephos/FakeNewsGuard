@@ -233,7 +233,11 @@ class TestEvidencePackFormat:
 # ── Unit Tests: Retrieval-Entkopplung ────────────────────────────────────────
 
 class TestRetrievalEntkopplung:
-    """Tests für saubere Trennung von Tavily, SearXNG und LangSearch."""
+    """Tests für saubere Trennung der Such-Clients (Plugin-Isolation).
+
+    Stellt sicher, dass SearXNG und LangSearch als Kern-Clients unabhängig
+    von optionalen Plugins (Tavily etc.) funktionieren.
+    """
 
     def test_tavily_not_double_used(self):
         """SearXNGClient ist explizit SearXNG-only – Tavily-Doppelnutzung strukturell unmöglich."""

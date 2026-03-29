@@ -2,7 +2,7 @@
 
 **Multi-Agent-System zur Erkennung von Fake News, Faktenverzerrung und manipulativer Rhetorik.**
 
-Python-Backend mit FastAPI, asyncio und SQLite – läuft komplett unabhängig und nutzt LLM-APIs (Anthropic/OpenAI/OpenRouter) sowie mehrere Web-Search-Quellen (SearXNG, LangSearch, Google Fact Check API).
+Python-Backend mit FastAPI, asyncio – nutzt LLM-APIs (Anthropic/OpenAI/OpenRouter), mehrere Web-Search-Quellen (SearXNG, LangSearch, Google Fact Check API) und 14 institutionelle Primärquellen. Dev-Default: SQLite; Produktion: PostgreSQL + Valkey.
 
 ---
 
@@ -110,8 +110,15 @@ docker compose up --build
 FakeNewsGuard/
 ├── main.py                      # CLI – Entry Point
 ├── api.py                       # FastAPI – REST API + SSE-Streaming
-├── config.py                    # Konfiguration aus .env
 ├── orchestrator.py              # Zentrale Steuerung, Top-N Claim-Auswahl
+│
+├── config/                      # Konfigurationspackage (alle Werte aus .env)
+│   ├── app.py                   # AppConfig + ScoutTier
+│   ├── llm.py                   # LLMConfig, RetryConfig
+│   ├── search.py                # SearXNGConfig (primär), SearchConfig (legacy), LangSearch, Tavily, GFC
+│   ├── processing.py            # ClaimProcessingConfig, CoVeConfig, EvidenceRetrievalConfig, SynthesizerConfig
+│   ├── database.py              # CacheConfig, ValkeyConfig, PostgreSQLConfig
+│   └── infrastructure.py       # ArchiveConfig, UserDBConfig, RateLimitConfig, TelegramConfig, GraphConfig
 │
 ├── agents/
 │   ├── base.py                  # BaseAgent – LLM + Search + Logging
@@ -124,21 +131,33 @@ FakeNewsGuard/
 │   ├── number_auditor.py        # Zahlen- und Statistikprüfung
 │   ├── rhetoric_analyzer.py     # Framing, Dog Whistles, Manipulation
 │   ├── image_analyzer.py        # Bildanalyse (multimodal)
-│   └── synthesizer.py           # Aggregation → Gesamtverdikt
+│   ├── synthesizer.py           # Aggregation → Gesamtverdikt
+│   └── _legacy_fallback.py      # [Legacy-Fallback-Mixin – entfällt wenn v2 stabil]
 │
 ├── models/
 │   ├── schemas.py               # Kern-Datenmodelle (ProcessedClaim, etc.)
 │   ├── evidence_models.py       # EvidencePack + Trust-Boundary-Modelle
-│   └── verdict_models.py        # CoVeTrace, BaselineAssessment, etc.
+│   ├── verdict_models.py        # CoVeTrace, BaselineAssessment, etc.
+│   └── source_evidence.py       # OfficialEvidenceItem (institutionelle Quellen)
 │
 ├── tools/
 │   ├── llm.py                   # LLM-Abstraktion (Anthropic/OpenAI/Ollama)
-│   ├── web_search.py            # WebSearchClient + LangSearchClient
-│   └── cache.py                 # SQLite-basierter Claim-Cache
+│   ├── cache.py                 # SQLite-Claim-Cache
+│   ├── web_search.py            # [Backward-Compat Re-Export]
+│   ├── claim_router.py          # Heuristische Quellenauswahl (ClaimRouter)
+│   ├── data_loader.py           # YAML-Configs (Domain-Tiers, Scoring-Weights, etc.)
+│   ├── iterative_search.py      # Iterative Retrieval-Runden
+│   ├── search/                  # Suchclients
+│   │   ├── __init__.py          # Re-Exports (SearXNGClient, LangSearchClient, …)
+│   │   └── models.py            # SearchResult-Dataclass
+│   └── sources/                 # Institutionelle Primärquellen (14 Clients)
+│       ├── registry.py          # SourceRegistry (by_domain, by_jurisdiction_safe, …)
+│       ├── types.py             # SourceConfig, ClaimDomain, CommercialUsePolicy
+│       └── adapter_guardian.py  # SourceCache, SourceRateLimiter, CircuitBreaker
 │
 ├── tests/
 │   ├── conftest.py              # Shared fixtures (minimal_config, etc.)
-│   └── unit/                   # Unit-Tests (68 Tests, alle mock-basiert)
+│   └── unit/                   # Unit-Tests (25+ Dateien, alle mock-basiert)
 │
 ├── .env.example                 # Alle Konfigurationsvariablen dokumentiert
 ├── requirements.txt
@@ -155,16 +174,19 @@ Alle Einstellungen über Umgebungsvariablen (`.env`). Vollständige Referenz in 
 |---|---|---|
 | `LLM_PROVIDER` | `anthropic` | `anthropic` / `openai` / `openrouter` / `ollama` |
 | `ANTHROPIC_API_KEY` | – | API-Key für Claude |
-| `SEARCH_PROVIDER` | `searxng` | `searxng` / `tavily` / `serper` / `brave` |
-| `SEARXNG_BASE_URL` | `http://localhost:8888` | SearXNG-Instanz |
+| `SEARXNG_URL` | `http://localhost:8888` | SearXNG-Instanz (primäres Suchbackend) |
 | `LANGSEARCH_API_KEY` | – | LangSearch API-Key (optional) |
-| `LANGSEARCH_ENABLED` | `false` | LangSearch aktivieren |
+| `LANGSEARCH_ENABLED` | `auto` | `true` wenn Key gesetzt, sonst `false` |
 | `GOOGLE_FACT_CHECK_API_KEY` | – | Google Fact Check API-Key (optional) |
-| `GOOGLE_FACT_CHECK_ENABLED` | `false` | Google Fact Check aktivieren |
+| `GOOGLE_FACT_CHECK_ENABLED` | `auto` | `true` wenn Key gesetzt, sonst `false` |
+| `TAVILY_API_KEY` | – | Tavily API-Key (optionales Plugin) |
+| `TAVILY_ENABLED` | `false` | Tavily explizit aktivieren |
 | `CLAIM_TOP_N` | `0` | Max. Anzahl Claims pro Analyse (0 = unbegrenzt) |
-| `COVE_ENABLED` | `false` | Chain-of-Verification aktivieren |
+| `COVE_ENABLED` | `true` | Chain-of-Verification (default: aktiv) |
 | `MAX_VERIFICATION_QUESTIONS` | `3` | Max. CoVe-Verifikationsfragen pro Claim |
 | `USE_CANONICAL_CACHE` | `true` | Canonical Hash für Cache-Lookup nutzen |
+| `DB_BACKEND` | `sqlite` | `postgres` für Produktion |
+| `CACHE_BACKEND` | `sqlite` | `valkey` für Produktion |
 
 ---
 

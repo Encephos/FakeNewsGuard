@@ -238,6 +238,91 @@ class Disambiguator(_LLMStageMixin):
         return updated
 
 
+def _infer_jurisdiction(loc_lower: str, inst_lower: str) -> str:
+    """Schnelle Jurisdiktions-Erkennung aus Location-/Institution-Strings.
+
+    Verwendet generische Signale (Sprache, Behördentypen, Länder-Keywords)
+    statt einzelner Städte.  Deutsche Behörden-Suffixe (-rat, -amt, -ministerium)
+    und .de-Government-Domains aus domain_tiers reichen für die DE-Erkennung.
+    """
+    combined = f"{loc_lower} {inst_lower}"
+    # DE: Länder-Keywords + generische Behördensignale
+    if any(kw in combined for kw in (
+        "deutschland", "deutsch", "german", "berlin", "münchen",
+        "hamburg", "köln", "frankfurt", "bundesregierung", "bundestag",
+        "bundesrat", "bafin", "destatis", "rki", "bundesbank",
+    )):
+        return "de"
+    # DE: Behörden-Suffixe (Stadtrat, Landtag, Bezirksamt, Ministerium, …)
+    if any(kw in inst_lower for kw in (
+        "stadtrat", "landtag", "bezirksamt", "ministerium",
+        "landesamt", "ordnungsamt", "bürgermeister",
+    )):
+        return "de"
+    if any(kw in combined for kw in (
+        "eu", "europäisch", "european", "eurostat", "eurozone",
+        "eu-kommission", "european commission",
+    )):
+        return "eu"
+    if any(kw in combined for kw in (
+        "united kingdom", "uk", "british", "britisch", "london",
+        "companies house", "hmrc", "ofcom", "fca",
+    )):
+        return "uk"
+    if any(kw in combined for kw in (
+        "united states", "usa", "american", "fda", "sec", "ftc",
+        "uspto", "epa", "nih", "cdc", "washington",
+    )):
+        return "us"
+    return "global"
+
+
+def _derive_source_hints(frame: ClaimFrame) -> tuple[list[str], list[str]]:
+    """Leite official-source- und fact-check-Hints generisch ab.
+
+    Verwendet ``government_domains()`` aus ``domain_tiers.yaml`` für
+    Institutions-Matching und ``SourceRegistry.by_jurisdiction_safe()``
+    für jurisdiktionsbasierte Hints.  Der ClaimRouter ergänzt später
+    ggf. weitere domain-spezifische Hints.
+    """
+    from tools.data_loader import fact_checker_domains, government_domains
+    from tools.sources.registry import SourceRegistry
+
+    official: list[str] = []
+
+    inst_lower = (frame.institution or "").lower()
+    loc_lower = (frame.location or "").lower()
+
+    # 1. Institutions-Match: Stem einer Tier-1/Tier-2-Domain im institution-Feld
+    if inst_lower:
+        for domain in government_domains():
+            stem = domain.split(".")[0]  # z.B. "bundesregierung" aus "bundesregierung.de"
+            if len(stem) >= 5 and stem in inst_lower:
+                official.append(f"site:{domain}")
+                break  # ein institutioneller Hint genügt
+
+    # 2. Jurisdiktions-Fallback: Registry-Quellen nach Jurisdiktion
+    if not official:
+        jurisdiction = _infer_jurisdiction(loc_lower, inst_lower)
+        if jurisdiction != "global":
+            for src in SourceRegistry.by_jurisdiction_safe(jurisdiction)[:2]:
+                if src.classifier_domains:
+                    hint = f"site:{src.classifier_domains[0]}"
+                    if hint not in official:
+                        official.append(hint)
+
+    # 3. Statistik-Fallback: Claims mit Zahlen ohne andere Hints
+    if frame.numbers and not official:
+        if "destatis.de" in government_domains():
+            official.append("site:destatis.de")
+
+    # Fact-Check-Hints: erste 2 aus YAML tier4
+    fc = fact_checker_domains()[:2]
+    fact_check = [f"site:{d}" for d in fc]
+
+    return official, fact_check
+
+
 def _build_search_profile(frame: ClaimFrame) -> ClaimSearchProfile:
     """Leite ein ClaimSearchProfile aus einem ClaimFrame ab.
 
@@ -275,25 +360,8 @@ def _build_search_profile(frame: ClaimFrame) -> ClaimSearchProfile:
             if w in _offtopic_triggers:
                 exclusion_terms.append(w)
 
-    # Official-source hints basierend auf institution/location
-    official_source_hints: list[str] = []
-    loc_lower = frame.location.lower() if frame.location else ""
-    inst_lower = frame.institution.lower() if frame.institution else ""
-    if "hannover" in loc_lower or "hannover" in inst_lower:
-        official_source_hints.append("site:hannover.de")
-    if "berlin" in loc_lower:
-        official_source_hints.append("site:berlin.de")
-    if "bundesregierung" in inst_lower or "bundesministerium" in inst_lower:
-        official_source_hints.append("site:bundesregierung.de")
-    if "bundestag" in inst_lower:
-        official_source_hints.append("site:bundestag.de")
-    if "bildung" in inst_lower or "schule" in (frame.policy_context or "").lower():
-        official_source_hints.append("site:bildungsserver.berlin-brandenburg.de")
-    # Fallback: destatis für statistische Claims mit Zahlen
-    if frame.numbers and not official_source_hints:
-        official_source_hints.append("site:destatis.de")
-
-    fact_check_hints = ["site:correctiv.org", "site:dpa-factchecking.com"]
+    # Official-source hints: generisch aus domain_tiers.yaml + SourceRegistry
+    official_source_hints, fact_check_hints = _derive_source_hints(frame)
 
     return ClaimSearchProfile(
         core_entities=core_entities,

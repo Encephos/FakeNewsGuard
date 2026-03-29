@@ -2,7 +2,8 @@
 
 > Zurück: [[Tools]] | Siehe auch: [[Agent-FactChecker]], [[Konfiguration]]
 
-`tools/web_search.py` abstrahiert verschiedene Suchmaschinen-Backends hinter einer einheitlichen Schnittstelle.
+`tools/search/` (Package) stellt die Suchclients bereit. `tools/web_search.py` existiert
+noch als Backward-Compat Re-Export – neuer Code importiert direkt aus `tools/search/`.
 
 ---
 
@@ -10,14 +11,17 @@
 
 | Provider | Typ | Env-Var | Besonderheit |
 |---|---|---|---|
-| **SearXNG** | Self-hosted | `SEARXNG_URL` | Kostenlos, volle Kontrolle |
-| **Tavily** | Cloud API | `TAVILY_API_KEY` | KI-optimiert für Research |
-| **Serper** | Cloud API | `SERPER_API_KEY` | Google-Ergebnisse |
-| **Brave** | Cloud API | `BRAVE_API_KEY` | Datenschutzfreundlich |
+| **SearXNG** | Self-hosted (primär) | `SEARXNG_URL` | Kostenlos, volle Kontrolle, Standard |
+| **LangSearch** | Cloud API | `LANGSEARCH_API_KEY` | Semantische Suche, ergänzend |
+| **Tavily** | Cloud API (optional) | `TAVILY_API_KEY` | KI-optimiert, kostenpflichtig, deaktiviert per Default |
+| **Serper** | Cloud API (optional) | `SERPER_API_KEY` | Google-Ergebnisse, kostenpflichtig |
+| **Brave** | Cloud API (optional) | `BRAVE_API_KEY` | Datenschutzfreundlich, kostenpflichtig |
 
 ---
 
 ## SearchResult-Modell
+
+`tools/search/models.py`
 
 ```python
 @dataclass
@@ -30,71 +34,82 @@ class SearchResult:
 
 ---
 
-## WebSearchClient (sync)
+## SearXNGClient (primär)
+
+`tools/search/` – wird als `config.searxng` (SearXNGConfig) konfiguriert:
 
 ```python
-client = WebSearchClient(config.search)
-results = client.search("Rentenerhöhung 2023 Deutschland", n=10)
-# → list[SearchResult]
+from tools.search import SearXNGClient
+
+client = SearXNGClient(config.searxng)
+
+# Multi-Search (mehrere Queries parallel):
+results_by_query = await client.multi_search_async(
+    queries=["query 1", "query 2", "query 3"],
+    n_per_query=5,
+    categories=["general", "news"],
+)
+# → dict[str, list[SearchResult]]
 ```
 
 ---
 
-## AsyncWebSearchClient (async)
+## WebSearchClient / AsyncWebSearchClient (Legacy)
+
+`tools/web_search.py` – Backward-Compat-Layer über `config.search` (SearchConfig).
+Für neuen Code `SearXNGClient` direkt verwenden.
 
 ```python
+# [Legacy]
 client = AsyncWebSearchClient(config.search)
-
-# Einzelsuche:
-results = await client.search_async("query", n=10)
-
-# Multi-Search (mehrere Queries parallel):
-results = await client.multi_search_async(
-    queries=["query 1", "query 2", "query 3"],
-    n_per_query=5
-)
-# → list[SearchResult], dedupliziert nach URL
+results = await client.multi_search_async(queries=["query"], n_per_query=5)
 ```
 
 ---
 
 ## Multi-Search und Deduplication
 
-Multi-Search ist die Kernfunktion für den [[Agent-FactChecker]]:
+Multi-Search ist die Kernfunktion im [[Agent-FactChecker]] / EvidenceBuilderAgent:
 
 1. Alle Queries werden **gleichzeitig** als asyncio-Tasks gestartet
-2. Ergebnisse werden gesammelt
-3. **Deduplizierung nach URL**: jede URL erscheint nur einmal
-4. Sortierung nach Relevanz-Score (Snippet-Overlap)
-
-```python
-# Intern vereinfacht:
-tasks = [search_async(q) for q in queries]
-all_results = await asyncio.gather(*tasks)
-seen_urls = set()
-deduplicated = []
-for r in flatten(all_results):
-    if r.url not in seen_urls:
-        seen_urls.add(r.url)
-        deduplicated.append(r)
-```
+2. Ergebnisse werden pro Query in `dict[str, list[SearchResult]]` gesammelt
+3. EvidenceBuilderAgent dedupliziert nach URL und rankt nach Multi-Faktor-Score
 
 ---
 
-## SearchConfig
+## SearXNGConfig (primär)
 
 ```python
 @dataclass
-class SearchConfig:
-    provider: str = "searxng"
-    base_url: str = "http://localhost:8888"
-    api_key: str = ""
-    max_results: int = 10
-    scrape_top_n: int = 8       # Max. Quellen zum Scrapen
-    scrape_timeout: int = 30    # Sekunden
+class SearXNGConfig:
+    base_url: str = ""           # Env: SEARXNG_URL
+    engines: list[str] = []      # Env: SEARXNG_ENGINES
+    categories: list[str] = ["general", "news"]
+    language: str = "de"
+    max_results: int = 15
+    scrape_top_n: int = 10
+    inter_query_delay: float = 1.5
+    engine_rotation_enabled: bool = True
 ```
 
-→ [[Konfiguration]]
+→ [[Konfiguration#SearXNGConfig (primär)]]
+
+---
+
+## SearchConfig (Legacy)
+
+```python
+# [Legacy – Backward-Compat-Routing-Layer]
+# Primäres Backend: SearXNGConfig (config.searxng)
+@dataclass
+class SearchConfig:
+    provider: str = "searxng"    # searxng | tavily | serper | brave
+    api_key: str = ""
+    base_url: str = ""
+    max_results: int = 15
+```
+
+→ [[Konfiguration#SearchConfig (Legacy)]]
 
 ---
 
@@ -116,7 +131,7 @@ Vorteile:
 - Keine Nutzungslimits
 - Vollständige Datenkontrolle
 
-Für die Cloud-Version sind **Tavily** oder **Serper** empfohlen.
+Für Cloud-Deployments ohne SearXNG stehen **Tavily**, **Serper** oder **Brave** als kostenpflichtige Alternativen zur Verfügung (standardmäßig deaktiviert).
 
 ---
 

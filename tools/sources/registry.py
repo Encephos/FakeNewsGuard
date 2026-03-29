@@ -70,6 +70,7 @@ _WORLD_BANK = SourceConfig(
     ),
     authority_weight=0.88,
     classifier_domains=("worldbank.org", "data.worldbank.org"),
+    jurisdictions=("global",),
     rate_limit_rps=10.0,
     requires_registration=False,
     notes=(
@@ -99,6 +100,7 @@ _GLEIF = SourceConfig(
     ),
     authority_weight=0.92,
     classifier_domains=("gleif.org",),
+    jurisdictions=("global",),
     rate_limit_rps=3.0,
     requires_registration=False,
     notes=(
@@ -129,6 +131,7 @@ _OPENFDA = SourceConfig(
     ),
     authority_weight=0.95,
     classifier_domains=("api.fda.gov", "fda.gov", "open.fda.gov"),
+    jurisdictions=("us",),
     rate_limit_rps=1.0,  # 240/min mit API-Key; 40/min ohne Key → 0.67 req/s
     requires_registration=False,
     notes=(
@@ -157,6 +160,7 @@ _OPENALEX = SourceConfig(
     ),
     authority_weight=0.78,
     classifier_domains=("openalex.org",),
+    jurisdictions=("global",),
     rate_limit_rps=10.0,  # Polite Pool: 10 req/s; ohne Email: ~1 req/s
     requires_registration=False,
     notes=(
@@ -188,6 +192,7 @@ _ARXIV = SourceConfig(
     ),
     authority_weight=0.70,
     classifier_domains=("arxiv.org", "export.arxiv.org"),
+    jurisdictions=("global",),
     rate_limit_rps=0.33,  # Offiziell: max 1 req/3s für API-Calls
     requires_registration=False,
     notes=(
@@ -219,6 +224,7 @@ _CROSSREF = SourceConfig(
     ),
     authority_weight=0.82,
     classifier_domains=("api.crossref.org", "crossref.org", "doi.org"),
+    jurisdictions=("global",),
     rate_limit_rps=5.0,  # Polite Pool: bis 50 req/s; ohne Email: niedrig
     requires_registration=False,
     notes=(
@@ -248,6 +254,7 @@ _CERN_OPEN_DATA = SourceConfig(
     ),
     authority_weight=0.87,
     classifier_domains=("opendata.cern.ch", "cern.ch"),
+    jurisdictions=("global",),
     rate_limit_rps=2.0,
     requires_registration=False,
     notes=(
@@ -279,6 +286,7 @@ _EUROSTAT = SourceConfig(
     ),
     authority_weight=0.95,
     classifier_domains=("eurostat.ec.europa.eu", "ec.europa.eu/eurostat"),
+    jurisdictions=("eu", "de"),
     rate_limit_rps=2.0,
     requires_registration=False,
     notes=(
@@ -310,6 +318,7 @@ _EUR_LEX = SourceConfig(
     ),
     authority_weight=0.97,
     classifier_domains=("eur-lex.europa.eu", "publications.europa.eu"),
+    jurisdictions=("eu",),
     rate_limit_rps=1.0,  # SPARQL-Endpoint ist ressourcenintensiv
     requires_registration=False,
     notes=(
@@ -342,6 +351,7 @@ _USPTO = SourceConfig(
     ),
     authority_weight=0.93,
     classifier_domains=("patentsview.org", "patents.google.com", "usptopatents.org", "patent.gov"),
+    jurisdictions=("us",),
     rate_limit_rps=10.0,
     requires_registration=False,
     notes=(
@@ -376,6 +386,7 @@ _COMPANIES_HOUSE = SourceConfig(
         "find-and-update.company-information.service.gov.uk",
         "companieshouse.gov.uk",
     ),
+    jurisdictions=("uk",),
     rate_limit_rps=2.0,  # 600 req/5 min = 2 req/s
     requires_registration=True,
     notes=(
@@ -409,6 +420,7 @@ _CLINICALTRIALS = SourceConfig(
     ),
     authority_weight=0.91,
     classifier_domains=("clinicaltrials.gov",),
+    jurisdictions=("us", "global"),
     rate_limit_rps=10.0,
     requires_registration=False,
     notes=(
@@ -441,6 +453,7 @@ _DAILYMED = SourceConfig(
     ),
     authority_weight=0.94,
     classifier_domains=("dailymed.nlm.nih.gov",),
+    jurisdictions=("us",),
     rate_limit_rps=5.0,
     requires_registration=False,
     notes=(
@@ -474,6 +487,7 @@ _PUBMED = SourceConfig(
     ),
     authority_weight=0.85,
     classifier_domains=("pubmed.ncbi.nlm.nih.gov", "ncbi.nlm.nih.gov"),
+    jurisdictions=("global",),
     rate_limit_rps=0.33,  # 3 req/s ohne Key, 10 req/s mit NCBI_API_KEY
     requires_registration=False,
     notes=(
@@ -561,6 +575,20 @@ class SourceRegistry:
         )
 
     @classmethod
+    def by_domain_safe(cls, domain: ClaimDomain) -> list[SourceConfig]:
+        """Wie ``by_domain()``, aber nur kommerziell sichere Quellen (ALLOWED).
+
+        Schließt CHECK_TERMS, RESTRICTED und UNKNOWN aus.
+        Sortiert nach authority_weight (höchste zuerst).
+        """
+        return sorted(
+            [s for s in _REGISTRY.values()
+             if s.covers_domain(domain) and s.is_runtime_allowed()],
+            key=lambda s: s.authority_weight,
+            reverse=True,
+        )
+
+    @classmethod
     def by_authority_weight(cls, min_weight: float = 0.0) -> list[SourceConfig]:
         """Gibt alle Quellen mit authority_weight >= min_weight zurück.
 
@@ -616,6 +644,31 @@ class SourceRegistry:
             tier = src.domain_tier()
             result.setdefault(tier, []).extend(src.classifier_domains)
         return result
+
+    @classmethod
+    def by_jurisdiction(cls, jurisdiction: str) -> list[SourceConfig]:
+        """Gibt alle Quellen zurück, die der gegebenen Jurisdiktion zugeordnet sind.
+
+        Sortiert nach authority_weight (höchste zuerst).
+        """
+        return sorted(
+            [s for s in _REGISTRY.values() if jurisdiction in s.jurisdictions],
+            key=lambda s: s.authority_weight,
+            reverse=True,
+        )
+
+    @classmethod
+    def by_jurisdiction_safe(cls, jurisdiction: str) -> list[SourceConfig]:
+        """Wie ``by_jurisdiction()``, aber nur kommerziell sichere Quellen (ALLOWED).
+
+        Sortiert nach authority_weight (höchste zuerst).
+        """
+        return sorted(
+            [s for s in _REGISTRY.values()
+             if jurisdiction in s.jurisdictions and s.is_runtime_allowed()],
+            key=lambda s: s.authority_weight,
+            reverse=True,
+        )
 
     @classmethod
     def source_ids(cls) -> list[str]:
