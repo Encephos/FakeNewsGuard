@@ -48,6 +48,13 @@ def build_production_queries(
         # Absolute fallback: raw claim text
         queries = [claim.text]
 
+    # Ensure claim text is always included as a query (production does this
+    # in the fallback path; eval claims may have thin profiles that produce
+    # only hint-based queries like "destatis.de" without the actual claim).
+    claim_text_norm = claim.text.strip().lower()
+    if not any(claim_text_norm in q.lower() for q in queries):
+        queries.insert(0, claim.text)
+
     # --- Phase 2: Category selection ---------------------------------------
     categories = _categories_for_claim(claim)
 
@@ -120,6 +127,32 @@ def _extract_domain(url: str) -> str:
         return ""
 
 
+def _extract_date_from_snippet(snippet: str, url: str) -> str:
+    """Try to extract a publication date from snippet text or URL.
+
+    Returns ISO date string or empty string.  This is best-effort for
+    lite eval mode where we don't scrape actual pages.
+    """
+    import re
+
+    # Pattern 1: ISO-like dates in URL (e.g. /2024/03/15/ or /2024-03-15)
+    m = re.search(r"/(20[12]\d)[/-](\d{2})[/-](\d{2})", url)
+    if m:
+        return f"{m.group(1)}-{m.group(2)}-{m.group(3)}"
+
+    # Pattern 2: German date in snippet (e.g. "15.03.2024", "15. März 2024")
+    m = re.search(r"(\d{1,2})\.(\d{1,2})\.(20[12]\d)", snippet)
+    if m:
+        return f"{m.group(3)}-{m.group(2).zfill(2)}-{m.group(1).zfill(2)}"
+
+    # Pattern 3: Year-only in URL path (e.g. /2024/ or /2025/)
+    m = re.search(r"/(20[12]\d)/", url)
+    if m:
+        return f"{m.group(1)}-06-15"  # mid-year estimate
+
+    return ""
+
+
 def build_lite_evidence_items(
     ranked_sources_dicts: list[dict[str, Any]],
     claim_text: str,
@@ -185,13 +218,16 @@ def build_lite_evidence_items(
             is_low_trust=is_low_trust,
         )
 
+        # Best-effort date extraction from snippet/URL
+        pub_date = _extract_date_from_snippet(snippet, url)
+
         item = {
             "source": {
                 "url": url,
                 "title": title,
                 "domain": domain,
                 "domain_tier": tier,
-                "publication_date": "",
+                "publication_date": pub_date,
                 "is_fact_check_org": is_fact_check,
                 "is_primary_source": tier <= 2,
             },

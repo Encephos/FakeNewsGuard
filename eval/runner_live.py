@@ -32,7 +32,7 @@ from eval.snapshot import (
 logger = logging.getLogger(__name__)
 
 _DATA_DIR = Path(__file__).parent / "data"
-_SNAPSHOTS_DIR = Path(__file__).parent / "snapshots"
+_SNAPSHOTS_DIR = Path(__file__).parent / "snapshots" / "live"
 
 
 class LiveRunner:

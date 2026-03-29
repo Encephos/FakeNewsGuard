@@ -119,11 +119,11 @@ def cmd_replay(args: argparse.Namespace) -> int:
 
 def cmd_live(args: argparse.Namespace) -> int:
     """Run live retrieval evaluation."""
+    from config import AppConfig
     from eval.reports import generate_markdown_report, load_baseline, save_baseline
     from eval.runner_live import LiveRunner
-    from tools.data_loader import load_config
 
-    config = load_config()
+    config = AppConfig()
 
     # Pre-flight: check SearXNG
     backends = tuple(args.backends.split(","))
@@ -229,10 +229,10 @@ def cmd_smoke(args: argparse.Namespace) -> int:
     """Run a minimal end-to-end smoke test."""
     print("Smoke test mode: running 2-3 cases through full pipeline...")
 
+    from config import AppConfig
     from eval.dataset import load_cases
-    from tools.data_loader import load_config
 
-    config = load_config()
+    config = AppConfig()
     cases = load_cases()
     # Pick one case per category (max 3)
     seen_cats: set[str] = set()
