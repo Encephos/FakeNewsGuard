@@ -491,3 +491,71 @@ class TestRealisticScenarios:
         )
         rating, reasons = _calibrate_rating(FactRating.MOSTLY_FALSE, pack)
         assert rating == FactRating.UNVERIFIABLE
+
+
+# ── Konsens-Widerspruch-Korrektur ────────────────────────────────────────────
+
+
+class TestConsensusContradictionOverride:
+    def test_agreeing_consensus_false_rating_downgraded(self):
+        """AGREEING Konsens + FALSE Rating → MISLEADING (LLM ignoriert Evidenz)."""
+        pack = _make_pack(
+            consensus=SourceConsensus.AGREEING,
+            has_direct_refutation=False,
+            has_fc_direct=False,
+        )
+        rating, reasons = _calibrate_rating(FactRating.FALSE, pack)
+        assert rating == FactRating.MISLEADING
+        assert any("Konsens-Widerspruch" in r for r in reasons)
+
+    def test_agreeing_consensus_false_with_fc_direct_stays(self):
+        """AGREEING + FALSE + Faktenchecker-Match → FALSE bleibt (FC hat Vorrang)."""
+        pack = _make_pack(
+            consensus=SourceConsensus.AGREEING,
+            has_direct_refutation=False,
+            has_fc_direct=True,
+        )
+        rating, reasons = _calibrate_rating(FactRating.FALSE, pack)
+        assert rating == FactRating.FALSE
+
+    def test_contradictory_consensus_true_rating_downgraded(self):
+        """CONTRADICTORY Konsens + TRUE Rating → MISLEADING (inverse Korrektur)."""
+        pack = _make_pack(
+            consensus=SourceConsensus.CONTRADICTORY,
+            has_direct_refutation=True,
+            has_fc_direct=False,
+        )
+        rating, reasons = _calibrate_rating(FactRating.TRUE, pack)
+        assert rating == FactRating.MISLEADING
+        assert any("Inverser Konsens-Widerspruch" in r for r in reasons)
+
+    def test_contradictory_consensus_true_with_fc_stays(self):
+        """CONTRADICTORY + TRUE + Faktenchecker-Match → TRUE bleibt (FC bestätigt)."""
+        pack = _make_pack(
+            consensus=SourceConsensus.CONTRADICTORY,
+            has_direct_refutation=True,
+            has_fc_direct=True,
+        )
+        rating, reasons = _calibrate_rating(FactRating.TRUE, pack)
+        assert rating == FactRating.TRUE
+
+    def test_contradictory_consensus_mostly_true_downgraded(self):
+        """CONTRADICTORY Konsens + MOSTLY_TRUE → MISLEADING."""
+        pack = _make_pack(
+            consensus=SourceConsensus.CONTRADICTORY,
+            has_direct_refutation=True,
+            has_fc_direct=False,
+        )
+        rating, reasons = _calibrate_rating(FactRating.MOSTLY_TRUE, pack)
+        assert rating == FactRating.MISLEADING
+
+    def test_mixed_consensus_not_overridden(self):
+        """MIXED Konsens löst keinen Override aus (nur AGREEING/CONTRADICTORY)."""
+        pack = _make_pack(
+            consensus=SourceConsensus.MIXED,
+            has_direct_refutation=False,
+            has_fc_direct=False,
+        )
+        # TRUE bei MIXED bleibt TRUE (kein Override)
+        rating, reasons = _calibrate_rating(FactRating.TRUE, pack)
+        assert rating == FactRating.TRUE

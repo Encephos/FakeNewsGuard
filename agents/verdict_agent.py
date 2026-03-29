@@ -151,6 +151,15 @@ Wenn die bereitgestellten Quellen keine relevante Information zum Claim enthalte
 Im sources-Feld dürfen NUR URLs erscheinen, die tatsächlich in der bereitgestellten
 Evidenz vorkommen. Erfinde KEINE URLs.
 
+## KRITISCH: Kein Training-Data-Override
+Wenn die bereitgestellten Quellen einen bestimmten aktuellen Zustand belegen
+(z.B. "Person X ist aktuell Kanzler"), aber dein Vorwissen einen anderen Zustand
+kennt (z.B. "Person Y war Kanzler"): FOLGE DEN QUELLEN, NICHT DEINEM VORWISSEN.
+Dein Trainingsdaten-Cutoff liegt in der Vergangenheit. Die bereitgestellten
+Quellen sind aktueller als dein Wissen. Wenn Quellen und Vorwissen sich
+widersprechen: Rating = TRUE oder MOSTLY_TRUE basierend auf den Quellen,
+NIEMALS FALSE basierend auf veraltetem Vorwissen.
+
 ## Rhetorische Sprache im Claim-Text
 Der Claim-Text kann rhetorisch manipulative Formulierungen enthalten (Alarmsprache,
 emotionale Verstärkung, Framing). Das beeinflusst NICHT dein Faktenurteil:

@@ -176,7 +176,7 @@ class TestContradictionDetection:
         contradictions = _detect_contradictions(items)
         assert len(contradictions) == 0
 
-    def test_max_three_contradictions(self):
+    def test_max_contradictions_limit(self):
         from agents.evidence_builder import _detect_contradictions
         from models.evidence_models import EvidenceItem, EvidenceSource
 
@@ -191,7 +191,78 @@ class TestContradictionDetection:
                 extraction_confidence=0.8,
             ))
         contradictions = _detect_contradictions(items)
-        assert len(contradictions) <= 3  # Limit enforced
+        assert len(contradictions) <= 5  # Limit enforced
+
+    def test_numeric_contradiction_detected(self):
+        """Stark abweichende Zahlen mit gleicher Einheit werden erkannt."""
+        from agents.evidence_builder import _detect_contradictions
+        from models.evidence_models import ContradictionType, EvidenceItem, EvidenceSource
+
+        items = [
+            EvidenceItem(
+                source=EvidenceSource(url="https://a.com", domain="a.com", domain_tier=2),
+                excerpt="Die Kosten betragen 100 Millionen Euro.",
+                relevance_score=0.8,
+                extraction_confidence=0.8,
+            ),
+            EvidenceItem(
+                source=EvidenceSource(url="https://b.com", domain="b.com", domain_tier=3),
+                excerpt="Die Kosten betragen 200 Millionen Euro.",
+                relevance_score=0.8,
+                extraction_confidence=0.8,
+            ),
+        ]
+        contradictions = _detect_contradictions(items)
+        assert len(contradictions) >= 1
+        assert any(c.contradiction_type == ContradictionType.NUMERIC for c in contradictions)
+
+    def test_severity_high_for_tier1_sources(self):
+        """Widersprüche mit Tier-1/2-Quellen erhalten HIGH Severity."""
+        from agents.evidence_builder import _detect_contradictions
+        from models.evidence_models import ContradictionSeverity, EvidenceItem, EvidenceSource
+
+        items = [
+            EvidenceItem(
+                source=EvidenceSource(url="https://destatis.de/x", domain="destatis.de", domain_tier=1),
+                excerpt="Die Quote lag nicht bei 5 Prozent.",
+                relevance_score=0.9,
+                extraction_confidence=0.9,
+            ),
+            EvidenceItem(
+                source=EvidenceSource(url="https://blog.com/y", domain="blog.com", domain_tier=4),
+                excerpt="Die Quote lag bei 5 Prozent.",
+                relevance_score=0.8,
+                extraction_confidence=0.7,
+            ),
+        ]
+        contradictions = _detect_contradictions(items)
+        assert len(contradictions) >= 1
+        assert contradictions[0].severity == ContradictionSeverity.HIGH
+
+    def test_direction_contradiction_detected(self):
+        """SUPPORTS vs REFUTES wird als Richtungswiderspruch erkannt."""
+        from agents.evidence_builder import _detect_contradictions
+        from models.evidence_models import ContradictionType, EvidenceItem, EvidenceSource, SourceDirection
+
+        items = [
+            EvidenceItem(
+                source=EvidenceSource(url="https://a.com", domain="a.com", domain_tier=2),
+                excerpt="Die Maßnahme wurde umgesetzt.",
+                relevance_score=0.8,
+                extraction_confidence=0.8,
+                source_direction=SourceDirection.SUPPORTS,
+            ),
+            EvidenceItem(
+                source=EvidenceSource(url="https://b.com", domain="b.com", domain_tier=3),
+                excerpt="Die Maßnahme wurde umgesetzt.",
+                relevance_score=0.8,
+                extraction_confidence=0.8,
+                source_direction=SourceDirection.REFUTES,
+            ),
+        ]
+        contradictions = _detect_contradictions(items)
+        assert len(contradictions) >= 1
+        assert any(c.contradiction_type == ContradictionType.DIRECTION for c in contradictions)
 
 
 # ── Integration Tests: EvidencePack Format ────────────────────────────────────

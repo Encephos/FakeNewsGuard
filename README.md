@@ -131,8 +131,7 @@ FakeNewsGuard/
 │   ├── number_auditor.py        # Zahlen- und Statistikprüfung
 │   ├── rhetoric_analyzer.py     # Framing, Dog Whistles, Manipulation
 │   ├── image_analyzer.py        # Bildanalyse (multimodal)
-│   ├── synthesizer.py           # Aggregation → Gesamtverdikt
-│   └── _legacy_fallback.py      # [Legacy-Fallback-Mixin – entfällt wenn v2 stabil]
+│   └── synthesizer.py           # Aggregation → Gesamtverdikt
 │
 ├── models/
 │   ├── schemas.py               # Kern-Datenmodelle (ProcessedClaim, etc.)
