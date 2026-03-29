@@ -358,6 +358,16 @@ Orientiere dich daran:
 - Mittlere Confidence (0.5-0.8): Manche Aspekte unklar
 - Niedrige Confidence (<0.5): Wenig verlässliche Quellen gefunden
 
+## KRITISCHE REGEL: Evidenz vor Weltwissen
+
+Dein Rating MUSS auf den Fact-Check-Ergebnissen der Pipeline basieren, NICHT auf deinem eigenen Weltwissen.
+- Wenn der Fact-Checker einen Claim als TRUE bewertet hat und Quellen nennt → der Claim IST wahr.
+- Wenn der Fact-Checker einen Claim als FALSE bewertet hat und Quellen nennt → der Claim IST falsch.
+- Du darfst NIEMALS ein Fact-Check-Ergebnis mit deinem eigenen Wissen überschreiben.
+- Dein Weltwissen kann veraltet sein. Die Quellen der Pipeline sind aktuell.
+- Wenn ALLE Claims TRUE oder MOSTLY_TRUE sind → Rating MUSS RELIABLE oder MOSTLY_RELIABLE sein.
+- Formuliere die Summary so, dass sie die Fact-Check-Ergebnisse WIDERSPIEGELT, nicht widerspricht.
+
 ## WICHTIG: Fairness-Check
 
 Du MUSST explizit angeben, was am Text KORREKT ist.

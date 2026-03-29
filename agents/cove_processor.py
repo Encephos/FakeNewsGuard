@@ -237,7 +237,7 @@ class CoVeProcessor:
             except ValueError:
                 cat = VerificationCategory.OTHER
             questions.append(VerificationQuestion(
-                question_id=q.get("question_id", f"Q{len(questions)+1}"),
+                question_id=str(q.get("question_id", f"Q{len(questions)+1}")),
                 text=q.get("text", ""),
                 category=cat,
                 rationale=q.get("rationale", ""),

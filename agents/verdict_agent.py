@@ -317,7 +317,7 @@ class VerdictAgent(BaseAgent):
         )
 
         # Quellen aus EvidencePack + Raw-Output zusammenführen
-        sources_from_pack = [i.source.url for i in pack.selected_sources]
+        sources_from_pack = [i.url for i in pack.selected_sources]
         sources_from_llm = raw.get("sources", [])
         all_sources = list(dict.fromkeys(sources_from_pack + sources_from_llm))  # dedup, ordered
 

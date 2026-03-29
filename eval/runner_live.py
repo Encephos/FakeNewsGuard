@@ -118,8 +118,10 @@ class LiveRunner:
             notes.append("Routing failed or skipped; using base claim")
 
         # --- 2. Generate queries via production path -----------------------
+        is_current_state_category = case.category.value == "current_state"
         queries, searxng_queries = build_production_queries(
             claim, route_result, self.config,
+            force_current_state=is_current_state_category,
         )
         notes.append(f"Queries ({len(queries)}): {queries[:4]}")
 
@@ -197,7 +199,8 @@ class LiveRunner:
             deduped_queries=deduped,
             searxng_queries=[
                 {"query": sq.query, "pageno": sq.pageno,
-                 "categories": sq.categories, "engines": sq.engines}
+                 "categories": sq.categories, "engines": sq.engines,
+                 "time_range": sq.time_range}
                 for sq in searxng_queries
             ],
             searxng_results={

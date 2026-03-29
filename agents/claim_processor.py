@@ -58,6 +58,53 @@ def _canonical_hash(text: str) -> str:
     return hashlib.sha256(text.strip().lower().encode()).hexdigest()[:16]
 
 
+_NEGATION_MARKERS = re.compile(
+    r"\b(nicht|kein|keine|keinen|keinem|keiner|nie|niemals|weder|"
+    r"war\s+kein|ist\s+kein|hat\s+nicht|wurde\s+nicht|kann\s+nicht)\b",
+    re.IGNORECASE,
+)
+
+
+def _guard_negation(
+    llm_text: str,
+    original_full: str,
+    seg_lookup: dict[int, str],
+) -> str:
+    """Detect if the LLM negated the original claim and fall back to original.
+
+    Small LLMs sometimes invert the claim's truth direction during selection.
+    If the LLM output introduces negation markers not present in any original
+    segment, fall back to the closest original segment.
+    """
+    llm_lower = llm_text.lower()
+    orig_lower = original_full.lower()
+
+    # Check negation markers in LLM output vs original
+    llm_negs = set(_NEGATION_MARKERS.findall(llm_lower))
+    orig_negs = set(_NEGATION_MARKERS.findall(orig_lower))
+    new_negs = llm_negs - orig_negs
+
+    if not new_negs:
+        return llm_text  # No new negation introduced
+
+    # LLM introduced negation — fall back to best matching original segment
+    best_seg = original_full.strip()
+    best_overlap = 0
+    llm_words = set(llm_lower.split())
+    for seg_text in seg_lookup.values():
+        seg_words = set(seg_text.lower().split())
+        overlap = len(llm_words & seg_words)
+        if overlap > best_overlap:
+            best_overlap = overlap
+            best_seg = seg_text
+
+    _log(
+        f"  ⚠ Negation-Guard: LLM hat Claim negiert "
+        f"(neue Marker: {new_negs}), verwende Original"
+    )
+    return best_seg
+
+
 def _split_sentences(text: str) -> list[str]:
     """Teile Text in Sätze auf – pronomen-aware (kein zu aggressives Splitting).
 
@@ -180,13 +227,18 @@ class ClaimSelector(_LLMStageMixin):
         )
 
         raw = self._call_llm_json(_CLAIM_SELECTOR_PROMPT, user_msg)
+        # Build lookup: segment index → original text
+        seg_lookup = {s["index"]: s["text"] for s in segments}
         claims: list[ProcessedClaim] = []
         for c in raw.get("selected_claims", []):
             try:
+                claim_text = c["text"]
+                # Guard: detect if LLM negated the original claim
+                claim_text = _guard_negation(claim_text, full_text, seg_lookup)
                 claims.append(
                     ProcessedClaim(
                         id=c["id"],
-                        text=c["text"],
+                        text=claim_text,
                         type=ClaimType(c.get("type", "FACTUAL")),
                         context=c.get("context", ""),
                         requires_agents=c.get("requires_agents", ["fact_checker"]),

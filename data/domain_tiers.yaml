@@ -13,6 +13,8 @@ tier1_official_statistics:
   - worldbank.org
   - who.int
   - un.org
+  - ecb.europa.eu
+  - curia.europa.eu
 
 tier2_government:
   - bamf.de
@@ -26,6 +28,7 @@ tier2_government:
   - ec.europa.eu
   - consilium.europa.eu
   - bundesbank.de
+  - volkswagen-group.com
 
 tier3_quality_journalism:
   - reuters.com
@@ -81,6 +84,8 @@ classifier:
     - cdc.gov
     - nih.gov
     - bpb.de
+    - ecb.europa.eu
+    - curia.europa.eu
 
   fact_checker:
     - correctiv.org
