@@ -124,6 +124,13 @@ class VerdictRatingCalibrationConfig:
     # Bei direct_count < Schwelle greift contextual_only_caps_false_at_misleading.
     direct_evidence_min_for_strong_false: int = 1
 
+    # --- Konsens-Widerspruch-Korrektur -------------------------------------------
+    # Wenn SourceConsensus = AGREEING aber LLM-Rating = FALSE/MOSTLY_FALSE:
+    # Das LLM hat sein Vorwissen über die Evidenz gestellt.
+    consensus_contradiction_override: bool = True
+    consensus_contradiction_current_state_downgrade: str = "UNVERIFIABLE"
+    consensus_contradiction_general_downgrade: str = "MISLEADING"
+
 
 def _calibrate_rating(
     raw_rating: "FactRating",
@@ -178,8 +185,44 @@ def _calibrate_rating(
         )
     )
 
+    # ── Konsens-Rating-Widerspruch: AGREEING + FALSE/MOSTLY_FALSE ───────────
+    # Wenn die Quellen den Claim überwiegend STÜTZEN (AGREEING) aber das LLM
+    # FALSE oder MOSTLY_FALSE urteilt, hat das LLM sein Vorwissen über die
+    # Evidenz gestellt. Diese Regel greift VOR der allgemeinen FALSE-Korrektur,
+    # um bei current-state-Claims direkt auf UNVERIFIABLE zu gehen (statt nur
+    # auf MISLEADING, wie die allgemeine Regel es tun würde).
+    _consensus_contradiction_applied = False
+    if (
+        config.consensus_contradiction_override
+        and rating in (FactRating.FALSE, FactRating.MOSTLY_FALSE)
+        and consensus == SourceConsensus.AGREEING
+        and not has_fc_direct
+        and not has_direct_refutation
+    ):
+        if is_current_state_claim:
+            new_rating = FactRating(config.consensus_contradiction_current_state_downgrade)
+            reasons.append(
+                f"Konsens-Widerspruch: Evidenz AGREEING aber Rating {rating.value} "
+                f"bei current-state → {new_rating.value}"
+            )
+            rating = new_rating
+            _consensus_contradiction_applied = True
+        else:
+            new_rating = FactRating(config.consensus_contradiction_general_downgrade)
+            reasons.append(
+                f"Konsens-Widerspruch: Evidenz AGREEING aber Rating {rating.value} "
+                f"→ {new_rating.value}"
+            )
+            rating = new_rating
+            _consensus_contradiction_applied = True
+
     # ── FALSE-Korrektur ────────────────────────────────────────────────────────
-    if rating == FactRating.FALSE and config.false_requires_active_refutation:
+    # Nur anwenden wenn Konsens-Widerspruch nicht bereits gegriffen hat.
+    if (
+        rating == FactRating.FALSE
+        and config.false_requires_active_refutation
+        and not _consensus_contradiction_applied
+    ):
         has_active_refutation = (
             has_direct_refutation
             or consensus == SourceConsensus.CONTRADICTORY
