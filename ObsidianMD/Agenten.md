@@ -89,9 +89,14 @@ Standard: 32 Worker-Threads (skaliert mit CPU-Kernen).
 ### [[Agent-FactChecker]] – FactCheckerAgent
 - **Input:** `Claim` + Originaltext
 - **Output:** `FactCheckResult`
-- **Cache:** Ja (24h TTL)
+- **Cache:** Ja (24h TTL, optional Semantic Cache mit Embedding-Similarity)
 - **Websuche:** Ja (adaptiv, 1–5 Queries)
-- **Besonderheit:** Source-Ranking, Scraping, Retry-Mechanismus
+- **Besonderheit:** Pipeline aus EvidenceBuilder (Retrieval + Trust Boundary) → CoVe (Chain-of-Verification) → VerdictAgent (Rating) + VerdictCalibration (Overrides)
+- **Interne Pipeline:**
+  1. EvidenceBuilder – Generiert strukturiertes EvidencePack, erkennt Widersprüche (Typ/Schweregrad)
+  2. CoVeProcessor – Baseline-Assessment → Verifikationsfragen → Reconciliation
+  3. VerdictAgent – Finale Rating-Entscheidung mit Confidence
+  4. VerdictCalibration – Confidence-Ceilings + Consensus-Contradiction-Override
 
 ### [[Agent-NumberAuditor]] – NumberAuditorAgent
 - **Input:** `Claim` (STATISTICAL)

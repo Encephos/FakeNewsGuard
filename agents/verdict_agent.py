@@ -118,16 +118,22 @@ oder ein spezifisches Bußgeld. Eine allgemeine Kameraüberwachungsseite belegt 
 ein konkretes 250-Euro-Bußgeld.
 
 ## Sonderregel: Aktuell-Zustand-Claims (Amtsinhaber, Rolleninhaber)
+Das heutige Datum wird im Prompt mitgeliefert. Verwende es als Referenz.
 Wenn ein Claim einen aktuellen Amts- oder Rolleninhaber beschreibt
 (z.B. „X ist Bundeskanzler", „Y ist Präsident", „Z ist CEO"):
 - Diese Claims sind zeitkritisch – nur Quellen aus der jüngsten Zeit zählen
-- Alte Quellen (> 1–2 Jahre) können einen früheren Zustand beschreiben und
-  dürfen NICHT als Beleg für den aktuellen Zustand gewertet werden
+- Berechne das Alter jeder Quelle relativ zum heutigen Datum
+- Alte Quellen (> 1–2 Jahre vor dem heutigen Datum) können einen früheren
+  Zustand beschreiben und dürfen NICHT als Beleg für den aktuellen Zustand
+  gewertet werden
+- Aktuelle Quellen (< 6 Monate alt), die den behaupteten Zustand bestätigen,
+  sind starke Belege – auch wenn ältere Quellen einen anderen Zustand nennen
 - Wenn ausschließlich veraltete Quellen vorliegen und keine aktuellen Quellen den
   behaupteten Zustand bestätigen: Wähle UNVERIFIABLE, nicht TRUE
-- Wenn veraltete Quellen einen anderen Amtsinhaber nennen: Wähle MISLEADING oder FALSE
+- Wenn veraltete Quellen einen anderen Amtsinhaber nennen, ABER aktuelle Quellen
+  den Claim bestätigen: Wähle TRUE (der Amtswechsel ist belegt)
 - Wichtig: „Quelle von 2022 nennt Person X als Kanzler" ist KEIN Beleg für
-  „Person X ist aktuell (2025/2026) Kanzler"
+  „Person X ist aktuell Kanzler" – prüfe das Datum jeder Quelle
 
 ## Quellen-Qualitätshinweis
 Wenn die Evidenzquellen überwiegend aus allgemeinen Hilfsseiten bestehen
@@ -209,6 +215,10 @@ class VerdictAgent(BaseAgent):
         # Prompt aufbauen (nur strukturierte Daten, kein roher Web-Inhalt)
         user_msg = self._build_verdict_prompt(claim, pack, cove_trace, number_audit)
 
+        import logging
+        _verdict_logger = logging.getLogger("fakenewsguard.verdict")
+        _verdict_logger.debug("=== VERDICT PROMPT ===\n%s", user_msg[:3000])
+
         raw = self._llm_structured(
             _VERDICT_SYSTEM_PROMPT,
             user_msg,
@@ -246,6 +256,7 @@ class VerdictAgent(BaseAgent):
             rating, pack, rating_config,
             is_regulatory_claim=_is_regulatory_pre,
             is_current_state_claim=_is_current_state_pre,
+            claim_text=claim.text,
         )
 
         # ── Regelbasierte Confidence-Kalibrierung ──────────────────────────────
@@ -377,7 +388,12 @@ class VerdictAgent(BaseAgent):
         cove_trace: CoVeTrace | None,
         number_audit: NumberAuditResult | None,
     ) -> str:
+        from datetime import date
+
+        today = date.today().isoformat()
+
         parts: list[str] = [
+            f"## Heutiges Datum: {today}\n\n"
             f"## Zu prüfende Behauptung\n\n"
             f"Claim ID: {claim.id}\n"
             f"Text: {claim.text}\n"
