@@ -194,6 +194,7 @@ class ImageAnalysisResult(BaseModel):
 
 ```python
 class SynthesisResult(BaseModel):
+    analysis_id: str                      # Korrelations-ID (12-stelliger UUID-Kürzung)
     overall_rating: OverallRating
     confidence: float                     # 0.0 – 1.0
     summary: str
@@ -205,6 +206,8 @@ class SynthesisResult(BaseModel):
     sources: list[str]
     analysis_errors: list[str]
 ```
+
+**analysis_id:** UUID-basierte Korrelations-ID (`uuid.uuid4().hex[:12]`), generiert beim Start jeder Analyse. Ermöglicht durchgängiges Tracing über alle Log-Einträge hinweg – unterstützt Debugging und Auditing in Produktionsumgebungen.
 
 ---
 

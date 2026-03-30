@@ -12,14 +12,21 @@ FakeNewsGuard verwendet **pytest** mit asyncio-Support für Unit- und Integratio
 tests/
 ├── conftest.py                 # Globale Fixtures
 ├── unit/
-│   ├── test_orchestrator.py    # Orchestrator-Tests
-│   ├── test_adaptive_search.py # FactChecker-Suchpipeline
-│   └── test_image_analyzer.py  # ImageAnalyzer-Tests
+│   ├── test_orchestrator_v2.py         # Orchestrator v2 mit Deduplizierung [AKTIV]
+│   ├── test_cove_processor.py          # CoVe-Pipeline [AKTIV]
+│   ├── test_calibration_tracker.py     # Brier Score, Reliability Diagrams
+│   ├── test_evidence_builder.py        # Widerspruchserkennung (Typ/Schweregrad)
+│   ├── test_verdict_rating_calibration.py  # Consensus-Override
+│   ├── test_adaptive_search.py         # FactChecker-Suchpipeline
+│   ├── test_image_analyzer.py          # ImageAnalyzer-Tests
+│   └── ... (25+ weitere Tests)
 └── tools/
-    ├── test_cache.py
+    ├── test_cache.py                   # Cache + Semantic Cache
     ├── test_retry.py
     └── test_web_search.py
 ```
+
+**Gesamt:** 1009+ Tests, alle mock-basiert (keine Live-API-Aufrufe)
 
 ---
 
