@@ -4,6 +4,19 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
+from enum import Enum
+
+
+class RetrievalStrategy(str, Enum):
+    """Komplexitätsbasierte Retrieval-Tiefe für Adaptive RAG.
+
+    SIMPLE:   Einfache Faktenbehauptungen → weniger Queries, kein iterativer Search
+    STANDARD: Default-Verhalten (unveränderte Config-Defaults)
+    DEEP:     Komplexe/statistische Claims → mehr Queries, tieferes Scraping
+    """
+    SIMPLE = "simple"
+    STANDARD = "standard"
+    DEEP = "deep"
 
 
 @dataclass
@@ -242,6 +255,33 @@ class EvidenceRetrievalConfig:
     iterative_max_rounds: int = 2
     iterative_max_refinement_queries: int = 3
 
+    # ── CRAG (Corrective RAG – Document Quality Gate) ──────────────────────
+    crag_enabled: bool = True
+    crag_incorrect_threshold: float = 0.6  # Bei >60% INCORRECT → Nachabfrage
+
+    # ── Self-RAG (Verdict Grounding Check) ───────────────────────────────────
+    self_rag_enabled: bool = True
+    self_rag_ungrounded_confidence_penalty: float = 0.15
+    self_rag_severe_confidence_ceiling: float = 0.40
+
+    # ── Adaptive RAG (komplexitätsbasierte Retrieval-Strategie) ──────────────
+    adaptive_rag_enabled: bool = True
+    # SIMPLE-Schwelle: ambiguity NONE + checkworthiness < Schwelle → SIMPLE
+    adaptive_simple_max_checkworthiness: float = 0.4
+    adaptive_simple_max_ambiguity: str = "NONE"
+    # DEEP-Schwelle: ambiguity >= HIGH ODER claim_type in COMPLEX_TYPES
+    adaptive_deep_min_ambiguity: str = "HIGH"
+    # SIMPLE-Overrides
+    adaptive_simple_langsearch_queries: int = 2
+    adaptive_simple_scrape_top_n: int = 3
+    adaptive_simple_searxng_multipage: bool = False
+    adaptive_simple_iterative_enabled: bool = False
+    # DEEP-Overrides
+    adaptive_deep_langsearch_queries: int = 7
+    adaptive_deep_scrape_top_n: int = 8
+    adaptive_deep_iterative_max_rounds: int = 2
+    adaptive_deep_langsearch_retry_threshold: float = 0.15
+
     def __post_init__(self) -> None:
         if v := os.getenv("LANGSEARCH_QUERIES_SIMPLE", ""):
             self.langsearch_queries_simple = int(v)
@@ -277,6 +317,12 @@ class EvidenceRetrievalConfig:
             self.iterative_max_rounds = int(v)
         if v := os.getenv("ITERATIVE_MAX_REFINEMENT_QUERIES", ""):
             self.iterative_max_refinement_queries = int(v)
+        if v := os.getenv("ADAPTIVE_RAG_ENABLED", ""):
+            self.adaptive_rag_enabled = v.lower() in ("true", "1", "yes")
+        if v := os.getenv("CRAG_ENABLED", ""):
+            self.crag_enabled = v.lower() in ("true", "1", "yes")
+        if v := os.getenv("SELF_RAG_ENABLED", ""):
+            self.self_rag_enabled = v.lower() in ("true", "1", "yes")
 
 
 @dataclass
