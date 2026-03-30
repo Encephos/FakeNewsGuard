@@ -1409,6 +1409,61 @@ def _classify_evidence_type(
 # ── Adaptive LangSearch Query Count ──────────────────────────────────────────
 
 
+def _select_retrieval_strategy(claim: "Claim", cfg: "EvidenceRetrievalConfig") -> "RetrievalStrategy":
+    """Bestimme Retrieval-Strategie basierend auf Claim-Komplexität (Adaptive RAG).
+
+    Nutzt bereits berechnete Claim-Attribute (kein LLM-Call):
+        - claim.type (ClaimType)
+        - claim.ambiguity_level (AmbiguityLevel)
+        - claim.checkworthiness_score (float)
+        - claim.search_profile (ClaimSearchProfile)
+
+    Returns:
+        SIMPLE   – Wenige Queries, kein iterativer Search, kleine Scrape-Tiefe
+        STANDARD – Unveränderte Config-Defaults
+        DEEP     – Mehr Queries, tieferes Scraping, garantierter iterativer Search
+    """
+    from config.processing import RetrievalStrategy
+    from models.schemas import AmbiguityLevel, ClaimType
+
+    if not cfg.adaptive_rag_enabled:
+        return RetrievalStrategy.STANDARD
+
+    _COMPLEX_TYPES = {ClaimType.STATISTICAL, ClaimType.CAUSAL, ClaimType.CONTEXTUAL}
+
+    # Extrahiere Claim-Attribute (mit Safe-Defaults für einfache Claim-Objekte)
+    claim_type = getattr(claim, "type", ClaimType.FACTUAL)
+    ambiguity = getattr(claim, "ambiguity_level", AmbiguityLevel.NONE)
+    checkworthiness = getattr(claim, "checkworthiness_score", 0.5)
+    has_rich_profile = (
+        isinstance(claim, ProcessedClaim)
+        and claim.search_profile is not None
+        and (
+            len(claim.search_profile.institutions)
+            + len(claim.search_profile.policy_terms)
+        ) >= 3
+    )
+
+    # DEEP: Komplexer Claim-Typ, hohe Ambiguität, oder reichhaltiges Profil
+    if (
+        claim_type in _COMPLEX_TYPES
+        or ambiguity.value >= cfg.adaptive_deep_min_ambiguity
+        or has_rich_profile
+    ):
+        return RetrievalStrategy.DEEP
+
+    # SIMPLE: Einfacher Fakten-Claim, niedrige Ambiguität + niedrige Checkworthiness
+    max_ambiguity = cfg.adaptive_simple_max_ambiguity
+    if (
+        claim_type == ClaimType.FACTUAL
+        and ambiguity.value <= max_ambiguity
+        and checkworthiness < cfg.adaptive_simple_max_checkworthiness
+    ):
+        return RetrievalStrategy.SIMPLE
+
+    return RetrievalStrategy.STANDARD
+
+
 def _langsearch_query_count(claim: "Claim", cfg: "EvidenceRetrievalConfig") -> int:
     """Bestimme adaptive LangSearch-Query-Anzahl basierend auf Claim-Komplexität.
 
