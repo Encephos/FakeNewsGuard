@@ -109,6 +109,16 @@ _CONFIRMATION_PATTERNS: list[re.Pattern[str]] = [
 ]
 
 
+# Artikel ÜBER Desinformation/Fake News zu einem Thema.
+# Negationswörter stehen dort im Meta-Kontext und widerlegen nicht den Claim.
+_META_DISINFO_PATTERN: re.Pattern[str] = re.compile(
+    r"(?:fake\s*news|desinformation|falschmeldung|falschinformation|"
+    r"fakes?\b|falschbehauptung|faktenchecks?)\s+"
+    r"(?:über|zu|gegen|rund\s+um|betreffen|targeting|about)",
+    re.IGNORECASE,
+)
+
+
 # ── Deduplication ─────────────────────────────────────────────────────────────
 
 def _dedup_results(results: list[SearchResult]) -> list[SearchResult]:
@@ -1063,8 +1073,22 @@ def _classify_source_direction(
         return SourceDirection.NEUTRAL
 
     text = excerpt.lower()
+
+    # Meta-Faktencheck-Erkennung: Artikel ÜBER Desinformation/Fake News zu einem
+    # Thema enthalten Wörter wie "falsch", "unwahr", "Fake" im Meta-Kontext.
+    # Diese beschreiben Fakes über die Person/das Thema, widerlegen aber NICHT
+    # den Claim selbst. Beispiel: "Fake News über Kanzler Merz" → SUPPORTS, nicht REFUTES.
+    is_meta_disinfo = bool(_META_DISINFO_PATTERN.search(text))
+
     refute_count = sum(1 for p in _REFUTATION_PATTERNS if p.search(text))
     support_count = sum(1 for p in _CONFIRMATION_PATTERNS if p.search(text))
+
+    # Wenn der Text über Desinformation zu einem Thema berichtet, sind
+    # Negationswörter im Meta-Kontext – sie widerlegen nicht den Claim.
+    # Reduziere refute_count und werte den Meta-Kontext als Support-Signal.
+    if is_meta_disinfo and refute_count > 0:
+        refute_count = 0
+        support_count = max(support_count, 1)
 
     # 4. Richtung nur für DIRECT oder relevantes CONTEXTUAL vergeben
     # CONTEXTUAL mit niedriger Relevanz → NEUTRAL (verhindert "Support Leakage")

@@ -405,9 +405,11 @@ class EvidencePack(BaseModel):
                     EvidenceType.CONTEXTUAL: "KONTEXT",
                     EvidenceType.WEAK: "SCHWACH",
                 }.get(item.evidence_type, "KONTEXT")
+                pub_date = item.source.publication_date or "unbekannt"
                 parts.append(
                     f"[Quelle {i}] [{tier_label}] [{ev_type_label}] {item.source.title}{support}\n"
                     f"  URL: {item.source.url}\n"
+                    f"  Datum: {pub_date}\n"
                     f"  Claim-Scope: {item.claim_scope_score:.2f}\n"
                     f"  Auszug: {item.excerpt}\n"
                 )
