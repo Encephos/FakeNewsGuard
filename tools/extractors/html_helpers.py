@@ -14,6 +14,12 @@ try:
 except ImportError:
     _HAS_TRAFILATURA = False
 
+try:
+    from newspaper import Article as _Newspaper4kArticle  # type: ignore[import-untyped]
+    _HAS_NEWSPAPER4K = True
+except ImportError:
+    _HAS_NEWSPAPER4K = False
+
 
 # ── HTTP Client helpers ──────────────────────────────────────────
 
@@ -132,6 +138,17 @@ def _extract_article_text_with_date(html: str) -> tuple[str, str]:
         except Exception:
             pass
 
+    # -- Strategie 2: Newspaper4k Fallback (robusteres Date-Parsing) --
+    if not pub_date and _HAS_NEWSPAPER4K:
+        try:
+            article = _Newspaper4kArticle("", language="de")
+            article.download(input_html=html)
+            article.parse()
+            if article.publish_date:
+                pub_date = article.publish_date.isoformat()[:10]
+        except Exception:
+            pass
+
     return "", pub_date
 
 
@@ -155,7 +172,18 @@ def _extract_article_text(html: str) -> str:
         except Exception:
             pass
 
-    # -- Strategie 2: BeautifulSoup strukturierte Extraktion ---------
+    # -- Strategie 2: Newspaper4k (robuster Parser) ------------------
+    if _HAS_NEWSPAPER4K:
+        try:
+            article = _Newspaper4kArticle("", language="de")
+            article.download(input_html=html)
+            article.parse()
+            if article.text and len(article.text) > 100:
+                return article.text
+        except Exception:
+            pass
+
+    # -- Strategie 3: BeautifulSoup strukturierte Extraktion ---------
     soup = _parse_soup(html)
 
     # Entferne Noise-Elemente

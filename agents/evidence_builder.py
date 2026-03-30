@@ -66,6 +66,7 @@ from agents.evidence_scoring import (
     _profile_anchor_score,
     _rank_evidence_items,
     _relevance_score,
+    _select_retrieval_strategy,
 )
 
 import re as _re
@@ -375,6 +376,12 @@ class EvidenceBuilderAgent(BaseAgent):
         categories = _categories_for_claim(claim)
         retrieval_cfg = self.config.evidence_retrieval
 
+        # ── Adaptive RAG: Retrieval-Strategie basierend auf Claim-Komplexität ──
+        from config.processing import RetrievalStrategy
+        strategy = _select_retrieval_strategy(claim, retrieval_cfg)
+        if strategy != RetrievalStrategy.STANDARD:
+            notes.append(f"Adaptive RAG: Strategie={strategy.value}")
+
         # Route claim für Source Client selection
         route_result = None
         try:
@@ -408,7 +415,13 @@ class EvidenceBuilderAgent(BaseAgent):
         queries = _dedup_queries(queries)
 
         # LangSearch: adaptiv nach Claim-Komplexität (2–4 Queries)
-        ls_count = _langsearch_query_count(claim, retrieval_cfg)
+        # Adaptive RAG überschreibt Query-Anzahl bei SIMPLE/DEEP
+        if strategy == RetrievalStrategy.SIMPLE:
+            ls_count = retrieval_cfg.adaptive_simple_langsearch_queries
+        elif strategy == RetrievalStrategy.DEEP:
+            ls_count = retrieval_cfg.adaptive_deep_langsearch_queries
+        else:
+            ls_count = _langsearch_query_count(claim, retrieval_cfg)
         langsearch_queries = queries[:ls_count]
 
         # Parallele Tasks starten
@@ -428,7 +441,8 @@ class EvidenceBuilderAgent(BaseAgent):
                 sq.engines = searxng_engines().get("web", ["duckduckgo", "brave", "qwant"])
             searxng_queries.append(sq)
             # Multi-Page: Top-2 Queries auch auf Seite 2 suchen
-            if i < 2:
+            # Adaptive RAG SIMPLE: kein Multi-Page (weniger Queries)
+            if i < 2 and not (strategy == RetrievalStrategy.SIMPLE and not retrieval_cfg.adaptive_simple_searxng_multipage):
                 sq2 = SearXNGQuery(
                     query=q,
                     categories=categories,
@@ -485,6 +499,10 @@ class EvidenceBuilderAgent(BaseAgent):
         # ── 3. LangSearch-Retry bei schwacher erster Evidenz ─────────────────
         # LangSearch ist die primäre semantische Suchquelle – bei schwacher
         # erster Runde wird LangSearch mit zusätzlichen Queries erweitert.
+        # Adaptive RAG DEEP: niedrigere Retry-Schwelle für aggressiveres Retrieval
+        weak_threshold = retrieval_cfg.weak_evidence_threshold
+        if strategy == RetrievalStrategy.DEEP:
+            weak_threshold = retrieval_cfg.adaptive_deep_langsearch_retry_threshold
         if (
             retrieval_cfg.langsearch_retry_on_weak
             and self.config.langsearch.enabled
@@ -496,7 +514,7 @@ class EvidenceBuilderAgent(BaseAgent):
                 for r in q_res
             ]
             avg_ls = sum(ls_scores) / len(ls_scores) if ls_scores else 0.0
-            if avg_ls < retrieval_cfg.weak_evidence_threshold:
+            if avg_ls < weak_threshold:
                 extra_queries = queries[ls_count:ls_count + 2]
                 if extra_queries:
                     extra = await self._langsearch.multi_search_async(
@@ -568,10 +586,50 @@ class EvidenceBuilderAgent(BaseAgent):
         # ── 7. Candidate Selection + Scraping ────────────────────────────────
         # Profile + Low-Trust-Signale fließen VOR dem Scraping ein:
         # Nur die wirklich besten Kandidaten werden gescraped.
+        # Adaptive RAG: Scrape-Tiefe an Strategie anpassen
+        scrape_top_n_override = None
+        if strategy == RetrievalStrategy.SIMPLE:
+            scrape_top_n_override = retrieval_cfg.adaptive_simple_scrape_top_n
+        elif strategy == RetrievalStrategy.DEEP:
+            scrape_top_n_override = retrieval_cfg.adaptive_deep_scrape_top_n
         ranked, scraped = await self._rank_and_scrape(
             unique_results, claim,
             profile=profile,
+            scrape_top_n_override=scrape_top_n_override,
         )
+
+        # ── 7b. CRAG – Document Quality Gate ─────────────────────────────────
+        if retrieval_cfg.crag_enabled:
+            ranked, scraped, crag_notes = await self._crag_filter(
+                ranked, scraped, claim.text, profile=profile,
+            )
+            notes.extend(crag_notes)
+
+            # Nachabfrage bei hoher Irrelevanz-Rate
+            incorrect_rate = 0.0
+            for note in crag_notes:
+                if "Rate=" in note:
+                    try:
+                        rate_str = note.split("Rate=")[1].split(")")[0].rstrip("%")
+                        incorrect_rate = float(rate_str) / 100.0
+                    except (ValueError, IndexError):
+                        pass
+            if incorrect_rate > retrieval_cfg.crag_incorrect_threshold:
+                notes.append(
+                    f"CRAG: Nachabfrage ausgelöst (Irrelevanz-Rate={incorrect_rate:.0%} > "
+                    f"{retrieval_cfg.crag_incorrect_threshold:.0%})"
+                )
+                fallback_results = await self._fallback_retrieval(claim, queries)
+                if fallback_results:
+                    unique_results = _dedup_results(all_results + fallback_results)
+                    if reranker_available():
+                        ce_ranked = rerank(claim.text, unique_results, top_k=30)
+                        ce_scores = {r.url: float(s) for r, s in ce_ranked}
+                    ranked, scraped = await self._rank_and_scrape(
+                        unique_results, claim, profile=profile,
+                        scrape_top_n_override=scrape_top_n_override,
+                    )
+                    notes.append(f"CRAG Nachabfrage: {len(fallback_results)} neue Ergebnisse")
 
         # ── 8. EvidenceItems aus gescrapten Quellen bauen ─────────────────────
         evidence_items = self._build_evidence_items(ranked, scraped, claim.text, gfc_matches, profile, is_current_state=is_current_state, ce_scores=ce_scores)
@@ -588,10 +646,17 @@ class EvidenceBuilderAgent(BaseAgent):
         )
 
         # ── Iterative Search: Qualitäts-basierter Retry mit Relevanz-Feedback ──
+        # Adaptive RAG: SIMPLE deaktiviert iterativen Search, DEEP passt Runden an
+        iterative_enabled = retrieval_cfg.iterative_search_enabled
+        iterative_max = retrieval_cfg.iterative_max_rounds
+        if strategy == RetrievalStrategy.SIMPLE:
+            iterative_enabled = retrieval_cfg.adaptive_simple_iterative_enabled
+        elif strategy == RetrievalStrategy.DEEP:
+            iterative_max = retrieval_cfg.adaptive_deep_iterative_max_rounds
         iterative_round = 0
         while (
-            retrieval_cfg.iterative_search_enabled
-            and iterative_round < retrieval_cfg.iterative_max_rounds
+            iterative_enabled
+            and iterative_round < iterative_max
             and quality.overall_quality < retrieval_cfg.iterative_min_quality
         ):
             iterative_round += 1
@@ -631,6 +696,7 @@ class EvidenceBuilderAgent(BaseAgent):
                 ce_scores = {r.url: float(s) for r, s in ce_ranked}
             ranked, scraped = await self._rank_and_scrape(
                 unique_results, claim, profile=profile,
+                scrape_top_n_override=scrape_top_n_override,
             )
             evidence_items = self._build_evidence_items(ranked, scraped, claim.text, gfc_matches, profile, is_current_state=is_current_state, ce_scores=ce_scores)
             quality = _compute_quality_signals(
@@ -755,6 +821,7 @@ class EvidenceBuilderAgent(BaseAgent):
         results: list[SearchResult],
         claim: Claim,
         profile: ClaimSearchProfile | None = None,
+        scrape_top_n_override: int | None = None,
     ) -> tuple[list[RankedSource], list[ScrapedSource]]:
         """Ranke und scrape – Profile/Low-Trust-Filter greifen VOR dem Scraping.
 
@@ -792,11 +859,12 @@ class EvidenceBuilderAgent(BaseAgent):
             self._log(f"Pre-Scraping-Filter: {removed}/{len(results)} Low-Trust/Off-topic Kandidaten entfernt")
 
         # ── 2. Ranking (hybrid: BM25 + semantic + profile + low-trust) ─────
+        effective_scrape_top_n = scrape_top_n_override or self.config.searxng.scrape_top_n
         results_by_query: dict[str, list[SearchResult]] = {"_all": filtered}
         ranked = rank_sources(
             results_by_query,
             claim.text,
-            max_scrape=self.config.searxng.scrape_top_n,
+            max_scrape=effective_scrape_top_n,
             profile=profile,
         )
 
@@ -826,6 +894,115 @@ class EvidenceBuilderAgent(BaseAgent):
         success = sum(1 for s in scraped if s.fetch_success)
         self._log(f"Scraping: {success}/{len(scraped)} erfolgreich")
         return ranked, scraped
+
+    async def _crag_filter(
+        self,
+        ranked: list[RankedSource],
+        scraped: list[ScrapedSource],
+        claim_text: str,
+        profile: ClaimSearchProfile | None = None,
+    ) -> tuple[list[RankedSource], list[ScrapedSource], list[str]]:
+        """CRAG – Corrective RAG Document Quality Gate.
+
+        Klassifiziert gescrapte Dokumente als CORRECT/AMBIGUOUS/INCORRECT
+        per LLM-Batch-Call und filtert irrelevante Dokumente BEVOR
+        Evidence-Items konstruiert werden.
+
+        Returns:
+            (filtered_ranked, filtered_scraped, crag_notes)
+        """
+        import asyncio as _asyncio
+        import json as _json
+
+        notes: list[str] = []
+        scraped_by_url = {s.url: s for s in scraped if s.fetch_success}
+
+        if not scraped_by_url:
+            return ranked, scraped, notes
+
+        # Batch-Input vorbereiten: Titel + erste 200 Zeichen pro Dokument
+        doc_entries = []
+        for rs in ranked:
+            sc = scraped_by_url.get(rs.result.url)
+            if not sc or not sc.passage:
+                continue
+            title = rs.result.title or ""
+            preview = sc.passage[:200].strip()
+            doc_entries.append({
+                "url": rs.result.url,
+                "title": title,
+                "preview": preview,
+            })
+
+        if not doc_entries:
+            return ranked, scraped, notes
+
+        # LLM-Batch-Call: Alle Dokumente in einem Request klassifizieren
+        system_prompt = (
+            "Du bist ein Dokument-Relevanz-Klassifikator. Für jeden Eintrag in der "
+            "Liste bewerte, ob das Dokument den angegebenen Claim DIREKT behandelt.\n\n"
+            "Antwortformat: JSON-Array mit einem Objekt pro Dokument:\n"
+            '[{"url": "...", "label": "CORRECT|AMBIGUOUS|INCORRECT"}]\n\n'
+            "CORRECT = Dokument behandelt den Claim direkt und enthält relevante Informationen\n"
+            "AMBIGUOUS = Dokument ist thematisch verwandt, aber der Claim-Bezug ist unklar\n"
+            "INCORRECT = Dokument hat keinen relevanten Bezug zum Claim"
+        )
+        user_msg = (
+            f"Claim: {claim_text}\n\n"
+            f"Dokumente:\n{_json.dumps(doc_entries, ensure_ascii=False, indent=1)}"
+        )
+
+        try:
+            loop = _asyncio.get_event_loop()
+            raw = await loop.run_in_executor(
+                None, self.llm.complete, system_prompt, user_msg, "json"
+            )
+            classifications = _json.loads(raw) if isinstance(raw, str) else raw
+        except Exception as e:
+            self._log(f"CRAG Klassifikation fehlgeschlagen ({type(e).__name__}), überspringe Filter")
+            return ranked, scraped, [f"CRAG: Klassifikation fehlgeschlagen ({type(e).__name__})"]
+
+        # Parse Ergebnisse
+        label_by_url: dict[str, str] = {}
+        if isinstance(classifications, list):
+            for entry in classifications:
+                if isinstance(entry, dict) and "url" in entry and "label" in entry:
+                    label_by_url[entry["url"]] = entry.get("label", "CORRECT").upper()
+
+        # Filtern
+        incorrect_urls: set[str] = set()
+        ambiguous_urls: set[str] = set()
+        for url, label in label_by_url.items():
+            if label == "INCORRECT":
+                incorrect_urls.add(url)
+            elif label == "AMBIGUOUS":
+                ambiguous_urls.add(url)
+
+        total = len(doc_entries)
+        incorrect_count = len(incorrect_urls)
+        incorrect_rate = incorrect_count / total if total > 0 else 0.0
+
+        notes.append(
+            f"CRAG: {total} Dokumente klassifiziert → "
+            f"CORRECT={total - incorrect_count - len(ambiguous_urls)}, "
+            f"AMBIGUOUS={len(ambiguous_urls)}, INCORRECT={incorrect_count} "
+            f"(Rate={incorrect_rate:.0%})"
+        )
+
+        # INCORRECT-Dokumente entfernen
+        filtered_ranked = [
+            rs for rs in ranked
+            if rs.result.url not in incorrect_urls
+        ]
+        filtered_scraped = [
+            sc for sc in scraped
+            if sc.url not in incorrect_urls
+        ]
+
+        if incorrect_count > 0:
+            self._log(f"CRAG: {incorrect_count}/{total} irrelevante Dokumente entfernt")
+
+        return filtered_ranked, filtered_scraped, notes
 
     def _build_evidence_items(
         self,

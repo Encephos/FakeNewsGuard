@@ -173,3 +173,13 @@ class FinalVerdictMeta(BaseModel):
         default="",
         description="Welche Evidenz fehlt, um ein sicheres Urteil zu fällen",
     )
+    grounding_score: float = Field(
+        default=-1.0,
+        ge=-1.0,
+        le=1.0,
+        description=(
+            "Self-RAG Grounding-Score: Anteil der Verdict-Aussagen, die durch "
+            "zitierte Evidence-Excerpts gestützt sind. 1.0=vollständig grounded, "
+            "0.0=keine Aussage gestützt, -1.0=nicht geprüft."
+        ),
+    )

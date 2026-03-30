@@ -321,6 +321,37 @@ class VerdictAgent(BaseAgent):
         if claim_quality < 0.70:
             uncertainty_signals.append(f"Claim-Qualität eingeschränkt ({claim_quality:.2f})")
 
+        # ── Self-RAG: Verdict Grounding Check ────────────────────────────────
+        grounding_score = -1.0  # Default: nicht geprüft
+        retrieval_cfg = self.config.evidence_retrieval
+        if retrieval_cfg.self_rag_enabled and raw.get("evidence"):
+            grounding_score = self._check_verdict_grounding(
+                raw.get("evidence", ""), pack,
+            )
+            if grounding_score >= 0.0 and grounding_score < 0.5:
+                # Schweres Grounding-Problem: Confidence-Ceiling
+                penalty_reason = (
+                    f"Self-RAG: Grounding-Score={grounding_score:.2f} "
+                    f"(< 0.50 → Confidence begrenzt auf {retrieval_cfg.self_rag_severe_confidence_ceiling})"
+                )
+                calibrated_confidence = min(
+                    calibrated_confidence,
+                    retrieval_cfg.self_rag_severe_confidence_ceiling,
+                )
+                calibration_reasons.append(penalty_reason)
+                uncertainty_signals.append(f"Niedrige Evidenz-Fundierung (Grounding={grounding_score:.2f})")
+                self._log(f"Self-RAG {claim.id}: {penalty_reason}")
+            elif grounding_score >= 0.0 and grounding_score < 0.75:
+                # Moderates Grounding-Problem: Confidence-Penalty
+                penalty = retrieval_cfg.self_rag_ungrounded_confidence_penalty
+                calibrated_confidence = max(0.0, calibrated_confidence - penalty)
+                penalty_reason = (
+                    f"Self-RAG: Grounding-Score={grounding_score:.2f} "
+                    f"(< 0.75 → Confidence -{penalty})"
+                )
+                calibration_reasons.append(penalty_reason)
+                self._log(f"Self-RAG {claim.id}: {penalty_reason}")
+
         # FinalVerdictMeta
         all_reduction_reasons = rating_calibration_reasons + calibration_reasons
         confidence_reduction_reason = "; ".join(all_reduction_reasons) if all_reduction_reasons else ""
@@ -334,6 +365,7 @@ class VerdictAgent(BaseAgent):
                 pack.evidence_quality.has_primary_source_any
                 if pack.evidence_quality else False
             ),
+            grounding_score=grounding_score,
         )
 
         # Quellen aus EvidencePack + Raw-Output zusammenführen
@@ -439,3 +471,60 @@ class VerdictAgent(BaseAgent):
             )
 
         return "\n".join(parts)
+
+    def _check_verdict_grounding(
+        self,
+        verdict_reasoning: str,
+        pack: EvidencePack,
+    ) -> float:
+        """Self-RAG: Prüfe ob das Verdict-Reasoning durch Evidence-Excerpts gestützt ist.
+
+        Extrahiert Kernaussagen aus dem Reasoning und prüft per LLM-Call,
+        ob jede Aussage durch die zitierten Excerpts belegt ist.
+
+        Returns:
+            Grounding-Score (0.0–1.0): Anteil gestützter Aussagen.
+            -1.0 wenn Prüfung fehlschlägt oder keine Aussagen vorhanden.
+        """
+        import json as _json
+
+        # Excerpts aus dem EvidencePack sammeln
+        excerpts = []
+        for item in pack.web_results[:8]:
+            if item.excerpt:
+                excerpts.append(f"[{item.source.title}] {item.excerpt}")
+        for fc in pack.google_fact_check_matches:
+            excerpts.append(f"[Faktencheck: {fc.publisher}] {fc.claim_reviewed} → {fc.rating}")
+
+        if not excerpts or not verdict_reasoning.strip():
+            return -1.0
+
+        excerpts_text = "\n---\n".join(excerpts)
+
+        system_prompt = (
+            "Du bist ein Grounding-Prüfer. Du erhältst eine Begründung (Reasoning) "
+            "und eine Liste von Evidenz-Excerpts.\n\n"
+            "Prüfe für jede faktische Kernaussage im Reasoning, ob sie durch "
+            "mindestens einen Excerpt gestützt wird.\n\n"
+            "Antwortformat: JSON-Objekt mit:\n"
+            '{"statements": [{"text": "...", "supported": true/false}], '
+            '"supported_count": N, "total_count": N}\n\n'
+            "Ignoriere stilistische Elemente, Einleitungen und Schlussfolgerungen. "
+            "Prüfe nur faktische Aussagen (Zahlen, Daten, Fakten, Quellenverweise)."
+        )
+        user_msg = (
+            f"## Reasoning\n{verdict_reasoning}\n\n"
+            f"## Evidenz-Excerpts\n{excerpts_text}"
+        )
+
+        try:
+            raw = self.llm.complete(system_prompt, user_msg, response_format="json")
+            result = _json.loads(raw) if isinstance(raw, str) else raw
+            supported = int(result.get("supported_count", 0))
+            total = int(result.get("total_count", 0))
+            if total == 0:
+                return -1.0
+            return min(1.0, max(0.0, supported / total))
+        except Exception as e:
+            self._log(f"Self-RAG Grounding-Check fehlgeschlagen: {type(e).__name__}")
+            return -1.0
