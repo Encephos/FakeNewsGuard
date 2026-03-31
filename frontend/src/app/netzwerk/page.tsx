@@ -246,8 +246,8 @@ export default function NetworkPage() {
               <span>{stats.nodes_by_type?.ACTOR || 0} {t("graph.stats.actors")}</span>
             </div>
             <div className="pl-3 border-l border-border flex gap-3">
-              <span>{stats.total_nodes.toLocaleString()} {t("graph.stats.nodes")}</span>
-              <span>{stats.total_edges.toLocaleString()} {t("graph.stats.edges")}</span>
+              <span>{stats.total_nodes?.toLocaleString() ?? "0"} {t("graph.stats.nodes")}</span>
+              <span>{stats.total_edges?.toLocaleString() ?? "0"} {t("graph.stats.edges")}</span>
             </div>
           </div>
         )}

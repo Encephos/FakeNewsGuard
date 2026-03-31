@@ -70,7 +70,7 @@ async def _run_job(job_id: str, text: str, url: str = "", tier: ScoutTier = Scou
             platform = detect_platform(url)
             push_step("Phase 0", "Content Extractor", t("api.steps.extracting_content").format(platform=platform.capitalize()), "running")
             try:
-                extractor = ContentExtractor()
+                extractor = ContentExtractor(media_config=config.media)
                 content = await extractor.extract_async(url)
                 extracted_text = extractor.format_for_analysis(content)
                 push_step(
@@ -301,7 +301,7 @@ async def _run_job(job_id: str, text: str, url: str = "", tier: ScoutTier = Scou
             extracted = job.get("extracted_content", {})
             archive_id = archive.save(
                 result=job["result"],
-                input_text=text[:500],
+                input_text=text,
                 source_url=url or extracted.get("url"),
                 platform=extracted.get("platform"),
                 title=extracted.get("title"),
@@ -317,10 +317,10 @@ async def _run_job(job_id: str, text: str, url: str = "", tier: ScoutTier = Scou
                     original_text=text,
                 )
             except Exception:
-                pass  # Graph-Fehler darf Analyse nicht brechen
+                logger.warning("Cross-Reference Graph fehlgeschlagen für Job %s", job_id, exc_info=True)
 
         except Exception:
-            pass  # Archivierung darf Analyse nicht brechen
+            logger.exception("Auto-Archive fehlgeschlagen für Job %s", job_id)
 
         # ── Usage-Tracking ──────────────────────────────────────
         try:
@@ -354,7 +354,8 @@ async def extract_content(req: ExtractRequest, request: Request) -> dict:
         raise HTTPException(status_code=400, detail=t("api.errors.no_url"))
 
     try:
-        extractor = ContentExtractor()
+        extract_config = AppConfig()
+        extractor = ContentExtractor(media_config=extract_config.media)
         content = await extractor.extract_async(url)
         return {
             "url": content.url,
@@ -402,25 +403,17 @@ async def analyze(req: AnalyzeRequest, request: Request) -> dict:
     }
 
     user = get_current_user_optional(request)
-    if user is not None:
-        # Consent check: user must have agreed to data logging
-        if not user.get("consent", 0):
-            raise HTTPException(
-                status_code=403,
-                detail="Bitte stimme der Datenverarbeitung zu, bevor du eine Analyse startest.",
-            )
-        # Authenticated: user's DB tier is the plan ceiling
-        plan = ScoutTier(user["tier"])
-    else:
-        # Unauthenticated: derive plan from agent field (backwards compat)
-        AGENT_TO_PLAN: dict[str, ScoutTier] = {
-            "scout lite": ScoutTier.LITE,
-            "scout pro": ScoutTier.PRO,
-            "scout max": ScoutTier.MAX,
-        }
-        plan = ScoutTier.MAX
-        if req.agent:
-            plan = AGENT_TO_PLAN.get(req.agent.strip().lower(), ScoutTier.MAX)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Authentifizierung erforderlich.")
+
+    # Consent check: user must have agreed to data logging
+    if not user.get("consent", 0):
+        raise HTTPException(
+            status_code=403,
+            detail="Bitte stimme der Datenverarbeitung zu, bevor du eine Analyse startest.",
+        )
+    # Authenticated: user's DB tier is the plan ceiling
+    plan = ScoutTier(user["tier"])
 
     # Bestimme gewuenschten Tier (default: Plan-Maximum)
     tier = plan
