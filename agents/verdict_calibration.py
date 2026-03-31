@@ -9,50 +9,34 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
+from config.processing import VerdictCalibrationConfig
 from models.evidence_models import EvidencePack, EvidenceType, SourceConsensus
 from models.schemas import FactRating
 from models.verdict_models import CoVeTrace
 
 
-# ── Confidence Ceilings & Calibration ─────────────────────────────────────────
+# ── Default-Instanz (Modul-Level) – wird verwendet wenn kein Config übergeben wird ──
+_DEFAULT_VCAL = VerdictCalibrationConfig()
 
-# Maximale Confidence ohne Primärquelle
-_CEILING_NO_PRIMARY_SOURCE = 0.82
-# Maximale Confidence bei hohem Off-topic Anteil (>50%)
-_CEILING_OFFTOPIC_CONTAMINATION = 0.75
-# Maximale Confidence bei schwacher Evidenzqualität
-_CEILING_WEAK_EVIDENCE = 0.70
-# Maximale Confidence bei insufficient consensus
-_CEILING_INSUFFICIENT_CONSENSUS = 0.65
-# Maximale Confidence bei sehr schlechter Claim-Qualität
-_CEILING_POOR_CLAIM_QUALITY = 0.72
-# Ceiling bei schwacher durchschnittlicher Top-5-Relevanz (Produkte, Rechner etc.)
-_CEILING_LOW_AVG_RELEVANCE = 0.68
-# Ceiling bei sehr schwacher Top-5-Relevanz (fast alle Quellen unbrauchbar)
-_CEILING_VERY_LOW_AVG_RELEVANCE = 0.58
-# Ceiling bei hohem Low-Trust-Anteil in Top-5 (Währungsrechner, Grammatik, Juraforen)
-_CEILING_HIGH_LOW_TRUST = 0.62
-# Ceiling bei fehlender offizieller Quelle für Regelungsclaims
-_CEILING_REGULATORY_NO_OFFICIAL = 0.72
-# Ceiling bei überwiegend contextual evidence (kein direct evidence in Top-5)
-_CEILING_CONTEXTUAL_ONLY = 0.65
-# Ceiling bei hoher weak evidence rate (>60% WEAK in Top-5)
-_CEILING_HIGH_WEAK_RATE = 0.60
-# Ceiling bei Kombination aus contextual evidence UND low-trust Quellen
-_CEILING_CONTEXTUAL_AND_LOW_TRUST = 0.55
-# Ceiling für Regelungsclaims ohne direkte Regelungsgrundlage (strenger als ohne offizielle Quelle)
-_CEILING_REGULATORY_NO_DIRECT_EVIDENCE = 0.55
-# Ceiling bei veralteten Quellen (avg_freshness < Schwellwert)
-_CEILING_STALE_SOURCES = 0.72
-# Ceiling bei Aktuell-Zustand-Claims ohne frische Quellen
-_CEILING_CURRENT_STATE_NO_FRESH = 0.55
-# Ceiling wenn keinerlei brauchbare Evidenz vorliegt (kein DIRECT, kein Primary, kein FC, kein Konsens)
-_CEILING_ZERO_USEFUL_EVIDENCE = 0.50
-# Ceiling für Regelungsclaim mit überwiegend thematisch ähnlicher (nicht direkter) Evidenz
-# und ohne Primärquelle: verrauschte Evidenz darf Confidence nicht künstlich hochhalten.
-_CEILING_REGULATORY_NOISY_CONTEXTUAL = 0.45
-# Minimale Anzahl guter Quellen für hohe Confidence
-_MIN_GOOD_SOURCES_FOR_HIGH_CONF = 2
+# ── Abwärtskompatible Modul-Konstanten (für Re-Export in verdict_agent.py und Tests) ──
+_CEILING_NO_PRIMARY_SOURCE = _DEFAULT_VCAL.ceiling_no_primary_source
+_CEILING_OFFTOPIC_CONTAMINATION = _DEFAULT_VCAL.ceiling_offtopic_contamination
+_CEILING_WEAK_EVIDENCE = _DEFAULT_VCAL.ceiling_weak_evidence
+_CEILING_INSUFFICIENT_CONSENSUS = _DEFAULT_VCAL.ceiling_insufficient_consensus
+_CEILING_POOR_CLAIM_QUALITY = _DEFAULT_VCAL.ceiling_poor_claim_quality
+_CEILING_LOW_AVG_RELEVANCE = _DEFAULT_VCAL.ceiling_low_avg_relevance
+_CEILING_VERY_LOW_AVG_RELEVANCE = _DEFAULT_VCAL.ceiling_very_low_avg_relevance
+_CEILING_HIGH_LOW_TRUST = _DEFAULT_VCAL.ceiling_high_low_trust
+_CEILING_REGULATORY_NO_OFFICIAL = _DEFAULT_VCAL.ceiling_regulatory_no_official
+_CEILING_CONTEXTUAL_ONLY = _DEFAULT_VCAL.ceiling_contextual_only
+_CEILING_HIGH_WEAK_RATE = _DEFAULT_VCAL.ceiling_high_weak_rate
+_CEILING_CONTEXTUAL_AND_LOW_TRUST = _DEFAULT_VCAL.ceiling_contextual_and_low_trust
+_CEILING_REGULATORY_NO_DIRECT_EVIDENCE = _DEFAULT_VCAL.ceiling_regulatory_no_direct_evidence
+_CEILING_STALE_SOURCES = _DEFAULT_VCAL.ceiling_stale_sources
+_CEILING_CURRENT_STATE_NO_FRESH = _DEFAULT_VCAL.ceiling_current_state_no_fresh
+_CEILING_ZERO_USEFUL_EVIDENCE = _DEFAULT_VCAL.ceiling_zero_useful_evidence
+_CEILING_REGULATORY_NOISY_CONTEXTUAL = _DEFAULT_VCAL.ceiling_regulatory_noisy_contextual
+_MIN_GOOD_SOURCES_FOR_HIGH_CONF = _DEFAULT_VCAL.min_good_sources_for_high_conf
 
 # Textuelles Muster für Regulatory-Claims (Fallback wenn claim.frame fehlt)
 _REGULATORY_TEXT_PATTERN = re.compile(
@@ -195,6 +179,23 @@ def _calibrate_rating(
     has_fc_direct = quality.has_fact_check_direct_match
     has_fc_any = quality.has_fact_check_any
     direct_count = quality.direct_evidence_count
+
+    # Aktuell-Zustand-Claim: veraltete direkte Widerlegungsquellen ignorieren.
+    # Alte Artikel (z.B. 2024: "Scholz ist Kanzler") dürfen einen aktuellen
+    # Zustandsclaim nicht als FALSE halten, wenn die Quellen selbst veraltet sind.
+    _STALE_REFUTATION_THRESHOLD = 0.40
+    if (
+        is_current_state_claim
+        and not claim_is_negated
+        and has_direct_refutation
+        and quality.direct_refutation_freshness < _STALE_REFUTATION_THRESHOLD
+    ):
+        has_direct_refutation = False
+        reasons.append(
+            f"Aktuell-Zustand-Claim: direkte Widerlegungsquellen veraltet "
+            f"(Freshness={quality.direct_refutation_freshness:.2f} < "
+            f"{_STALE_REFUTATION_THRESHOLD}) → has_direct_refutation ignoriert"
+        )
 
     # Gibt es überhaupt irgendein Widerlegungs-Richtungssignal (auch CONTEXTUAL)?
     has_any_refutation_signal = (
@@ -380,6 +381,7 @@ def _calibrate_confidence(
     is_regulatory_claim: bool = False,
     is_current_state_claim: bool = False,
     stale_freshness_threshold: float = 0.40,
+    vcal: VerdictCalibrationConfig | None = None,
 ) -> tuple[float, list[str]]:
     """Regelbasierter Confidence-Postprocessor.
 
@@ -417,6 +419,9 @@ def _calibrate_confidence(
         stale_freshness_threshold: Schwellwert für avg_freshness unterhalb dessen
                                    Quellen als veraltet gelten (Default: 0.40)
     """
+    if vcal is None:
+        vcal = _DEFAULT_VCAL
+
     confidence = raw_confidence
     reasons: list[str] = []
 
@@ -429,52 +434,54 @@ def _calibrate_confidence(
 
     # Ceiling: ohne Primärquelle oder Fact-Check
     if not has_primary and not has_fc:
-        if confidence > _CEILING_NO_PRIMARY_SOURCE:
-            reasons.append(f"Keine Primärquelle/Fact-Check → Ceiling {_CEILING_NO_PRIMARY_SOURCE}")
-            confidence = min(confidence, _CEILING_NO_PRIMARY_SOURCE)
+        _ceil = vcal.ceiling_no_primary_source
+        if confidence > _ceil:
+            reasons.append(f"Keine Primärquelle/Fact-Check → Ceiling {_ceil}")
+            confidence = min(confidence, _ceil)
 
     # Ceiling: schwache Evidenzqualität
     if quality and quality.overall_quality < 0.3:
-        if confidence > _CEILING_WEAK_EVIDENCE:
-            reasons.append(f"Schwache Evidenzqualität ({quality.overall_quality:.2f}) → Ceiling {_CEILING_WEAK_EVIDENCE}")
-            confidence = min(confidence, _CEILING_WEAK_EVIDENCE)
+        _ceil = vcal.ceiling_weak_evidence
+        if confidence > _ceil:
+            reasons.append(f"Schwache Evidenzqualität ({quality.overall_quality:.2f}) → Ceiling {_ceil}")
+            confidence = min(confidence, _ceil)
 
     # Ceiling: insufficient consensus
     if quality and quality.source_consensus.value == "insufficient":
-        if confidence > _CEILING_INSUFFICIENT_CONSENSUS:
-            reasons.append(f"Unzureichender Quellen-Konsens → Ceiling {_CEILING_INSUFFICIENT_CONSENSUS}")
-            confidence = min(confidence, _CEILING_INSUFFICIENT_CONSENSUS)
+        _ceil = vcal.ceiling_insufficient_consensus
+        if confidence > _ceil:
+            reasons.append(f"Unzureichender Quellen-Konsens → Ceiling {_ceil}")
+            confidence = min(confidence, _ceil)
 
     # Ceiling: off-topic contamination – aus gemessener off_topic_rate
-    # (bevorzugt gegenüber der Inline-Berechnung unten, da bereits in Signals)
+    _ceil_ot = vcal.ceiling_offtopic_contamination
     if quality and quality.off_topic_rate > 0.5:
-        if confidence > _CEILING_OFFTOPIC_CONTAMINATION:
+        if confidence > _ceil_ot:
             reasons.append(
                 f"Off-topic-Rate {quality.off_topic_rate:.0%} → "
-                f"Ceiling {_CEILING_OFFTOPIC_CONTAMINATION}"
+                f"Ceiling {_ceil_ot}"
             )
-            confidence = min(confidence, _CEILING_OFFTOPIC_CONTAMINATION)
+            confidence = min(confidence, _ceil_ot)
     elif pack.web_results:
-        # Fallback: inline berechnen wenn off_topic_rate nicht gesetzt
         top_results = pack.web_results[:5]
         low_rel = sum(1 for r in top_results if r.relevance_score < 0.3)
         if low_rel > len(top_results) / 2:
-            if confidence > _CEILING_OFFTOPIC_CONTAMINATION:
+            if confidence > _ceil_ot:
                 reasons.append(
                     f"Off-topic Contamination ({low_rel}/{len(top_results)} schwach) "
-                    f"→ Ceiling {_CEILING_OFFTOPIC_CONTAMINATION}"
+                    f"→ Ceiling {_ceil_ot}"
                 )
-                confidence = min(confidence, _CEILING_OFFTOPIC_CONTAMINATION)
+                confidence = min(confidence, _ceil_ot)
 
-    # Ceiling: schlechte Claim-Qualität (Claim hat bei der Dekomposition Kontext verloren
-    # oder war von Anfang an vage → senkt die Ceiling zusätzlich)
+    # Ceiling: schlechte Claim-Qualität
     if claim_quality_score < 0.50:
-        if confidence > _CEILING_POOR_CLAIM_QUALITY:
+        _ceil = vcal.ceiling_poor_claim_quality
+        if confidence > _ceil:
             reasons.append(
                 f"Niedrige Claim-Qualität ({claim_quality_score:.2f}) → "
-                f"Ceiling {_CEILING_POOR_CLAIM_QUALITY}"
+                f"Ceiling {_ceil}"
             )
-            confidence = min(confidence, _CEILING_POOR_CLAIM_QUALITY)
+            confidence = min(confidence, _ceil)
 
     # Ceiling: schwache Top-5-Relevanz (Produkte, Rechner, allgemeine Seiten dominieren)
     # Nur anwenden wenn ein echter Messwert vorliegt: avg_top5_relevance > 0.0.
@@ -482,25 +489,26 @@ def _calibrate_confidence(
     # In der Praxis berechnet _compute_quality_signals immer > 0 wenn web_results vorhanden.
     _avg_rel = quality.avg_top5_relevance if quality else 0.0
     if quality and _avg_rel > 0.0 and _avg_rel < 0.15:
-        if confidence > _CEILING_VERY_LOW_AVG_RELEVANCE:
+        _ceil = vcal.ceiling_very_low_avg_relevance
+        if confidence > _ceil:
             reasons.append(
                 f"Top-5-Quellen sehr schwach (Relevanz Ø={_avg_rel:.2f}) → "
-                f"Ceiling {_CEILING_VERY_LOW_AVG_RELEVANCE}"
+                f"Ceiling {_ceil}"
             )
-            confidence = min(confidence, _CEILING_VERY_LOW_AVG_RELEVANCE)
+            confidence = min(confidence, _ceil)
     elif quality and _avg_rel > 0.0 and _avg_rel < 0.25:
-        if confidence > _CEILING_LOW_AVG_RELEVANCE:
+        _ceil = vcal.ceiling_low_avg_relevance
+        if confidence > _ceil:
             reasons.append(
                 f"Top-5-Quellen schwach (Relevanz Ø={_avg_rel:.2f}) → "
-                f"Ceiling {_CEILING_LOW_AVG_RELEVANCE}"
+                f"Ceiling {_ceil}"
             )
-            confidence = min(confidence, _CEILING_LOW_AVG_RELEVANCE)
+            confidence = min(confidence, _ceil)
 
-    # Ceiling: hoher Low-Trust-Anteil (Währungsrechner, Grammatik, Juraforen in Top-5)
-    # Verschärft: ab 20% Anteil greift das Ceiling (vorher 30%)
+    # Ceiling: hoher Low-Trust-Anteil
     _low_trust = quality.low_trust_rate if quality else 0.0
     if quality and _low_trust > 0.2:
-        effective_ceiling = _CEILING_HIGH_LOW_TRUST if _low_trust > 0.3 else 0.70
+        effective_ceiling = vcal.ceiling_high_low_trust if _low_trust > 0.3 else 0.70
         if confidence > effective_ceiling:
             reasons.append(
                 f"Low-Trust-Quellen dominieren (Rate={_low_trust:.0%}) → "
@@ -510,39 +518,37 @@ def _calibrate_confidence(
 
     # Ceiling: Regelungsclaim ohne offizielle Quelle (Tier 1-2)
     if is_regulatory_claim and not has_primary and not has_fc:
-        if confidence > _CEILING_REGULATORY_NO_OFFICIAL:
+        _ceil = vcal.ceiling_regulatory_no_official
+        if confidence > _ceil:
             reasons.append(
                 f"Regelungsclaim ohne offizielle Quelle/Fact-Check → "
-                f"Ceiling {_CEILING_REGULATORY_NO_OFFICIAL}"
+                f"Ceiling {_ceil}"
             )
-            confidence = min(confidence, _CEILING_REGULATORY_NO_OFFICIAL)
+            confidence = min(confidence, _ceil)
 
-    # Ceiling: überwiegend contextual evidence (kein direct evidence in Top-5)
-    # Verhindert Support Leakage: allgemeiner Kontext darf Confidence nicht hochtreiben
+    # Ceiling: überwiegend contextual evidence
     _contextual_rate = quality.contextual_only_rate if quality else 0.0
     _direct_count = quality.direct_evidence_count if quality else 0
     if quality and _contextual_rate > 0.6 and _direct_count == 0:
-        if confidence > _CEILING_CONTEXTUAL_ONLY:
+        _ceil = vcal.ceiling_contextual_only
+        if confidence > _ceil:
             reasons.append(
                 f"Überwiegend Kontext-Evidenz ({_contextual_rate:.0%}, "
-                f"0 direkte Belege) → Ceiling {_CEILING_CONTEXTUAL_ONLY}"
+                f"0 direkte Belege) → Ceiling {_ceil}"
             )
-            confidence = min(confidence, _CEILING_CONTEXTUAL_ONLY)
+            confidence = min(confidence, _ceil)
 
     # Ceiling: Regelungsclaim ohne direkte Regelungsgrundlage (strenger)
-    # Betrifft Claims über Beschlüsse, Bußgelder, Überwachung, rechtlich bindende Regeln
     if is_regulatory_claim and _direct_count == 0:
-        if confidence > _CEILING_REGULATORY_NO_DIRECT_EVIDENCE:
+        _ceil = vcal.ceiling_regulatory_no_direct_evidence
+        if confidence > _ceil:
             reasons.append(
                 f"Regelungsclaim ohne direkte Evidenz (0 DIRECT in Top-5) → "
-                f"Ceiling {_CEILING_REGULATORY_NO_DIRECT_EVIDENCE}"
+                f"Ceiling {_ceil}"
             )
-            confidence = min(confidence, _CEILING_REGULATORY_NO_DIRECT_EVIDENCE)
+            confidence = min(confidence, _ceil)
 
     # Ceiling: Regelungsclaim + überwiegend Kontext-Evidenz + keine Primärquelle/FC
-    # Wenn Top-Treffer zwar thematisch ähnlich, aber nicht claim-direkt sind (z.B.
-    # allgemeine Überwachungsseiten, DSGVO-Artikel ohne konkreten Fallbezug),
-    # darf die Confidence nicht künstlich hochbleiben.
     if (
         is_regulatory_claim
         and _direct_count == 0
@@ -550,66 +556,70 @@ def _calibrate_confidence(
         and not has_primary
         and not has_fc
     ):
-        if confidence > _CEILING_REGULATORY_NOISY_CONTEXTUAL:
+        _ceil = vcal.ceiling_regulatory_noisy_contextual
+        if confidence > _ceil:
             reasons.append(
                 f"Regelungsclaim: überwiegend Kontext-Evidenz ({_contextual_rate:.0%}), "
-                f"keine Primärquelle → Ceiling {_CEILING_REGULATORY_NOISY_CONTEXTUAL}"
+                f"keine Primärquelle → Ceiling {_ceil}"
             )
-            confidence = min(confidence, _CEILING_REGULATORY_NOISY_CONTEXTUAL)
+            confidence = min(confidence, _ceil)
 
     # Ceiling: hohe weak evidence rate (>60% WEAK-Evidenz in Top-5)
     if pack.web_results:
         _top5 = pack.web_results[:5]
         _weak_count = sum(1 for i in _top5 if i.evidence_type == EvidenceType.WEAK)
         if _weak_count / max(1, len(_top5)) > 0.6:
-            if confidence > _CEILING_HIGH_WEAK_RATE:
+            _ceil = vcal.ceiling_high_weak_rate
+            if confidence > _ceil:
                 reasons.append(
                     f"Hohe Weak-Evidence-Rate ({_weak_count}/{len(_top5)} WEAK) → "
-                    f"Ceiling {_CEILING_HIGH_WEAK_RATE}"
+                    f"Ceiling {_ceil}"
                 )
-                confidence = min(confidence, _CEILING_HIGH_WEAK_RATE)
+                confidence = min(confidence, _ceil)
 
     # Ceiling: contextual evidence + low-trust kombiniert (verschärft)
     if quality and _contextual_rate > 0.5 and _low_trust > 0.2:
-        if confidence > _CEILING_CONTEXTUAL_AND_LOW_TRUST:
+        _ceil = vcal.ceiling_contextual_and_low_trust
+        if confidence > _ceil:
             reasons.append(
                 f"Kontext-Evidenz ({_contextual_rate:.0%}) + Low-Trust ({_low_trust:.0%}) → "
-                f"Ceiling {_CEILING_CONTEXTUAL_AND_LOW_TRUST}"
+                f"Ceiling {_ceil}"
             )
-            confidence = min(confidence, _CEILING_CONTEXTUAL_AND_LOW_TRUST)
+            confidence = min(confidence, _ceil)
 
     # Ceiling: veraltete Quellen (avg_freshness unter Schwellwert)
     _freshness = quality.freshness_score if quality else 1.0
     if quality and _freshness < stale_freshness_threshold:
-        if confidence > _CEILING_STALE_SOURCES:
+        _ceil = vcal.ceiling_stale_sources
+        if confidence > _ceil:
             reasons.append(
                 f"Veraltete Quellen (Freshness Ø={_freshness:.2f} < {stale_freshness_threshold}) → "
-                f"Ceiling {_CEILING_STALE_SOURCES}"
+                f"Ceiling {_ceil}"
             )
-            confidence = min(confidence, _CEILING_STALE_SOURCES)
+            confidence = min(confidence, _ceil)
 
     # Ceiling: Aktuell-Zustand-Claim ohne frische Quellen (zeitkritisch)
     if is_current_state_claim and quality and _freshness < stale_freshness_threshold:
-        if confidence > _CEILING_CURRENT_STATE_NO_FRESH:
+        _ceil = vcal.ceiling_current_state_no_fresh
+        if confidence > _ceil:
             reasons.append(
                 f"Aktuell-Zustand-Claim mit veralteten Quellen (Freshness Ø={_freshness:.2f}) → "
-                f"Ceiling {_CEILING_CURRENT_STATE_NO_FRESH}"
+                f"Ceiling {_ceil}"
             )
-            confidence = min(confidence, _CEILING_CURRENT_STATE_NO_FRESH)
+            confidence = min(confidence, _ceil)
 
     # Ceiling: keinerlei brauchbare Evidenz
-    # Greift wenn KEIN DIRECT-Evidence, keine Primärquelle, kein Fact-Check
-    # UND Konsens insufficient → System hat de facto nichts Brauchbares gefunden.
     if (not has_primary and not has_fc
             and _direct_count == 0
             and quality
             and quality.source_consensus.value == "insufficient"):
-        if confidence > _CEILING_ZERO_USEFUL_EVIDENCE:
+        _ceil = vcal.ceiling_zero_useful_evidence
+        if confidence > _ceil:
             reasons.append(
                 f"Keine brauchbare Evidenz (0 DIRECT, keine Primärquelle, "
-                f"kein Fact-Check, Konsens insufficient) → Ceiling {_CEILING_ZERO_USEFUL_EVIDENCE}"
+                f"kein Fact-Check, Konsens insufficient) → Ceiling {_ceil}"
             )
-            confidence = min(confidence, _CEILING_ZERO_USEFUL_EVIDENCE)
+            confidence = min(confidence, _ceil)
 
     # ── Penalties ─────────────────────────────────────────────────────────────
 
@@ -618,7 +628,7 @@ def _calibrate_confidence(
         1 for r in pack.web_results
         if r.source.domain_tier <= 3 or r.source.is_fact_check_org
     )
-    if good_sources < _MIN_GOOD_SOURCES_FOR_HIGH_CONF:
+    if good_sources < vcal.min_good_sources_for_high_conf:
         penalty = 0.10
         reasons.append(f"Nur {good_sources} gute Quellen → -{penalty}")
         confidence -= penalty
