@@ -61,22 +61,25 @@ class BaseAgent(ABC):
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(_thread_pool, lambda: self.execute(input_data, context))
 
-    # Max. Sekunden für einen einzelnen Agent-Durchlauf (async)
-    AGENT_TIMEOUT: float = 180.0
+    @property
+    def _agent_timeout(self) -> float:
+        """Agent-Timeout aus zentraler Konfiguration."""
+        return self.config.timeouts.agent
 
     async def run_async(self, input_data: Any, context: str = "") -> Any:
         """Async-Version von run() – Logging + Error Handling + Timeout um execute_async()."""
         self._log("Starte (async) ...")
+        timeout = self._agent_timeout
         try:
             result = await asyncio.wait_for(
                 self.execute_async(input_data, context),
-                timeout=self.AGENT_TIMEOUT,
+                timeout=timeout,
             )
             self._log("Fertig.")
             return result
         except asyncio.TimeoutError:
-            self._log(f"TIMEOUT nach {self.AGENT_TIMEOUT}s")
-            raise TimeoutError(f"{self.name}: Timeout nach {self.AGENT_TIMEOUT}s")
+            self._log(f"TIMEOUT nach {timeout}s")
+            raise TimeoutError(f"{self.name}: Timeout nach {timeout}s")
         except Exception as e:
             self._log(f"FEHLER: {type(e).__name__}: {e}")
             raise

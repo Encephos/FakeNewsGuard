@@ -128,21 +128,19 @@ class Orchestrator:
         }
         self._log(f"🔎 Tier: {tier_labels[tier]}")
 
-        _gemma_small = "google/gemma-3-4b-it"
+        tm = config.tier_models
 
         if tier == ScoutTier.LITE:
-            free_model = "openrouter/free"
-            llm_fast = LLMClient(replace(config.llm, model=free_model), config.retry)
-            llm_small = LLMClient(replace(config.llm, model=_gemma_small), config.retry)
+            llm_fast = LLMClient(replace(config.llm, model=tm.model_free), config.retry)
+            llm_small = LLMClient(replace(config.llm, model=tm.model_small), config.retry)
             llm_powerful = llm_fast
         elif tier == ScoutTier.PRO:
-            gemma_model = "google/gemma-3-27b-it"
-            llm_fast = LLMClient(replace(config.llm, model=gemma_model), config.retry)
-            llm_small = LLMClient(replace(config.llm, model=_gemma_small), config.retry)
+            llm_fast = LLMClient(replace(config.llm, model=tm.model_medium), config.retry)
+            llm_small = LLMClient(replace(config.llm, model=tm.model_small), config.retry)
             llm_powerful = llm_fast
         else:
-            llm_fast = LLMClient(replace(config.llm, model="google/gemma-3-27b-it"), config.retry)
-            llm_small = LLMClient(replace(config.llm, model=_gemma_small), config.retry)
+            llm_fast = LLMClient(replace(config.llm, model=tm.model_medium), config.retry)
+            llm_small = LLMClient(replace(config.llm, model=tm.model_small), config.retry)
             llm_powerful = LLMClient(config.llm, config.retry)
 
         search = WebSearchClient(config.search, config.retry)

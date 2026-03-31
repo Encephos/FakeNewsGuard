@@ -35,3 +35,26 @@ class LLMConfig:
                 self.api_key = os.getenv("OPENAI_API_KEY", "")
             elif self.provider == "openrouter":
                 self.api_key = os.getenv("OPENROUTER_API_KEY", "")
+
+
+@dataclass
+class TierModelConfig:
+    """Modellnamen pro Scout-Tier – vermeidet Hartkodierung im Orchestrator.
+
+    Env-Vars:
+        TIER_MODEL_SMALL   – Kleines Modell für schnelle Aufgaben (Default: google/gemma-3-4b-it)
+        TIER_MODEL_MEDIUM  – Mittleres Modell für Pro/Max (Default: google/gemma-3-27b-it)
+        TIER_MODEL_FREE    – Kostenloses Router-Modell für Lite (Default: openrouter/free)
+    """
+
+    model_small: str = "google/gemma-3-4b-it"
+    model_medium: str = "google/gemma-3-27b-it"
+    model_free: str = "openrouter/free"
+
+    def __post_init__(self) -> None:
+        if v := os.getenv("TIER_MODEL_SMALL", ""):
+            self.model_small = v
+        if v := os.getenv("TIER_MODEL_MEDIUM", ""):
+            self.model_medium = v
+        if v := os.getenv("TIER_MODEL_FREE", ""):
+            self.model_free = v
