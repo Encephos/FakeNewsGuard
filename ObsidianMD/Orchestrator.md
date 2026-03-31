@@ -29,13 +29,27 @@ class Orchestrator:
 
 ## 4-Phasen-Workflow
 
+### Phase 0 – Initialisierung
+
+```python
+# Generiere eindeutige Korrelations-ID für durchgängiges Tracing
+analysis_id = uuid.uuid4().hex[:12]  # z.B. "a1f3c2b9d4e5"
+```
+
+Diese ID wird in alle Log-Einträge eingebunden und am Ende im `SynthesisResult` zurückgegeben.
+
+---
+
 ### Phase 1 – Extraktion (sequenziell)
 
 ```python
 claims = await claim_extractor.run_async(text)
+claims = self._select_top_claims(claims)  # Deduplizierung + Top-N Filterung
 ```
 
 Muss zuerst abgeschlossen sein – alle anderen Phasen hängen von den extrahierten Claims ab. Hard-Failure bei Fehler.
+
+**Deduplizierung:** Claims mit gleichem `canonical_hash` werden gruppiert; nur der erste bleibt, weitere werden aussortiert. Dies spart LLM-Kosten bei semantisch identischen Behauptungen (verschiedene Formulierungen).
 
 → [[Agent-ClaimExtractor]]
 
@@ -97,6 +111,7 @@ synthesis_input = SynthesisInput(
     errors=collected_errors,
 )
 result = await synthesizer.run_async(synthesis_input)
+result.analysis_id = analysis_id  # Attach correlation ID
 ```
 
 → [[Agent-Synthesizer]]

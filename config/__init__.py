@@ -25,6 +25,7 @@ from config.processing import (  # noqa: F401
     ClaimQualitySignalConfig,
     CoVeConfig,
     EvidenceRetrievalConfig,
+    RetrievalStrategy,
     SourceClientsConfig,
     SourceLayerConfig,
     SynthesizerConfig,

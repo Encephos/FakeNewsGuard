@@ -350,6 +350,7 @@ def pagerank_adjustments() -> list[tuple[int, float]]:
     return [(e["min_rank"], e["adjustment"]) for e in raw]
 
 
+
 # ── Hot-Reload ───────────────────────────────────────────────────────────────
 
 _CACHED_LOADERS = [

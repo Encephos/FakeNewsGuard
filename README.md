@@ -123,16 +123,17 @@ FakeNewsGuard/
 ├── agents/
 │   ├── base.py                  # BaseAgent – LLM + Search + Logging
 │   ├── claim_extractor.py       # Facade → ClaimProcessorAgent
-│   ├── claim_processor.py       # 6-stufige Claim-Processing-Pipeline
-│   ├── evidence_builder.py      # Retrieval → strukturiertes EvidencePack
+│   ├── claim_processor.py       # 6-stufige Claim-Processing-Pipeline + Deduplizierung
+│   ├── evidence_builder.py      # Retrieval → strukturiertes EvidencePack + Widerspruch-Erkennung
 │   ├── cove_processor.py        # Chain-of-Verification (CoVe)
-│   ├── verdict_agent.py         # Verdikt auf Basis von EvidencePack
+│   ├── verdict_agent.py         # Verdikt auf Basis von EvidencePack + Consensus-Override
 │   ├── fact_checker.py          # Facade: EvidenceBuilder + CoVe + Verdict
 │   ├── number_auditor.py        # Zahlen- und Statistikprüfung
 │   ├── rhetoric_analyzer.py     # Framing, Dog Whistles, Manipulation
 │   ├── image_analyzer.py        # Bildanalyse (multimodal)
 │   ├── synthesizer.py           # Aggregation → Gesamtverdikt
-│   └── _legacy_fallback.py      # [Legacy-Fallback-Mixin – entfällt wenn v2 stabil]
+│   ├── evidence_scoring.py      # Widerspruchserkennung mit Typisierung und Gewichtung
+│   └── verdict_calibration.py   # Verdikt-Nachbearbeitung, Confidence-Ceilings, Overrides
 │
 ├── models/
 │   ├── schemas.py               # Kern-Datenmodelle (ProcessedClaim, etc.)
@@ -142,10 +143,11 @@ FakeNewsGuard/
 │
 ├── tools/
 │   ├── llm.py                   # LLM-Abstraktion (Anthropic/OpenAI/Ollama)
-│   ├── cache.py                 # SQLite-Claim-Cache
+│   ├── cache.py                 # SQLite-Claim-Cache mit optionalem Semantic Cache (Embeddings)
+│   ├── calibration_tracker.py   # Confidence-Kalibrierung, Brier Scores, Reliability Diagramme
 │   ├── web_search.py            # [Backward-Compat Re-Export]
 │   ├── claim_router.py          # Heuristische Quellenauswahl (ClaimRouter)
-│   ├── data_loader.py           # YAML-Configs (Domain-Tiers, Scoring-Weights, etc.)
+│   ├── data_loader.py           # Hot-reloadbare YAML-Configs (Domain-Tiers, etc.)
 │   ├── iterative_search.py      # Iterative Retrieval-Runden
 │   ├── search/                  # Suchclients
 │   │   ├── __init__.py          # Re-Exports (SearXNGClient, LangSearchClient, …)

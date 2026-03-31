@@ -32,7 +32,6 @@ Orchestrator
   │           └── ClaimPrioritizerAgent
   │
   ├── FactCheckerAgent       (Facade → EvidenceBuilder + CoVe + Verdict)
-  │     ├── _LegacyFallbackMixin   [Fallback bei v2-Fehler – entfällt wenn v2 stabil]
   │     ├── EvidenceBuilderAgent
   │     │     ├── SearXNGClient      (primäres Suchbackend)
   │     │     ├── LangSearchClient   (LangSearch API)
@@ -46,6 +45,21 @@ Orchestrator
   ├── ImageAnalyzerAgent
   └── SynthesizerAgent
 ```
+
+---
+
+## Wichtige Implementierungsmerkmale
+
+### Entfernte Komponenten (v2 Stabilisierung)
+- **`agents/_legacy_fallback.py` (entfernt):** Pre-v2-Monolith-Fallback wurde gelöscht. FactChecker nutzt jetzt ausschließlich die moderne Pipeline (EvidenceBuilder → CoVe → Verdict).
+- **Legacy-Tests (re-aktiviert):** `test_orchestrator_v2.py` und `test_cove_processor.py` sind jetzt aktiv und validieren die gesamte v2-Pipeline.
+
+### Moderne Merkmale
+- **Analysis-ID Tracing:** UUID-basierte Korrelations-IDs für durchgängiges Debugging
+- **Claim-Deduplizierung:** Semantisch identische Claims (unterschiedliche Formulierungen) werden nach Kanonisierung dedupliziert
+- **Semantic Cache (optional):** Embedding-ähnliche Claims bei Cache-Miss (0.92 Threshold)
+- **Confidence-Kalibrierung:** Brier Scores, Reliability Diagrams, Consensus-Contradiction-Override
+- **Hot-Reload:** Domain-Tiers und Scoring-Weights können ohne Neustart neu geladen werden
 
 ---
 
@@ -68,13 +82,17 @@ Orchestrator
 
 Jede Stufe hat einen Try-Except-Block. Bei LLM-Fehlern gibt die Stufe die unveränderten Claims zurück und loggt den Fehler. Die Pipeline bricht nie komplett ab.
 
-### Top-N Filtering
+### Top-N Filtering und Deduplication
 
 Der Orchestrator ruft `_select_top_claims(result)` auf, das:
-1. `ClaimType.OPINION` ausschließt
-2. `is_checkworthy=False` ausschließt
-3. Nach `priority_score` absteigend sortiert
-4. Die Top-N zurückgibt (N = `config.claim_processing.top_n`, 0 = alle)
+1. Dedupliziert Claims nach `canonical_hash` (nur der erste wird beibehalten)
+2. `ClaimType.OPINION` ausschließt
+3. `is_checkworthy=False` ausschließt
+4. Nach `priority_score` absteigend sortiert
+5. Die Top-N zurückgibt (N = `config.claim_processing.top_n`, 0 = alle)
+
+**Canonical Hash Deduplication:**
+Semantisch identische Claims (verschiedene Formulierungen) erhalten nach Kanonisierung denselben `canonical_hash`. Dies verhindert doppelte Analysen und spart LLM-Kosten.
 
 ### Canonical Hash
 
@@ -284,9 +302,24 @@ EvidencePack
   │           ├── relevance_score: float
   │           └── extraction_confidence: float
   ├── contradictions: list[EvidenceContradiction]
+  │     └── EvidenceContradiction
+  │           ├── type: ContradictionType (negation, numeric, temporal, tier, direction)
+  │           ├── severity: ContradictionSeverity (low, medium, high)
+  │           ├── source1, source2: str (URLs)
+  │           ├── claim1, claim2: str (betroffene Aussagen)
+  │           └── reasoning: str
   ├── evidence_quality: EvidenceQualitySignals
   └── format_for_verdict() → str  # Einziger Ausgang zum VerdictAgent
 ```
+
+**Widerspruch-Erkennung:**
+- **Negation:** "ist", "ist nicht" (einfache Verneinung)
+- **Numeric:** Zahlenwerte differieren um ≥1,5x mit gleichem Einheit
+- **Temporal:** Zeitpunkt-Konflikte (z.B. "2020" vs "2021")
+- **Tier:** Konflikte zwischen Quellen unterschiedlicher Qualitäts-Tier
+- **Direction:** SUPPORTS vs REFUTES für dieselbe Quelle
+
+Schweregrad wird von der Qualitäts-Tier der betroffenen Quellen bestimmt (Tier 1/2 = HIGH, Tier 3/4 = MEDIUM, Tier 5 = LOW). Max. 5 Widersprüche pro EvidencePack, sortiert nach Schweregrad.
 
 ### `models/verdict_models.py`
 
@@ -305,7 +338,17 @@ FinalVerdictMeta
   ├── confidence_reduction_reason: str
   ├── verdict_based_on_fact_check_org: bool
   └── source_quality_note: str
+
+SynthesisResult
+  ├── analysis_id: str  # Korrelations-ID für Tracing (UUID-kürzung)
+  ├── overall_rating: FactRating
+  └── ...weitere Felder
 ```
+
+**Consensus-Contradiction Override:**
+- Wenn **alle Fact-Check-Agenten denselben Rating haben** (AGREEING) aber die **Evidenz widerspricht** (CONTRADICTORY), wird das Rating zu **MISLEADING** downgraded
+- Wenn die Evidenz **widerspricht** (CONTRADICTORY) aber das Rating **TRUE** ist und **kein direkter FactChecker-Match** vorhanden, wird downgraded zu **MISLEADING**
+- Dies verhindert, dass falsche Einigkeit zu falscher Bewertung führt
 
 ---
 
@@ -378,27 +421,24 @@ tests/
 ├── conftest.py                        # AppConfig-Fixtures, sample_processed_claim, etc.
 ├── test_retrieval_refactor.py         # Hybrid-Ranking, Evidence-Typing, Tavily-Budget
 └── unit/
+    ├── test_calibration_tracker.py    # Brier Score, Ground-Truth, Reliability Diagramme
     ├── test_claim_processor.py        # Pipeline, Hash, ProcessedClaim, Prioritizer
     ├── test_claim_router.py           # ClaimRouter, Heuristiken, Jurisdiktion
     ├── test_claim_validator.py
-    ├── test_evidence_builder.py       # Dedup, Tier, Relevanz, Qualität, Format
+    ├── test_cove_processor.py         # CoVe Baseline, Verifikationsfragen, Reconciliation [AKTIV]
+    ├── test_evidence_builder.py       # Widerspruchserkennung (Typ/Schweregrad), Dedup, Tier, Relevanz, Qualität
     ├── test_evidence_quality.py
     ├── test_evidence_rating_integrity.py
-    ├── test_fact_checker.py           # Legacy-Pfad, v2-Pfad-Trennung, Query-Bau
+    ├── test_fact_checker.py           # v2-Pipeline, UNVERIFIABLE Fallback (kein Legacy-Pfad mehr)
     ├── test_hint_generation.py        # _derive_source_hints, _infer_jurisdiction
+    ├── test_orchestrator_v2.py        # Deduplizierung, Analyse-ID, Top-N Auswahl [AKTIV]
     ├── test_source_adapters.py        # SourceRegistry, SourceCache, CircuitBreaker
     ├── test_source_policy_enforcement.py  # CHECK_TERMS, Display-Limits, Policies
     ├── test_synthesizer_aggregation.py
     ├── test_verdict_agent.py          # Verdikt, CoVe-Integration, Confidence-Ceilings
-    ├── test_verdict_rating_calibration.py
-    └── ... (weitere: adaptive_search, api, confidence_*, image_analyzer,
-             input_validation, regression_*, regulatory_claim_handling,
-             retrieval_robustness, current_state_claims)
-
-    # Standard-Run ausgeschlossen (pytest.ini --ignore):
-    ├── test_orchestrator.py      [Legacy v1-API – nicht mit aktueller Signatur kompatibel]
-    ├── test_orchestrator_v2.py   [v2-API – temporär übersprungen]
-    └── test_cove_processor.py    [separates manuelles Testregime]
+    ├── test_verdict_rating_calibration.py  # Consensus-Contradiction Override
+    └── tools/
+        └── test_cache.py              # Semantic Cache mit Embedding-Similarity Fallback
 ```
 
 **Autouse-Mock-Fixture (`tests/unit/conftest.py`):**

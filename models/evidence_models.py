@@ -129,12 +129,36 @@ class EvidenceItem(BaseModel):
     )
 
 
+class ContradictionType(str, Enum):
+    """Art des erkannten Widerspruchs."""
+    NEGATION = "negation"          # Quelle A bestätigt, B verneint
+    NUMERIC = "numeric"            # Unterschiedliche Zahlenwerte für dieselbe Metrik
+    TEMPORAL = "temporal"          # Veraltete vs. aktuelle Daten
+    TIER_DISAGREEMENT = "tier"     # Hochrangige Quelle widerspricht niedrigrangiger
+    DIRECTION = "direction"        # SUPPORTS vs. REFUTES Richtungssignal
+
+
+class ContradictionSeverity(str, Enum):
+    """Schweregrad des Widerspruchs."""
+    LOW = "low"        # Geringer Einfluss (z.B. schwache Quellen widersprechen sich)
+    MEDIUM = "medium"  # Mittlerer Einfluss (relevante Quellen, aber unklar)
+    HIGH = "high"      # Hoher Einfluss (Tier-1/2 widerspricht direkt)
+
+
 class EvidenceContradiction(BaseModel):
     """Ein erkannter Widerspruch zwischen zwei Quellen."""
 
     source_url_a: str
     source_url_b: str
     description: str = Field(description="Kurze Beschreibung des Widerspruchs")
+    contradiction_type: ContradictionType = Field(
+        default=ContradictionType.NEGATION,
+        description="Art des Widerspruchs",
+    )
+    severity: ContradictionSeverity = Field(
+        default=ContradictionSeverity.MEDIUM,
+        description="Schweregrad basierend auf Quellen-Tier und Evidenz-Typ",
+    )
 
 
 class EvidenceQualitySignals(BaseModel):
@@ -381,9 +405,11 @@ class EvidencePack(BaseModel):
                     EvidenceType.CONTEXTUAL: "KONTEXT",
                     EvidenceType.WEAK: "SCHWACH",
                 }.get(item.evidence_type, "KONTEXT")
+                pub_date = item.source.publication_date or "unbekannt"
                 parts.append(
                     f"[Quelle {i}] [{tier_label}] [{ev_type_label}] {item.source.title}{support}\n"
                     f"  URL: {item.source.url}\n"
+                    f"  Datum: {pub_date}\n"
                     f"  Claim-Scope: {item.claim_scope_score:.2f}\n"
                     f"  Auszug: {item.excerpt}\n"
                 )
