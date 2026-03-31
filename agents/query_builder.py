@@ -138,9 +138,15 @@ def _build_queries_for_underspecified_claim(
     Returns:
         Liste von 2–4 Queries. Leer wenn keine verwertbaren Keywords.
     """
+    from models.schemas import ProcessedClaim as _PC_u
     from tools.scrape_ranker import _extract_claim_keywords
 
-    keywords = _extract_claim_keywords(claim.text)
+    # Bevorzuge canonical_text (Pronomen aufgelöst) vor rohem claim.text
+    source_text = claim.text
+    if isinstance(claim, _PC_u) and claim.canonical_text:
+        source_text = claim.canonical_text
+
+    keywords = _extract_claim_keywords(source_text)
     if not keywords:
         return []
 
@@ -426,7 +432,13 @@ def _optimize_queries_with_llm(
     Returns:
         Liste von 3-4 optimierten Queries, oder None bei Fehler.
     """
-    user_msg = f"Behauptung: {claim.text}\nTyp: {claim.type.value}"
+    # Bevorzuge canonical_text (Pronomen aufgelöst)
+    from models.schemas import ProcessedClaim as _PC_llm
+    claim_text_for_llm = claim.text
+    if isinstance(claim, _PC_llm) and claim.canonical_text:
+        claim_text_for_llm = claim.canonical_text
+
+    user_msg = f"Behauptung: {claim_text_for_llm}\nTyp: {claim.type.value}"
     if original_text and len(original_text) > len(claim.text) + 30:
         user_msg += f"\nOriginaltext (Kontext): {original_text[:500]}"
 
@@ -500,10 +512,15 @@ def _build_search_queries(claim: Claim, original_text: str = "") -> list[str]:
             return underspec_queries
 
     # Priorität 3 (Fallback): adaptive Strategie basierend auf Claim-Typ
+    # Bevorzuge canonical_text (Pronomen aufgelöst, Entitäten normalisiert)
+    # vor dem rohen Claim-Text, damit "Sie sind ein Spalter" →
+    # "Frank-Walter Steinmeier ist ein Spalter" gesucht wird.
     text = claim.text
+    if isinstance(claim, _PC) and claim.canonical_text:
+        text = claim.canonical_text
     claim_type = claim.type.value
 
-    queries = [text]  # Direktsuche mit vollem Claim-Text – immer dabei
+    queries = [text]  # Direktsuche mit aufgelöstem Text – immer dabei
 
     # ── Adaptive Strategie nach Claim-Typ ──────────────────────────
 
@@ -513,20 +530,14 @@ def _build_search_queries(claim: Claim, original_text: str = "") -> list[str]:
     suffix_causal = t("agents.fact_checker.search_suffix_causal")
 
     if claim_type == "FACTUAL":
-        # Einfache Fakten: Direktsuche reicht oft, Faktencheck als Ergänzung
-        if len(text) > 60:
-            queries.append(f"{text} {suffix_fc}")
+        # Einfache Fakten: Direktsuche + Faktencheck
+        queries.append(f"{text} {suffix_fc}")
 
     elif claim_type == "STATISTICAL":
         # Statistische Claims: Aggressive Suche nach Primärdaten
         queries.append(f"{text} {suffix_fc}")
         queries.append(f"{text} {suffix_stats}")
         queries.append(f"{text} {suffix_official}")
-        # Kontext-Suche ist hier besonders wichtig
-        if original_text and len(original_text) > len(text) + 30:
-            context_query = _build_context_query(claim, original_text)
-            if context_query and context_query not in queries:
-                queries.append(context_query)
 
     elif claim_type == "CAUSAL":
         # Kausalbehauptungen: Faktencheck + Korrelation vs. Kausalität
@@ -536,14 +547,18 @@ def _build_search_queries(claim: Claim, original_text: str = "") -> list[str]:
     elif claim_type == "CONTEXTUAL":
         # Kontextuelle Claims: Faktencheck + Kontext-Suche
         queries.append(f"{text} {suffix_fc}")
-        if original_text and len(original_text) > len(text) + 30:
-            context_query = _build_context_query(claim, original_text)
-            if context_query and context_query not in queries:
-                queries.append(context_query)
 
     else:
         # Fallback für unbekannte Typen
         queries.append(f"{text} {suffix_fc}")
+
+    # ── Kontext-Anreicherung für ALLE Claim-Typen ─────────────────
+    # Kurze/ambige Claims (z.B. "Sie sind ein Spalter") brauchen
+    # Eigennamen und Themen aus dem Quelltext zur Disambiguierung.
+    if original_text and len(original_text) > len(text) + 30:
+        context_query = _build_context_query(claim, original_text)
+        if context_query and context_query not in queries:
+            queries.append(context_query)
 
     return queries
 
@@ -553,10 +568,12 @@ def _build_context_query(claim: Claim, original_text: str) -> str:
 
     Strategie: Nimm den Claim-Text und ergänze die wichtigsten
     thematischen Begriffe aus dem Originaltext, die im Claim fehlen.
+    Eigennamen (Großbuchstaben) werden priorisiert, da sie die besten
+    Disambiguatoren sind (z.B. "Steinmeier" statt "endgültig").
     """
     claim_lower = claim.text.lower()
 
-    # Extrahiere substantielle Wörter aus dem Originaltext (>4 Zeichen,
+    # Extrahiere substantielle Wörter aus dem Originaltext (>3 Zeichen,
     # keine Stoppwörter), die NICHT bereits im Claim vorkommen
     stopwords = {
         "diese", "dieser", "dieses", "einen", "einem", "einer", "eines",
@@ -567,23 +584,36 @@ def _build_context_query(claim: Claim, original_text: str) -> str:
         "denen", "deren", "zeigen", "zeigt", "laut", "mehr", "sehr",
         "andere", "anderen", "anderer", "wieder", "bereits", "dabei",
         "beweist", "beweisen", "endgültig", "menschen", "daten",
+        "instagram", "hashtag", "reel", "post", "video", "foto",
     }
 
-    # Alle "interessanten" Wörter aus dem Originaltext
-    words = re.findall(r"[A-ZÄÖÜa-zäöüß]{4,}", original_text.lower())
-    context_words = []
+    # Eigennamen extrahieren (Großbuchstaben-Wörter ≥3 Zeichen)
+    # Diese sind die stärksten Disambiguatoren (Steinmeier, Bundespräsident, etc.)
+    proper_nouns: list[str] = []
     seen: set[str] = set()
-    for w in words:
-        if w in seen or w in stopwords or w in claim_lower:
+    for word in re.findall(r"[A-ZÄÖÜ][a-zäöüß]{2,}", original_text):
+        w_lower = word.lower()
+        if w_lower in seen or w_lower in stopwords or w_lower in claim_lower:
             continue
-        seen.add(w)
-        context_words.append(w)
+        seen.add(w_lower)
+        proper_nouns.append(word)
+
+    # Dann: allgemeine substantielle Wörter (>4 Zeichen)
+    general_words: list[str] = []
+    for word in re.findall(r"[A-ZÄÖÜa-zäöüß]{5,}", original_text):
+        w_lower = word.lower()
+        if w_lower in seen or w_lower in stopwords or w_lower in claim_lower:
+            continue
+        seen.add(w_lower)
+        general_words.append(word)
+
+    # Eigennamen zuerst, dann allgemeine Wörter
+    context_words = proper_nouns[:3] + general_words[:2]
 
     if not context_words:
         return ""
 
-    # Nimm die ersten 3-4 Kontextbegriffe und kombiniere mit dem Claim-Kern
-    # Kürze den Claim auf die ersten ~60 Zeichen für eine brauchbare Query
+    # Kürze den Claim auf die ersten ~80 Zeichen für eine brauchbare Query
     claim_short = claim.text[:80].rsplit(" ", 1)[0] if len(claim.text) > 80 else claim.text
     extras = " ".join(context_words[:4])
 
@@ -628,9 +658,15 @@ def _build_fallback_queries(
       2. Keyword-Query + "Faktencheck"
       3. Zahlen-fokussierte Query (falls Zahlen im Claim)
     """
+    from models.schemas import ProcessedClaim as _PC_r
     from tools.scrape_ranker import _extract_claim_keywords
 
-    keywords = _extract_claim_keywords(claim.text)
+    # Bevorzuge canonical_text (Pronomen aufgelöst)
+    source_text = claim.text
+    if isinstance(claim, _PC_r) and claim.canonical_text:
+        source_text = claim.canonical_text
+
+    keywords = _extract_claim_keywords(source_text)
     if not keywords:
         return []
 
@@ -642,7 +678,7 @@ def _build_fallback_queries(
     keyword_fc_query = f"{keyword_query} {suffix_fc}"
 
     # Strategie 3: Zahlen + Kontext-Keywords (für statistische Claims)
-    numbers = re.findall(r"\d+[\.,]?\d*%?", claim.text)
+    numbers = re.findall(r"\d+[\.,]?\d*%?", source_text)
     number_query = ""
     if numbers:
         number_query = f"{' '.join(numbers)} {keyword_query}"

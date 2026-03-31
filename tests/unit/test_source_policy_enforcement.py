@@ -258,21 +258,22 @@ class TestDisplayPolicyEnforcement:
 class TestCheckTermsSourcesIdentified:
     """Stellt sicher, dass wir wissen welche Quellen CHECK_TERMS sind."""
 
-    def test_exactly_two_check_terms_sources(self):
-        """Genau arXiv und PubMed sind CHECK_TERMS."""
+    def test_exactly_three_check_terms_sources(self):
+        """arXiv, PubMed und Wikipedia sind CHECK_TERMS."""
         check_terms = [
             s for s in SourceRegistry.all()
             if s.commercial_reuse_ok == CommercialUsePolicy.CHECK_TERMS
         ]
         check_ids = {s.source_id for s in check_terms}
-        assert check_ids == {"arxiv", "pubmed"}
+        assert check_ids == {"arxiv", "pubmed", "wikipedia"}
 
     def test_commercial_safe_excludes_check_terms(self):
         """SourceRegistry.commercial_safe() enthält keine CHECK_TERMS."""
         safe_ids = {s.source_id for s in SourceRegistry.commercial_safe()}
         assert "arxiv" not in safe_ids
         assert "pubmed" not in safe_ids
+        assert "wikipedia" not in safe_ids
 
     def test_commercial_safe_count(self):
-        """commercial_safe() hat 12 Quellen (14 total - 2 CHECK_TERMS)."""
-        assert len(SourceRegistry.commercial_safe()) == 12
+        """commercial_safe() hat 14 Quellen (17 total - 3 CHECK_TERMS)."""
+        assert len(SourceRegistry.commercial_safe()) == 14

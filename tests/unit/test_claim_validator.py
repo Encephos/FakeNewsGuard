@@ -504,3 +504,69 @@ class TestSignalCombination:
         )
         result = self.validator.validate([claim])[0]
         assert result.quality_signals == []
+
+
+# ── Opinion-Reklassifizierung ────────────────────────────────────────────────
+
+
+class TestOpinionReclassification:
+    """Post-Processing: Evaluative/subjektive Claims werden als OPINION reklassifiziert."""
+
+    def setup_method(self):
+        self.validator = ClaimValidator()
+
+    @pytest.mark.parametrize("text", [
+        "Steinmeier ist ein Spalter.",
+        "Der Kanzler ist ein Lügner und Betrüger.",
+        "Diese Politikerin ist eine Versagerin.",
+        "Er ist ein Heuchler und Manipulator.",
+    ])
+    def test_character_judgments_reclassified(self, text: str):
+        """Charakterurteile ('X ist ein Y') werden als OPINION erkannt."""
+        claim = _make_claim(text, ClaimType.FACTUAL)
+        result = self.validator.validate([claim])[0]
+        assert result.type == ClaimType.OPINION
+        assert result.is_checkworthy is False
+
+    @pytest.mark.parametrize("text", [
+        "Die Politik ist schlecht und verantwortungslos.",
+        "Der Vorschlag ist furchtbar und inkompetent.",
+    ])
+    def test_evaluative_adjectives_reclassified(self, text: str):
+        """Wertende Adjektive werden als OPINION erkannt."""
+        claim = _make_claim(text, ClaimType.FACTUAL)
+        result = self.validator.validate([claim])[0]
+        assert result.type == ClaimType.OPINION
+
+    def test_memory_judgment_reclassified(self):
+        """'wird als X in Erinnerung bleiben' ist OPINION."""
+        claim = _make_claim(
+            "Steinmeier wird als Präsident der Spaltung in Erinnerung bleiben.",
+            ClaimType.FACTUAL,
+        )
+        result = self.validator.validate([claim])[0]
+        assert result.type == ClaimType.OPINION
+
+    def test_explicit_opinion_marker(self):
+        """'Ich finde / meiner Meinung nach' ist OPINION."""
+        claim = _make_claim("Ich finde, das ist eine Katastrophe.", ClaimType.FACTUAL)
+        result = self.validator.validate([claim])[0]
+        assert result.type == ClaimType.OPINION
+
+    @pytest.mark.parametrize("text", [
+        "Steinmeier hat den Iran-Konflikt kritisiert.",
+        "Die Kriminalität in Deutschland stieg 2023 um 5,5%.",
+        "Deutschland hat 83 Millionen Einwohner.",
+        "Die AfD hat bei der Europawahl 2024 über 15% erreicht.",
+    ])
+    def test_factual_claims_not_reclassified(self, text: str):
+        """Echte Faktenbehauptungen bleiben FACTUAL."""
+        claim = _make_claim(text, ClaimType.FACTUAL)
+        result = self.validator.validate([claim])[0]
+        assert result.type == ClaimType.FACTUAL
+
+    def test_already_opinion_stays_opinion(self):
+        """Claims die schon OPINION sind, bleiben OPINION."""
+        claim = _make_claim("Er ist ein Versager.", ClaimType.OPINION)
+        result = self.validator.validate([claim])[0]
+        assert result.type == ClaimType.OPINION

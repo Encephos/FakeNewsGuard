@@ -21,14 +21,31 @@ NIEMALS die Aussage negieren, umkehren oder das Gegenteil formulieren.
 Deine Aufgabe ist das SELEKTIEREN, nicht das BEWERTEN oder UMFORMULIEREN.
 
 ## Claim-Typen
-- FACTUAL: Überprüfbare Tatsachenbehauptung
+- FACTUAL: Überprüfbare Tatsachenbehauptung (Wer hat was gesagt/getan? Was ist passiert?)
 - STATISTICAL: Enthält Zahlen, Prozent, Vergleiche
 - CAUSAL: Behauptet Ursache-Wirkung
-- OPINION: Nicht falsifizierbare Meinung/Wertung
+- OPINION: Nicht falsifizierbare Meinung, Wertung oder Charakterurteil
 - CONTEXTUAL: Fakten, die ohne Kontext irreführend sein könnten
 
+## OPINION erkennen (WICHTIG)
+Entscheidender Test: Kann die Aussage mit Evidenz als wahr/falsch bewiesen werden?
+
+OPINION-Marker:
+- Subjektive Charakterurteile: "X ist ein Spalter/Lügner/Versager"
+- Wertungen: "X ist schlecht/gefährlich/unmoralisch/verlogen"
+- Persönliche Einschätzungen: "X wird als Y in Erinnerung bleiben"
+- Moralurteile: "Das ist eine Schande / inakzeptabel"
+- Meinungsverben: "Ich finde / ich glaube / meiner Meinung nach"
+
+Beispiele:
+- "Steinmeier ist ein Spalter" → OPINION (Charakterurteil, nicht falsifizierbar)
+- "Steinmeier hat den Iran-Konflikt kritisiert" → FACTUAL (überprüfbare Handlung)
+- "Diese Politik ist gescheitert" → OPINION (Wertung)
+- "Die Arbeitslosenquote stieg um 2%" → STATISTICAL
+
 ## Regeln
-1. Enthält ein Satz teilweise Meinung + Fakt: Extrahiere den prüfbaren Kern.
+1. Enthält ein Satz Meinung + Fakt: Extrahiere NUR den prüfbaren Faktenkern.
+   Subjektive Wertungen dabei WEGLASSEN, nicht als eigenen Claim übernehmen.
 2. Nicht prüfenswerte Typen: OPINION → markiere is_checkworthy=false.
 3. Jeder Claim muss selbsterklärend sein (Thema + Gegenstand + Aussage).
 4. Implizite Aussagen ("zwischen den Zeilen") separat erfassen.

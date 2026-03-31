@@ -36,12 +36,16 @@ from typing import TYPE_CHECKING, Optional
 
 from pydantic import BaseModel, Field
 
+from tools.data_loader import excerpt_length_config
 from tools.sources.types import (
     AllowedDisplay,
     AllowedStorage,
     ClaimDomain,
     CommercialUsePolicy,
 )
+
+# Excerpt-Längen-Konfiguration (aus data/verdict_calibration.yaml)
+_ELC = excerpt_length_config()
 
 if TYPE_CHECKING:
     # Nur für Type-Checker sichtbar – kein Runtime-Import → kein Zirkelimport.
@@ -87,6 +91,17 @@ class FactType(str, Enum):
         PATENT_CLAIM        – Schutzanspruch eines Patents
         PATENT_STATUS       – Patentstatus (erteilt, ausstehend, abgelaufen)
 
+    Wissen / Entitäten (Wikidata):
+        ENTITY_PROPERTY     – Direkte Eigenschaft einer Entität (z.B. Amt, Gründungsdatum)
+        ENTITY_RELATION     – Beziehung zwischen Entitäten (z.B. CEO von, Hauptstadt von)
+
+    Medien / Corroboration (GDELT):
+        MEDIA_CORROBORATION – Cross-Source-Berichterstattung (Anzahl unabhängiger Quellen)
+        TONE_ANALYSIS       – Sentiment-/Tone-Score einer Berichterstattung
+
+    Kontext (Wikipedia):
+        CONTEXT_SUMMARY     – Enzyklopädische Zusammenfassung / Definition
+
     Generisch:
         FACT_STATEMENT      – Fallback für nicht kategorisierbare Aussagen
     """
@@ -119,6 +134,17 @@ class FactType(str, Enum):
     # Patent
     PATENT_CLAIM = "patent_claim"
     PATENT_STATUS = "patent_status"
+
+    # Wissen / Entitäten (Wikidata)
+    ENTITY_PROPERTY = "entity_property"
+    ENTITY_RELATION = "entity_relation"
+
+    # Medien / Corroboration (GDELT)
+    MEDIA_CORROBORATION = "media_corroboration"
+    TONE_ANALYSIS = "tone_analysis"
+
+    # Kontext (Wikipedia)
+    CONTEXT_SUMMARY = "context_summary"
 
     # Generisch
     FACT_STATEMENT = "fact_statement"
@@ -509,14 +535,17 @@ class OfficialEvidenceItem(BaseModel):
         else:
             tier = 5
 
+        _extended = _ELC.get("extended", 800)
+        _default = _ELC.get("default", 400)
+
         snippets = [f.source_snippet for f in self.normalized_facts if f.source_snippet]
-        excerpt = (snippets[0] if snippets else self.abstract)[:800]
+        excerpt = (snippets[0] if snippets else self.abstract)[:_extended]
 
         # Policy-Durchsetzung: Excerpt gemäß display_policy begrenzen
         if self.display_policy == AllowedDisplay.METADATA_ONLY:
             excerpt = ""
         else:
-            max_len = 400 if self.display_policy == AllowedDisplay.EXCERPT else 800
+            max_len = _default if self.display_policy == AllowedDisplay.EXCERPT else _extended
             excerpt = excerpt[:max_len]
 
         return EvidenceItem(
