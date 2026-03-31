@@ -216,41 +216,218 @@ def format_result(result: dict[str, Any]) -> str:
     return "\n".join(parts)
 
 
-_MAIN_PHASES = ["Phase 1", "Phase 2", "Phase 3", "Phase 4"]
+# ── Progress Display ─────────────────────────────────────────────
+
+_PHASES = [
+    {"id": "Phase 0",   "label": "Inhalte extrahieren",   "optional": True},
+    {"id": "Phase 0.5", "label": "Bildanalyse",           "optional": True},
+    {"id": "Phase 1",   "label": "Behauptungen erkennen", "optional": False},
+    {"id": "Phase 2",   "label": "Faktencheck",           "optional": False},
+    {"id": "Phase 3",   "label": "Rhetorik-Analyse",      "optional": False},
+    {"id": "Phase 4",   "label": "Synthese",              "optional": False},
+]
+
+_REQUIRED_PHASE_COUNT = sum(1 for p in _PHASES if not p["optional"])
+
+_STATUS_EMOJI = {
+    "pending": "\u23F3",       # ⏳
+    "running": "\U0001F504",   # 🔄
+    "done":    "\u2705",       # ✅
+    "error":   "\u26A0\uFE0F", # ⚠️
+}
 
 
-def format_steps_progress(steps: list[dict[str, Any]]) -> str:
-    """Format current progress steps as a compact status message."""
+def _get_phase_status(phase_id: str, steps: list[dict[str, Any]]) -> str:
+    """Return 'pending', 'running', 'done', or 'error' for a phase."""
+    phase_steps = [s for s in steps if s.get("phase") == phase_id]
+    if not phase_steps:
+        return "pending"
+    if any(s.get("status") == "running" for s in phase_steps):
+        return "running"
+    if any(s.get("status") == "error" for s in phase_steps):
+        return "error"
+    return "done"
+
+
+def _get_phase_detail(phase_id: str, steps: list[dict[str, Any]]) -> str:
+    """Get the latest message for a running or errored phase."""
+    phase_steps = [s for s in steps if s.get("phase") == phase_id]
+    if not phase_steps:
+        return ""
+    last = phase_steps[-1]
+    msg = last.get("message", "")
+    return msg[:80] if msg else ""
+
+
+def format_steps_progress(steps: list[dict[str, Any]], tier: str = "") -> str:
+    """Format current progress as a stable phase checklist."""
     if not steps:
         return f"\U0001F9E0 {escape_md('Analyse wird vorbereitet...')}"
 
-    # Phase-based counting: count how many main phases are fully done
-    phases_done = sum(
-        1 for phase_id in _MAIN_PHASES
-        if any(s.get("phase") == phase_id for s in steps)
-        and all(
-            s.get("status") != "running"
-            for s in steps
-            if s.get("phase") == phase_id
-        )
-    )
-    total_phases = len(_MAIN_PHASES)
+    # Count completed required phases
+    done_count = 0
+    for phase in _PHASES:
+        if not phase["optional"] and _get_phase_status(phase["id"], steps) == "done":
+            done_count += 1
 
-    last = steps[-1]
-    agent = last.get("agent", "")
-    msg = last.get("message", "")
-    status = last.get("status", "")
+    # Header
+    tier_label = f" \\({escape_md(tier.upper())}\\)" if tier else ""
+    header = f"\U0001F9E0 {bold('Analyse')}{tier_label}  {escape_md(f'{done_count}/{_REQUIRED_PHASE_COUNT}')}"
 
-    # Progress dots (one dot per main phase)
-    dots = "\u25C9" * phases_done + "\u25CB" * (total_phases - phases_done)
+    lines = [header, ""]
 
-    icon = "\U0001F9E0" if status == "running" else "\u2705"
-    header = f"{icon} {bold('Analyse')}  {escape_md(dots)}  {escape_md(f'{phases_done}/{total_phases}')}"
-    detail = escape_md(msg[:120]) if msg else ""
+    for phase in _PHASES:
+        status = _get_phase_status(phase["id"], steps)
 
-    lines = [header]
-    if agent:
-        lines.append(f"    \u2192 {italic(agent)}")
-    if detail:
-        lines.append(f"    {detail}")
+        # Hide optional phases that haven't started
+        if phase["optional"] and status == "pending":
+            continue
+
+        emoji = _STATUS_EMOJI.get(status, "\u23F3")
+        lines.append(f"{emoji}  {escape_md(phase['label'])}")
+
+        # Show detail for running or error phases
+        if status in ("running", "error"):
+            detail = _get_phase_detail(phase["id"], steps)
+            if detail:
+                lines.append(f"      \u21B3 {escape_md(detail)}")
+
     return "\n".join(lines)
+
+
+# ── /start Message ───────────────────────────────────────────────
+
+def format_start_message() -> str:
+    """Build the /start welcome message."""
+    return "\n".join([
+        f"\U0001F9E0 {bold('FakeNewsGuard')}",
+        f"_{escape_md('KI-gestützter Faktencheck')}_",
+        "",
+        f"{escape_md('Willkommen! Sende mir einen Text, eine Behauptung')}",
+        f"{escape_md('oder einen Link')} \u2013 {escape_md('ich prüfe den Inhalt auf:')}",
+        "",
+        f"  \U0001F50D {escape_md('Faktentreue der Behauptungen')}",
+        f"  \U0001F4CA {escape_md('Zahlen- & Statistikmanipulation')}",
+        f"  \U0001F3AD {escape_md('Rhetorische Manipulationstechniken')}",
+        f"  \U0001F5BC {escape_md('Bildmanipulation & Kontext')}",
+        "",
+        divider(),
+        "",
+        f"{bold('Unterstützte Plattformen')}",
+        f"  \U0001D54F {escape_md('Twitter/X')}  \u2022  "
+        f"\U0001F9F5 {escape_md('Threads')}  \u2022  "
+        f"\U0001F4F7 {escape_md('Instagram')}",
+        f"  \U0001F4D8 {escape_md('Facebook')}  \u2022  "
+        f"\u25B6\uFE0F {escape_md('YouTube')}  \u2022  "
+        f"\U0001F4F0 {escape_md('Nachrichtenartikel')}",
+        f"  \U0001F310 {escape_md('Beliebige Webseiten mit Text')}",
+        "",
+        divider(),
+        "",
+        f"{bold('Analyse-Stufen')}",
+        "",
+        f"  {code('/lite')}  \u2013  {escape_md('Schnellcheck')}",
+        f"  {escape_md('Kostenlose Modelle. Ideal für einfache Behauptungen.')}",
+        f"  {escape_md('Ergebnis in ca. 30 Sekunden.')}",
+        "",
+        f"  {code('/pro')}   \u2013  {escape_md('Standardanalyse')}",
+        f"  {escape_md('Stärkere Modelle, ausgewogene Tiefe.')}",
+        f"  {escape_md('Ergebnis in ca. 1\u20132 Minuten.')}",
+        "",
+        f"  {code('/max')}   \u2013  {escape_md('Tiefenanalyse')}",
+        f"  {escape_md('Beste Modelle, mehrere Quellen, Bildanalyse.')}",
+        f"  {escape_md('Ergebnis in ca. 2\u20133 Minuten.')}",
+        "",
+        f"  _{escape_md('Ohne Angabe wird dein Standard-Tier verwendet.')}_",
+        "",
+        divider(),
+        "",
+        f"{bold('Schnellstart')}",
+        f"  {escape_md('Einfach Text oder Link senden')} \u2192 {escape_md('los gehts!')}",
+        f"  {escape_md('Oder:')} {code('/max https://x.com/user/status/123')}",
+        "",
+        f"{bold('Befehle')}",
+        f"  {code('/help')}       \u2013  {escape_md('Hilfe & Beispiele')}",
+        f"  {code('/link')}       \u2013  {escape_md('Telegram mit Webkonto verknüpfen')}",
+        f"  {code('/zustimmen')}  \u2013  {escape_md('Datenverarbeitung zustimmen')}",
+        "",
+        divider(),
+        "",
+        f"\u2139\uFE0F {bold('Hinweis zur Datenverarbeitung')}",
+        f"{escape_md('Alle Anfragen werden protokolliert, um das Modell')}",
+        f"{escape_md('und die Architektur zu verbessern.')}",
+        f"{escape_md('Sende')} {code('/zustimmen')}{escape_md(', um zuzustimmen und loszulegen.')}",
+    ])
+
+
+# ── /help Message ────────────────────────────────────────────────
+
+def format_help_message() -> str:
+    """Build the /help message."""
+    return "\n".join([
+        f"\U0001F4D6 {bold('Hilfe \u2013 FakeNewsGuard')}",
+        "",
+        f"{bold('So funktioniert es')}",
+        f"  *1\\.* {escape_md('Sende einen Text, eine Behauptung oder einen Link')}",
+        f"  *2\\.* {escape_md('Die KI extrahiert alle prüfbaren Behauptungen')}",
+        f"  *3\\.* {escape_md('Jede Behauptung wird mit aktuellen Quellen verifiziert')}",
+        f"  *4\\.* {escape_md('Zahlen & Statistiken werden auf Manipulation geprüft')}",
+        f"  *5\\.* {escape_md('Rhetorische Tricks werden identifiziert')}",
+        f"  *6\\.* {escape_md('Du erhältst eine Gesamtbewertung mit Belegen & Quellen')}",
+        "",
+        divider(),
+        "",
+        f"{bold('Beispiele')}",
+        "",
+        f"\U0001F4AC {italic('Text senden:')}",
+        f"  {escape_md('\"Deutschland hat die höchste Inflationsrate in Europa\"')}",
+        "",
+        f"\U0001F517 {italic('Link senden:')}",
+        f"  {escape_md('https://x.com/user/status/123')}",
+        f"  {escape_md('https://www.spiegel.de/artikel/...')}",
+        "",
+        f"\U0001F3AF {italic('Tier wählen:')}",
+        f"  {code('/max')} {escape_md('https://x.com/user/status/123')}",
+        f"  {code('/lite')} {escape_md('Deutschland hat 80 Millionen Einwohner')}",
+        "",
+        divider(),
+        "",
+        f"{bold('Alle Befehle')}",
+        f"  {code('/start')}        \u2013  {escape_md('Willkommensnachricht')}",
+        f"  {code('/help')}         \u2013  {escape_md('Diese Hilfe anzeigen')}",
+        f"  {code('/link <CODE>')}  \u2013  {escape_md('Telegram mit Webkonto verknüpfen')}",
+        f"  {code('/zustimmen')}    \u2013  {escape_md('Datenverarbeitung zustimmen')}",
+        f"  {code('/lite <Text>')}  \u2013  {escape_md('Schnellcheck')}",
+        f"  {code('/pro <Text>')}   \u2013  {escape_md('Standardanalyse')}",
+        f"  {code('/max <Text>')}   \u2013  {escape_md('Tiefenanalyse')}",
+        "",
+        divider(),
+        "",
+        f"{bold('Analyse-Stufen im Detail')}",
+        "",
+        f"  {bold('LITE')} \u2013 {escape_md('Schneller Basischeck mit kostenlosen Modellen.')}",
+        f"  {escape_md('Gut für einfache, einzelne Behauptungen.')}",
+        f"  {escape_md('Ergebnis in ca. 30 Sekunden.')}",
+        "",
+        f"  {bold('PRO')} \u2013 {escape_md('Ausgewogene Analyse mit stärkeren Modellen.')}",
+        f"  {escape_md('Empfohlen für die meisten Fälle.')}",
+        f"  {escape_md('Ergebnis in ca. 1\u20132 Minuten.')}",
+        "",
+        f"  {bold('MAX')} \u2013 {escape_md('Umfassende Tiefenanalyse mit den besten Modellen.')}",
+        f"  {escape_md('Mehrere Quellen, Zahlenaudit, Bildanalyse.')}",
+        f"  {escape_md('Ergebnis in ca. 2\u20133 Minuten.')}",
+        "",
+        f"  _{escape_md('Ohne Tier-Angabe wird automatisch dein Standard-Tier verwendet.')}_",
+        "",
+        divider(),
+        "",
+        f"{bold('Bewertungsskala')}",
+        f"  \u2705 {escape_md('Wahr')}  \u2022  "
+        f"\U0001F7E2 {escape_md('Größtenteils wahr')}  \u2022  "
+        f"\U0001F7E1 {escape_md('Irreführend')}",
+        f"  \U0001F7E0 {escape_md('Größtenteils falsch')}  \u2022  "
+        f"\U0001F534 {escape_md('Falsch')}",
+        "",
+        divider(),
+        f"_{escape_md('Die Analyse dauert je nach Stufe ca. 30 Sek. \u2013 3 Min.')}_",
+    ])
