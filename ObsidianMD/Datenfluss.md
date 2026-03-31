@@ -10,30 +10,36 @@ Dieses Dokument verfolgt eine einzelne Analyse-Anfrage durch das gesamte System.
 
 ```
 Nutzer
-  │  POST /api/analyze { text, tier }
+  │  POST /api/analyze { text, url, tier }
   ▼
-FastAPI (api.py)
-  │  job_id erstellt, Hintergrund-Task gestartet
+FastAPI (api/)
+  │  job_id erstellt, Hintergrund-Task gestartet (_run_job)
   ▼
-Orchestrator.analyze_async()
+_run_job() Background Worker
   │
-  ├─ Phase 0: Initialisierung
-  │    └─ analysis_id = uuid.uuid4().hex[:12]  (Korrelations-ID)
+  ├─ Phase 0: URL-Content-Extraktion (nur wenn URL angegeben)
+  │    └─ ContentExtractor → ExtractedContent (text + images[])
   │
-  ├─ Phase 1: ClaimExtractor + Deduplication
-  │    ├─ LLM zerlegt Text in atomare Claims
-  │    ├─ Dedupliziert nach canonical_hash (nur 1. Vorkommen behalten)
-  │    └─ Top-N Filterung (nach priority_score)
+  ├─ Phase 0.5: Bild-Analyse (nur für Social-Media-Plattformen)
+  │    └─ ImageAnalyzerAgent(images) ← Twitter / Instagram / Threads
   │
-  ├─ Phase 2 + 3 (asyncio.gather):
-  │    ├─ FactChecker (Claim 1) ──┐
-  │    ├─ FactChecker (Claim 2)   │ parallel
-  │    ├─ ...                     │
-  │    ├─ NumberAuditor (stat.)   │
-  │    └─ RhetoricAnalyzer   ─────┘
+  ├─ Orchestrator.analyze_async(text)
+  │    ├─ Phase 1: ClaimExtractor + Deduplication
+  │    │    ├─ LLM zerlegt Text in atomare Claims
+  │    │    ├─ Dedupliziert nach canonical_hash (nur 1. Vorkommen behalten)
+  │    │    └─ Top-N Filterung (nach priority_score)
+  │    │
+  │    ├─ Phase 2 + 3 (asyncio.gather, Claims in 4er-Batches):
+  │    │    ├─ FactChecker (Claim 1) ──┐
+  │    │    ├─ FactChecker (Claim 2)   │ parallel
+  │    │    ├─ ...                     │
+  │    │    ├─ NumberAuditor (stat.)   │
+  │    │    └─ RhetoricAnalyzer   ─────┘
+  │    │
+  │    └─ Phase 4: Synthesizer
+  │         └─ SynthesisResult (Rating, Korrekturen, Quellen, analysis_id …)
   │
-  └─ Phase 4: Synthesizer
-       └─ SynthesisResult (Rating, Korrekturen, Quellen, analysis_id …)
+  └─ Auto-Archivierung + Cross-Reference-Graph aktualisieren
   │
   ▼
 Job-Store → GET /api/jobs/{id} liefert Ergebnis
@@ -82,59 +88,145 @@ Nach Deduplizierung werden nach `priority_score` sortiert; konfigurierbar via `C
 
 **Agenten:** [[Agent-FactChecker]], [[Agent-NumberAuditor]]
 
-Für **jeden** Claim wird ein eigener Async-Task gestartet. Alle laufen gleichzeitig.
+Für **jeden** Claim wird ein eigener Async-Task gestartet. Alle laufen gleichzeitig mit `asyncio.gather()`:
+
+```python
+# Aus orchestrator.py:
+tasks = []
+for claim in top_claims:
+    tasks.append(fact_checker.run_safe_async(claim, original_text=text))
+    if claim.type == ClaimType.STATISTICAL:
+        tasks.append(number_auditor.run_safe_async(claim))
+
+results = await asyncio.gather(*tasks)
+```
+
+**Fehlerbehandlung:** Alle Agenten außer ClaimExtractor nutzen `run_safe_async()` → Fehler werden gesammelt, aber die Analyse läuft weiter.
 
 ### FactChecker-Pipeline pro Claim
 
+**Agent:** `agents/fact_checker.py` (Facade, wraps EvidenceBuilder + CoVe + Verdict)
+
 ```
-1. Cache-Lookup (SHA256-Key)
-     └─ Treffer → sofort zurückgeben
-     └─ Kein Treffer → Fallback zu Semantic Cache (optional, Threshold 0.92)
-     └─ Semantic Treffer → sofort zurückgeben
-     └─ Kein Treffer → weiter
+1. Cache-Lookup (SHA256-Key: claim_canonical_hash)
+   ├─ Hit (exact) → FactCheckResult sofort zurückgeben
+   ├─ Miss → Fallback zu Semantic Cache (optional)
+   │   └─ Embedding-Similarity (Threshold 0.92)
+   │   └─ Hit → FactCheckResult zurückgeben
+   └─ Kein Hit → weiter
 
-2. LLM generiert 3 optimierte Suchanfragen
-     (kontextsensitiv: Original-Text + Claim-Text)
+2. ClaimRouter.route_and_apply(claim)
+   └─ Heuristische Quellenauswahl (kein LLM)
+   └─ Mappt Claim-Signale → SourceRegistry
+   └─ Output: Priorisierte Liste institutioneller Quellen + site:-Hints für SearXNG
 
-3. Multi-Search (alle Anfragen parallel)
-     └─ Ergebnisse: Titel, URL, Snippet
+3. EvidenceBuilderAgent.run_safe_async(claim)
+   ├─ Adaptive Query-Generierung (LLM)
+   │   └─ FACTUAL: 1-2 Queries
+   │   └─ STATISTICAL: 3-5 Queries
+   │
+   ├─ Multi-Search (parallel)
+   │   ├─ SearXNGClient (Primär, mit site:-Hints von Router)
+   │   ├─ LangSearchClient (strukturierte Ergebnisse)
+   │   ├─ GoogleFactCheckAPI (direkte Factchecker-Matches)
+   │   ├─ LocalFactCheckDB (Offline-Fallback, DataCommons)
+   │   └─ ClaimRouter → SourceClients (17 institutionelle Quellen)
+   │       ├─ Neu: GDELTClient (Cross-Source-Corroboration)
+   │       ├─ Neu: WikidataClient (Entity-Verifizierung, SPARQL)
+   │       └─ Neu: WikipediaClient (Kontext-Snippets)
+   │
+   ├─ Evidence Deduplication (URL-Normalisierung)
+   │
+   ├─ Evidence Ranking
+   │   └─ Formel: domain_tier*0.40 + relevance*0.35 + fc_bonus*0.15 + gfc_bonus*0.10
+   │   └─ Optional: OpenPageRank Tier-Adjustment (±1.0 basierend auf Domain-PageRank)
+   │
+   ├─ Scraping (Top-N Quellen, async max 8 parallel)
+   │   └─ Trafilatura/Newspaper4k mit Boilerplate-Entfernung
+   │
+   ├─ Contradiction Detection (WeightedContradiction)
+   │   ├─ Typ: negation, numeric, temporal, tier, direction
+   │   ├─ Severity: low, medium, high (abhängig von Source-Tier)
+   │   └─ Max 5 beste Widersprüche pro Claim
+   │
+   └─ Trust Boundary: EvidencePack
+       └─ EvidenceItem.excerpt max 800 Zeichen hard-cut
+       └─ format_for_verdict() einzige Methode für LLM-Output
 
-4. EvidenceBuilder: Strukturiertes EvidencePack
-     └─ Source-Klassifikation (Tier-Hierarchie)
-     └─ Relevanz-Scoring (Keyword-Overlap vs. Claim-Text)
-     └─ Scraping (async, max 8 gleichzeitig)
-     └─ Widerspruchserkennung (Typ/Schweregrad, max 5)
-     └─ Trust Boundary: Excerpts auf max. 800 Zeichen kürzen
+4. CoVeProcessor.process() (optional, if cove.enabled)
+   ├─ Phase 1: Baseline-Assessment
+   │   └─ LLM bewertet Claim auf Basis EvidencePack
+   │
+   ├─ Phase 2: Verifikationsfragen generieren
+   │   └─ 2-N Fragen, die Baseline widerlegen könnten
+   │   └─ Typen: number / timeframe / source / causality / definition / comparison / context
+   │
+   ├─ Phase 3: Unabhängige Antworten
+   │   └─ Jede Frage einzeln beantworten, OHNE Baseline-Paraphrase
+   │
+   └─ Phase 4: Reconciliation
+       └─ Baseline vs. Verifikationsantworten abgleichen
+       └─ Output: CoVeTrace mit final_rating, confidence_delta, contradictions_found
 
-5. CoVeProcessor (optional, if cove.enabled)
-     └─ Baseline-Assessment (Schätzung basierend auf Evidence)
-     └─ Verifikationsfragen generieren (2–3)
-     └─ Unabhängige Antworten (ohne Baseline-Paraphrase)
-     └─ Reconciliation (Konsistenz-Check)
+5. VerdictAgent.execute(claim, evidence_pack)
+   ├─ Liest NUR strukturiertes EvidencePack (NIEMALS rohes HTML)
+   ├─ Bewertet Claim mit Confidence
+   ├─ Berücksichtigt CoVeTrace falls vorhanden
+   └─ Output: FactCheckResult(rating, evidence, correction, sources)
 
-6. VerdictAgent: Rating-Entscheidung
-     └─ Liest strukturiertes EvidencePack (nie rohes HTML)
-     └─ Confidence basierend auf Evidence-Qualität
+6. Verdict Calibration
+   ├─ Confidence-Ceilings je nach Evidence-Qualität
+   ├─ Consensus-Contradiction-Override
+   │   └─ AGREEING+FALSE → MISLEADING
+   │   └─ CONTRADICTORY+TRUE → MISLEADING
+   └─ WeightedConfidence Berechnung
 
-7. VerdictCalibration: Confidence-Ceilings + Overrides
-     └─ Consensus-Contradiction-Override:
-        Wenn AGREEING+FALSE oder CONTRADICTORY+TRUE → MISLEADING
-
-8. Cache-Storage
-     └─ Ergebnis wird mit cache_key gespeichert
-     └─ Optional: Embedding für Semantic Cache
+7. Cache-Storage
+   ├─ FactCheckResult mit cache_key speichern
+   ├─ TTL: Standard 24 Stunden (konfigurierbar via CACHE_TTL_HOURS)
+   └─ Optional: Embedding für Semantic Cache
 ```
 
 ### NumberAuditor (nur für STATISTICAL-Claims)
 
+**Agent:** `agents/number_auditor.py`
+
+Wird nur für Claims mit `claim.type == ClaimType.STATISTICAL` gestartet (parallel zu FactChecker).
+
 ```
-1. Cache-Lookup
-2. LLM/Suche: Statistik-Quellen finden
-3. LLM prüft Methodik:
-   - Berechnungsfehler?
-   - Manipulation (Basiseffekt, Cherry-Picking …)?
-   - Korrekte Interpretation?
+1. Cache-Lookup (same mechanism as FactChecker)
+   └─ SHA256(claim_text) als Key
+
+2. Adaptive Query-Generierung für Statistik-Kontext
+   ├─ Spezifische Suchen für Statistik-Datenbanken
+   ├─ Year-aware Queries
+   └─ Betroffene Länder/Regionen als Kontext
+
+3. Multi-Search nach Statistik-Quellen
+   ├─ Primär: Nationale Statistik-Ämter (destatis.de, etc.)
+   ├─ Sekundär: Internationale Datenbanken (World Bank, Eurostat)
+   └─ Tertiär: Peer-reviewed Publikationen (arXiv, SSRN)
+
+4. LLM-Prüfung der Methodik
+   ├─ Berechnungsfehler? (Addition, Prozentrechnung, Normalisierung)
+   ├─ Cherry-Picking? (Selektive Zeiträume, Base Effects)
+   ├─ Simpson's Paradoxon? (Aggregation vs. Segment-Level)
+   ├─ Kategorie-Verwechslung? (Suspects vs. Convicted vs. Charged)
+   ├─ Pro-Kopf-Normalisierung? (Absolut vs. Relativ)
+   └─ Statistische Signifikanz? (Schwankung vs. Trend)
+
+5. NumberAuditResult
+   ├─ verdict: CORRECT / PARTIALLY_CORRECT / INCORRECT / UNCLEAR
+   ├─ methodological_issues: list[str]
+   ├─ suggested_correction: str
+   ├─ confidence: float
+   └─ sources: list[str]
+
+6. Cache-Storage
+   └─ Result mit TTL speichern
 ```
+
+**Hinweis:** NumberAuditor nutzt NICHT das Trust Boundary-Modell wie FactChecker. Es arbeitet direkt mit Raw-HTML-Inhalten und generiert seine eigene Strukturierung.
 
 ---
 

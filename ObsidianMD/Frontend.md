@@ -31,6 +31,9 @@ frontend/src/app/
 ├── profile/              # Nutzerprofil & Einstellungen
 │   └── page.tsx
 ├── components/           # Wiederverwendbare Komponenten
+│   ├── LandingPage.tsx
+│   ├── AnalysisPage.tsx
+│   ├── Providers.tsx
 │   ├── ChatInput.tsx
 │   ├── Header.tsx
 │   ├── ResultDisplay.tsx
@@ -58,12 +61,14 @@ frontend/src/app/
 
 ### Haupt-Analyse (`page.tsx`)
 
-Die zentrale Seite des Systems:
+`page.tsx` rendert bedingt: `user ? <AnalysisPage /> : <LandingPage />`
 
-1. **Eingabe**: Textarea mit URL-Erkennung (ChatInput)
-2. **Tier-Auswahl**: Lite / Pro / Max (TierSelector)
-3. **Live-Analyse**: Schritte werden in Echtzeit angezeigt (ReasoningSteps)
-4. **Ergebnis**: Detaillierte Darstellung (ResultDisplay)
+- **LandingPage** (`components/LandingPage.tsx`) – Startseite für nicht eingeloggte Nutzer
+- **AnalysisPage** (`components/AnalysisPage.tsx`) – Hauptfunktionalität für eingeloggte Nutzer:
+  1. **Eingabe**: Textarea mit URL-Erkennung (ChatInput)
+  2. **Tier-Auswahl**: Lite / Pro / Max (TierSelector)
+  3. **Live-Analyse**: Schritte werden in Echtzeit angezeigt (ReasoningSteps)
+  4. **Ergebnis**: Detaillierte Darstellung (ResultDisplay)
 
 **Job-Persistenz:** Laufende Jobs werden in `localStorage` gespeichert. Bei Seiten-Reload wird der Job automatisch weiter gepollt (10-Minuten-Fenster).
 
@@ -163,7 +168,7 @@ async function analyzeArticle(
 **Flow:**
 1. Falls `url`: erst `POST /api/extract`
 2. `POST /api/analyze` → `job_id`
-3. Polling-Loop: `GET /api/jobs/{job_id}` alle 1,5s
+3. Polling-Loop: `GET /api/jobs/{job_id}` alle 2s (960 Versuche = 32 Min.)
 4. Steps werden via `onStep` Callback weitergeleitet
 5. Bei `status === "done"` → `SynthesisResult` zurückgeben
 

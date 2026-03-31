@@ -2,7 +2,7 @@
 
 > Zurück: [[README]] | Siehe auch: [[Architektur]], [[Orchestrator]]
 
-FakeNewsGuard verwendet **6 spezialisierte Agenten**, die alle von `BaseAgent` erben. Jeder Agent hat eine klar abgegrenzte Aufgabe.
+FakeNewsGuard verwendet **6 Top-Level-Agenten**, die alle von `BaseAgent` erben. Intern werden weitere spezialisierte Hilfsagenten eingesetzt (EvidenceBuilder, CoVeProcessor, VerdictAgent). Jeder Agent hat eine klar abgegrenzte Aufgabe.
 
 ---
 
@@ -28,27 +28,30 @@ Die Basisklasse stellt allen Agenten eine gemeinsame Infrastruktur bereit.
 ```python
 BaseAgent(
     config: AppConfig,
-    llm_client: LLMClient,
-    search_client: AsyncWebSearchClient | None = None,
+    llm_client: LLMClient | None = None,        # optional
+    search_client: WebSearchClient | None = None,
     cache: ClaimCache | None = None,
 )
 ```
 
 ### Wichtige Methoden
 
-| Methode | Beschreibung |
-|---|---|
-| `run(input)` | Synchrone Ausführung |
-| `run_async(input)` | Asynchrone Ausführung |
-| `run_safe(input)` | → `(result, None)` oder `(None, error_str)` |
-| `run_safe_async(input)` | Async-Version von run_safe |
-| `_llm_text(system, user)` | Reine Text-Antwort vom LLM |
-| `_llm_json(system, user)` | JSON-Antwort (mit Parsing) |
-| `_llm_structured(system, user, schema)` | Native Structured Output |
-| `_llm_vision(system, user, image_urls)` | Multimodale Anfrage |
-| `_web_search(query, n)` | Websuche über Search-Client |
-| `_cache_get(key)` | Cache-Abfrage |
-| `_cache_set(key, value)` | Cache-Eintrag schreiben |
+| Methode | Signatur | Beschreibung |
+|---|---|---|
+| `run(input_data, context="")` | sync | Synchrone Ausführung |
+| `run_async(input_data, context="")` | async | Asynchrone Ausführung |
+| `run_safe(input_data, context="")` | sync | → `(result, None)` oder `(None, error_str)` |
+| `run_safe_async(input_data, context="")` | async | Async-Version von run_safe |
+| `execute(input_data, context="")` | abstract | Muss in Subklassen überschrieben werden |
+| `_llm_text(system, user)` | | Reine Text-Antwort vom LLM |
+| `_llm_json(system, user)` | | JSON-Antwort (mit Parsing) |
+| `_llm_structured(system, user, schema, tool_name, tool_description)` | | Native Structured Output |
+| `_llm_vision(system, user, image_urls)` | | Multimodale Anfrage |
+| `_web_search(query, max_results=5)` | | Single-Query Websuche |
+| `_web_multi_search(queries, max_results=5)` | | Multi-Query Websuche parallel |
+| `_cache_get(claim_text, context="")` | | Cache-Abfrage |
+| `_cache_set(claim_text, result, context="")` | | Cache-Eintrag schreiben |
+| `_log(message)` | | Strukturierter Log-Eintrag |
 
 ### Graceful Degradation
 
@@ -73,7 +76,7 @@ Für Agenten, die sync-Bibliotheken verwenden, gibt es einen Thread-Pool:
 loop.run_in_executor(thread_pool, sync_function, *args)
 ```
 
-Standard: 32 Worker-Threads (skaliert mit CPU-Kernen).
+Standard: `min(32, os.cpu_count() * 4)` Worker-Threads.
 
 ---
 
@@ -120,7 +123,7 @@ Standard: 32 Worker-Threads (skaliert mit CPU-Kernen).
 - **Besonderheit:** Gewichtet Teilresultate, berechnet Konfidenzscore
 
 ### [[Agent-ImageAnalyzer]] – ImageAnalyzerAgent
-- **Input:** Liste von Bild-URLs
+- **Input:** `dict` mit `image_urls: list[str]` (max. 5) + `post_text: str`
 - **Output:** `ImageAnalysisResult`
 - **Cache:** Nein
 - **Websuche:** Nein
