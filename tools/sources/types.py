@@ -133,6 +133,20 @@ class ClaimDomain(str, Enum):
     TRADE = "trade"
     """Handel, Außenwirtschaft, Zölle, Exportkontrollen."""
 
+    # ── Wissens- und Nachrichtendomänen (GDELT, Wikidata, Wikipedia) ──
+
+    BIOGRAPHICAL = "biographical"
+    """Personen-Fakten: Amt, Geburt, Tod, Beziehungen."""
+
+    GENERAL = "general"
+    """Allgemeine Nachrichtenverifizierung, Cross-Source-Corroboration."""
+
+    GEOGRAPHIC = "geographic"
+    """Orte: Hauptstädte, Einwohnerzahlen, Fläche, Lage."""
+
+    INSTITUTIONAL = "institutional"
+    """Organisations-Fakten: Gründung, Sitz, Leitung."""
+
 
 # ── SourceConfig ──────────────────────────────────────────────────────────────
 

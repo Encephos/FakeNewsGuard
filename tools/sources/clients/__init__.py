@@ -3,7 +3,7 @@
 Jeder Adapter erbt von ``BaseSourceAdapter`` und implementiert das einheitliche
 Vier-Methoden-Interface: search, fetch_details, normalize, get_policy.
 
-Verfügbare Adapter (13 Quellen):
+Verfügbare Adapter (17 Quellen):
     WorldBankClient        – World Bank Open Data (Wirtschaft/Entwicklung)
     OpenAlexClient         – OpenAlex (Wissenschaft, CC0)
     ClinicalTrialsClient   – ClinicalTrials.gov (Klinische Studien)
@@ -18,6 +18,9 @@ Verfügbare Adapter (13 Quellen):
     DailyMedClient         – DailyMed (FDA-Etikettierungen)
     PubMedClient           – PubMed (Biomedizin-Literatur, metadata-only)
     CERNOpenDataClient     – CERN Open Data (Physik-Forschungsdaten)
+    GDELTClient            – GDELT Project (Cross-Source-Corroboration)
+    WikidataClient         – Wikidata (Entity-Verifizierung, SPARQL)
+    WikipediaClient        – Wikipedia DE (Kontext-Snippets)
 
 Basisklassen / Utilities:
     BaseSourceAdapter      – Abstrakte Basisklasse; von allen Adaptern zu erben.
@@ -58,11 +61,14 @@ from tools.sources.clients.crossref import CrossrefClient
 from tools.sources.clients.dailymed import DailyMedClient
 from tools.sources.clients.eur_lex import EURLexClient
 from tools.sources.clients.eurostat import EurostatClient
+from tools.sources.clients.gdelt import GDELTClient
 from tools.sources.clients.gleif import GLEIFClient
 from tools.sources.clients.openalex import OpenAlexClient
 from tools.sources.clients.openfda import OpenFDAClient
 from tools.sources.clients.pubmed import PubMedClient
 from tools.sources.clients.uspto import USPTOClient
+from tools.sources.clients.wikidata import WikidataClient
+from tools.sources.clients.wikipedia import WikipediaClient
 from tools.sources.clients.world_bank import WorldBankClient
 
 __all__ = [
@@ -71,6 +77,7 @@ __all__ = [
     "BaseSourceAdapter",
     "ArXivClient",
     "CERNOpenDataClient",
+    "GDELTClient",
     "ClinicalTrialsClient",
     "CompaniesHouseClient",
     "CrossrefClient",
@@ -82,5 +89,7 @@ __all__ = [
     "OpenFDAClient",
     "PubMedClient",
     "USPTOClient",
+    "WikidataClient",
+    "WikipediaClient",
     "WorldBankClient",
 ]
