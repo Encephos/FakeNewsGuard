@@ -25,6 +25,16 @@ eval/snapshots/*.json
 !eval/snapshots/reg-001.json
 !eval/snapshots/noisy-001.json
 
+# Node / Frontend
+node_modules/
+.next/
+out/
+dist/
+
+# Remotion
+remotion-intro/out/
+remotion-intro/node_modules/
+
 # IDEs
 .vscode/
 .idea/
