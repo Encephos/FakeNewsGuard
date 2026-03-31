@@ -38,6 +38,7 @@ Verwendung::
 
 from __future__ import annotations
 
+from tools.data_loader import source_authority_weights
 from tools.sources.types import (
     AllowedDisplay,
     AllowedStorage,
@@ -46,6 +47,9 @@ from tools.sources.types import (
     CommercialUsePolicy,
     SourceConfig,
 )
+
+# Authority-Weights aus data/source_authority.yaml (überschreibt Hardcoded-Defaults)
+_SAW = source_authority_weights()
 
 # ── Source-Definitionen ───────────────────────────────────────────────────────
 
@@ -68,7 +72,7 @@ _WORLD_BANK = SourceConfig(
         ClaimDomain.FINANCIAL,
         ClaimDomain.TRADE,
     ),
-    authority_weight=0.88,
+    authority_weight=_SAW.get("world_bank", 0.88),
     classifier_domains=("worldbank.org", "data.worldbank.org"),
     jurisdictions=("global",),
     rate_limit_rps=10.0,
@@ -98,7 +102,7 @@ _GLEIF = SourceConfig(
         ClaimDomain.LEGAL,
         ClaimDomain.FINANCIAL,
     ),
-    authority_weight=0.92,
+    authority_weight=_SAW.get("gleif", 0.92),
     classifier_domains=("gleif.org",),
     jurisdictions=("global",),
     rate_limit_rps=3.0,
@@ -129,7 +133,7 @@ _OPENFDA = SourceConfig(
         ClaimDomain.REGULATORY,
         ClaimDomain.MEDICAL,
     ),
-    authority_weight=0.95,
+    authority_weight=_SAW.get("openfda", 0.95),
     classifier_domains=("api.fda.gov", "fda.gov", "open.fda.gov"),
     jurisdictions=("us",),
     rate_limit_rps=1.0,  # 240/min mit API-Key; 40/min ohne Key → 0.67 req/s
@@ -158,7 +162,7 @@ _OPENALEX = SourceConfig(
         ClaimDomain.SCIENTIFIC,
         ClaimDomain.MEDICAL,
     ),
-    authority_weight=0.78,
+    authority_weight=_SAW.get("openalex", 0.78),
     classifier_domains=("openalex.org",),
     jurisdictions=("global",),
     rate_limit_rps=10.0,  # Polite Pool: 10 req/s; ohne Email: ~1 req/s
@@ -190,7 +194,7 @@ _ARXIV = SourceConfig(
         ClaimDomain.MEDICAL,
         ClaimDomain.STATISTICAL,
     ),
-    authority_weight=0.70,
+    authority_weight=_SAW.get("arxiv", 0.70),
     classifier_domains=("arxiv.org", "export.arxiv.org"),
     jurisdictions=("global",),
     rate_limit_rps=0.33,  # Offiziell: max 1 req/3s für API-Calls
@@ -222,7 +226,7 @@ _CROSSREF = SourceConfig(
         ClaimDomain.MEDICAL,
         ClaimDomain.STATISTICAL,
     ),
-    authority_weight=0.82,
+    authority_weight=_SAW.get("crossref", 0.82),
     classifier_domains=("api.crossref.org", "crossref.org", "doi.org"),
     jurisdictions=("global",),
     rate_limit_rps=5.0,  # Polite Pool: bis 50 req/s; ohne Email: niedrig
@@ -252,7 +256,7 @@ _CERN_OPEN_DATA = SourceConfig(
     claim_domains=(
         ClaimDomain.SCIENTIFIC,
     ),
-    authority_weight=0.87,
+    authority_weight=_SAW.get("cern_open_data", 0.87),
     classifier_domains=("opendata.cern.ch", "cern.ch"),
     jurisdictions=("global",),
     rate_limit_rps=2.0,
@@ -284,7 +288,7 @@ _EUROSTAT = SourceConfig(
         ClaimDomain.TRADE,
         ClaimDomain.REGULATORY,
     ),
-    authority_weight=0.95,
+    authority_weight=_SAW.get("eurostat", 0.95),
     classifier_domains=("eurostat.ec.europa.eu", "ec.europa.eu/eurostat"),
     jurisdictions=("eu", "de"),
     rate_limit_rps=2.0,
@@ -316,7 +320,7 @@ _EUR_LEX = SourceConfig(
         ClaimDomain.LEGAL,
         ClaimDomain.REGULATORY,
     ),
-    authority_weight=0.97,
+    authority_weight=_SAW.get("eur_lex", 0.97),
     classifier_domains=("eur-lex.europa.eu", "publications.europa.eu"),
     jurisdictions=("eu",),
     rate_limit_rps=1.0,  # SPARQL-Endpoint ist ressourcenintensiv
@@ -349,7 +353,7 @@ _USPTO = SourceConfig(
         ClaimDomain.LEGAL,
         ClaimDomain.SCIENTIFIC,
     ),
-    authority_weight=0.93,
+    authority_weight=_SAW.get("uspto", 0.93),
     classifier_domains=("patentsview.org", "patents.google.com", "usptopatents.org", "patent.gov"),
     jurisdictions=("us",),
     rate_limit_rps=10.0,
@@ -380,7 +384,7 @@ _COMPANIES_HOUSE = SourceConfig(
         ClaimDomain.LEGAL,
         ClaimDomain.FINANCIAL,
     ),
-    authority_weight=0.93,
+    authority_weight=_SAW.get("companies_house", 0.93),
     classifier_domains=(
         "api.company-information.service.gov.uk",
         "find-and-update.company-information.service.gov.uk",
@@ -418,7 +422,7 @@ _CLINICALTRIALS = SourceConfig(
         ClaimDomain.MEDICAL,
         ClaimDomain.PHARMACEUTICAL,
     ),
-    authority_weight=0.91,
+    authority_weight=_SAW.get("clinicaltrials", 0.91),
     classifier_domains=("clinicaltrials.gov",),
     jurisdictions=("us", "global"),
     rate_limit_rps=10.0,
@@ -451,7 +455,7 @@ _DAILYMED = SourceConfig(
         ClaimDomain.MEDICAL,
         ClaimDomain.REGULATORY,
     ),
-    authority_weight=0.94,
+    authority_weight=_SAW.get("dailymed", 0.94),
     classifier_domains=("dailymed.nlm.nih.gov",),
     jurisdictions=("us",),
     rate_limit_rps=5.0,
@@ -485,7 +489,7 @@ _PUBMED = SourceConfig(
         ClaimDomain.PHARMACEUTICAL,
         ClaimDomain.CLINICAL,
     ),
-    authority_weight=0.85,
+    authority_weight=_SAW.get("pubmed", 0.85),
     classifier_domains=("pubmed.ncbi.nlm.nih.gov", "ncbi.nlm.nih.gov"),
     jurisdictions=("global",),
     rate_limit_rps=0.33,  # 3 req/s ohne Key, 10 req/s mit NCBI_API_KEY
@@ -498,6 +502,103 @@ _PUBMED = SourceConfig(
         "API-Key (ENV: NCBI_API_KEY) erhöht Rate-Limit von 3 auf 10 req/s. "
         "ESearch: /esearch.fcgi?db=pubmed&term={query}&retmax=10. "
         "EFetch: /efetch.fcgi?db=pubmed&id={pmid}&rettype=abstract."
+    ),
+)
+
+# ── GDELT (Globale Medienbeobachtung, Cross-Source-Corroboration) ────────────
+
+_GDELT = SourceConfig(
+    source_id="gdelt",
+    display_name="GDELT Project",
+    source_class="tools.sources.clients.gdelt.GDELTClient",
+    base_url="https://api.gdeltproject.org/api/v2/doc",
+    auth_mode=AuthMode.NONE,
+    supports_search=True,
+    supports_detail_fetch=False,
+    allowed_storage=AllowedStorage.CACHE,
+    allowed_display=AllowedDisplay.EXCERPT,
+    fulltext_allowed=False,
+    commercial_reuse_ok=CommercialUsePolicy.ALLOWED,
+    citation_required=True,
+    claim_domains=(ClaimDomain.GENERAL,),
+    authority_weight=_SAW.get("gdelt", 0.55),
+    classifier_domains=("gdeltproject.org",),
+    jurisdictions=("global",),
+    rate_limit_rps=1.0,
+    requires_registration=False,
+    notes=(
+        "Kein Auth, kein Volltext – nur Metadaten, Titel, URL. "
+        "Zitierung + Link auf GDELT-Website Pflicht. "
+        "Rate-Limits nicht formal dokumentiert – Backoff bei 429. "
+        "Updates alle 15 Minuten. 100+ Sprachen, 65 live-übersetzt. "
+        "DOC API: /doc?query={q}&mode=artlist&format=json&maxrecords=250."
+    ),
+)
+
+# ── Wikidata (Strukturierte Entity-Verifizierung, SPARQL) ───────────────────
+
+_WIKIDATA = SourceConfig(
+    source_id="wikidata",
+    display_name="Wikidata",
+    source_class="tools.sources.clients.wikidata.WikidataClient",
+    base_url="https://query.wikidata.org",
+    auth_mode=AuthMode.NONE,
+    supports_search=True,
+    supports_detail_fetch=True,
+    allowed_storage=AllowedStorage.CACHE,
+    allowed_display=AllowedDisplay.FULL,
+    fulltext_allowed=True,
+    commercial_reuse_ok=CommercialUsePolicy.ALLOWED,
+    citation_required=False,
+    claim_domains=(
+        ClaimDomain.BIOGRAPHICAL,
+        ClaimDomain.GEOGRAPHIC,
+        ClaimDomain.INSTITUTIONAL,
+    ),
+    authority_weight=_SAW.get("wikidata", 0.80),
+    classifier_domains=("wikidata.org",),
+    jurisdictions=("global",),
+    rate_limit_rps=1.0,
+    requires_registration=False,
+    notes=(
+        "CC0 – keine Einschränkungen. SPARQL-Endpoint. "
+        "User-Agent Pflicht. 100M+ Entitäten, 16B+ Tripel. "
+        "Ideal für Entity-Verifizierung: Personen, Orte, Organisationen. "
+        "SPARQL: /sparql?query={SPARQL}&format=json."
+    ),
+)
+
+# ── Wikipedia (Kontext-Snippets, Enzyklopädie) ──────────────────────────────
+
+_WIKIPEDIA = SourceConfig(
+    source_id="wikipedia",
+    display_name="Wikipedia (DE)",
+    source_class="tools.sources.clients.wikipedia.WikipediaClient",
+    base_url="https://de.wikipedia.org/w/rest.php/v1",
+    auth_mode=AuthMode.NONE,
+    supports_search=True,
+    supports_detail_fetch=True,
+    allowed_storage=AllowedStorage.CACHE,
+    allowed_display=AllowedDisplay.EXCERPT,
+    fulltext_allowed=False,
+    commercial_reuse_ok=CommercialUsePolicy.CHECK_TERMS,
+    citation_required=True,
+    claim_domains=(
+        ClaimDomain.BIOGRAPHICAL,
+        ClaimDomain.GEOGRAPHIC,
+        ClaimDomain.GENERAL,
+    ),
+    authority_weight=_SAW.get("wikipedia", 0.55),
+    classifier_domains=("wikipedia.org",),
+    jurisdictions=("global", "de"),
+    rate_limit_rps=5.0,
+    requires_registration=False,
+    notes=(
+        "CC-BY-SA 3.0 – Attribution + ShareAlike Pflicht. "
+        "Nur Excerpts anzeigen (fulltext_allowed=False). "
+        "CHECK_TERMS: Supplementäre Kontextquelle, nicht primäre Evidenz. "
+        "REST API: /search/page?q={query}&limit={n}. "
+        "Achtung: REST API v1 Deprecation ab Juli 2026."
     ),
 )
 
@@ -521,6 +622,9 @@ _REGISTRY: dict[str, SourceConfig] = {
         _CLINICALTRIALS,
         _DAILYMED,
         _PUBMED,
+        _GDELT,
+        _WIKIDATA,
+        _WIKIPEDIA,
     ]
 }
 
