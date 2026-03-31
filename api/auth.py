@@ -10,6 +10,8 @@ from fastapi.responses import JSONResponse
 from tools.logger import record_auth_attempt
 from tools.user_db import create_access_token, create_refresh_token, decode_token
 
+from config.infrastructure import AuthConfig
+
 from .dependencies import (
     SECURE_COOKIES,
     RegisterRequest,
@@ -23,6 +25,8 @@ from .dependencies import (
     logger,
 )
 
+_auth_config = AuthConfig()
+
 router = APIRouter()
 
 
@@ -30,10 +34,19 @@ router = APIRouter()
 async def auth_register(req: RegisterRequest, request: Request) -> dict:
     """Register a new user account."""
     check_auth_rate_limit(request)
-    if len(req.password) < 8:
-        raise HTTPException(status_code=400, detail="Passwort muss mindestens 8 Zeichen lang sein.")
+    if len(req.password) < _auth_config.min_password_length:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Passwort muss mindestens {_auth_config.min_password_length} Zeichen lang sein.",
+        )
 
+    # Validate invite code
     user_db = get_user_db()
+    code = req.invite_code.strip().upper()
+    if not user_db.validate_and_consume_registration_code(code):
+        record_auth_attempt(False)
+        raise HTTPException(status_code=400, detail="Ungueltiger oder abgelaufener Einladungscode.")
+
     user = user_db.create_user(
         email=req.email,
         password=req.password,
@@ -65,7 +78,7 @@ async def auth_register(req: RegisterRequest, request: Request) -> dict:
         httponly=True,
         secure=SECURE_COOKIES,
         samesite="lax",
-        max_age=7 * 86400,
+        max_age=_auth_config.refresh_token_max_age,
         path="/api/auth",
     )
     return response
@@ -84,7 +97,7 @@ async def auth_login(req: LoginRequest, request: Request) -> dict:
 
     record_auth_attempt(True)
     access_token = create_access_token(user["id"], user["tier"], bool(user["admin"]))
-    remember_days = 30 if req.remember_me else 7
+    remember_days = _auth_config.remember_me_max_age // 86400 if req.remember_me else _auth_config.refresh_token_max_age // 86400
     refresh_token = create_refresh_token(user["id"], expire_days=remember_days)
 
     response = JSONResponse(content={
@@ -106,7 +119,7 @@ async def auth_login(req: LoginRequest, request: Request) -> dict:
         httponly=True,
         secure=SECURE_COOKIES,
         samesite="lax",
-        max_age=30 * 86400 if req.remember_me else None,
+        max_age=_auth_config.remember_me_max_age if req.remember_me else None,
         path="/api/auth",
     )
     return response
@@ -163,8 +176,11 @@ async def auth_update_profile(req: UpdateProfileRequest, request: Request) -> di
     """Update current user's display name."""
     user = get_current_user(request)
     name = req.display_name.strip()
-    if not name or len(name) > 50:
-        raise HTTPException(status_code=400, detail="Anzeigename muss 1-50 Zeichen lang sein.")
+    if not name or len(name) > _auth_config.max_display_name_length:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Anzeigename muss 1-{_auth_config.max_display_name_length} Zeichen lang sein.",
+        )
 
     user_db = get_user_db()
     user_db.update_display_name(user["id"], name)
@@ -197,7 +213,7 @@ async def auth_telegram_request_link(request: Request) -> dict:
 
     user_db = get_user_db()
     code = user_db.create_link_code(user["id"])
-    return {"code": code, "expires_in": 600}
+    return {"code": code, "expires_in": _auth_config.link_code_expiration}
 
 
 @router.post("/api/auth/telegram/verify-link")
@@ -238,8 +254,11 @@ async def auth_setup_credentials(req: SetupCredentialsRequest) -> dict:
         raise HTTPException(status_code=503, detail="SETUP_SECRET nicht konfiguriert.")
     if req.setup_secret != expected_secret:
         raise HTTPException(status_code=403, detail="Falsches Setup-Secret.")
-    if len(req.password) < 8:
-        raise HTTPException(status_code=400, detail="Passwort muss mindestens 8 Zeichen lang sein.")
+    if len(req.password) < _auth_config.min_password_length:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Passwort muss mindestens {_auth_config.min_password_length} Zeichen lang sein.",
+        )
 
     user_db = get_user_db()
     user = user_db.get_by_telegram_id(req.telegram_id)

@@ -158,6 +158,7 @@ class UserDB:
                 )
                 """
             )
+            self._init_registration_codes(conn)
 
     @contextmanager
     def _connect(self):
@@ -303,6 +304,100 @@ class UserDB:
         with self._connect() as conn:
             cursor = conn.execute(
                 "UPDATE users SET telegram_id = NULL WHERE id = ?", (user_id,)
+            )
+            return cursor.rowcount > 0
+
+    # ── Registration / invite codes ────────────────────────────────
+
+    def _init_registration_codes(self, conn) -> None:
+        """Create registration_codes table if missing (called from _init_db)."""
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS registration_codes (
+                id          TEXT PRIMARY KEY,
+                code        TEXT UNIQUE NOT NULL,
+                created_by  TEXT NOT NULL,
+                label       TEXT NOT NULL DEFAULT '',
+                max_uses    INTEGER NOT NULL DEFAULT 1,
+                used_count  INTEGER NOT NULL DEFAULT 0,
+                is_active   INTEGER NOT NULL DEFAULT 1,
+                created_at  REAL NOT NULL,
+                expires_at  REAL,
+                FOREIGN KEY (created_by) REFERENCES users(id)
+            )
+            """
+        )
+
+    def create_registration_code(
+        self,
+        admin_user_id: str,
+        label: str = "",
+        max_uses: int = 1,
+        expires_days: int | None = None,
+    ) -> dict[str, Any]:
+        """Generate a unique invite code (FNG-XXXXXXXX). Returns the code record."""
+        code_id = str(uuid.uuid4())
+        raw = secrets.token_hex(4).upper()
+        code = f"FNG-{raw}"
+        now = time.time()
+        expires_at = (now + expires_days * 86400) if expires_days else None
+
+        with self._connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO registration_codes
+                    (id, code, created_by, label, max_uses, used_count, is_active, created_at, expires_at)
+                VALUES (?, ?, ?, ?, ?, 0, 1, ?, ?)
+                """,
+                (code_id, code, admin_user_id, label, max_uses, now, expires_at),
+            )
+        return {
+            "id": code_id,
+            "code": code,
+            "created_by": admin_user_id,
+            "label": label,
+            "max_uses": max_uses,
+            "used_count": 0,
+            "is_active": 1,
+            "created_at": now,
+            "expires_at": expires_at,
+        }
+
+    def validate_and_consume_registration_code(self, code: str) -> bool:
+        """Atomically validate and consume an invite code.
+
+        Returns True if the code was valid and consumed, False otherwise.
+        Uses a single UPDATE with WHERE guards to avoid race conditions.
+        """
+        now = time.time()
+        with self._connect() as conn:
+            cursor = conn.execute(
+                """
+                UPDATE registration_codes
+                SET used_count = used_count + 1
+                WHERE code = ?
+                  AND is_active = 1
+                  AND used_count < max_uses
+                  AND (expires_at IS NULL OR expires_at > ?)
+                """,
+                (code, now),
+            )
+            return cursor.rowcount > 0
+
+    def list_registration_codes(self) -> list[dict[str, Any]]:
+        """Return all registration codes ordered by creation date (newest first)."""
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM registration_codes ORDER BY created_at DESC"
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def revoke_registration_code(self, code_id: str) -> bool:
+        """Deactivate a registration code. Returns True if found and updated."""
+        with self._connect() as conn:
+            cursor = conn.execute(
+                "UPDATE registration_codes SET is_active = 0 WHERE id = ?",
+                (code_id,),
             )
             return cursor.rowcount > 0
 

@@ -12,6 +12,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, EmailStr
 
 from config import AppConfig, RateLimitConfig, ScoutTier
+from config.infrastructure import AuthConfig, JobConfig
 from i18n import t
 from tools.db.factory import create_archive, create_graph, create_user_db
 from tools.logger import get_logger, record_auth_attempt
@@ -33,13 +34,11 @@ correlation_id: contextvars.ContextVar[str] = contextvars.ContextVar(
 # { job_id: { status, steps, result, error, created_at } }
 jobs: dict[str, dict[str, Any]] = {}
 
-# Clean up jobs older than 1 hour to avoid memory leaks
-JOB_TTL_SECONDS = 3600
-# Maximum time a single analysis job may run before being killed (total hard cap)
-JOB_TIMEOUT_SECONDS = 1800  # 30 minutes hard cap
-# If no progress (new step) for this long, the job is considered stale.
-# Per-job override possible via job["inactivity_timeout"].
-JOB_INACTIVITY_TIMEOUT = 300  # 5 minutes without progress (default)
+# ── Job-Konfiguration (aus config/infrastructure.py, Env-Var-überschreibbar) ──
+_job_config = JobConfig()
+JOB_TTL_SECONDS = _job_config.ttl_seconds
+JOB_TIMEOUT_SECONDS = _job_config.timeout_seconds
+JOB_INACTIVITY_TIMEOUT = _job_config.inactivity_timeout
 
 
 def cleanup_old_jobs() -> None:
@@ -106,15 +105,21 @@ def get_user_db():
     return _user_db
 
 
-# ── Auth Rate-Limiter (strenger: 5 req/min, burst 2) ────────────
+# ── Auth Rate-Limiter (konfigurierbar via RateLimitConfig) ──────
 _auth_rate_limiter: RateLimiter | None = None
 
 
 def _get_auth_rate_limiter() -> RateLimiter:
     global _auth_rate_limiter
     if _auth_rate_limiter is None:
+        config = AppConfig()
+        rl = config.rate_limit
         _auth_rate_limiter = RateLimiter(
-            RateLimitConfig(enabled=True, requests_per_minute=5, burst=2)
+            RateLimitConfig(
+                enabled=True,
+                requests_per_minute=rl.auth_requests_per_minute,
+                burst=rl.auth_burst,
+            )
         )
     return _auth_rate_limiter
 
@@ -289,6 +294,7 @@ class RegisterRequest(BaseModel):
     email: EmailStr
     password: str
     display_name: str = ""
+    invite_code: str
 
 
 class LoginRequest(BaseModel):
@@ -326,3 +332,9 @@ class SetupCredentialsRequest(BaseModel):
     email: EmailStr
     password: str
     setup_secret: str
+
+
+class CreateRegistrationCodeRequest(BaseModel):
+    label: str = ""
+    max_uses: int = 1
+    expires_days: int | None = None
