@@ -19,12 +19,13 @@ Gegeben eine Liste von Bild-URLs (max. 5):
 
 ## Input / Output
 
-**Input:** `list[str]` (Bild-URLs, max. 5)
+**Input:** `dict` mit Schlüsseln:
+- `"image_urls"`: `list[str]` – Bild-URLs (max. 5)
+- `"post_text"`: `str` – Begleittext des Posts (Kontext)
 
 **Output:** `ImageAnalysisResult`
 ```python
-@dataclass
-class ImageAnalysisResult:
+class ImageAnalysisResult(BaseModel):
     items: list[ImageAnalysisItem]
     cross_image_observations: str  # Übergreifende Muster
     overall_assessment: str
@@ -32,15 +33,14 @@ class ImageAnalysisResult:
 
 Jedes `ImageAnalysisItem`:
 ```python
-@dataclass
-class ImageAnalysisItem:
-    url: str
-    ocr_text: str | None
-    manipulation_indicators: list[str]
-    emotional_framing: str
-    infographic_data: dict | None
-    context_clues: list[str]
-    credibility_flags: list[str]
+class ImageAnalysisItem(BaseModel):
+    image_index: int                    # Index des Bildes (0-basiert)
+    ocr_text: str = ""                  # Erkannter Text im Bild
+    visible_elements: list[str] = []    # Personen, Orte, Logos, Symbole
+    manipulation_signs: list[str] = []  # Inkonsistente Beleuchtung, Cloning-Artefakte etc.
+    emotional_framing: str = ""         # Emotionale Rahmung durch Bildwahl/Perspektive
+    infographic_data: str = ""          # Daten aus Infografiken/Charts (Text)
+    context_clues: list[str] = []       # Zeitstempel, Geo-Hinweise, Logos
 ```
 
 ---
@@ -75,19 +75,50 @@ Bei Diagrammen und Infografiken: Extraktion der dargestellten Werte für numeris
 
 ---
 
-## Voraussetzungen
+## Implementierung
 
-Der Agent erfordert ein **Vision-fähiges LLM**. Er nutzt `_llm_vision()` aus der Basisklasse:
+**Datei:** `agents/image_analyzer.py` → `ImageAnalyzerAgent`
+
+### Hauptablauf
 
 ```python
-result = await self._llm_vision(
-    system_prompt=t("agents.image_analyzer.system_prompt"),
-    user_message=t("agents.image_analyzer.user_message"),
-    image_urls=image_urls[:5]
-)
+def execute(self, input_data: dict, context: str = "") -> ImageAnalysisResult:
+    image_urls = input_data.get("image_urls", [])
+    post_text = input_data.get("post_text", "")
+    if not image_urls:
+        return ImageAnalysisResult(overall_assessment="Keine Bilder vorhanden")
+
+    # Limit auf max 5 Bilder (API-Kosten)
+    image_urls = image_urls[:5]
+
+    # 1. Vision API Analysis
+    vision_result = await self._llm_vision(
+        system_prompt="Analysiere diese Bilder auf Manipulation, emotionales Framing, Text-Extraktion ...",
+        image_urls=image_urls
+    )
+
+    # 2. Parse strukturiertes Output
+    items = [ImageAnalysisItem(**item) for item in vision_result.items]
+
+    # 3. Cross-Image-Analyse
+    cross_obs = self._analyze_cross_image_patterns(items)
+
+    return ImageAnalysisResult(
+        items=items,
+        cross_image_observations=cross_obs,
+        overall_assessment=vision_result.overall_assessment
+    )
 ```
 
-Bei [[Scout-Tiers|LITE-Tier]] oder Modellen ohne Vision-Support wird der Agent übersprungen.
+### Voraussetzungen
+
+Der Agent erfordert ein **Vision-fähiges LLM**:
+- **Claude Sonnet 4+** – vollständige Vision-Unterstützung
+- **Claude Opus** – vollständige Vision-Unterstützung
+- **Claude Haiku** – eingeschränkte Vision-Unterstützung
+- **OpenAI GPT-4V** – Vision möglich
+
+Bei [[Scout-Tiers|LITE-Tier]] oder Modellen ohne Vision-Support wird der Agent mit Warnung übersprungen (graceful degradation).
 
 ---
 
@@ -97,13 +128,26 @@ Der ImageAnalyzer wird außerhalb der normalen Claim-Schleife gestartet – wenn
 
 ```
 URL eingeben
-  → Content Extractor → text + images[]
+  → Content Extractor (tools/extractors/) → text + images[]
   → ClaimExtractor(text)
   → FactChecker + NumberAuditor (Claims)
   → RhetoricAnalyzer(text)
   → ImageAnalyzer(images)  ← parallel
   → Synthesizer(alle Ergebnisse)
 ```
+
+### Media-Extraktion (`tools/extractors/`)
+
+Für Video-Plattformen wird zusätzlich eine `MediaContent`-Struktur erzeugt:
+
+| Platform | Extraktion |
+|---|---|
+| YouTube | Transkript (Untertitel/Whisper) + Keyframe-OCR |
+| Instagram Reels | Video-Download + Whisper-Transkription |
+| Twitter/Threads | Text + eingebettete Bilder |
+| Facebook | Text + eingebettete Bilder |
+
+Das Transkript (`list[TranscriptSegment]`) wird als Text an `ClaimExtractor` übergeben (max. 25.000 Zeichen). `frame_ocr`-Ergebnisse fließen in den `ImageAnalyzer`.
 
 ---
 

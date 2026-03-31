@@ -2,7 +2,7 @@
 
 > Zurück: [[Tools]] | Siehe auch: [[Cache]], [[API]]
 
-FakeNewsGuard verwendet **vier separate SQLite-Datenbanken** für unterschiedliche Zwecke. Alle laufen im WAL-Modus für Thread-Sicherheit.
+FakeNewsGuard verwendet **sechs separate SQLite-Datenbanken** für unterschiedliche Zwecke (in Produktion: PostgreSQL + Valkey). Alle SQLite-Instanzen laufen im WAL-Modus für Thread-Sicherheit.
 
 ---
 
@@ -15,6 +15,7 @@ FakeNewsGuard verwendet **vier separate SQLite-Datenbanken** für unterschiedlic
 | Analyse-Archiv | `.fakeguard_archive.db` | `AnalysisArchive` | Alle abgeschlossenen Analysen |
 | Nutzer-DB | `.fakeguard_users.db` | `UserDB` | Accounts, JWT, Usage-Log |
 | Cross-Reference | `.fakeguard_graph.db` | `CrossReferenceGraph` | Claim-Wissens-Graph |
+| Faktencheck-Lokal | `data/factcheck_local.db` | `LocalFactCheckDatabase` | DataCommons Offline-Fallback |
 
 → Claim-Cache: [[Cache]]
 → Kalibrierung: [[Tools#Calibration Tracker]]
@@ -197,14 +198,53 @@ GET /api/admin/metrics
 ```python
 @dataclass
 class UserDBConfig:
-    db_path: str = ".fakeguard_users.db"
-    jwt_secret: str = ""           # Auto-generiert wenn leer (nur Dev!)
-    jwt_access_ttl: int = 15       # Minuten
-    jwt_refresh_ttl: int = 7       # Tage
-    secure_cookies: bool = False   # True hinter HTTPS Reverse Proxy
+    db_path: str = ".fakeguard_users.db"   # Einziges Config-Feld
 ```
 
+**JWT-Parameter** sind **keine** Felder von `UserDBConfig`, sondern Konstanten/Env-Vars in `tools/user_db.py`:
+- `ACCESS_TOKEN_EXPIRE_MINUTES = 15`
+- `REFRESH_TOKEN_EXPIRE_DAYS = 7`
+- `JWT_SECRET` → via `_get_jwt_secret()` aus Env-Var oder auto-generiert
+- `SECURE_COOKIES` → in `api/dependencies.py` aus Env-Var gelesen
+
 → [[Konfiguration]]
+
+---
+
+## Lokale Faktencheck-Datenbank (`tools/factcheck_local.py`)
+
+Offline-Fallback für die Google Fact Check Tools API.
+
+### Schema
+```sql
+CREATE TABLE claim_reviews (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    claim_text  TEXT NOT NULL,
+    rating      TEXT NOT NULL,
+    publisher   TEXT NOT NULL,
+    url         TEXT NOT NULL,
+    review_date TEXT DEFAULT '',
+    language    TEXT DEFAULT 'de'
+);
+
+-- FTS5-Volltextsuche
+CREATE VIRTUAL TABLE claim_reviews_fts
+    USING fts5(claim_text, content='claim_reviews', content_rowid='id');
+
+-- Auto-Sync-Trigger
+CREATE TRIGGER claim_reviews_ai AFTER INSERT ON claim_reviews BEGIN
+    INSERT INTO claim_reviews_fts(rowid, claim_text) VALUES (new.id, new.claim_text);
+END;
+```
+
+### Features
+- **Bulk-Import**: `import_datacommons(json_path)` – unterstützt Flat-Format und DataCommons-Format
+- **FTS5-Suche**: Volltextsuche mit Wortfilter (>2 Zeichen), sortiert nach Relevanz
+- **Fallback-Integration**: Automatisch in `FactCheckDatabaseClient.search()` wenn Google FCT 0 Treffer
+- **Import-Script**: `python scripts/import_datacommons.py data/factchecks.json`
+
+### Datenquelle
+[DataCommons Fact Check Dataset](https://datacommons.org/factcheck/download) – CC-BY 4.0, kommerziell nutzbar mit Attribution.
 
 ---
 

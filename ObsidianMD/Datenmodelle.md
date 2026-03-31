@@ -71,6 +71,20 @@ class Severity(str, Enum):
 
 ---
 
+### AmbiguityLevel
+
+```python
+class AmbiguityLevel(str, Enum):
+    NONE   = "none"
+    LOW    = "low"
+    MEDIUM = "medium"
+    HIGH   = "high"
+```
+
+Wird vom `ClaimProcessorAgent` für mehrdeutige Claims gesetzt.
+
+---
+
 ### OverallRating
 
 ```python
@@ -107,6 +121,179 @@ class ClaimExtractionResult(BaseModel):
     claims: list[Claim]
     implicit_claims: list[str]
 ```
+
+### ClaimFrame
+
+Strukturierter semantischer Rahmen, der aus dem Claim-Text extrahiert wird:
+
+```python
+class ClaimFrame(BaseModel):
+    raw_text: str
+    subject: str           # Handelnde Person / Akteur
+    predicate: str         # Handlung / Aussage
+    object: str            # Objekt der Handlung
+    institution: str       # Beteiligte Institution
+    location: str          # Geografischer Bezug
+    time_reference: str    # Zeitlicher Bezug
+    numbers: list[str]     # Enthaltene Zahlen / Prozente
+    sanction: str          # Sanktions-/Strafkontext
+    enforcement: str       # Durchsetzungskontext
+    policy_context: str    # Politischer/regulatorischer Kontext
+    claim_type: ClaimType
+    canonical_text: str    # Normalisierte Formulierung
+```
+
+### ClaimSearchProfile
+
+Aus `ClaimFrame` abgeleitete Suchparameter für `EvidenceBuilderAgent`:
+
+```python
+class ClaimSearchProfile(BaseModel):
+    core_entities: list[str]
+    institutions: list[str]
+    locations: list[str]
+    action_terms: list[str]
+    policy_terms: list[str]
+    number_terms: list[str]
+    sanction_terms: list[str]
+    exclusion_terms: list[str]
+    official_source_hints: list[str]   # site:-Hints für SearXNG
+    fact_check_hints: list[str]
+```
+
+### ProcessedClaim
+
+Erweiterter `Claim` nach der sechsstufigen Verarbeitungspipeline:
+
+```python
+class ProcessedClaim(Claim):
+    canonical_text: str
+    canonical_hash: str                # SHA-256 (16 Zeichen)
+    normalized_entities: list[str]
+    normalized_dates: list[str]
+    normalized_numbers: list[str]
+    ambiguity_level: AmbiguityLevel
+    ambiguity_reason: str | None
+    requires_more_context: bool
+    priority_score: float              # 0.0 – 1.0
+    harm_score: float
+    checkworthiness_score: float
+    priority_reason: str
+    recommended_processing_order: int
+    is_checkworthy: bool
+    frame: ClaimFrame                  # Strukturierter semantischer Rahmen
+```
+
+---
+
+## Evidence-Modelle (`models/evidence_models.py`)
+
+### Enums
+
+```python
+class SourceConsensus(str, Enum):
+    AGREEING      = "agreeing"
+    CONTRADICTORY = "contradictory"
+    MIXED         = "mixed"
+    INSUFFICIENT  = "insufficient"
+
+class SourceDirection(str, Enum):
+    SUPPORTS = "supports"
+    REFUTES  = "refutes"
+    NEUTRAL  = "neutral"
+    OFFTOPIC = "offtopic"
+
+class EvidenceType(str, Enum):
+    DIRECT     = "direct"      # Direkt zur Behauptung
+    CONTEXTUAL = "contextual"  # Thematisch verwandt
+    WEAK       = "weak"        # Wenig relevant
+```
+
+### FactType (Source-Evidence)
+
+`models/source_evidence.py` – Typisierung normalisierter Fakten aus institutionellen Quellen:
+
+```python
+class FactType(str, Enum):
+    # Statistik / Wirtschaft:
+    STATISTIC       = "statistic"
+    INDICATOR       = "indicator"
+    TIME_SERIES     = "time_series"
+
+    # Wissenschaft / Publikation:
+    STUDY_FINDING   = "study_finding"
+    CITATION_COUNT  = "citation_count"
+    PUBLICATION_METADATA = "publication_metadata"
+
+    # Recht / Regulierung:
+    LEGAL_TEXT      = "legal_text"
+    PATENT_CLAIM    = "patent_claim"
+    REGULATORY_ACTION = "regulatory_action"
+
+    # Wissen / Entitäten:
+    ENTITY_PROPERTY  = "entity_property"     # Direkte Eigenschaft (Wikidata)
+    ENTITY_RELATION  = "entity_relation"     # Beziehung zwischen Entitäten
+
+    # Medien / Corroboration:
+    MEDIA_CORROBORATION = "media_corroboration"  # Cross-Source-Berichterstattung (GDELT)
+    TONE_ANALYSIS       = "tone_analysis"        # Sentiment/Tone-Score
+
+    # Kontext:
+    CONTEXT_SUMMARY = "context_summary"    # Enzyklopädie-Zusammenfassung (Wikipedia)
+
+    # Allgemein:
+    FACT_STATEMENT  = "fact_statement"
+    COMPANY_RECORD  = "company_record"
+```
+
+### ClaimDomain (Source-Routing)
+
+`tools/sources/types.py` – Thematische Domänen für Source-Routing:
+
+```python
+class ClaimDomain(str, Enum):
+    ECONOMIC       = "economic"
+    STATISTICAL    = "statistical"
+    SCIENTIFIC     = "scientific"
+    MEDICAL        = "medical"
+    LEGAL          = "legal"
+    REGULATORY     = "regulatory"
+    FINANCIAL      = "financial"
+    PATENT         = "patent"
+    TRADE          = "trade"
+    BIOGRAPHICAL   = "biographical"    # Personen: Amt, Geburt, Tod
+    GENERAL        = "general"         # Cross-Source-Corroboration
+    GEOGRAPHIC     = "geographic"      # Orte: Hauptstädte, Einwohner
+    INSTITUTIONAL  = "institutional"   # Organisationen: Gründung, Sitz
+```
+
+### EvidenceSource
+
+```python
+class EvidenceSource(BaseModel):
+    url: str
+    title: str
+    domain: str
+    domain_tier: int           # 1–5 (1=offiziell/höchstes Vertrauen)
+    publication_date: str | None
+    is_fact_check_org: bool
+    is_primary_source: bool
+```
+
+### EvidenceItem
+
+```python
+class EvidenceItem(BaseModel):
+    source: EvidenceSource
+    excerpt: str               # Max. 800 Zeichen (Trust Boundary!)
+    relevance_score: float
+    extraction_confidence: float
+    supports_claim: SourceDirection
+```
+
+> **Trust Boundary:** `excerpt` wird auf 800 Zeichen begrenzt. Der `VerdictAgent` sieht niemals rohes HTML – nur strukturierte `EvidenceItem`-Objekte.
+
+→ Vollständiger Aufbau von `EvidencePack` in [[Agent-FactChecker]]
 
 ---
 
@@ -168,13 +355,13 @@ class RhetoricAnalysisResult(BaseModel):
 
 ```python
 class ImageAnalysisItem(BaseModel):
-    url: str
-    ocr_text: str | None = None
-    manipulation_indicators: list[str] = []
-    emotional_framing: str
-    infographic_data: dict | None = None
-    context_clues: list[str] = []
-    credibility_flags: list[str] = []
+    image_index: int                    # Index des Bildes (0-basiert)
+    ocr_text: str = ""                  # Erkannter Text im Bild
+    visible_elements: list[str] = []    # Personen, Orte, Logos, Symbole
+    manipulation_signs: list[str] = []  # Inkonsistente Beleuchtung, Cloning-Artefakte
+    emotional_framing: str = ""         # Emotionale Rahmung durch Bildwahl
+    infographic_data: str = ""          # Daten aus Infografiken/Charts (Text)
+    context_clues: list[str] = []       # Zeitstempel, Geo-Hinweise
 ```
 
 ### ImageAnalysisResult

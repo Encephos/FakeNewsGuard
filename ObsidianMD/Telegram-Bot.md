@@ -123,10 +123,10 @@ await backend.post("/api/analyze", json={
 
 ## Technische Details
 
-- **Library:** `python-telegram-bot` (async)
+- **Implementierung:** Eigener minimaler Bot-Client via `httpx` (kein `python-telegram-bot`)
 - **Polling-Interval:** 2 Sekunden
-- **Job-Timeout:** 32 Minuten (1920s)
-- **Format:** MarkdownV2 (Telegram-spezifisch, erfordert Escaping)
+- **Job-Timeout:** 32 Minuten (960 Poll-Versuche × 2 s)
+- **Format:** MarkdownV2 (Telegram-spezifisch, erfordert Escaping via `telegram_formatting.py`)
 
 ---
 

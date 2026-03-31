@@ -24,9 +24,12 @@ Der `tools/`-Ordner enthält alle Infrastruktur-Werkzeuge. Agenten nutzen diese 
 | `source_scraper.py` | `AsyncSourceScraper` | HTTP-Scraper mit Fallback |
 | `cross_reference.py` | `CrossReferenceGraph` | Claim-Wissens-Graph (SQLite) |
 | `rate_limiter.py` | `RateLimiter` | Token-Bucket per IP |
-| `factcheck_databases.py` | `FactCheckDatabaseClient` | Google Fact Check + ClaimBuster |
+| `factcheck_databases.py` | `FactCheckDatabaseClient` | Google Fact Check + lokaler Fallback |
+| `factcheck_local.py` | `LocalFactCheckDatabase` | Offline-Faktencheck (DataCommons, FTS5) |
+| `domain_trust.py` | `DomainTrustClient` | OpenPageRank Domain-Trust-Signal |
 | `content_extractor.py` | `ContentExtractor` | URL → Text-Extraktion |
 | `pdf_export.py` | `PDFExporter` | Analyse → PDF |
+| `ner_extractor.py` | `entity_overlap_score()` | Entity-Overlap-Score für Evidence-Relevanz |
 
 ---
 
@@ -37,9 +40,10 @@ Async-HTTP-Scraper mit mehrstufiger Extraktion:
 ```
 1. HTTP-GET mit aiohttp (Timeout: konfigurierbar)
 2. trafilatura.extract() → Haupttext
-3. Fallback: BeautifulSoup (p-Tags)
-4. Relevante Passagen filtern (Keyword-Overlap mit Claim)
-5. ScrapedSource { url, content, low_relevance, is_paywall }
+3. Fallback: Crawl4AI (_crawl4ai_extract) – Headless-Browser für JS-Seiten
+4. Fallback: BeautifulSoup (p-Tags)
+5. Relevante Passagen filtern (Keyword-Overlap mit Claim)
+6. ScrapedSource { url, passage, low_relevance, fetch_success, error, publication_date }
 ```
 
 **Paywall-Erkennung:**
@@ -75,11 +79,13 @@ score = keyword_overlap(claim_text, snippet + title)
 # 0.0 → 1.0
 ```
 
+**Scoring:** Hybrides BM25 + Semantik + Profil-Anchor-Scoring + Source-Tier-Bonus
+
 **Regeln:**
 - FACT_CHECKER → immer scrapen (unabhängig vom Score)
 - Andere → nur wenn Score > Threshold
 - Pro Domain: nur die URL mit dem höchsten Score
-- Max. 5 Quellen pro Claim (konfigurierbar via `SearchConfig.scrape_top_n`)
+- Max. `scrape_top_n` Quellen pro Claim (Standard: 10, via `SearXNGConfig.scrape_top_n`)
 
 ---
 
@@ -107,16 +113,74 @@ Wird nach jeder Analyse aktualisiert. Ermöglicht zukünftig: „Wurde diese Beh
 
 ## Factcheck Databases (`tools/factcheck_databases.py`)
 
-Externe Faktenchecking-APIs:
+Externe Faktenchecking-APIs mit lokalem Offline-Fallback:
 
 **Google Fact Check Tools:**
 - Durchsucht verifizierte Faktenchecks von Organisationen wie AFP, dpa-Faktenfinder, Correctiv
 - API-Key erforderlich
 
-**ClaimBuster:**
-- KI-basierte Claim-Datenbank
-- Bewertet, ob ein Claim überprüfenswert ist
-- API-Key erforderlich
+**Lokaler Fallback (DataCommons):**
+- Wenn Google FCT keine Treffer liefert → automatischer Fallback auf `LocalFactCheckDatabase`
+- Integration über optionalen `local_db`-Parameter im Konstruktor
+
+---
+
+## Lokale Faktencheck-Datenbank (`tools/factcheck_local.py`)
+
+Offline-Fallback auf Basis von DataCommons ClaimReview-Daten (CC-BY 4.0):
+
+```python
+class LocalFactCheckDatabase:
+    def __init__(self, db_path="data/factcheck_local.db")
+    def import_datacommons(self, json_path: str) -> int   # Bulk-Import
+    def search(self, query: str, max_results=5) -> list[ExternalFactCheck]
+    def count(self) -> int
+    def close(self) -> None
+```
+
+**Architektur:**
+- SQLite + FTS5-Volltextsuche auf Claim-Texten
+- Schema: `claim_reviews(claim_text, rating, publisher, url, review_date, language)`
+- Trigger-basierte FTS-Synchronisation
+- Wörter ≤2 Zeichen werden aus Suchanfragen gefiltert
+
+**Import:**
+```bash
+python scripts/import_datacommons.py data/factchecks.json
+python scripts/import_datacommons.py data/factchecks.json --db data/factcheck_local.db
+```
+
+Unterstützt zwei JSON-Formate:
+- Flat: JSON-Array mit ClaimReview-Objekten
+- DataCommons: `{"dataFeedElement": [{"item": [{"@type": "ClaimReview", ...}]}]}`
+
+---
+
+## Domain Trust (`tools/domain_trust.py`)
+
+OpenPageRank-basiertes Domain-Trust-Signal für Evidence-Scoring:
+
+```python
+class DomainTrustClient:
+    def get_rank(self, domain: str) -> DomainRankResult | None
+    def get_ranks_batch(self, domains: list[str]) -> dict[str, DomainRankResult]
+    def tier_adjustment(self, domain: str) -> float
+```
+
+**Tier-Adjustment:**
+| PageRank | Adjustment | Effekt |
+|---|---|---|
+| ≥ 7 | −1.0 | Tier deutlich verbessern |
+| ≥ 5 | −0.5 | Tier leicht verbessern |
+| ≥ 3 | 0.0 | Neutral |
+| < 3 | +0.5 | Tier verschlechtern |
+
+**Integration:** Wird in `agents/evidence_scoring.py` → `_domain_tier()` als optionales Adjustment addiert. Lazy-Init, graceful Degradation wenn kein API-Key (`OPENPAGERANK_API_KEY`).
+
+**Features:**
+- In-Memory-Cache (Dict) für wiederholte Lookups
+- Batch-Support (bis 100 Domains pro API-Request)
+- Auth via `API-OPR`-Header
 
 ---
 

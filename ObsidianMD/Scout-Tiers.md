@@ -124,10 +124,10 @@ SCOUT_TIER=pro
 ## ScoutTier-Enum
 
 ```python
-class ScoutTier(str, Enum):
-    LITE = "lite"
-    PRO = "pro"
-    MAX = "max"
+class ScoutTier(Enum):   # kein str-Enum
+    LITE = "lite"   # OpenRouter Free Tier Router (kostenlos)
+    PRO  = "pro"    # Gemma 3 27B (Standard-Tier)
+    MAX  = "max"    # Qwen3 235B Thinking (höchste Qualität)
 ```
 
 ---

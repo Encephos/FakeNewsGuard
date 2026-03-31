@@ -136,11 +136,11 @@ Nur für [[Agent-ImageAnalyzer]] verwendet. Erfordert Vision-fähiges Modell.
 @dataclass
 class LLMConfig:
     provider: str = "openrouter"
-    model: str = "auto"
-    temperature: float = 0.1
-    max_tokens: int = 4096
+    model: str = "qwen/qwen3-235b-a22b-thinking-2507"  # Qwen3 235B (Thinking)
+    temperature: float = 0.2   # Niedrig für Faktenprüfung
+    max_tokens: int = 16384
     api_key: str = ""
-    base_url: str = ""
+    base_url: str | None = None  # Für Ollama / lokale Modelle
 ```
 
 → [[Konfiguration]]
