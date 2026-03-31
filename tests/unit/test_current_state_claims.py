@@ -247,6 +247,7 @@ def test_current_state_false_with_direct_refutation_stays_false() -> None:
     quality.has_fact_check_any = True
     quality.direct_evidence_count = 2
     quality.contextual_evidence_rate = 0.2
+    quality.direct_refutation_freshness = 0.80  # frische Widerlegungsquellen
     pack.evidence_quality = quality
     pack.web_results = []
 

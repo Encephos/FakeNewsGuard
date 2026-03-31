@@ -23,9 +23,12 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import re
 import sys
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 from agents.base import BaseAgent
 from config import AppConfig, ClaimQualitySignalConfig
@@ -670,6 +673,35 @@ _WEAK_CLAIM_PATTERNS: list[re.Pattern] = [
     re.compile(r"^(die\s+frage\s+ist|zu\s+klären\s+ist|zu\s+prüfen\s+ist)", re.IGNORECASE),
 ]
 
+# Evaluative/subjektive Muster → Claim wird als OPINION reklassifiziert.
+# Fängt Fälle ab, in denen der LLM ein Charakterurteil oder eine Wertung
+# fälschlich als FACTUAL klassifiziert hat.
+_OPINION_PATTERNS: list[re.Pattern] = [
+    # Charakterurteile: "X ist ein(e) Spalter(in)/Lügner(in)/Versager(in)/..."
+    re.compile(
+        r"\bist\s+ein(?:e)?\s+(?:spalter|lügner|betrüger|versager|heuchler|"
+        r"manipulator|populist|diktator|narr|schande|katastrophe|gefahr)"
+        r"(?:in)?\b",
+        re.IGNORECASE,
+    ),
+    # "Sie/Er sind/ist [negatives Adjektiv]"
+    re.compile(
+        r"\b(?:ist|sind|war|waren)\s+(?:schlecht|böse|schrecklich|furchtbar|"
+        r"unmoralisch|verlogen|inkompetent|unfähig|verantwortungslos|feige)\b",
+        re.IGNORECASE,
+    ),
+    # "... wird als X in Erinnerung bleiben"
+    re.compile(r"(?:wird|werden)\s+.*\bin\s+(?:erinnerung|geschichte)\s+bleiben\b", re.IGNORECASE),
+    # "X ist eine Schande / ein Skandal / inakzeptabel"
+    re.compile(
+        r"\bist\s+(?:eine?\s+)?(?:schande|skandal|katastrophe|desaster|"
+        r"inakzeptabel|untragbar|unerträglich)\b",
+        re.IGNORECASE,
+    ),
+    # Explizite Meinungsmarker
+    re.compile(r"^(?:ich\s+finde|ich\s+glaube|meiner?\s+meinung\s+nach)", re.IGNORECASE),
+]
+
 # Kontextlose Betrag-/Zahl-Aussagen ohne Akteur oder Policy-Kontext.
 # Typische Mini-Claims nach Dekomposition: "Die Höhe des Bußgeldes beträgt 250 Euro."
 # Diese werden stärker bestraft als normale weak signals (-0.40 statt -0.30).
@@ -725,16 +757,27 @@ class ClaimValidator:
         validated: list[ProcessedClaim] = []
         for claim in claims:
             is_valid, reason, quality, signals, more_ctx = self._check_claim(claim)
-            validated.append(
-                claim.model_copy(update={
-                    "is_valid_claim": is_valid,
-                    "invalid_reason": reason,
-                    "claim_quality_score": quality,
-                    "quality_signals": signals,
-                    "requires_more_context": claim.requires_more_context or more_ctx,
-                })
-            )
+
+            # Post-Processing: Evaluative Muster → als OPINION reklassifizieren
+            update: dict = {
+                "is_valid_claim": is_valid,
+                "invalid_reason": reason,
+                "claim_quality_score": quality,
+                "quality_signals": signals,
+                "requires_more_context": claim.requires_more_context or more_ctx,
+            }
+            if claim.type != ClaimType.OPINION and self._is_opinion_pattern(claim.text):
+                update["type"] = ClaimType.OPINION
+                update["is_checkworthy"] = False
+                logger.debug("Claim %s als OPINION reklassifiziert: '%s'", claim.id, claim.text[:60])
+
+            validated.append(claim.model_copy(update=update))
         return validated
+
+    @staticmethod
+    def _is_opinion_pattern(text: str) -> bool:
+        """Prüfe ob der Claim evaluative/subjektive Muster enthält."""
+        return any(p.search(text) for p in _OPINION_PATTERNS)
 
     # ── interne Prüflogik ─────────────────────────────────────────────────────
 

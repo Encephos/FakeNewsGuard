@@ -51,37 +51,63 @@ class FactCheckDatabaseConfig:
 
 
 class FactCheckDatabaseClient:
-    """Durchsucht externe Faktencheck-Datenbanken nach bereits geprüften Claims."""
+    """Durchsucht externe Faktencheck-Datenbanken nach bereits geprüften Claims.
+
+    Unterstützt optional eine lokale Faktencheck-Datenbank (DataCommons)
+    als Fallback, wenn die Google Fact Check Tools API keine Treffer liefert.
+    """
 
     def __init__(
         self,
         config: FactCheckDatabaseConfig | None = None,
         retry: RetryConfig | None = None,
+        local_db: Any | None = None,
     ) -> None:
         self.config = config or FactCheckDatabaseConfig()
         self._retry = retry or RetryConfig(max_attempts=2, base_delay_s=0.5)
+        self._local_db = local_db  # Optional: LocalFactCheckDatabase
 
     def search(self, claim_text: str, language: str = "de") -> list[ExternalFactCheck]:
-        """Durchsuche verfügbare Datenbanken nach einem Claim."""
-        if not self.config.enabled or not self.config.google_factcheck_api_key:
-            return []
+        """Durchsuche verfügbare Datenbanken nach einem Claim.
 
-        try:
-            return self._search_google_factcheck(claim_text, language)
-        except Exception as e:
-            _log(f"Google Fact Check API Fehler: {type(e).__name__}: {e}")
-            return []
+        Sucht zuerst in der Google Fact Check API. Falls keine Treffer
+        und eine lokale Datenbank konfiguriert ist, wird dort gesucht.
+        """
+        results: list[ExternalFactCheck] = []
+
+        if self.config.enabled and self.config.google_factcheck_api_key:
+            try:
+                results = self._search_google_factcheck(claim_text, language)
+            except Exception as e:
+                _log(f"Google Fact Check API Fehler: {type(e).__name__}: {e}")
+
+        # Lokaler Fallback wenn Google FCT keine Treffer liefert
+        if not results and self._local_db is not None:
+            try:
+                results = self._local_db.search(claim_text)
+            except Exception as e:
+                _log(f"Lokale Faktencheck-DB Fehler: {type(e).__name__}: {e}")
+
+        return results
 
     async def search_async(self, claim_text: str, language: str = "de") -> list[ExternalFactCheck]:
-        """Async-Version."""
-        if not self.config.enabled or not self.config.google_factcheck_api_key:
-            return []
+        """Async-Version mit lokalem Fallback."""
+        results: list[ExternalFactCheck] = []
 
-        try:
-            return await self._search_google_factcheck_async(claim_text, language)
-        except Exception as e:
-            _log(f"Google Fact Check API Fehler: {type(e).__name__}: {e}")
-            return []
+        if self.config.enabled and self.config.google_factcheck_api_key:
+            try:
+                results = await self._search_google_factcheck_async(claim_text, language)
+            except Exception as e:
+                _log(f"Google Fact Check API Fehler: {type(e).__name__}: {e}")
+
+        # Lokaler Fallback (sync, da SQLite ohnehin schnell ist)
+        if not results and self._local_db is not None:
+            try:
+                results = self._local_db.search(claim_text)
+            except Exception as e:
+                _log(f"Lokale Faktencheck-DB Fehler: {type(e).__name__}: {e}")
+
+        return results
 
     # ── Google Fact Check Tools API ───────────────────────────────
 
