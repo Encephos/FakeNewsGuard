@@ -23,9 +23,37 @@ Erstellt:
 
 ---
 
+## Interne Aggregation
+
+Vor der LLM-Bewertung berechnet der Synthesizer `AggregationSignals` – regelbasierte Signale für die Rating-Kalibrierung:
+
+```python
+@dataclass
+class AggregationSignals:
+    n_claims: int = 0
+    refuted_ratio: float = 0.0         # Anteil FALSE + MOSTLY_FALSE
+    unverified_ratio: float = 0.0      # Anteil UNVERIFIABLE
+    avg_claim_confidence: float = 0.0
+    high_quality_evidence: bool = False # mind. 1 Claim mit Primärquellen
+    rhetoric_score: float = 0.0        # 0.0–1.0, gewichtete Rhetorik-Schwere
+    n_high_rhetoric: int = 0           # Anzahl HIGH-Severity-Techniken
+```
+
+**Severity-Gewichte für `rhetoric_score`:**
+| Severity | Gewicht |
+|---|---|
+| HIGH | 3.0 |
+| MEDIUM | 2.0 |
+| LOW | 1.0 |
+
+**Rating-Reihenfolge** (0 = best → 5 = worst):
+`RELIABLE(0) → MOSTLY_RELIABLE(1) → MIXED(2) → MISLEADING(3) → HIGHLY_MISLEADING(4) → FABRICATED(5)`
+
+---
+
 ## Input / Output
 
-**Input:** `SynthesisInput` (gebündelte Ergebnisse aller Agenten)
+**Input:** `dict` mit allen Teilergebnissen (FactCheckResults, NumberAuditResults, RhetoricResult, ImageResult, errors)
 
 **Output:** `SynthesisResult`
 ```python

@@ -35,11 +35,14 @@ In Docker: → [[Docker]]
 ### Authentifizierung
 | Methode | Pfad | Zweck |
 |---|---|---|
-| POST | `/api/auth/register` | Nutzer registrieren |
+| POST | `/api/auth/register` | Nutzer registrieren (Invite-Code erforderlich) |
 | POST | `/api/auth/login` | Login → JWT |
 | POST | `/api/auth/refresh` | Access Token erneuern |
 | GET | `/api/auth/me` | Aktueller Nutzer |
-| POST | `/api/auth/consent` | Logging-Einwilligung |
+| POST | `/api/auth/consent` | Logging-Einwilligung setzen (Pflicht vor Analyse) |
+| POST | `/api/auth/telegram/link` | Telegram-Verknüpfung starten (gibt Code zurück) |
+| DELETE | `/api/auth/telegram/unlink` | Telegram-Verknüpfung aufheben |
+| POST | `/api/auth/setup-credentials` | E-Mail/Passwort zu Telegram-only-Account hinzufügen |
 
 ### Admin
 | Methode | Pfad | Zweck |
@@ -56,6 +59,8 @@ In Docker: → [[Docker]]
 ## Analyse-Workflow
 
 ### 1. Job erstellen
+
+**Voraussetzung:** Nutzer muss eingeloggt sein und `consent_logging=True` haben.
 
 ```http
 POST /api/analyze
@@ -101,7 +106,7 @@ GET /api/jobs/abc123
 }
 ```
 
-Der Client pollt alle ~1,5 Sekunden. Das Frontend zeigt Live-Updates.
+Der Client pollt alle **2 Sekunden** (960 Versuche → 32-Minuten-Timeout). Das Frontend zeigt Live-Updates.
 
 ---
 
@@ -119,6 +124,14 @@ pending → running → done | error
 ```
 
 Jobs werden nach **1 Stunde** automatisch gelöscht (Background-Cleanup-Task).
+
+**Timeouts:**
+- **Hard-Timeout:** 30 Minuten (`JOB_TIMEOUT_SECONDS = 1800`) – absolutes Maximum
+- **Inactivity-Watchdog:** 5 Minuten Default + 30s pro Claim (`JOB_INACTIVITY_TIMEOUT = 300`). Wird bei jedem Fortschritts-Step zurückgesetzt.
+
+**Voraussetzungen für `/api/analyze`:**
+- Nutzer muss `consent_logging=True` gesetzt haben (via `/api/auth/consent`)
+- Tier-Zugangskontrolle: LITE-Account kann nur LITE-Analysen starten, PRO kann LITE+PRO, MAX kann alle Tiers
 
 **Achtung:** Kein Persistenz zwischen Server-Neustarts. Laufende Jobs gehen verloren. Für Produktionsumgebungen empfiehlt sich eine echte Queue (Redis, RabbitMQ).
 
@@ -251,7 +264,7 @@ Alle API-Fehler haben ein einheitliches Format:
 ```json
 {
   "error": "ValidationError",
-  "message": "Text überschreitet 10.000 Zeichen",
+  "message": "Text überschreitet 25.000 Zeichen",
   "code": 422
 }
 ```
