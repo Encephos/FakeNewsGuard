@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from tools.extractors.article import _extract_article
 from tools.extractors.detection import detect_platform
 from tools.extractors.facebook import _extract_facebook
@@ -11,6 +13,13 @@ from tools.extractors.models import ExtractedContent
 from tools.extractors.threads import _extract_threads
 from tools.extractors.twitter import _extract_twitter
 from tools.extractors.youtube import _extract_youtube
+
+if TYPE_CHECKING:
+    from config.processing import MediaIngestionConfig
+
+
+# Plattformen, die media_config als kwarg akzeptieren
+_MEDIA_AWARE_PLATFORMS = {"youtube", "instagram"}
 
 
 class ContentExtractor:
@@ -24,6 +33,9 @@ class ContentExtractor:
         "youtube": _extract_youtube,
         "article": _extract_article,
     }
+
+    def __init__(self, media_config: MediaIngestionConfig | None = None) -> None:
+        self._media_config = media_config
 
     def extract(self, url: str) -> ExtractedContent:
         """Extract content from a URL (sync).
@@ -45,6 +57,8 @@ class ContentExtractor:
         extractor_fn = self._EXTRACTORS[platform]
 
         with _get_client() as client:
+            if platform in _MEDIA_AWARE_PLATFORMS and self._media_config:
+                return extractor_fn(url, client, media_config=self._media_config)
             return extractor_fn(url, client)
 
     async def extract_async(self, url: str) -> ExtractedContent:
@@ -67,7 +81,10 @@ class ContentExtractor:
                         url = "https://" + url
                     platform = detect_platform(url)
                     extractor_fn = self._EXTRACTORS[platform]
-                    results.append(extractor_fn(url, client))
+                    if platform in _MEDIA_AWARE_PLATFORMS and self._media_config:
+                        results.append(extractor_fn(url, client, media_config=self._media_config))
+                    else:
+                        results.append(extractor_fn(url, client))
                 except Exception as e:
                     results.append(ExtractedContent(
                         url=url,
