@@ -58,53 +58,57 @@ export default function Header() {
             />
           </Link>
 
-          {/* Nav separator */}
-          <div className="w-px h-4 bg-border/60 mr-2 hidden sm:block" />
+          {user && (
+            <>
+              {/* Nav separator */}
+              <div className="w-px h-4 bg-border/60 mr-2 hidden sm:block" />
 
-          <nav className="hidden sm:flex items-center gap-0.5">
-            <Link
-              href="/"
-              className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                isActive("/")
-                  ? "bg-surface-hover text-text-primary"
-                  : "text-text-tertiary hover:text-text-secondary hover:bg-surface-hover/50"
-              }`}
-            >
-              {t("nav.newAnalysis")}
-            </Link>
-            <Link
-              href="/archiv"
-              className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                isActive("/archiv")
-                  ? "bg-surface-hover text-text-primary"
-                  : "text-text-tertiary hover:text-text-secondary hover:bg-surface-hover/50"
-              }`}
-            >
-              {t("nav.archive")}
-            </Link>
-            <Link
-              href="/netzwerk"
-              className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                isActive("/netzwerk")
-                  ? "bg-surface-hover text-text-primary"
-                  : "text-text-tertiary hover:text-text-secondary hover:bg-surface-hover/50"
-              }`}
-            >
-              {t("graph.title")}
-            </Link>
-            {user?.admin && (
-              <Link
-                href="/admin"
-                className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                  isActive("/admin")
-                    ? "bg-warning/12 text-warning"
-                    : "text-warning/70 hover:text-warning hover:bg-warning/8"
-                }`}
-              >
-                {t("nav.admin")}
-              </Link>
-            )}
-          </nav>
+              <nav className="hidden sm:flex items-center gap-0.5">
+                <Link
+                  href="/"
+                  className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                    isActive("/")
+                      ? "bg-surface-hover text-text-primary"
+                      : "text-text-tertiary hover:text-text-secondary hover:bg-surface-hover/50"
+                  }`}
+                >
+                  {t("nav.newAnalysis")}
+                </Link>
+                <Link
+                  href="/archiv"
+                  className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                    isActive("/archiv")
+                      ? "bg-surface-hover text-text-primary"
+                      : "text-text-tertiary hover:text-text-secondary hover:bg-surface-hover/50"
+                  }`}
+                >
+                  {t("nav.archive")}
+                </Link>
+                <Link
+                  href="/netzwerk"
+                  className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                    isActive("/netzwerk")
+                      ? "bg-surface-hover text-text-primary"
+                      : "text-text-tertiary hover:text-text-secondary hover:bg-surface-hover/50"
+                  }`}
+                >
+                  {t("graph.title")}
+                </Link>
+                {user?.admin && (
+                  <Link
+                    href="/admin"
+                    className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                      isActive("/admin")
+                        ? "bg-warning/12 text-warning"
+                        : "text-warning/70 hover:text-warning hover:bg-warning/8"
+                    }`}
+                  >
+                    {t("nav.admin")}
+                  </Link>
+                )}
+              </nav>
+            </>
+          )}
         </div>
 
         {/* Right: Controls + Auth */}

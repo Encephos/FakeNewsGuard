@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
+import { INTERNAL_BACKEND_URL, TIMEOUT_DEFAULT } from "@/config";
 
-const BACKEND = process.env.BACKEND_URL?.replace("/api/analyze", "") || "http://backend:8000";
+const BACKEND = INTERNAL_BACKEND_URL;
 
 export async function GET(
   _req: NextRequest,
@@ -12,7 +13,7 @@ export async function GET(
   try {
     backendRes = await fetch(`${BACKEND}/api/jobs/${jobId}`, {
       cache: "no-store",
-      signal: AbortSignal.timeout(10_000),
+      signal: AbortSignal.timeout(TIMEOUT_DEFAULT),
     });
   } catch {
     return new Response(

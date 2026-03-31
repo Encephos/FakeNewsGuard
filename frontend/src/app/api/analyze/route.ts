@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
+import { INTERNAL_BACKEND_URL, TIMEOUT_ANALYZE } from "@/config";
 
-const BACKEND = process.env.BACKEND_URL?.replace("/api/analyze", "") || "http://backend:8000";
+const BACKEND = INTERNAL_BACKEND_URL;
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
@@ -11,7 +12,7 @@ export async function POST(req: NextRequest) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(30_000),
+      signal: AbortSignal.timeout(TIMEOUT_ANALYZE),
     });
   } catch {
     return new Response(

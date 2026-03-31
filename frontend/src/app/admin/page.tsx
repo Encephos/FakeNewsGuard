@@ -407,6 +407,15 @@ function TabIconSystem() {
   );
 }
 
+function TabIconInvites() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="5" width="20" height="14" rx="2" />
+      <path d="M2 10h20" />
+    </svg>
+  );
+}
+
 // ── Main Page ──────────────────────────────────────────────────────
 
 export default function AdminPage() {
@@ -414,7 +423,7 @@ export default function AdminPage() {
   const { t } = useI18n();
   const router = useRouter();
 
-  type Tab = "users" | "system";
+  type Tab = "users" | "invites" | "system";
   const [activeTab, setActiveTab] = useState<Tab>("users");
 
   // Users tab state
@@ -436,6 +445,26 @@ export default function AdminPage() {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [logLevel, setLogLevel] = useState<string>("");
   const [systemLoading, setSystemLoading] = useState(false);
+
+  // Invites tab state
+  interface InviteCode {
+    id: string;
+    code: string;
+    created_by: string;
+    label: string;
+    max_uses: number;
+    used_count: number;
+    is_active: number;
+    created_at: number;
+    expires_at: number | null;
+  }
+  const [inviteCodes, setInviteCodes] = useState<InviteCode[]>([]);
+  const [invitesLoading, setInvitesLoading] = useState(false);
+  const [newCodeLabel, setNewCodeLabel] = useState("");
+  const [newCodeMaxUses, setNewCodeMaxUses] = useState(1);
+  const [newCodeExpiresDays, setNewCodeExpiresDays] = useState<number | null>(null);
+  const [copiedCode, setCopiedCode] = useState<string | null>(null);
+  const [creatingCode, setCreatingCode] = useState(false);
 
   const headers = useCallback(
     () => ({
@@ -513,6 +542,66 @@ export default function AdminPage() {
     }
   }, [token, headers, logLevel]);
 
+  // ── Fetch invite codes ────────────────────────────────────────────
+  const fetchInviteCodes = useCallback(async () => {
+    if (!token) return;
+    setInvitesLoading(true);
+    try {
+      const res = await fetch("/api/admin/registration-codes", { headers: headers() });
+      if (res.ok) {
+        const data = await res.json();
+        setInviteCodes(data.codes ?? []);
+      }
+    } catch {
+      // non-critical
+    } finally {
+      setInvitesLoading(false);
+    }
+  }, [token, headers]);
+
+  const handleCreateCode = useCallback(async () => {
+    if (!token) return;
+    setCreatingCode(true);
+    try {
+      const res = await fetch("/api/admin/registration-codes", {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify({
+          label: newCodeLabel,
+          max_uses: newCodeMaxUses,
+          expires_days: newCodeExpiresDays,
+        }),
+      });
+      if (res.ok) {
+        setNewCodeLabel("");
+        setNewCodeMaxUses(1);
+        setNewCodeExpiresDays(null);
+        fetchInviteCodes();
+      }
+    } finally {
+      setCreatingCode(false);
+    }
+  }, [token, headers, newCodeLabel, newCodeMaxUses, newCodeExpiresDays, fetchInviteCodes]);
+
+  const handleRevokeCode = useCallback(async (codeId: string) => {
+    if (!token) return;
+    const res = await fetch(`/api/admin/registration-codes/${codeId}`, {
+      method: "DELETE",
+      headers: headers(),
+    });
+    if (res.ok) {
+      setInviteCodes((prev) =>
+        prev.map((c) => (c.id === codeId ? { ...c, is_active: 0 } : c)),
+      );
+    }
+  }, [token, headers]);
+
+  const copyCode = useCallback((code: string) => {
+    navigator.clipboard.writeText(code);
+    setCopiedCode(code);
+    setTimeout(() => setCopiedCode(null), 2000);
+  }, []);
+
   useEffect(() => {
     if (authLoading) return;
     if (!user || !user.admin) {
@@ -527,6 +616,12 @@ export default function AdminPage() {
       fetchSystemData();
     }
   }, [activeTab, token, user, fetchSystemData]);
+
+  useEffect(() => {
+    if (activeTab === "invites" && token && user?.admin) {
+      fetchInviteCodes();
+    }
+  }, [activeTab, token, user, fetchInviteCodes]);
 
   // ── Tier change ──────────────────────────────────────────────────
   const handleTierChange = async (userId: string, newTier: string) => {
@@ -613,7 +708,7 @@ export default function AdminPage() {
 
         {/* Tab switcher */}
         <div className="flex gap-0.5 glass-inner rounded-xl p-1">
-          {(["users", "system"] as Tab[]).map((tab) => (
+          {(["users", "invites", "system"] as Tab[]).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -623,7 +718,7 @@ export default function AdminPage() {
                   : "text-text-tertiary hover:text-text-primary hover:bg-surface-hover/50"
               }`}
             >
-              {tab === "users" ? <TabIconUsers /> : <TabIconSystem />}
+              {tab === "users" ? <TabIconUsers /> : tab === "invites" ? <TabIconInvites /> : <TabIconSystem />}
               {t(`admin.tab.${tab}`)}
             </button>
           ))}
@@ -909,6 +1004,153 @@ export default function AdminPage() {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ── TAB: INVITES ───────────────────────────────────────────── */}
+      {activeTab === "invites" && (
+        <div className="space-y-6 animate-fade-in">
+          {/* Create code form */}
+          <div className="glass-card rounded-2xl p-5">
+            <h3 className="text-sm font-semibold text-text-primary mb-4">{t("admin.invites.createCode")}</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
+              <div>
+                <label className="block text-[10px] font-medium uppercase tracking-wider text-text-tertiary mb-1.5">
+                  {t("admin.invites.label")}
+                </label>
+                <input
+                  type="text"
+                  value={newCodeLabel}
+                  onChange={(e) => setNewCodeLabel(e.target.value)}
+                  placeholder={t("admin.invites.labelPlaceholder")}
+                  className="w-full glass-inner rounded-lg px-3 py-2 text-xs text-text-primary placeholder:text-text-tertiary border-0 outline-none focus:ring-1 focus:ring-accent/30"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-medium uppercase tracking-wider text-text-tertiary mb-1.5">
+                  {t("admin.invites.maxUses")}
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  max={1000}
+                  value={newCodeMaxUses}
+                  onChange={(e) => setNewCodeMaxUses(Math.max(1, parseInt(e.target.value) || 1))}
+                  className="w-full glass-inner rounded-lg px-3 py-2 text-xs text-text-primary border-0 outline-none focus:ring-1 focus:ring-accent/30"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-medium uppercase tracking-wider text-text-tertiary mb-1.5">
+                  {t("admin.invites.expiresDays")}
+                </label>
+                <select
+                  value={newCodeExpiresDays ?? ""}
+                  onChange={(e) => setNewCodeExpiresDays(e.target.value ? parseInt(e.target.value) : null)}
+                  className="w-full glass-inner rounded-lg px-3 py-2 text-xs text-text-primary border-0 outline-none focus:ring-1 focus:ring-accent/30 bg-transparent"
+                >
+                  <option value="">{t("admin.invites.noExpiry")}</option>
+                  <option value="1">1</option>
+                  <option value="7">7</option>
+                  <option value="14">14</option>
+                  <option value="30">30</option>
+                  <option value="90">90</option>
+                </select>
+              </div>
+              <button
+                onClick={handleCreateCode}
+                disabled={creatingCode}
+                className="px-4 py-2 text-xs font-medium bg-accent text-white rounded-lg hover:bg-accent-hover disabled:opacity-50 transition-colors"
+              >
+                {creatingCode ? "..." : t("admin.invites.createCode")}
+              </button>
+            </div>
+          </div>
+
+          {/* Codes table */}
+          <div className="glass-card rounded-2xl overflow-hidden">
+            <div className="px-5 py-3.5 border-b border-[var(--glass-inner-border)]">
+              <h3 className="text-sm font-semibold text-text-primary">{t("admin.invites.title")}</h3>
+            </div>
+
+            {invitesLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="w-6 h-6 rounded-full border-2 border-accent/30 border-t-accent animate-spin" />
+              </div>
+            ) : inviteCodes.length === 0 ? (
+              <div className="px-5 py-12 text-center text-xs text-text-tertiary">
+                {t("admin.invites.noCodes")}
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-[var(--glass-inner-border)] text-text-tertiary">
+                      <th className="px-4 py-2.5 text-left font-medium">{t("admin.invites.code")}</th>
+                      <th className="px-4 py-2.5 text-left font-medium">{t("admin.invites.label")}</th>
+                      <th className="px-4 py-2.5 text-center font-medium">{t("admin.invites.uses")}</th>
+                      <th className="px-4 py-2.5 text-center font-medium">{t("admin.invites.status")}</th>
+                      <th className="px-4 py-2.5 text-left font-medium">{t("admin.invites.created")}</th>
+                      <th className="px-4 py-2.5 text-right font-medium">{t("admin.invites.actions")}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {inviteCodes.map((ic) => {
+                      const now = Date.now() / 1000;
+                      const isExpired = ic.expires_at !== null && ic.expires_at < now;
+                      const isExhausted = ic.used_count >= ic.max_uses;
+                      const isRevoked = !ic.is_active;
+                      const statusKey = isRevoked ? "revoked" : isExpired ? "expired" : isExhausted ? "exhausted" : "active";
+                      const statusColor = statusKey === "active" ? "bg-success/15 text-success" : "bg-text-tertiary/15 text-text-tertiary";
+
+                      return (
+                        <tr key={ic.id} className="border-b border-[var(--glass-inner-border)] last:border-0 hover:bg-surface-hover/30 transition-colors">
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <code className="font-mono text-text-primary tracking-wider">{ic.code}</code>
+                              <button
+                                onClick={() => copyCode(ic.code)}
+                                className="text-text-tertiary hover:text-text-primary transition-colors"
+                                title="Copy"
+                              >
+                                {copiedCode === ic.code ? (
+                                  <span className="text-success text-[10px]">{t("admin.invites.copied")}</span>
+                                ) : (
+                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                                  </svg>
+                                )}
+                              </button>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-text-secondary">{ic.label || "—"}</td>
+                          <td className="px-4 py-3 text-center text-text-secondary tabular-nums">
+                            {ic.used_count} / {ic.max_uses}
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <span className={`inline-block px-2 py-0.5 rounded-md text-[10px] font-semibold ${statusColor}`}>
+                              {t(`admin.invites.${statusKey}`)}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-text-tertiary">{formatDate(ic.created_at)}</td>
+                          <td className="px-4 py-3 text-right">
+                            {ic.is_active && !isExpired && !isExhausted ? (
+                              <button
+                                onClick={() => handleRevokeCode(ic.id)}
+                                className="text-[10px] text-error hover:text-error/80 font-medium transition-colors"
+                              >
+                                {t("admin.invites.revoke")}
+                              </button>
+                            ) : null}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
