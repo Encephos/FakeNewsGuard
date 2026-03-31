@@ -6,10 +6,14 @@ const BACKEND = INTERNAL_BACKEND_URL;
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const qs = searchParams.toString();
+  const headers: Record<string, string> = {};
+  const auth = req.headers.get("authorization");
+  if (auth) headers["Authorization"] = auth;
 
   let backendRes: Response;
   try {
     backendRes = await fetch(`${BACKEND}/api/archive${qs ? `?${qs}` : ""}`, {
+      headers,
       cache: "no-store",
       signal: AbortSignal.timeout(TIMEOUT_DEFAULT),
     });

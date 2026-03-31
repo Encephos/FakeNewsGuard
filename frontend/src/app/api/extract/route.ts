@@ -5,12 +5,15 @@ const BACKEND = INTERNAL_BACKEND_URL;
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const auth = req.headers.get("authorization");
+  if (auth) headers["Authorization"] = auth;
 
   let backendRes: Response;
   try {
     backendRes = await fetch(`${BACKEND}/api/extract`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers,
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(TIMEOUT_EXTRACT),
     });

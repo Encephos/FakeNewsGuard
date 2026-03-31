@@ -4,14 +4,18 @@ import { INTERNAL_BACKEND_URL, TIMEOUT_DEFAULT } from "@/config";
 const BACKEND = INTERNAL_BACKEND_URL;
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
+  const headers: Record<string, string> = {};
+  const auth = req.headers.get("authorization");
+  if (auth) headers["Authorization"] = auth;
 
   let backendRes: Response;
   try {
     backendRes = await fetch(`${BACKEND}/api/archive/${id}`, {
+      headers,
       cache: "no-store",
       signal: AbortSignal.timeout(TIMEOUT_DEFAULT),
     });
@@ -30,15 +34,19 @@ export async function GET(
 }
 
 export async function DELETE(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
+  const headers: Record<string, string> = {};
+  const auth = req.headers.get("authorization");
+  if (auth) headers["Authorization"] = auth;
 
   let backendRes: Response;
   try {
     backendRes = await fetch(`${BACKEND}/api/archive/${id}`, {
       method: "DELETE",
+      headers,
       signal: AbortSignal.timeout(TIMEOUT_DEFAULT),
     });
   } catch {
