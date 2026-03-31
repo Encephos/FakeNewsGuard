@@ -281,6 +281,12 @@ class EvidenceQualitySignals(BaseModel):
         default=0,
         description="Anzahl der Top-5-Quellen mit REFUTES + DIRECT (aktive direkte Widerlegung)",
     )
+    direct_refutation_freshness: float = Field(
+        default=0.0,
+        ge=0.0,
+        le=1.0,
+        description="Durchschnittliche Freshness der REFUTES+DIRECT Quellen in Top-5.",
+    )
 
 
 # ── Google Fact Check ──────────────────────────────────────────────────────────

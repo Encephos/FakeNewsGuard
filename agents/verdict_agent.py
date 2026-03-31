@@ -17,6 +17,13 @@ from __future__ import annotations
 from typing import Any
 
 from agents.base import BaseAgent
+from tools.data_loader import (
+    verdict_freshness_thresholds,
+    verdict_uncertainty_thresholds,
+)
+
+_VFT = verdict_freshness_thresholds()
+_VUT = verdict_uncertainty_thresholds()
 from agents.verdict_calibration import (  # noqa: F401 – re-exported for backward compat
     VerdictRatingCalibrationConfig,
     _calibrate_confidence,
@@ -286,7 +293,10 @@ class VerdictAgent(BaseAgent):
 
         # Current-state Claims brauchen frischere Quellen (Threshold 0.60 statt 0.40).
         # Damit triggern Quellen ohne Datum (default 0.5) ebenfalls das Stale-Ceiling.
-        stale_threshold = 0.60 if is_current_state else 0.40
+        stale_threshold = (
+            _VFT.get("current_state_threshold", 0.60) if is_current_state
+            else _VFT.get("general_threshold", 0.40)
+        )
 
         calibrated_confidence, calibration_reasons = _calibrate_confidence(
             raw_confidence, pack, cove_trace,
@@ -310,11 +320,11 @@ class VerdictAgent(BaseAgent):
                 )
 
         if pack.evidence_quality:
-            if pack.evidence_quality.overall_quality < 0.3:
+            if pack.evidence_quality.overall_quality < _VUT.get("quality_threshold", 0.3):
                 uncertainty_signals.append("Evidenzqualität niedrig")
             if pack.evidence_quality.source_consensus.value == "contradictory":
                 uncertainty_signals.append("Quellen widersprechen sich")
-            if pack.evidence_quality.off_topic_rate > 0.4:
+            if pack.evidence_quality.off_topic_rate > _VUT.get("offtopic_rate_threshold", 0.4):
                 uncertainty_signals.append(
                     f"Hohe Off-topic-Rate: {pack.evidence_quality.off_topic_rate:.0%} der Top-Treffer irrelevant"
                 )
@@ -328,11 +338,12 @@ class VerdictAgent(BaseAgent):
             grounding_score = self._check_verdict_grounding(
                 raw.get("evidence", ""), pack,
             )
-            if grounding_score >= 0.0 and grounding_score < 0.5:
+            if grounding_score >= 0.0 and grounding_score < _VUT.get("grounding_severe_threshold", 0.5):
                 # Schweres Grounding-Problem: Confidence-Ceiling
+                _severe_th = _VUT.get("grounding_severe_threshold", 0.5)
                 penalty_reason = (
                     f"Self-RAG: Grounding-Score={grounding_score:.2f} "
-                    f"(< 0.50 → Confidence begrenzt auf {retrieval_cfg.self_rag_severe_confidence_ceiling})"
+                    f"(< {_severe_th} → Confidence begrenzt auf {retrieval_cfg.self_rag_severe_confidence_ceiling})"
                 )
                 calibrated_confidence = min(
                     calibrated_confidence,
@@ -341,13 +352,14 @@ class VerdictAgent(BaseAgent):
                 calibration_reasons.append(penalty_reason)
                 uncertainty_signals.append(f"Niedrige Evidenz-Fundierung (Grounding={grounding_score:.2f})")
                 self._log(f"Self-RAG {claim.id}: {penalty_reason}")
-            elif grounding_score >= 0.0 and grounding_score < 0.75:
+            elif grounding_score >= 0.0 and grounding_score < _VUT.get("grounding_moderate_threshold", 0.75):
                 # Moderates Grounding-Problem: Confidence-Penalty
                 penalty = retrieval_cfg.self_rag_ungrounded_confidence_penalty
                 calibrated_confidence = max(0.0, calibrated_confidence - penalty)
+                _moderate_th = _VUT.get("grounding_moderate_threshold", 0.75)
                 penalty_reason = (
                     f"Self-RAG: Grounding-Score={grounding_score:.2f} "
-                    f"(< 0.75 → Confidence -{penalty})"
+                    f"(< {_moderate_th} → Confidence -{penalty})"
                 )
                 calibration_reasons.append(penalty_reason)
                 self._log(f"Self-RAG {claim.id}: {penalty_reason}")

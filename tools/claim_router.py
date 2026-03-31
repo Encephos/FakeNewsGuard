@@ -30,8 +30,12 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
+from tools.data_loader import claim_routing_config
 from tools.sources.registry import SourceRegistry
 from tools.sources.types import ClaimDomain, SourceConfig
+
+# Claim-Routing-Konfiguration (aus data/claim_routing.yaml)
+_CRC = claim_routing_config()
 
 
 def _kw_in_text(kw: str, text: str) -> bool:
@@ -103,13 +107,16 @@ _DOMAIN_KEYWORDS: dict[ClaimDomain, frozenset[str]] = {
     }),
     ClaimDomain.LEGAL: frozenset({
         "verordnung", "richtlinie", "gesetz", "gesetzbuch", "rechtsnorm",
+        "grundgesetz", "verfassung", "verfassungsrecht",
         "regulation", "directive", "law", "statute", "legislation",
+        "constitution", "constitutional",
         "artikel", "paragraph", "§", "abs.",
         "eu-verordnung", "eu-richtlinie",
         "treaty", "vertrag", "konvention", "übereinkommen",
         "rechtsprechung", "urteil", "beschluss", "entscheidung",
         "dsgvo", "gdpr", "ai act", "digital markets act", "dma", "dsa",
         "gesetzlich", "rechtlich", "vorschrift", "rechtsvorschrift",
+        "neutralität", "neutralitätspflicht", "parteipolitisch",
     }),
     ClaimDomain.REGULATORY: frozenset({
         "regulierung", "regulatorisch", "compliance", "aufsicht",
@@ -202,6 +209,43 @@ _DOMAIN_KEYWORDS: dict[ClaimDomain, frozenset[str]] = {
         "lieferkette", "supply chain",
         "handelsbeschränkung", "trade restriction", "embargo", "sanktion",
     }),
+
+    # ── Wissens- und Nachrichtendomänen (GDELT, Wikidata, Wikipedia) ──
+
+    ClaimDomain.BIOGRAPHICAL: frozenset({
+        "geboren", "gestorben", "geburtsdatum", "todesdatum",
+        "born", "died", "date of birth", "date of death",
+        "präsident", "kanzler", "minister", "amtsträger", "amtszeit",
+        "president", "chancellor", "minister", "office holder",
+        "gründer", "founder", "ceo", "vorsitzender", "chairman",
+        "ehepartner", "spouse", "staatsbürgerschaft", "citizenship",
+        "biografie", "lebenslauf", "biography",
+        "alter", "nationalität", "nationality",
+    }),
+    ClaimDomain.GEOGRAPHIC: frozenset({
+        "hauptstadt", "capital", "einwohner", "einwohnerzahl",
+        "population", "fläche", "area", "quadratkilometer",
+        "liegt in", "located in", "befindet sich",
+        "kontinent", "continent", "küste", "grenze", "border",
+        "bundesland", "kanton", "province", "state",
+        "koordinaten", "coordinates", "zeitzone", "timezone",
+    }),
+    ClaimDomain.INSTITUTIONAL: frozenset({
+        "gegründet", "gründung", "gründungsjahr", "founded",
+        "founded in", "established",
+        "hauptsitz", "headquarter", "sitz",
+        "mitglied", "member", "mitgliedschaft", "membership",
+        "organisation", "organization", "institution",
+        "stiftung", "foundation", "verband", "verein", "association",
+        "mitarbeiterzahl", "employees", "beschäftigte",
+    }),
+    ClaimDomain.GENERAL: frozenset({
+        "nachricht", "meldung", "bericht", "berichterstattung",
+        "news", "report", "coverage", "headline",
+        "laut medienberichten", "according to reports",
+        "medien", "media", "presse", "press",
+        "veröffentlicht", "published", "gemeldet", "reported",
+    }),
 }
 
 
@@ -275,7 +319,7 @@ _JURISDICTION_BOOST: dict[str, dict[str, float]] = {
     "global": {},
 }
 
-_MAX_SOURCES = 6
+_MAX_SOURCES = _CRC.get("scoring", {}).get("max_sources", 6)
 
 
 # ── ClaimRouter ───────────────────────────────────────────────────────────────
@@ -320,6 +364,7 @@ class ClaimRouter:
         jurisdiction = self._detect_jurisdiction(claim, search_text)
         sources = self._select_sources(detected_domains, jurisdiction, domain_scores)
         site_hints = self._build_site_hints(sources)
+        site_hints = self._enrich_site_hints(site_hints, detected_domains, jurisdiction)
         confidence = self._compute_confidence(detected_domains, domain_scores)
         rationale = self._build_rationale(detected_domains, jurisdiction, sources, confidence)
 
@@ -467,15 +512,16 @@ class ClaimRouter:
                     add(ClaimDomain.STATISTICAL, 0.30)
 
         # 3. Keyword-Matching (moderater Beitrag)
+        _kw_match_score = _CRC.get("detection", {}).get("keyword_match_score", 0.15)
         for domain, keywords in _DOMAIN_KEYWORDS.items():
             hits = sum(1 for kw in keywords if _kw_in_text(kw, search_text))
             if hits > 0:
-                # Logarithmische Dämpfung: 1 Treffer → 0.15, 4 Treffer → 0.50
-                score = min(0.70, hits * 0.15)
+                # Logarithmische Dämpfung: 1 Treffer → _kw_match_score, 4 Treffer → ~0.50
+                score = min(0.70, hits * _kw_match_score)
                 add(domain, score)
 
         # Nur Domänen mit Score >= Schwellenwert
-        threshold = 0.15
+        threshold = _CRC.get("detection", {}).get("domain_detection_threshold", 0.15)
         active = sorted(
             [(d, s) for d, s in scores.items() if s >= threshold],
             key=lambda x: x[1],
@@ -544,7 +590,7 @@ class ClaimRouter:
                 effective = (
                     src.authority_weight
                     + boost.get(src.source_id, 0.0)
-                    + domain_weight * 0.08  # Domain-Score trägt moderat bei
+                    + domain_weight * _CRC.get("scoring", {}).get("domain_score_weight", 0.08)
                 )
                 candidates.append((src, effective))
 
@@ -561,6 +607,41 @@ class ClaimRouter:
                     hints.append(hint)
         return hints
 
+    @staticmethod
+    def _enrich_site_hints(
+        hints: list[str],
+        domains: list[ClaimDomain],
+        jurisdiction: str,
+    ) -> list[str]:
+        """Ergänze jurisdiktions- und domainspezifische Site-Hints.
+
+        Die Source-Registry enthält nicht alle relevanten Web-Portale
+        (z.B. gesetze-im-internet.de für deutsches Recht). Diese Methode
+        fügt fehlende Hints basierend auf Domain + Jurisdiktion hinzu.
+        """
+        _EXTRA_HINTS: dict[tuple[ClaimDomain, str], list[str]] = {
+            (ClaimDomain.LEGAL, "de"): [
+                "site:gesetze-im-internet.de",
+                "site:dejure.org",
+                "site:bundestag.de",
+            ],
+            (ClaimDomain.LEGAL, "eu"): [
+                "site:eur-lex.europa.eu",
+            ],
+            (ClaimDomain.REGULATORY, "de"): [
+                "site:gesetze-im-internet.de",
+                "site:bafin.de",
+            ],
+        }
+
+        for domain in domains:
+            extras = _EXTRA_HINTS.get((domain, jurisdiction), [])
+            for hint in extras:
+                if hint not in hints:
+                    hints.append(hint)
+
+        return hints
+
     def _compute_confidence(
         self,
         domains: list[ClaimDomain],
@@ -570,13 +651,18 @@ class ClaimRouter:
         if not domains:
             return 0.10
 
+        _conf = _CRC.get("confidence", {})
+        _conf_min = _conf.get("min", 0.20)
+        _conf_max = _conf.get("max", 0.95)
+        _multi_boost = _conf.get("multi_domain_boost", 0.05)
+
         top_score = domain_scores.get(domains[0], 0.0)
-        # Skaliere Score auf [0.20, 0.95] (nie 1.0 – heuristische Unsicherheit)
-        confidence = min(0.95, max(0.20, top_score / 1.0))
+        # Skaliere Score auf [_conf_min, _conf_max] (nie 1.0 – heuristische Unsicherheit)
+        confidence = min(_conf_max, max(_conf_min, top_score / 1.0))
 
         # Mehrere konsistente Domänen → leicht mehr Konfidenz
         if len(domains) > 1 and domain_scores.get(domains[1], 0.0) > 0.30:
-            confidence = min(0.95, confidence + 0.05)
+            confidence = min(_conf_max, confidence + _multi_boost)
 
         return round(confidence, 2)
 

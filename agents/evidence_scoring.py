@@ -37,6 +37,7 @@ from tools.data_loader import (
     commercial_domains,
     commercial_snippet_patterns,
     domain_tiers,
+    evidence_classification_thresholds,
     freshness_tiers as load_freshness_tiers,
     low_trust_content_patterns,
     low_trust_domains,
@@ -65,6 +66,9 @@ _LOW_TRUST_DOMAINS: frozenset[str] = low_trust_domains()
 _LOW_TRUST_CONTENT_PATTERNS: list[re.Pattern] = low_trust_content_patterns()
 
 _COMMERCIAL_SNIPPET_PATTERNS: list[re.Pattern] = commercial_snippet_patterns()
+
+# Evidence-Classification-Schwellenwerte (aus data/verdict_calibration.yaml)
+_EC = evidence_classification_thresholds()
 
 # Widerlegungsmuster (generisch, kein Claim-Bezug)
 _REFUTATION_PATTERNS: list[re.Pattern[str]] = [
@@ -147,14 +151,50 @@ def _domain_tier(url: str) -> int:
     domain = _extract_domain(url)
     tiers = domain_tiers()
     if any(t in domain for t in tiers["tier1"]):
-        return 1
-    if any(t in domain for t in tiers["tier2"]):
-        return 2
-    if any(t in domain for t in tiers["tier3"]):
-        return 3
-    if any(t in domain for t in tiers["tier4"]):
-        return 4
-    return 5
+        base_tier = 1
+    elif any(t in domain for t in tiers["tier2"]):
+        base_tier = 2
+    elif any(t in domain for t in tiers["tier3"]):
+        base_tier = 3
+    elif any(t in domain for t in tiers["tier4"]):
+        base_tier = 4
+    else:
+        base_tier = 5
+
+    # Optionales PageRank-Adjustment (OpenPageRank).
+    # Graceful degradation: ohne API-Key oder bei Fehler → base_tier unverändert.
+    adjustment = _pagerank_adjustment(domain)
+    return max(1, min(5, round(base_tier + adjustment)))
+
+
+# Lazy-initialisierter DomainTrustClient (Singleton).
+_domain_trust_client: object | None = None
+_domain_trust_init_attempted: bool = False
+
+
+def _pagerank_adjustment(domain: str) -> float:
+    """Hole PageRank-basierte Tier-Anpassung für eine Domain.
+
+    Returns 0.0 wenn OpenPageRank nicht verfügbar (kein API-Key, Fehler, etc.).
+    """
+    global _domain_trust_client, _domain_trust_init_attempted
+    if not _domain_trust_init_attempted:
+        _domain_trust_init_attempted = True
+        try:
+            from tools.domain_trust import DomainTrustClient
+            client = DomainTrustClient()
+            if client.is_available:
+                _domain_trust_client = client
+        except Exception:
+            pass
+
+    if _domain_trust_client is None:
+        return 0.0
+
+    try:
+        return _domain_trust_client.tier_adjustment(domain)
+    except Exception:
+        return 0.0
 
 
 def _is_fact_check_org(url: str) -> bool:
@@ -609,7 +649,7 @@ def _relevance_score(
     return min(1.0, max(0.0, score))
 
 
-def _extract_best_excerpt(content: str, claim_text: str, max_chars: int = 800) -> str:
+def _extract_best_excerpt(content: str, claim_text: str, max_chars: int = _EC.get("max_excerpt_chars", 800)) -> str:
     """Extrahiere die relevanteste Passage statt stumpf content[:800].
 
     Strategie: Absätze scoren nach Entitäts- und Keyword-Overlap,
@@ -952,7 +992,7 @@ def _detect_contradictions(items: list[EvidenceItem]) -> list[EvidenceContradict
     """
     contradictions: list[EvidenceContradiction] = []
     seen_pairs: set[tuple[str, str]] = set()
-    max_contradictions = 5
+    max_contradictions = _EC.get("max_contradictions", 5)
 
     relevant = [item for item in items if item.relevance_score > 0.3]
 
@@ -1296,6 +1336,22 @@ def _compute_quality_signals(
     )
     has_direct_refutation = direct_refutation_count > 0
 
+    # Freshness der widerlegenden DIRECT-Quellen: ermöglicht Calibration,
+    # veraltete Widerlegungen bei current-state Claims zu ignorieren.
+    direct_refutation_freshness = 0.0
+    if has_direct_refutation:
+        _ref_freshness = [
+            _compute_freshness(i.source.publication_date)
+            for i in top_5
+            if (
+                getattr(i, "source_direction", None) == SourceDirection.REFUTES
+                and getattr(i, "evidence_type", None) == EvidenceType.DIRECT
+            )
+        ]
+        direct_refutation_freshness = (
+            sum(_ref_freshness) / len(_ref_freshness) if _ref_freshness else 0.0
+        )
+
     return EvidenceQualitySignals(
         # Granulare Signale (neue Felder)
         has_primary_source_any=has_primary_any,
@@ -1316,6 +1372,7 @@ def _compute_quality_signals(
         contextual_only_rate=contextual_only_rate,
         has_direct_refutation=has_direct_refutation,
         direct_refutation_count=direct_refutation_count,
+        direct_refutation_freshness=direct_refutation_freshness,
     )
 
 
@@ -1372,7 +1429,7 @@ def _classify_evidence_type(
     domain_tier: int,
     is_fact_check: bool,
     is_low_trust: bool,
-    min_direct_scope: float = 0.60,
+    min_direct_scope: float = _EC.get("min_direct_scope", 0.60),
 ) -> "EvidenceType":
     """Klassifiziere einen Treffer als DIRECT, CONTEXTUAL oder WEAK.
 
@@ -1386,7 +1443,7 @@ def _classify_evidence_type(
         return EvidenceType.WEAK
 
     # Fact-Checker mit ausreichender Relevanz → immer DIRECT
-    if is_fact_check and item_relevance >= 0.30:
+    if is_fact_check and item_relevance >= _EC.get("factchecker_relevance_min", 0.30):
         return EvidenceType.DIRECT
 
     # Offizielle Quellen (Tier 1-2) brauchen denselben Scope-Threshold wie andere Quellen.
@@ -1396,11 +1453,11 @@ def _classify_evidence_type(
         return EvidenceType.DIRECT
 
     # Hoher Scope + ausreichende Relevanz → DIRECT
-    if claim_scope >= min_direct_scope and item_relevance >= 0.35:
+    if claim_scope >= min_direct_scope and item_relevance >= _EC.get("direct_relevance_min", 0.35):
         return EvidenceType.DIRECT
 
     # Mittlerer Scope oder anständige Relevanz → CONTEXTUAL
-    if claim_scope >= 0.30 or item_relevance >= 0.25:
+    if claim_scope >= _EC.get("contextual_scope_min", 0.30) or item_relevance >= _EC.get("contextual_relevance_min", 0.25):
         return EvidenceType.CONTEXTUAL
 
     return EvidenceType.WEAK
