@@ -18,15 +18,16 @@ Jede Behauptung wird klassifiziert und mit Kontext angereichert.
 
 ## Input / Output
 
-**Input:** `str` (Rohtext, max. 10.000 Zeichen)
+**Input:** `str` (Rohtext, max. 25.000 Zeichen)
 
-**Output:** `ClaimExtractionResult`
+**Output:** `ClaimProcessingResult` (Rückgabetyp ist `ClaimProcessingResult`, nicht das ältere `ClaimExtractionResult`)
 ```python
-@dataclass
-class ClaimExtractionResult:
-    claims: list[Claim]
+class ClaimProcessingResult(BaseModel):
+    claims: list[ProcessedClaim]    # Erweiterte Claims mit canonical_text, priority_score etc.
     implicit_claims: list[str]
 ```
+
+> **Hinweis:** `ClaimExtractionResult` existiert als Typ-Alias für Abwärtskompatibilität. Intern delegiert `ClaimExtractorAgent` an den `ClaimProcessorAgent`, der die vollständige 6-Stufen-Pipeline ausführt.
 
 Jeder `Claim`:
 ```python

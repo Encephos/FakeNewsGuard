@@ -82,14 +82,17 @@ Multi-Search ist die Kernfunktion im [[Agent-FactChecker]] / EvidenceBuilderAgen
 ```python
 @dataclass
 class SearXNGConfig:
-    base_url: str = ""           # Env: SEARXNG_URL
-    engines: list[str] = []      # Env: SEARXNG_ENGINES
+    base_url: str = ""                    # Env: SEARXNG_URL
+    engines: list[str] = []               # Env: SEARXNG_ENGINES
     categories: list[str] = ["general", "news"]
-    language: str = "de"
+    language: str = "de"                  # Env: SEARXNG_LANGUAGE
     max_results: int = 15
-    scrape_top_n: int = 10
-    inter_query_delay: float = 1.5
-    engine_rotation_enabled: bool = True
+    max_concurrent_searches: int = 3      # Parallele Queries
+    scrape_top_n: int = 10               # Max. Quellen die gescrapt werden
+    scrape_timeout: float = 10.0         # Sekunden pro Scrape-Request
+    inter_query_delay: float = 1.5       # Pause zwischen Queries (Anti-Rate-Limit)
+    engine_rotation_enabled: bool = True  # Rotiert Engines pro Query
+    engines_per_query: int = 3           # Anzahl Engines pro Einzelquery
 ```
 
 → [[Konfiguration#SearXNGConfig (primär)]]
@@ -122,7 +125,7 @@ SearXNG ist die **empfohlene Konfiguration** für Selbst-Hosting:
 searxng:
   image: searxng/searxng
   ports:
-    - "8080:8888"
+    - "8888:8080"   # extern 8888, intern 8080
 ```
 
 Vorteile:
@@ -132,6 +135,20 @@ Vorteile:
 - Vollständige Datenkontrolle
 
 Für Cloud-Deployments ohne SearXNG stehen **Tavily**, **Serper** oder **Brave** als kostenpflichtige Alternativen zur Verfügung (standardmäßig deaktiviert).
+
+---
+
+## Institutionelle Datenquellen (ergänzend)
+
+Neben der Web-Suche nutzt der EvidenceBuilder 17 institutionelle API-Adapter (`tools/sources/clients/`), geroutet über den ClaimRouter. Darunter drei neue Quellen für Entity-Verifizierung und Cross-Source-Corroboration:
+
+| Client | API | Nutzen |
+|---|---|---|
+| GDELTClient | GDELT DOC API | Zählt unabhängige Domains, die über ein Thema berichten |
+| WikidataClient | Wikidata SPARQL | Verifiziert Personen-/Orts-/Organisations-Fakten strukturiert |
+| WikipediaClient | Wikipedia DE REST | Liefert enzyklopädischen Kontext zu Entitäten |
+
+→ Details: [[Agent-FactChecker#Institutionelle Datenquellen (17 Adapter)]]
 
 ---
 
