@@ -28,6 +28,10 @@ def test_detect_twitter():
 def test_detect_youtube():
     assert detect_platform("https://www.youtube.com/watch?v=abc123") == "youtube"
     assert detect_platform("https://youtu.be/abc123") == "youtube"
+    assert detect_platform("https://www.youtube.com/shorts/06kuP0B53Lc") == "youtube"
+    assert detect_platform("https://youtube.com/shorts/abc123") == "youtube"
+    assert detect_platform("https://www.youtube.com/live/abc123") == "youtube"
+    assert detect_platform("https://www.youtube.com/embed/abc123") == "youtube"
 
 
 def test_detect_instagram():
