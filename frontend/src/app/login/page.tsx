@@ -14,6 +14,7 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
+  const [inviteCode, setInviteCode] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -33,7 +34,7 @@ export default function LoginPage() {
       if (mode === "login") {
         await login(email, password, rememberMe);
       } else {
-        await register(email, password, displayName);
+        await register(email, password, displayName, inviteCode);
       }
       router.push("/");
     } catch (err) {
@@ -74,6 +75,22 @@ export default function LoginPage() {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            {mode === "register" && (
+              <div>
+                <label className="block text-xs font-mono text-text-tertiary mb-1">
+                  {t("auth.inviteCode")}
+                </label>
+                <input
+                  type="text"
+                  value={inviteCode}
+                  onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
+                  required
+                  className="w-full px-3 py-2 text-sm font-mono bg-bg-primary border border-border rounded-lg text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-accent transition-colors tracking-widest"
+                  placeholder={t("auth.inviteCodePlaceholder")}
+                />
+              </div>
+            )}
+
             {mode === "register" && (
               <div>
                 <label className="block text-xs font-mono text-text-tertiary mb-1">

@@ -5,9 +5,8 @@ export interface AnalysisJobResult {
   archiveId?: string;
 }
 
-const BASE_URL = "/api";
-const POLL_INTERVAL_MS = 2000;
-const MAX_POLL_ATTEMPTS = 960; // 960 × 2 s = 32 min (backend hard cap at 30 min)
+import { BACKEND_URL as BASE_URL, POLL_INTERVAL_MS, MAX_POLL_ATTEMPTS } from "@/config";
+
 
 // ── Auth token injection ────────────────────────────────────────
 let _authToken: string | null = null;
@@ -32,7 +31,7 @@ const PLATFORM_PATTERNS: [string, RegExp][] = [
   ["threads", /https?:\/\/(?:www\.)?threads\.net\//i],
   ["instagram", /https?:\/\/(?:www\.)?instagram\.com\/(?:p|reel|tv)\//i],
   ["facebook", /https?:\/\/(?:www\.|m\.)?facebook\.com\//i],
-  ["youtube", /https?:\/\/(?:www\.)?(?:youtube\.com\/watch|youtu\.be\/)/i],
+  ["youtube", /https?:\/\/(?:www\.)?(?:youtube\.com\/(?:watch|shorts\/|live\/|embed\/|v\/)|youtu\.be\/)/i],
 ];
 
 export function detectUrl(text: string): string | null {
