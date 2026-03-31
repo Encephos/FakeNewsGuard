@@ -820,6 +820,17 @@ class PgCrossReferenceGraph:
 
     def stats(self) -> dict[str, Any]:
         with self._conn() as conn:
-            nodes = conn.execute("SELECT COUNT(*) FROM graph_nodes").fetchone()[0]
-            edges = conn.execute("SELECT COUNT(*) FROM graph_edges").fetchone()[0]
-        return {"backend": "postgres", "nodes": nodes, "edges": edges}
+            total_nodes = conn.execute("SELECT COUNT(*) FROM graph_nodes").fetchone()[0]
+            total_edges = conn.execute("SELECT COUNT(*) FROM graph_edges").fetchone()[0]
+            nodes_by_type = dict(conn.execute(
+                "SELECT type, COUNT(*) FROM graph_nodes GROUP BY type"
+            ).fetchall())
+            edges_by_relation = dict(conn.execute(
+                "SELECT relation, COUNT(*) FROM graph_edges GROUP BY relation"
+            ).fetchall())
+        return {
+            "total_nodes": total_nodes,
+            "total_edges": total_edges,
+            "nodes_by_type": nodes_by_type,
+            "edges_by_relation": edges_by_relation,
+        }

@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException, Request
 from tools.logger import get_metrics_snapshot, get_recent_logs
 
 from .dependencies import (
+    CreateRegistrationCodeRequest,
     UpdateTierRequest,
     get_archive,
     get_user_db,
@@ -149,3 +150,41 @@ async def admin_calibration_ground_truth(request: Request) -> dict:
     if updated == 0:
         raise HTTPException(status_code=404, detail="Kein offener Eintrag für diesen Claim gefunden")
     return {"ok": True, "updated": updated}
+
+
+# ── Registration / invite codes ─────────────────────────────────
+
+
+@router.post("/api/admin/registration-codes")
+async def admin_create_registration_code(
+    req: CreateRegistrationCodeRequest, request: Request
+) -> dict:
+    """Create a new invite code. Admin only."""
+    admin_user = require_admin(request)
+    user_db = get_user_db()
+    code_record = user_db.create_registration_code(
+        admin_user_id=admin_user["id"],
+        label=req.label,
+        max_uses=req.max_uses,
+        expires_days=req.expires_days,
+    )
+    return code_record
+
+
+@router.get("/api/admin/registration-codes")
+async def admin_list_registration_codes(request: Request) -> dict:
+    """List all invite codes. Admin only."""
+    require_admin(request)
+    user_db = get_user_db()
+    codes = user_db.list_registration_codes()
+    return {"codes": codes}
+
+
+@router.delete("/api/admin/registration-codes/{code_id}")
+async def admin_revoke_registration_code(code_id: str, request: Request) -> dict:
+    """Revoke an invite code. Admin only."""
+    require_admin(request)
+    user_db = get_user_db()
+    if not user_db.revoke_registration_code(code_id):
+        raise HTTPException(status_code=404, detail="Code nicht gefunden.")
+    return {"ok": True}
