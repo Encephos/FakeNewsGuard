@@ -164,3 +164,15 @@ classifier:
     - substack.com
     - wordpress.com
     - blogspot.com
+
+# ── PageRank Tier-Adjustment (tools/domain_trust.py) ─────────────────────────
+
+pagerank_adjustments:
+  - min_rank: 7
+    adjustment: -1.0    # verbessert um 1 Tier
+  - min_rank: 5
+    adjustment: -0.5
+  - min_rank: 3
+    adjustment: 0.0     # neutral
+  - min_rank: 0
+    adjustment: 0.5     # verschlechtert um 0.5 Tier

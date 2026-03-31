@@ -8,8 +8,11 @@ import sys
 import httpx
 
 from config import RetryConfig, TavilyConfig
+from config.infrastructure import HTTPTimeoutsConfig
 from tools.retry import retry_call, retry_call_async
 from tools.search.models import SearchResult
+
+_SEARCH_TIMEOUT = HTTPTimeoutsConfig().search
 
 
 class TavilyClient:
@@ -49,7 +52,7 @@ class TavilyClient:
                     "include_raw_content": False,
                     "search_depth": self.config.search_depth,
                 },
-                timeout=30.0,
+                timeout=_SEARCH_TIMEOUT,
             )
             resp.raise_for_status()
             return resp.json()
@@ -78,7 +81,7 @@ class TavilyClient:
         n = max_results or self.config.max_results
 
         async def _call():
-            async with httpx.AsyncClient(timeout=30.0) as client:
+            async with httpx.AsyncClient(timeout=_SEARCH_TIMEOUT) as client:
                 resp = await client.post(
                     "https://api.tavily.com/search",
                     headers={"Authorization": f"Bearer {self.config.api_key}"},

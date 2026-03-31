@@ -1,0 +1,23 @@
+# Claim-Routing Scoring-Parameter.
+# Keyword-Listen bleiben im Code (tools/claim_router.py) – hier nur Schwellenwerte.
+
+# ── Domain-Detection ─────────────────────────────────────────────────────────
+
+detection:
+  keyword_match_score: 0.15
+  domain_detection_threshold: 0.15
+  max_active_domains: 4
+
+# ── Source-Priorisierung ─────────────────────────────────────────────────────
+
+scoring:
+  domain_score_weight: 0.08
+  max_sources: 6
+
+# ── Confidence-Berechnung ────────────────────────────────────────────────────
+
+confidence:
+  min: 0.20
+  max: 0.95
+  multi_domain_boost: 0.05
+  multi_domain_min_score: 0.30

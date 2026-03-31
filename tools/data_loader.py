@@ -235,3 +235,162 @@ def paywall_domains() -> dict[str, set[str]]:
         "hard": set(pw.get("hard", [])),
         "soft": set(pw.get("soft", [])),
     }
+
+
+@lru_cache(maxsize=1)
+def scrape_thresholds() -> dict[str, float]:
+    """Lade Scrape-Decision-Thresholds aus scoring_weights.yaml."""
+    data = scoring_weights()
+    sr = data.get("scrape_ranker", {})
+    return sr.get("scrape_thresholds", {
+        "low_trust_min": 0.35,
+        "general_min": 0.10,
+        "quality_journalism_min": 0.15,
+        "media_min": 0.20,
+        "media_fallback_min": 0.12,
+    })
+
+
+# ── Verdict Calibration ─────────────────────────────────────────────────────
+
+@lru_cache(maxsize=1)
+def verdict_calibration() -> dict[str, Any]:
+    """Lade Verdict-Kalibrierungsparameter."""
+    return _load_yaml("verdict_calibration.yaml")
+
+
+@lru_cache(maxsize=1)
+def evidence_classification_thresholds() -> dict[str, float]:
+    """Lade Evidence-Klassifikations-Schwellenwerte."""
+    data = verdict_calibration()
+    return data.get("evidence_classification", {
+        "min_direct_scope": 0.60,
+        "factchecker_relevance_min": 0.30,
+        "direct_relevance_min": 0.35,
+        "contextual_scope_min": 0.30,
+        "contextual_relevance_min": 0.25,
+        "max_contradictions": 5,
+        "max_excerpt_chars": 800,
+    })
+
+
+@lru_cache(maxsize=1)
+def verdict_freshness_thresholds() -> dict[str, float]:
+    """Lade Freshness-Schwellenwerte fuer VerdictAgent."""
+    data = verdict_calibration()
+    return data.get("freshness", {
+        "current_state_threshold": 0.60,
+        "general_threshold": 0.40,
+    })
+
+
+@lru_cache(maxsize=1)
+def verdict_uncertainty_thresholds() -> dict[str, float]:
+    """Lade Uncertainty-Schwellenwerte fuer VerdictAgent."""
+    data = verdict_calibration()
+    return data.get("uncertainty", {
+        "quality_threshold": 0.3,
+        "offtopic_rate_threshold": 0.4,
+        "grounding_severe_threshold": 0.5,
+        "grounding_moderate_threshold": 0.75,
+    })
+
+
+@lru_cache(maxsize=1)
+def excerpt_length_config() -> dict[str, int]:
+    """Lade Excerpt-Laengen-Konfiguration."""
+    data = verdict_calibration()
+    return data.get("excerpt_length", {
+        "default": 400,
+        "extended": 800,
+    })
+
+
+# ── Claim Routing ────────────────────────────────────────────────────────────
+
+@lru_cache(maxsize=1)
+def claim_routing_config() -> dict[str, Any]:
+    """Lade Claim-Routing Scoring-Parameter."""
+    return _load_yaml("claim_routing.yaml")
+
+
+# ── Source Authority ─────────────────────────────────────────────────────────
+
+@lru_cache(maxsize=1)
+def source_authority_weights() -> dict[str, float]:
+    """Lade Authority-Weights fuer institutionelle Quellen."""
+    data = _load_yaml("source_authority.yaml")
+    return data.get("weights", {})
+
+
+@lru_cache(maxsize=1)
+def source_tier_thresholds() -> dict[str, float]:
+    """Lade Tier-Schwellenwerte fuer Source-Authority."""
+    data = _load_yaml("source_authority.yaml")
+    return data.get("tier_thresholds", {
+        "tier1_min": 0.90,
+        "tier2_min": 0.75,
+        "tier3_min": 0.55,
+        "tier4_min": 0.35,
+    })
+
+
+# ── PageRank Adjustments ────────────────────────────────────────────────────
+
+@lru_cache(maxsize=1)
+def pagerank_adjustments() -> list[tuple[int, float]]:
+    """Lade PageRank Tier-Adjustments als (min_rank, adjustment) Tupel."""
+    data = _load_yaml("domain_tiers.yaml")
+    raw = data.get("pagerank_adjustments", [
+        {"min_rank": 7, "adjustment": -1.0},
+        {"min_rank": 5, "adjustment": -0.5},
+        {"min_rank": 3, "adjustment": 0.0},
+        {"min_rank": 0, "adjustment": 0.5},
+    ])
+    return [(e["min_rank"], e["adjustment"]) for e in raw]
+
+
+# ── Hot-Reload ───────────────────────────────────────────────────────────────
+
+_CACHED_LOADERS = [
+    domain_tiers,
+    government_domains,
+    fact_checker_domains,
+    classifier_tier_patterns,
+    low_trust_domains,
+    scrape_ranker_low_trust_domains,
+    commercial_domains,
+    offtopic_url_patterns,
+    low_trust_content_patterns,
+    commercial_snippet_patterns,
+    stopwords,
+    ner_known_orgs,
+    ner_institution_patterns,
+    ner_law_acronyms,
+    scoring_weights,
+    freshness_tiers,
+    searxng_engines,
+    query_expansion_config,
+    paywall_domains,
+    scrape_thresholds,
+    verdict_calibration,
+    evidence_classification_thresholds,
+    verdict_freshness_thresholds,
+    verdict_uncertainty_thresholds,
+    excerpt_length_config,
+    claim_routing_config,
+    source_authority_weights,
+    source_tier_thresholds,
+    pagerank_adjustments,
+]
+
+
+def reload_all() -> int:
+    """Leere alle lru_cache-Einträge, damit YAML-Dateien neu geladen werden.
+
+    Returns:
+        Anzahl der geleerten Caches.
+    """
+    for fn in _CACHED_LOADERS:
+        fn.cache_clear()
+    return len(_CACHED_LOADERS)
