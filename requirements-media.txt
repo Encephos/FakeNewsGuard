@@ -1,0 +1,27 @@
+# Optionale Media-Ingestion-Abhaengigkeiten
+# Installation: pip install -r requirements-media.txt
+#
+# Alle Pakete sind optional – die Pipeline degradiert graceful wenn
+# einzelne Dependencies fehlen (Fallback auf Metadaten-Extraktion).
+
+# Video/Audio Download
+yt-dlp>=2024.1.0
+
+# YouTube Transcript/Captions (leichtgewichtig, kein yt-dlp noetig)
+youtube-transcript-api>=1.0.0
+
+# Speech-to-Text (ASR)
+faster-whisper>=1.0.0
+
+# Keyframe-Extraktion
+scenedetect[opencv]>=0.6.0
+opencv-python-headless>=4.8.0
+
+# OCR
+paddleocr>=2.7.0
+paddlepaddle>=2.5.0           # CPU-only Backend fuer PaddleOCR
+# Alternative: pytesseract>=0.3.10 (+ system Tesseract)
+
+# Frame-Deduplizierung
+imagehash>=4.3.0
+Pillow>=10.0.0

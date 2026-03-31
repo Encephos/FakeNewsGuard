@@ -10,7 +10,7 @@ PLATFORM_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     ("threads", re.compile(r"https?://(?:www\.)?threads\.net/(?:@[\w.]+/post/[\w-]+|t/[\w-]+)", re.I)),
     ("instagram", re.compile(r"https?://(?:www\.)?instagram\.com/(?:p|reel|tv)/([\w-]+)", re.I)),
     ("facebook", re.compile(r"https?://(?:www\.|m\.)?facebook\.com/.+", re.I)),
-    ("youtube", re.compile(r"https?://(?:www\.)?(?:youtube\.com/watch\?v=|youtu\.be/)([\w-]+)", re.I)),
+    ("youtube", re.compile(r"https?://(?:www\.)?(?:youtube\.com/(?:watch\?v=|shorts/|live/|embed/|v/)|youtu\.be/)([\w-]+)", re.I)),
 ]
 
 # General URL pattern to detect any link
