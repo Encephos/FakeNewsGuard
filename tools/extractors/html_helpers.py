@@ -25,6 +25,10 @@ except ImportError:
 
 import httpx
 
+from config.infrastructure import HTTPTimeoutsConfig
+
+_SCRAPE_TIMEOUT = HTTPTimeoutsConfig().scrape
+
 _HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
@@ -39,7 +43,7 @@ def _get_client() -> httpx.Client:
     return httpx.Client(
         headers=_HEADERS,
         follow_redirects=True,
-        timeout=20.0,
+        timeout=_SCRAPE_TIMEOUT,
     )
 
 
@@ -47,7 +51,7 @@ async def _get_async_client() -> httpx.AsyncClient:
     return httpx.AsyncClient(
         headers=_HEADERS,
         follow_redirects=True,
-        timeout=20.0,
+        timeout=_SCRAPE_TIMEOUT,
     )
 
 
@@ -70,6 +74,16 @@ def _extract_meta(html: str, properties: list[str]) -> dict[str, str]:
         if tag and tag.get("content"):
             result[prop] = tag["content"].strip()
     return result
+
+
+def _extract_meta_all(html: str, prop: str) -> list[str]:
+    """Extract ALL values for a given OG/meta property (e.g. multiple og:image for carousels)."""
+    soup = _parse_soup(html)
+    tags = (
+        soup.find_all("meta", attrs={"property": prop})
+        + soup.find_all("meta", attrs={"name": prop})
+    )
+    return [t["content"].strip() for t in tags if t.get("content")]
 
 
 def _extract_json_ld(html: str) -> list[dict[str, Any]]:
