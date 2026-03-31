@@ -21,7 +21,9 @@ Abwärtskompatibilität:
 from __future__ import annotations
 
 import asyncio
+import logging
 import sys
+import uuid
 from typing import Any, Callable
 
 from config import AppConfig, ScoutTier
@@ -126,21 +128,19 @@ class Orchestrator:
         }
         self._log(f"🔎 Tier: {tier_labels[tier]}")
 
-        _gemma_small = "google/gemma-3-4b-it"
+        tm = config.tier_models
 
         if tier == ScoutTier.LITE:
-            free_model = "openrouter/free"
-            llm_fast = LLMClient(replace(config.llm, model=free_model), config.retry)
-            llm_small = LLMClient(replace(config.llm, model=_gemma_small), config.retry)
+            llm_fast = LLMClient(replace(config.llm, model=tm.model_free), config.retry)
+            llm_small = LLMClient(replace(config.llm, model=tm.model_small), config.retry)
             llm_powerful = llm_fast
         elif tier == ScoutTier.PRO:
-            gemma_model = "google/gemma-3-27b-it"
-            llm_fast = LLMClient(replace(config.llm, model=gemma_model), config.retry)
-            llm_small = LLMClient(replace(config.llm, model=_gemma_small), config.retry)
+            llm_fast = LLMClient(replace(config.llm, model=tm.model_medium), config.retry)
+            llm_small = LLMClient(replace(config.llm, model=tm.model_small), config.retry)
             llm_powerful = llm_fast
         else:
-            llm_fast = LLMClient(replace(config.llm, model="google/gemma-3-27b-it"), config.retry)
-            llm_small = LLMClient(replace(config.llm, model=_gemma_small), config.retry)
+            llm_fast = LLMClient(replace(config.llm, model=tm.model_medium), config.retry)
+            llm_small = LLMClient(replace(config.llm, model=tm.model_small), config.retry)
             llm_powerful = LLMClient(config.llm, config.retry)
 
         search = WebSearchClient(config.search, config.retry)
@@ -189,6 +189,19 @@ class Orchestrator:
             elif not c.is_checkworthy:
                 self._log(f"  ⏭ {c.id}: Nicht prüfenswert – übersprungen")
 
+        # ── Deduplizierung via canonical_hash ──────────────────────────────
+        seen_hashes: set[str] = set()
+        deduped: list[Claim] = []
+        for c in checkable:
+            h = getattr(c, "canonical_hash", "") or ""
+            if h and h in seen_hashes:
+                self._log(f"  ⏭ {c.id}: Duplikat (canonical_hash) – übersprungen")
+                continue
+            if h:
+                seen_hashes.add(h)
+            deduped.append(c)
+        checkable = deduped
+
         top_n = self.config.claim_processing.top_n
         if top_n > 0 and len(checkable) > top_n:
             # Sortiere nach priority_score (höchste zuerst)
@@ -226,6 +239,7 @@ class Orchestrator:
             InputValidationError: Bei leerem Input.
         """
         text = self._validate_input(text)
+        self._analysis_id = uuid.uuid4().hex[:12]
         self._log("=" * 60)
         self._log("FAKTENCHECK GESTARTET")
         self._log("=" * 60)
@@ -238,6 +252,7 @@ class Orchestrator:
         if extraction_error:
             self._log(f"  ⚠ Claim-Processing fehlgeschlagen: {extraction_error}")
             return SynthesisResult(
+                analysis_id=self._analysis_id,
                 overall_rating=OverallRating.MIXED,
                 confidence=0.0,
                 summary="Die Analyse konnte nicht durchgeführt werden: "
@@ -249,6 +264,7 @@ class Orchestrator:
         if not extraction.claims:
             self._log("Keine prüfbaren Claims gefunden.")
             return SynthesisResult(
+                analysis_id=self._analysis_id,
                 overall_rating=OverallRating.RELIABLE,
                 confidence=0.3,
                 summary="Es wurden keine überprüfbaren Tatsachenbehauptungen gefunden.",
@@ -306,6 +322,7 @@ class Orchestrator:
             "rhetoric": rhetoric_result,
         }
         result = self.synthesizer.run(synthesis_input)
+        result.analysis_id = self._analysis_id
         if analysis_errors:
             result.analysis_errors.extend(analysis_errors)
 
@@ -326,6 +343,7 @@ class Orchestrator:
             InputValidationError: Bei leerem Input.
         """
         text = self._validate_input(text)
+        self._analysis_id = uuid.uuid4().hex[:12]
         self._log("=" * 60)
         self._log("FAKTENCHECK GESTARTET (async)")
         self._log("=" * 60)
@@ -338,6 +356,7 @@ class Orchestrator:
         if extraction_error:
             self._log(f"  ⚠ Claim-Processing fehlgeschlagen: {extraction_error}")
             return SynthesisResult(
+                analysis_id=self._analysis_id,
                 overall_rating=OverallRating.MIXED,
                 confidence=0.0,
                 summary="Die Analyse konnte nicht durchgeführt werden: "
@@ -349,6 +368,7 @@ class Orchestrator:
         if not extraction.claims:
             self._log("Keine prüfbaren Claims gefunden.")
             return SynthesisResult(
+                analysis_id=self._analysis_id,
                 overall_rating=OverallRating.RELIABLE,
                 confidence=0.3,
                 summary="Es wurden keine überprüfbaren Tatsachenbehauptungen gefunden.",
@@ -416,6 +436,7 @@ class Orchestrator:
             "rhetoric": rhetoric_result,
         }
         result = self.synthesizer.run(synthesis_input)
+        result.analysis_id = self._analysis_id
         if analysis_errors:
             result.analysis_errors.extend(analysis_errors)
 
@@ -427,3 +448,7 @@ class Orchestrator:
     def _log(self, message: str) -> None:
         if self.config.verbose:
             print(message, file=sys.stderr)
+        if hasattr(self, "_analysis_id") and self._analysis_id:
+            logging.getLogger("fng.orchestrator").debug(
+                "[%s] %s", self._analysis_id, message,
+            )

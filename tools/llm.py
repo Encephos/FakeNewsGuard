@@ -7,18 +7,22 @@ import re
 from typing import Any
 
 from config import LLMConfig, RetryConfig
+from config.infrastructure import HTTPTimeoutsConfig
 from tools.retry import retry_call
 
 
 class LLMClient:
     """Einheitliches Interface für verschiedene LLM-Provider."""
 
-    # Max seconds for a single LLM API call before giving up
-    REQUEST_TIMEOUT = 120.0
-
-    def __init__(self, config: LLMConfig, retry: RetryConfig | None = None) -> None:
+    def __init__(
+        self,
+        config: LLMConfig,
+        retry: RetryConfig | None = None,
+        timeouts: HTTPTimeoutsConfig | None = None,
+    ) -> None:
         self.config = config
         self._retry = retry or RetryConfig()
+        self._timeouts = timeouts or HTTPTimeoutsConfig()
         self._client: Any = None
         self._init_client()
 
@@ -29,7 +33,7 @@ class LLMClient:
 
             self._client = anthropic.Anthropic(
                 api_key=self.config.api_key,
-                timeout=_httpx.Timeout(self.REQUEST_TIMEOUT, connect=10.0),
+                timeout=_httpx.Timeout(self._timeouts.llm, connect=self._timeouts.llm_connect),
             )
 
         elif self.config.provider == "openai":
@@ -37,7 +41,7 @@ class LLMClient:
 
             kwargs: dict[str, Any] = {
                 "api_key": self.config.api_key,
-                "timeout": self.REQUEST_TIMEOUT,
+                "timeout": self._timeouts.llm,
             }
             if self.config.base_url:
                 kwargs["base_url"] = self.config.base_url
@@ -49,7 +53,7 @@ class LLMClient:
             self._client = openai.OpenAI(
                 base_url=self.config.base_url or "https://openrouter.ai/api/v1",
                 api_key=self.config.api_key,
-                timeout=self.REQUEST_TIMEOUT,
+                timeout=self._timeouts.llm,
                 default_headers={
                     "HTTP-Referer": "https://github.com/Encephos/FakeNewsGuard",
                     "X-Title": "FakeNewsGuard",
@@ -62,7 +66,7 @@ class LLMClient:
             self._client = openai.OpenAI(
                 base_url=self.config.base_url or "http://localhost:11434/v1",
                 api_key="ollama",
-                timeout=self.REQUEST_TIMEOUT,
+                timeout=self._timeouts.llm,
             )
 
     def complete(

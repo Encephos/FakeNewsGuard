@@ -4,6 +4,19 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
+from enum import Enum
+
+
+class RetrievalStrategy(str, Enum):
+    """Komplexitätsbasierte Retrieval-Tiefe für Adaptive RAG.
+
+    SIMPLE:   Einfache Faktenbehauptungen → weniger Queries, kein iterativer Search
+    STANDARD: Default-Verhalten (unveränderte Config-Defaults)
+    DEEP:     Komplexe/statistische Claims → mehr Queries, tieferes Scraping
+    """
+    SIMPLE = "simple"
+    STANDARD = "standard"
+    DEEP = "deep"
 
 
 @dataclass
@@ -242,6 +255,33 @@ class EvidenceRetrievalConfig:
     iterative_max_rounds: int = 2
     iterative_max_refinement_queries: int = 3
 
+    # ── CRAG (Corrective RAG – Document Quality Gate) ──────────────────────
+    crag_enabled: bool = True
+    crag_incorrect_threshold: float = 0.6  # Bei >60% INCORRECT → Nachabfrage
+
+    # ── Self-RAG (Verdict Grounding Check) ───────────────────────────────────
+    self_rag_enabled: bool = True
+    self_rag_ungrounded_confidence_penalty: float = 0.15
+    self_rag_severe_confidence_ceiling: float = 0.40
+
+    # ── Adaptive RAG (komplexitätsbasierte Retrieval-Strategie) ──────────────
+    adaptive_rag_enabled: bool = True
+    # SIMPLE-Schwelle: ambiguity NONE + checkworthiness < Schwelle → SIMPLE
+    adaptive_simple_max_checkworthiness: float = 0.4
+    adaptive_simple_max_ambiguity: str = "NONE"
+    # DEEP-Schwelle: ambiguity >= HIGH ODER claim_type in COMPLEX_TYPES
+    adaptive_deep_min_ambiguity: str = "HIGH"
+    # SIMPLE-Overrides
+    adaptive_simple_langsearch_queries: int = 2
+    adaptive_simple_scrape_top_n: int = 3
+    adaptive_simple_searxng_multipage: bool = False
+    adaptive_simple_iterative_enabled: bool = False
+    # DEEP-Overrides
+    adaptive_deep_langsearch_queries: int = 7
+    adaptive_deep_scrape_top_n: int = 8
+    adaptive_deep_iterative_max_rounds: int = 2
+    adaptive_deep_langsearch_retry_threshold: float = 0.15
+
     def __post_init__(self) -> None:
         if v := os.getenv("LANGSEARCH_QUERIES_SIMPLE", ""):
             self.langsearch_queries_simple = int(v)
@@ -277,6 +317,12 @@ class EvidenceRetrievalConfig:
             self.iterative_max_rounds = int(v)
         if v := os.getenv("ITERATIVE_MAX_REFINEMENT_QUERIES", ""):
             self.iterative_max_refinement_queries = int(v)
+        if v := os.getenv("ADAPTIVE_RAG_ENABLED", ""):
+            self.adaptive_rag_enabled = v.lower() in ("true", "1", "yes")
+        if v := os.getenv("CRAG_ENABLED", ""):
+            self.crag_enabled = v.lower() in ("true", "1", "yes")
+        if v := os.getenv("SELF_RAG_ENABLED", ""):
+            self.self_rag_enabled = v.lower() in ("true", "1", "yes")
 
 
 @dataclass
@@ -402,3 +448,158 @@ class SourceClientsConfig:
             self.cache_ttl_hours = int(v)
         if v := os.getenv("SOURCE_CLIENTS_STATIC_TTL", ""):
             self.static_source_ttl_hours = int(v)
+
+
+@dataclass
+class MediaIngestionConfig:
+    """Konfiguration fuer die Media-Ingestion-Schicht (YouTube, Instagram Reels).
+
+    Steuert Audio-Transkription (faster-whisper), Keyframe-Extraktion
+    (scenedetect/OpenCV), und OCR (PaddleOCR/Tesseract) fuer Video-/Bild-Inhalte.
+
+    Alle Komponenten degradieren graceful: Wenn eine optionale Dependency
+    nicht installiert ist, wird der jeweilige Schritt uebersprungen.
+
+    Env-Vars:
+        MEDIA_INGESTION_ENABLED        – Master-Schalter (Default: true)
+        WHISPER_MODEL                  – faster-whisper Modellgroesse (Default: small)
+        WHISPER_COMPUTE_TYPE           – Compute-Type: int8|float16|float32 (Default: int8)
+        WHISPER_DEVICE                 – Device: cpu|cuda (Default: cpu)
+        MEDIA_MAX_DURATION             – Max. Video-Dauer in Sekunden (Default: 1800)
+        MEDIA_MAX_FILE_SIZE_MB         – Max. Dateigroesse in MB (Default: 500)
+        MEDIA_MAX_KEYFRAMES            – Max. Keyframes nach Dedup (Default: 20)
+        MEDIA_TEMP_DIR                 – Temp-Verzeichnis (Default: system tempdir)
+        MEDIA_OCR_ENABLED              – OCR aktivieren (Default: true)
+        MEDIA_OCR_ENGINE               – OCR-Engine: paddleocr|tesseract (Default: paddleocr)
+        MEDIA_KEYFRAME_EXTRACTION      – Keyframe-Extraktion aktivieren (Default: true)
+        MEDIA_FRAME_DEDUP_THRESHOLD    – imagehash Hamming-Distanz fuer Dedup (Default: 8)
+    """
+
+    enabled: bool = True
+
+    # ── ASR (faster-whisper) ──────────────────────────────────────────────────
+    whisper_model: str = "small"
+    whisper_compute_type: str = "int8"
+    whisper_device: str = "cpu"
+
+    # ── Limits ────────────────────────────────────────────────────────────────
+    max_duration_seconds: int = 1800   # 30 Minuten
+    max_file_size_mb: int = 500
+    max_keyframes: int = 20
+
+    # ── Pfade ─────────────────────────────────────────────────────────────────
+    temp_dir: str = ""  # leer = tempfile.mkdtemp() pro Download
+
+    # ── YouTube Bot-Detection Bypass ────────────────────────────────────────
+    yt_cookies_file: str = ""  # Pfad zu Netscape-format cookies.txt
+    yt_proxy: str = ""         # z.B. "http://user:pass@proxy:8080"
+
+    # ── Feature-Toggles ──────────────────────────────────────────────────────
+    ocr_enabled: bool = True
+    ocr_engine: str = "paddleocr"       # "paddleocr" | "tesseract"
+    keyframe_extraction: bool = True
+    frame_dedup_threshold: int = 8      # imagehash Hamming-Distanz
+
+    def __post_init__(self) -> None:
+        if v := os.getenv("MEDIA_INGESTION_ENABLED", ""):
+            self.enabled = v.lower() in ("true", "1", "yes")
+        if v := os.getenv("WHISPER_MODEL", ""):
+            self.whisper_model = v
+        if v := os.getenv("WHISPER_COMPUTE_TYPE", ""):
+            self.whisper_compute_type = v
+        if v := os.getenv("WHISPER_DEVICE", ""):
+            self.whisper_device = v
+        if v := os.getenv("MEDIA_MAX_DURATION", ""):
+            self.max_duration_seconds = int(v)
+        if v := os.getenv("MEDIA_MAX_FILE_SIZE_MB", ""):
+            self.max_file_size_mb = int(v)
+        if v := os.getenv("MEDIA_MAX_KEYFRAMES", ""):
+            self.max_keyframes = int(v)
+        if v := os.getenv("MEDIA_TEMP_DIR", ""):
+            self.temp_dir = v
+        if v := os.getenv("MEDIA_OCR_ENABLED", ""):
+            self.ocr_enabled = v.lower() in ("true", "1", "yes")
+        if v := os.getenv("MEDIA_OCR_ENGINE", ""):
+            self.ocr_engine = v
+        if v := os.getenv("MEDIA_KEYFRAME_EXTRACTION", ""):
+            self.keyframe_extraction = v.lower() in ("true", "1", "yes")
+        if v := os.getenv("MEDIA_FRAME_DEDUP_THRESHOLD", ""):
+            self.frame_dedup_threshold = int(v)
+        if v := os.getenv("YT_COOKIES_FILE", ""):
+            self.yt_cookies_file = v
+        if v := os.getenv("YT_PROXY", ""):
+            self.yt_proxy = v
+
+
+@dataclass
+class VerdictCalibrationConfig:
+    """Confidence-Ceilings und Kalibrierungsparameter für VerdictAgent.
+
+    Steuert die maximale Confidence unter verschiedenen Evidenz-Bedingungen.
+    Alle Werte sind via Env-Vars überschreibbar für Feintuning.
+
+    Env-Vars:
+        VCAL_CEILING_NO_PRIMARY_SOURCE        – Default: 0.82
+        VCAL_CEILING_OFFTOPIC_CONTAMINATION   – Default: 0.75
+        VCAL_CEILING_WEAK_EVIDENCE            – Default: 0.70
+        VCAL_CEILING_INSUFFICIENT_CONSENSUS   – Default: 0.65
+        VCAL_CEILING_POOR_CLAIM_QUALITY       – Default: 0.72
+        VCAL_CEILING_LOW_AVG_RELEVANCE        – Default: 0.68
+        VCAL_CEILING_VERY_LOW_AVG_RELEVANCE   – Default: 0.58
+        VCAL_CEILING_HIGH_LOW_TRUST           – Default: 0.62
+        VCAL_CEILING_REGULATORY_NO_OFFICIAL   – Default: 0.72
+        VCAL_CEILING_CONTEXTUAL_ONLY          – Default: 0.65
+        VCAL_CEILING_HIGH_WEAK_RATE           – Default: 0.60
+        VCAL_CEILING_CONTEXTUAL_AND_LOW_TRUST – Default: 0.55
+        VCAL_CEILING_REGULATORY_NO_DIRECT     – Default: 0.55
+        VCAL_CEILING_STALE_SOURCES            – Default: 0.72
+        VCAL_CEILING_CURRENT_STATE_NO_FRESH   – Default: 0.55
+        VCAL_CEILING_ZERO_USEFUL_EVIDENCE     – Default: 0.50
+        VCAL_CEILING_REGULATORY_NOISY_CTX     – Default: 0.45
+        VCAL_MIN_GOOD_SOURCES_HIGH_CONF       – Default: 2
+    """
+
+    ceiling_no_primary_source: float = 0.82
+    ceiling_offtopic_contamination: float = 0.75
+    ceiling_weak_evidence: float = 0.70
+    ceiling_insufficient_consensus: float = 0.65
+    ceiling_poor_claim_quality: float = 0.72
+    ceiling_low_avg_relevance: float = 0.68
+    ceiling_very_low_avg_relevance: float = 0.58
+    ceiling_high_low_trust: float = 0.62
+    ceiling_regulatory_no_official: float = 0.72
+    ceiling_contextual_only: float = 0.65
+    ceiling_high_weak_rate: float = 0.60
+    ceiling_contextual_and_low_trust: float = 0.55
+    ceiling_regulatory_no_direct_evidence: float = 0.55
+    ceiling_stale_sources: float = 0.72
+    ceiling_current_state_no_fresh: float = 0.55
+    ceiling_zero_useful_evidence: float = 0.50
+    ceiling_regulatory_noisy_contextual: float = 0.45
+    min_good_sources_for_high_conf: int = 2
+
+    def __post_init__(self) -> None:
+        _map = {
+            "VCAL_CEILING_NO_PRIMARY_SOURCE": "ceiling_no_primary_source",
+            "VCAL_CEILING_OFFTOPIC_CONTAMINATION": "ceiling_offtopic_contamination",
+            "VCAL_CEILING_WEAK_EVIDENCE": "ceiling_weak_evidence",
+            "VCAL_CEILING_INSUFFICIENT_CONSENSUS": "ceiling_insufficient_consensus",
+            "VCAL_CEILING_POOR_CLAIM_QUALITY": "ceiling_poor_claim_quality",
+            "VCAL_CEILING_LOW_AVG_RELEVANCE": "ceiling_low_avg_relevance",
+            "VCAL_CEILING_VERY_LOW_AVG_RELEVANCE": "ceiling_very_low_avg_relevance",
+            "VCAL_CEILING_HIGH_LOW_TRUST": "ceiling_high_low_trust",
+            "VCAL_CEILING_REGULATORY_NO_OFFICIAL": "ceiling_regulatory_no_official",
+            "VCAL_CEILING_CONTEXTUAL_ONLY": "ceiling_contextual_only",
+            "VCAL_CEILING_HIGH_WEAK_RATE": "ceiling_high_weak_rate",
+            "VCAL_CEILING_CONTEXTUAL_AND_LOW_TRUST": "ceiling_contextual_and_low_trust",
+            "VCAL_CEILING_REGULATORY_NO_DIRECT": "ceiling_regulatory_no_direct_evidence",
+            "VCAL_CEILING_STALE_SOURCES": "ceiling_stale_sources",
+            "VCAL_CEILING_CURRENT_STATE_NO_FRESH": "ceiling_current_state_no_fresh",
+            "VCAL_CEILING_ZERO_USEFUL_EVIDENCE": "ceiling_zero_useful_evidence",
+            "VCAL_CEILING_REGULATORY_NOISY_CTX": "ceiling_regulatory_noisy_contextual",
+        }
+        for env_key, attr in _map.items():
+            if v := os.getenv(env_key, ""):
+                setattr(self, attr, float(v))
+        if v := os.getenv("VCAL_MIN_GOOD_SOURCES_HIGH_CONF", ""):
+            self.min_good_sources_for_high_conf = int(v)

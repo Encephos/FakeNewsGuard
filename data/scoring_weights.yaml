@@ -112,6 +112,13 @@ scrape_ranker:
     keyword: 0.5
     number: 0.3
     position: 0.2
+  # ── Scrape-Decision-Thresholds (scrape_ranker._should_scrape) ──────────────
+  scrape_thresholds:
+    low_trust_min: 0.35
+    general_min: 0.10
+    quality_journalism_min: 0.15
+    media_min: 0.20
+    media_fallback_min: 0.12
 
 # ── Paywalls (scrape_ranker.py) ───────────────────────────────────────────────
 

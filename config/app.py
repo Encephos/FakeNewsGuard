@@ -23,19 +23,24 @@ class ScoutTier(Enum):
 from config.database import CacheConfig, PostgreSQLConfig, ValkeyConfig  # noqa: E402
 from config.infrastructure import (  # noqa: E402
     ArchiveConfig,
+    AuthConfig,
     GraphConfig,
+    HTTPTimeoutsConfig,
+    JobConfig,
     RateLimitConfig,
     TelegramConfig,
     UserDBConfig,
 )
-from config.llm import LLMConfig, RetryConfig  # noqa: E402
+from config.llm import LLMConfig, RetryConfig, TierModelConfig  # noqa: E402
 from config.processing import (  # noqa: E402
     ClaimProcessingConfig,
     CoVeConfig,
     EvidenceRetrievalConfig,
+    MediaIngestionConfig,
     SourceClientsConfig,
     SourceLayerConfig,
     SynthesizerConfig,
+    VerdictCalibrationConfig,
 )
 from config.search import (  # noqa: E402
     GoogleFactCheckConfig,
@@ -68,7 +73,16 @@ class AppConfig:
     # ── Source Layer (institutionelle Primärquellen) ──────────────────────────
     source_layer: SourceLayerConfig = field(default_factory=SourceLayerConfig)
     source_clients: SourceClientsConfig = field(default_factory=SourceClientsConfig)
+    # ── Media Ingestion (YouTube / Instagram Reels) ─────────────────────────
+    media: MediaIngestionConfig = field(default_factory=MediaIngestionConfig)
+    # ── Verdict Calibration ─────────────────────────────────────────────────
+    verdict_calibration: VerdictCalibrationConfig = field(default_factory=VerdictCalibrationConfig)
+    # ── Tier-Modellauswahl ────────────────────────────────────────────────────
+    tier_models: TierModelConfig = field(default_factory=TierModelConfig)
     # ── Infrastruktur ─────────────────────────────────────────────────────────
+    timeouts: HTTPTimeoutsConfig = field(default_factory=HTTPTimeoutsConfig)
+    job: JobConfig = field(default_factory=JobConfig)
+    auth: AuthConfig = field(default_factory=AuthConfig)
     cache: CacheConfig = field(default_factory=CacheConfig)
     search_cache: SearchCacheConfig = field(default_factory=SearchCacheConfig)
     archive: ArchiveConfig = field(default_factory=ArchiveConfig)
@@ -82,7 +96,7 @@ class AppConfig:
     tier: ScoutTier = ScoutTier.PRO  # Scout-Stufe (lite / pro / max)
     verbose: bool = True  # Zeige Agent-Wechsel und Zwischenergebnisse
     language: str = "de"  # Primärsprache der Analyse
-    max_input_chars: int = 10_000  # Schutz vor übermäßig langen Inputs
+    max_input_chars: int = 25_000  # Schutz vor übermäßig langen Inputs (25k für Video-Transkripte)
     # CORS: kommaseparierte Liste erlaubter Origins.
     # Standardwert "*" erlaubt alle – in Produktion mit CORS_ORIGINS setzen.
     # Beispiel: CORS_ORIGINS=https://fakeguard.example.com,https://app.example.com

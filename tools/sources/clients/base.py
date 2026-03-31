@@ -31,12 +31,13 @@ from typing import Any
 import httpx
 
 from models.source_evidence import OfficialEvidenceItem
+from config.infrastructure import HTTPTimeoutsConfig
 from tools.retry import retry_call
 from tools.sources.types import SourceConfig
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_TIMEOUT = 15.0   # Sekunden pro Request
+_DEFAULT_TIMEOUT = HTTPTimeoutsConfig().source_client
 _DEFAULT_RETRIES = 3
 _DEFAULT_BASE_DELAY = 1.0
 _DEFAULT_MAX_DELAY = 30.0
