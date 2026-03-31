@@ -124,6 +124,29 @@ class VerdictRatingCalibrationConfig:
     # Bei direct_count < Schwelle greift contextual_only_caps_false_at_misleading.
     direct_evidence_min_for_strong_false: int = 1
 
+    # --- Konsens-Widerspruch-Korrektur -------------------------------------------
+    # Wenn SourceConsensus = AGREEING aber LLM-Rating = FALSE/MOSTLY_FALSE:
+    # Das LLM hat sein Vorwissen über die Evidenz gestellt.
+    consensus_contradiction_override: bool = True
+    consensus_contradiction_current_state_downgrade: str = "MOSTLY_TRUE"
+    consensus_contradiction_general_downgrade: str = "MISLEADING"
+
+    # --- Inverse Konsens-Korrektur -----------------------------------------------
+    # Wenn SourceConsensus = CONTRADICTORY aber LLM-Rating = TRUE/MOSTLY_TRUE:
+    # Die Quellen widerlegen den Claim, aber das LLM ignoriert das.
+    inverse_consensus_override: bool = True
+    inverse_consensus_downgrade: str = "MISLEADING"
+
+
+def _is_negated_claim(claim_text: str) -> bool:
+    """Erkennt ob ein Claim eine Negation enthält (z.B. 'ist kein', 'ist nicht')."""
+    _NEGATION_PATTERN = re.compile(
+        r"\b(?:kein(?:e|er|em|en|es)?|nicht|nie(?:mals)?|weder|"
+        r"(?:ist|sind|war|were|has|have)\s+(?:not|kein|keine|nich))\b",
+        re.IGNORECASE,
+    )
+    return bool(_NEGATION_PATTERN.search(claim_text))
+
 
 def _calibrate_rating(
     raw_rating: "FactRating",
@@ -131,6 +154,7 @@ def _calibrate_rating(
     config: VerdictRatingCalibrationConfig | None = None,
     is_regulatory_claim: bool = False,
     is_current_state_claim: bool = False,
+    claim_text: str = "",
 ) -> tuple["FactRating", list[str]]:
     """Regelbasierter Rating-Postprocessor.
 
@@ -155,6 +179,12 @@ def _calibrate_rating(
     rating = raw_rating
     reasons: list[str] = []
 
+    # Negierte Claims ("ist kein", "ist nicht") dürfen nicht von den
+    # current-state Overrides profitieren – bei negierten Claims ist
+    # ein FALSE-Rating wahrscheinlich korrekt, wenn Quellen die positive
+    # Version bestätigen.
+    claim_is_negated = _is_negated_claim(claim_text) if claim_text else False
+
     quality = pack.evidence_quality
     if quality is None:
         # Ohne Qualitätssignale kann keine regelbasierte Korrektur erfolgen
@@ -178,8 +208,61 @@ def _calibrate_rating(
         )
     )
 
+    # ── Konsens-Rating-Widerspruch: AGREEING + FALSE/MOSTLY_FALSE ───────────
+    # Wenn die Quellen den Claim überwiegend STÜTZEN (AGREEING) aber das LLM
+    # FALSE oder MOSTLY_FALSE urteilt, hat das LLM sein Vorwissen über die
+    # Evidenz gestellt. Bei current-state-Claims → MOSTLY_TRUE (die Quellen
+    # bestätigen den aktuellen Zustand, das LLM nutzt veraltetes Wissen).
+    _consensus_contradiction_applied = False
+    if (
+        config.consensus_contradiction_override
+        and rating in (FactRating.FALSE, FactRating.MOSTLY_FALSE)
+        and consensus == SourceConsensus.AGREEING
+        and not has_fc_direct
+        and not has_direct_refutation
+    ):
+        if is_current_state_claim and not claim_is_negated:
+            new_rating = FactRating(config.consensus_contradiction_current_state_downgrade)
+            reasons.append(
+                f"Konsens-Widerspruch: Evidenz AGREEING aber Rating {rating.value} "
+                f"bei current-state → {new_rating.value}"
+            )
+            rating = new_rating
+            _consensus_contradiction_applied = True
+        elif not claim_is_negated:
+            new_rating = FactRating(config.consensus_contradiction_general_downgrade)
+            reasons.append(
+                f"Konsens-Widerspruch: Evidenz AGREEING aber Rating {rating.value} "
+                f"→ {new_rating.value}"
+            )
+            rating = new_rating
+            _consensus_contradiction_applied = True
+
+    # ── Inverse Konsens-Korrektur: CONTRADICTORY + TRUE/MOSTLY_TRUE ─────────
+    # Wenn die Quellen den Claim überwiegend WIDERLEGEN (CONTRADICTORY) aber
+    # das LLM TRUE oder MOSTLY_TRUE urteilt, ignoriert es die Widerlegungssignale.
+    if (
+        config.inverse_consensus_override
+        and not _consensus_contradiction_applied
+        and rating in (FactRating.TRUE, FactRating.MOSTLY_TRUE)
+        and consensus == SourceConsensus.CONTRADICTORY
+        and not has_fc_direct  # Kein Faktenchecker bestätigt den Claim
+    ):
+        new_rating = FactRating(config.inverse_consensus_downgrade)
+        reasons.append(
+            f"Inverser Konsens-Widerspruch: Evidenz CONTRADICTORY aber Rating {rating.value} "
+            f"→ {new_rating.value}"
+        )
+        rating = new_rating
+        _consensus_contradiction_applied = True
+
     # ── FALSE-Korrektur ────────────────────────────────────────────────────────
-    if rating == FactRating.FALSE and config.false_requires_active_refutation:
+    # Nur anwenden wenn Konsens-Widerspruch nicht bereits gegriffen hat.
+    if (
+        rating == FactRating.FALSE
+        and config.false_requires_active_refutation
+        and not _consensus_contradiction_applied
+    ):
         has_active_refutation = (
             has_direct_refutation
             or consensus == SourceConsensus.CONTRADICTORY
@@ -249,6 +332,7 @@ def _calibrate_rating(
     # Urteil – nicht FALSE oder MISLEADING.
     if (
         is_current_state_claim
+        and not claim_is_negated
         and rating in (FactRating.FALSE, FactRating.MOSTLY_FALSE, FactRating.MISLEADING)
         and direct_count == 0
         and not has_fc_direct
@@ -257,6 +341,31 @@ def _calibrate_rating(
         reasons.append(
             f"Aktuell-Zustand-Claim: {rating.value} ohne direkte Belege "
             "(0 DIRECT, kein FC-Match, kein aktiver Widerruf) → UNVERIFIABLE"
+        )
+        rating = FactRating.UNVERIFIABLE
+
+    # ── Aktuell-Zustand-Claim + frische Quellen: LLM-Vorwissen-Override ──────
+    # Wenn ein current-state Claim als FALSE/MOSTLY_FALSE bewertet wird, aber
+    # die Quellen überwiegend frisch sind (freshness >= 0.50), hat das LLM
+    # vermutlich veraltetes Trainingswissen über die Quellen gestellt.
+    # Bei Meta-Disinfo-Artikeln können has_direct_refutation / Konsens
+    # fehlklassifiziert sein, deshalb prüft diese Regel unabhängig davon.
+    # NICHT bei negierten Claims – dort ist FALSE wahrscheinlich korrekt.
+    try:
+        _freshness = float(quality.freshness_score) if quality else 0.0
+    except (TypeError, ValueError):
+        _freshness = 0.0
+    if (
+        is_current_state_claim
+        and not claim_is_negated
+        and rating in (FactRating.FALSE, FactRating.MOSTLY_FALSE)
+        and _freshness >= 0.50
+        and not has_fc_direct
+    ):
+        reasons.append(
+            f"Aktuell-Zustand-Claim: {rating.value} trotz frischer Quellen "
+            f"(Freshness={_freshness:.2f}) → UNVERIFIABLE "
+            "(LLM-Vorwissen-Override bei current-state vermutet)"
         )
         rating = FactRating.UNVERIFIABLE
 

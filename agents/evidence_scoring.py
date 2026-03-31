@@ -22,6 +22,8 @@ from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 
 from models.evidence_models import (
+    ContradictionSeverity,
+    ContradictionType,
     EvidenceContradiction,
     EvidenceItem,
     EvidenceQualitySignals,
@@ -105,6 +107,16 @@ _CONFIRMATION_PATTERNS: list[re.Pattern[str]] = [
         r"\bverified\b",
     ]
 ]
+
+
+# Artikel ÜBER Desinformation/Fake News zu einem Thema.
+# Negationswörter stehen dort im Meta-Kontext und widerlegen nicht den Claim.
+_META_DISINFO_PATTERN: re.Pattern[str] = re.compile(
+    r"(?:fake\s*news|desinformation|falschmeldung|falschinformation|"
+    r"fakes?\b|falschbehauptung|faktenchecks?)\s+"
+    r"(?:über|zu|gegen|rund\s+um|betreffen|targeting|about)",
+    re.IGNORECASE,
+)
 
 
 # ── Deduplication ─────────────────────────────────────────────────────────────
@@ -891,41 +903,140 @@ def _rank_evidence_items(
     return [item for _, item in ranked]
 
 
-def _detect_contradictions(items: list[EvidenceItem]) -> list[EvidenceContradiction]:
-    """Einfache Widerspruchserkennung: suche nach expliziten Verneinungspaaren.
+_NEGATION_WORDS = frozenset({
+    "nicht", "kein", "keine", "falsch", "unwahr", "widerlegt",
+    "falschaussage", "fehler", "irrtum", "gegenteil",
+    "not", "false", "incorrect", "wrong", "debunked",
+})
 
-    Implementiert eine heuristische Prüfung auf Basis von Schlüsselwörtern.
-    Für tiefere Analyse kann der VerdictAgent zusätzlich prüfen.
+# Zahlen mit optionalen Dezimalen/Tausender-Trennern
+_NUMBER_RE = re.compile(r"\b(\d[\d.,]*\d|\d+)\s*(%|prozent|percent|billion|milliarden?|million(?:en)?|trillion)?\b", re.IGNORECASE)
+
+
+def _severity_for_pair(a: EvidenceItem, b: EvidenceItem) -> ContradictionSeverity:
+    """Bestimme Schweregrad basierend auf dem höchsten Domain-Tier der Quellen."""
+    tier_a = a.source.domain_tier if a.source.domain_tier else 5
+    tier_b = b.source.domain_tier if b.source.domain_tier else 5
+    best = min(tier_a, tier_b)  # niedrigerer Tier = höhere Autorität
+    if best <= 2:
+        return ContradictionSeverity.HIGH
+    if best <= 3:
+        return ContradictionSeverity.MEDIUM
+    return ContradictionSeverity.LOW
+
+
+def _extract_numbers(text: str) -> list[tuple[float, str]]:
+    """Extrahiere (Wert, Einheit)-Paare aus einem Text."""
+    results = []
+    for m in _NUMBER_RE.finditer(text.lower()):
+        raw = m.group(1).replace(".", "").replace(",", ".")
+        try:
+            val = float(raw)
+            unit = (m.group(2) or "").strip()
+            results.append((val, unit))
+        except ValueError:
+            continue
+    return results
+
+
+def _detect_contradictions(items: list[EvidenceItem]) -> list[EvidenceContradiction]:
+    """Mehrstufige Widerspruchserkennung.
+
+    Erkennt:
+        1. Negationsbasierte Widersprüche (Verneinung vs. Bestätigung)
+        2. Numerische Widersprüche (stark abweichende Zahlen + gleiche Einheit)
+        3. Richtungswidersprüche (SUPPORTS vs. REFUTES bei relevanten Quellen)
+
+    Jeder Widerspruch erhält einen Typ und Schweregrad.
+    Max 5 Widersprüche (priorisiert nach Severity).
     """
     contradictions: list[EvidenceContradiction] = []
-    negation_words = {
-        "nicht", "kein", "keine", "falsch", "unwahr", "widerlegt",
-        "falschaussage", "fehler", "irrtum", "gegenteil",
-        "not", "false", "incorrect", "wrong", "debunked",
-    }
+    seen_pairs: set[tuple[str, str]] = set()
+    max_contradictions = 5
 
-    for i, a in enumerate(items):
-        for b in items[i + 1:]:
+    relevant = [item for item in items if item.relevance_score > 0.3]
+
+    for i, a in enumerate(relevant):
+        for b in relevant[i + 1:]:
             if a.source.url == b.source.url:
                 continue
+            pair_key = (min(a.source.url, b.source.url), max(a.source.url, b.source.url))
+            if pair_key in seen_pairs:
+                continue
+
+            # ── 1. Negationsbasiert ──────────────────────────────────────────
             words_a = set(a.excerpt.lower().split())
             words_b = set(b.excerpt.lower().split())
-            # Heuristik: Ein Item enthält Verneinung, das andere nicht
-            neg_in_a = bool(words_a & negation_words)
-            neg_in_b = bool(words_b & negation_words)
-            if neg_in_a != neg_in_b and a.relevance_score > 0.3 and b.relevance_score > 0.3:
+            neg_a = bool(words_a & _NEGATION_WORDS)
+            neg_b = bool(words_b & _NEGATION_WORDS)
+            if neg_a != neg_b:
+                seen_pairs.add(pair_key)
                 contradictions.append(EvidenceContradiction(
                     source_url_a=a.source.url,
                     source_url_b=b.source.url,
                     description=(
-                        f"Potentieller Widerspruch: Quelle A {'enthält' if neg_in_a else 'enthält keine'} "
-                        f"Verneinung, Quelle B {'enthält' if neg_in_b else 'enthält keine'} Verneinung"
+                        f"Verneinungswiderspruch: Quelle A {'verneint' if neg_a else 'bestätigt'}, "
+                        f"Quelle B {'verneint' if neg_b else 'bestätigt'}"
                     ),
+                    contradiction_type=ContradictionType.NEGATION,
+                    severity=_severity_for_pair(a, b),
                 ))
-                if len(contradictions) >= 3:
-                    return contradictions
+                continue
 
-    return contradictions
+            # ── 2. Numerisch ─────────────────────────────────────────────────
+            nums_a = _extract_numbers(a.excerpt)
+            nums_b = _extract_numbers(b.excerpt)
+            for val_a, unit_a in nums_a:
+                for val_b, unit_b in nums_b:
+                    if unit_a != unit_b or val_a == 0 or val_b == 0:
+                        continue
+                    ratio = max(val_a, val_b) / min(val_a, val_b)
+                    if ratio >= 1.5:  # ≥50% Abweichung
+                        seen_pairs.add(pair_key)
+                        unit_label = unit_a or "Wert"
+                        contradictions.append(EvidenceContradiction(
+                            source_url_a=a.source.url,
+                            source_url_b=b.source.url,
+                            description=(
+                                f"Zahlenwiderspruch: {val_a} vs. {val_b} {unit_label} "
+                                f"(Abweichung {ratio:.1f}x)"
+                            ),
+                            contradiction_type=ContradictionType.NUMERIC,
+                            severity=_severity_for_pair(a, b),
+                        ))
+                        break
+                else:
+                    continue
+                break
+
+            # ── 3. Richtungswiderspruch (SUPPORTS vs REFUTES) ────────────────
+            dir_a = getattr(a, "source_direction", None)
+            dir_b = getattr(b, "source_direction", None)
+            if (
+                pair_key not in seen_pairs
+                and dir_a and dir_b
+                and {dir_a, dir_b} == {SourceDirection.SUPPORTS, SourceDirection.REFUTES}
+            ):
+                seen_pairs.add(pair_key)
+                contradictions.append(EvidenceContradiction(
+                    source_url_a=a.source.url,
+                    source_url_b=b.source.url,
+                    description=(
+                        f"Richtungswiderspruch: Quelle A {dir_a.value}, Quelle B {dir_b.value}"
+                    ),
+                    contradiction_type=ContradictionType.DIRECTION,
+                    severity=_severity_for_pair(a, b),
+                ))
+
+            if len(contradictions) >= max_contradictions:
+                break
+        if len(contradictions) >= max_contradictions:
+            break
+
+    # Priorisiere nach Severity: HIGH zuerst
+    severity_order = {ContradictionSeverity.HIGH: 0, ContradictionSeverity.MEDIUM: 1, ContradictionSeverity.LOW: 2}
+    contradictions.sort(key=lambda c: severity_order.get(c.severity, 2))
+    return contradictions[:max_contradictions]
 
 
 # ── Direktionales Quellen-Signal ──────────────────────────────────────────────
@@ -962,8 +1073,22 @@ def _classify_source_direction(
         return SourceDirection.NEUTRAL
 
     text = excerpt.lower()
+
+    # Meta-Faktencheck-Erkennung: Artikel ÜBER Desinformation/Fake News zu einem
+    # Thema enthalten Wörter wie "falsch", "unwahr", "Fake" im Meta-Kontext.
+    # Diese beschreiben Fakes über die Person/das Thema, widerlegen aber NICHT
+    # den Claim selbst. Beispiel: "Fake News über Kanzler Merz" → SUPPORTS, nicht REFUTES.
+    is_meta_disinfo = bool(_META_DISINFO_PATTERN.search(text))
+
     refute_count = sum(1 for p in _REFUTATION_PATTERNS if p.search(text))
     support_count = sum(1 for p in _CONFIRMATION_PATTERNS if p.search(text))
+
+    # Wenn der Text über Desinformation zu einem Thema berichtet, sind
+    # Negationswörter im Meta-Kontext – sie widerlegen nicht den Claim.
+    # Reduziere refute_count und werte den Meta-Kontext als Support-Signal.
+    if is_meta_disinfo and refute_count > 0:
+        refute_count = 0
+        support_count = max(support_count, 1)
 
     # 4. Richtung nur für DIRECT oder relevantes CONTEXTUAL vergeben
     # CONTEXTUAL mit niedriger Relevanz → NEUTRAL (verhindert "Support Leakage")
@@ -1282,6 +1407,61 @@ def _classify_evidence_type(
 
 
 # ── Adaptive LangSearch Query Count ──────────────────────────────────────────
+
+
+def _select_retrieval_strategy(claim: "Claim", cfg: "EvidenceRetrievalConfig") -> "RetrievalStrategy":
+    """Bestimme Retrieval-Strategie basierend auf Claim-Komplexität (Adaptive RAG).
+
+    Nutzt bereits berechnete Claim-Attribute (kein LLM-Call):
+        - claim.type (ClaimType)
+        - claim.ambiguity_level (AmbiguityLevel)
+        - claim.checkworthiness_score (float)
+        - claim.search_profile (ClaimSearchProfile)
+
+    Returns:
+        SIMPLE   – Wenige Queries, kein iterativer Search, kleine Scrape-Tiefe
+        STANDARD – Unveränderte Config-Defaults
+        DEEP     – Mehr Queries, tieferes Scraping, garantierter iterativer Search
+    """
+    from config.processing import RetrievalStrategy
+    from models.schemas import AmbiguityLevel, ClaimType
+
+    if not cfg.adaptive_rag_enabled:
+        return RetrievalStrategy.STANDARD
+
+    _COMPLEX_TYPES = {ClaimType.STATISTICAL, ClaimType.CAUSAL, ClaimType.CONTEXTUAL}
+
+    # Extrahiere Claim-Attribute (mit Safe-Defaults für einfache Claim-Objekte)
+    claim_type = getattr(claim, "type", ClaimType.FACTUAL)
+    ambiguity = getattr(claim, "ambiguity_level", AmbiguityLevel.NONE)
+    checkworthiness = getattr(claim, "checkworthiness_score", 0.5)
+    has_rich_profile = (
+        isinstance(claim, ProcessedClaim)
+        and claim.search_profile is not None
+        and (
+            len(claim.search_profile.institutions)
+            + len(claim.search_profile.policy_terms)
+        ) >= 3
+    )
+
+    # DEEP: Komplexer Claim-Typ, hohe Ambiguität, oder reichhaltiges Profil
+    if (
+        claim_type in _COMPLEX_TYPES
+        or ambiguity.value >= cfg.adaptive_deep_min_ambiguity
+        or has_rich_profile
+    ):
+        return RetrievalStrategy.DEEP
+
+    # SIMPLE: Einfacher Fakten-Claim, niedrige Ambiguität + niedrige Checkworthiness
+    max_ambiguity = cfg.adaptive_simple_max_ambiguity
+    if (
+        claim_type == ClaimType.FACTUAL
+        and ambiguity.value <= max_ambiguity
+        and checkworthiness < cfg.adaptive_simple_max_checkworthiness
+    ):
+        return RetrievalStrategy.SIMPLE
+
+    return RetrievalStrategy.STANDARD
 
 
 def _langsearch_query_count(claim: "Claim", cfg: "EvidenceRetrievalConfig") -> int:

@@ -10,12 +10,14 @@ FakeNewsGuard verwendet **vier separate SQLite-Datenbanken** für unterschiedlic
 
 | Datenbank | Datei | Klasse | Zweck |
 |---|---|---|---|
-| Claim-Cache | `.fakeguard_cache.db` | `ClaimCache` | Agenten-Ergebnisse zwischenspeichern |
+| Claim-Cache | `.fakeguard_cache.db` | `ClaimCache` | Agenten-Ergebnisse + optionale Embeddings |
+| Kalibrierung | `data/calibration.db` | `CalibrationTracker` | Confidence-Kalibrierung (Brier Scores) |
 | Analyse-Archiv | `.fakeguard_archive.db` | `AnalysisArchive` | Alle abgeschlossenen Analysen |
 | Nutzer-DB | `.fakeguard_users.db` | `UserDB` | Accounts, JWT, Usage-Log |
 | Cross-Reference | `.fakeguard_graph.db` | `CrossReferenceGraph` | Claim-Wissens-Graph |
 
 → Claim-Cache: [[Cache]]
+→ Kalibrierung: [[Tools#Calibration Tracker]]
 
 ---
 

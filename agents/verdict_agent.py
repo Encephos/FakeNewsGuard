@@ -118,16 +118,22 @@ oder ein spezifisches Bußgeld. Eine allgemeine Kameraüberwachungsseite belegt 
 ein konkretes 250-Euro-Bußgeld.
 
 ## Sonderregel: Aktuell-Zustand-Claims (Amtsinhaber, Rolleninhaber)
+Das heutige Datum wird im Prompt mitgeliefert. Verwende es als Referenz.
 Wenn ein Claim einen aktuellen Amts- oder Rolleninhaber beschreibt
 (z.B. „X ist Bundeskanzler", „Y ist Präsident", „Z ist CEO"):
 - Diese Claims sind zeitkritisch – nur Quellen aus der jüngsten Zeit zählen
-- Alte Quellen (> 1–2 Jahre) können einen früheren Zustand beschreiben und
-  dürfen NICHT als Beleg für den aktuellen Zustand gewertet werden
+- Berechne das Alter jeder Quelle relativ zum heutigen Datum
+- Alte Quellen (> 1–2 Jahre vor dem heutigen Datum) können einen früheren
+  Zustand beschreiben und dürfen NICHT als Beleg für den aktuellen Zustand
+  gewertet werden
+- Aktuelle Quellen (< 6 Monate alt), die den behaupteten Zustand bestätigen,
+  sind starke Belege – auch wenn ältere Quellen einen anderen Zustand nennen
 - Wenn ausschließlich veraltete Quellen vorliegen und keine aktuellen Quellen den
   behaupteten Zustand bestätigen: Wähle UNVERIFIABLE, nicht TRUE
-- Wenn veraltete Quellen einen anderen Amtsinhaber nennen: Wähle MISLEADING oder FALSE
+- Wenn veraltete Quellen einen anderen Amtsinhaber nennen, ABER aktuelle Quellen
+  den Claim bestätigen: Wähle TRUE (der Amtswechsel ist belegt)
 - Wichtig: „Quelle von 2022 nennt Person X als Kanzler" ist KEIN Beleg für
-  „Person X ist aktuell (2025/2026) Kanzler"
+  „Person X ist aktuell Kanzler" – prüfe das Datum jeder Quelle
 
 ## Quellen-Qualitätshinweis
 Wenn die Evidenzquellen überwiegend aus allgemeinen Hilfsseiten bestehen
@@ -150,6 +156,15 @@ Wenn die bereitgestellten Quellen keine relevante Information zum Claim enthalte
 
 Im sources-Feld dürfen NUR URLs erscheinen, die tatsächlich in der bereitgestellten
 Evidenz vorkommen. Erfinde KEINE URLs.
+
+## KRITISCH: Kein Training-Data-Override
+Wenn die bereitgestellten Quellen einen bestimmten aktuellen Zustand belegen
+(z.B. "Person X ist aktuell Kanzler"), aber dein Vorwissen einen anderen Zustand
+kennt (z.B. "Person Y war Kanzler"): FOLGE DEN QUELLEN, NICHT DEINEM VORWISSEN.
+Dein Trainingsdaten-Cutoff liegt in der Vergangenheit. Die bereitgestellten
+Quellen sind aktueller als dein Wissen. Wenn Quellen und Vorwissen sich
+widersprechen: Rating = TRUE oder MOSTLY_TRUE basierend auf den Quellen,
+NIEMALS FALSE basierend auf veraltetem Vorwissen.
 
 ## Rhetorische Sprache im Claim-Text
 Der Claim-Text kann rhetorisch manipulative Formulierungen enthalten (Alarmsprache,
@@ -200,6 +215,10 @@ class VerdictAgent(BaseAgent):
         # Prompt aufbauen (nur strukturierte Daten, kein roher Web-Inhalt)
         user_msg = self._build_verdict_prompt(claim, pack, cove_trace, number_audit)
 
+        import logging
+        _verdict_logger = logging.getLogger("fakenewsguard.verdict")
+        _verdict_logger.debug("=== VERDICT PROMPT ===\n%s", user_msg[:3000])
+
         raw = self._llm_structured(
             _VERDICT_SYSTEM_PROMPT,
             user_msg,
@@ -237,6 +256,7 @@ class VerdictAgent(BaseAgent):
             rating, pack, rating_config,
             is_regulatory_claim=_is_regulatory_pre,
             is_current_state_claim=_is_current_state_pre,
+            claim_text=claim.text,
         )
 
         # ── Regelbasierte Confidence-Kalibrierung ──────────────────────────────
@@ -301,6 +321,37 @@ class VerdictAgent(BaseAgent):
         if claim_quality < 0.70:
             uncertainty_signals.append(f"Claim-Qualität eingeschränkt ({claim_quality:.2f})")
 
+        # ── Self-RAG: Verdict Grounding Check ────────────────────────────────
+        grounding_score = -1.0  # Default: nicht geprüft
+        retrieval_cfg = self.config.evidence_retrieval
+        if retrieval_cfg.self_rag_enabled and raw.get("evidence"):
+            grounding_score = self._check_verdict_grounding(
+                raw.get("evidence", ""), pack,
+            )
+            if grounding_score >= 0.0 and grounding_score < 0.5:
+                # Schweres Grounding-Problem: Confidence-Ceiling
+                penalty_reason = (
+                    f"Self-RAG: Grounding-Score={grounding_score:.2f} "
+                    f"(< 0.50 → Confidence begrenzt auf {retrieval_cfg.self_rag_severe_confidence_ceiling})"
+                )
+                calibrated_confidence = min(
+                    calibrated_confidence,
+                    retrieval_cfg.self_rag_severe_confidence_ceiling,
+                )
+                calibration_reasons.append(penalty_reason)
+                uncertainty_signals.append(f"Niedrige Evidenz-Fundierung (Grounding={grounding_score:.2f})")
+                self._log(f"Self-RAG {claim.id}: {penalty_reason}")
+            elif grounding_score >= 0.0 and grounding_score < 0.75:
+                # Moderates Grounding-Problem: Confidence-Penalty
+                penalty = retrieval_cfg.self_rag_ungrounded_confidence_penalty
+                calibrated_confidence = max(0.0, calibrated_confidence - penalty)
+                penalty_reason = (
+                    f"Self-RAG: Grounding-Score={grounding_score:.2f} "
+                    f"(< 0.75 → Confidence -{penalty})"
+                )
+                calibration_reasons.append(penalty_reason)
+                self._log(f"Self-RAG {claim.id}: {penalty_reason}")
+
         # FinalVerdictMeta
         all_reduction_reasons = rating_calibration_reasons + calibration_reasons
         confidence_reduction_reason = "; ".join(all_reduction_reasons) if all_reduction_reasons else ""
@@ -314,6 +365,7 @@ class VerdictAgent(BaseAgent):
                 pack.evidence_quality.has_primary_source_any
                 if pack.evidence_quality else False
             ),
+            grounding_score=grounding_score,
         )
 
         # Quellen aus EvidencePack + Raw-Output zusammenführen
@@ -368,7 +420,12 @@ class VerdictAgent(BaseAgent):
         cove_trace: CoVeTrace | None,
         number_audit: NumberAuditResult | None,
     ) -> str:
+        from datetime import date
+
+        today = date.today().isoformat()
+
         parts: list[str] = [
+            f"## Heutiges Datum: {today}\n\n"
             f"## Zu prüfende Behauptung\n\n"
             f"Claim ID: {claim.id}\n"
             f"Text: {claim.text}\n"
@@ -414,3 +471,60 @@ class VerdictAgent(BaseAgent):
             )
 
         return "\n".join(parts)
+
+    def _check_verdict_grounding(
+        self,
+        verdict_reasoning: str,
+        pack: EvidencePack,
+    ) -> float:
+        """Self-RAG: Prüfe ob das Verdict-Reasoning durch Evidence-Excerpts gestützt ist.
+
+        Extrahiert Kernaussagen aus dem Reasoning und prüft per LLM-Call,
+        ob jede Aussage durch die zitierten Excerpts belegt ist.
+
+        Returns:
+            Grounding-Score (0.0–1.0): Anteil gestützter Aussagen.
+            -1.0 wenn Prüfung fehlschlägt oder keine Aussagen vorhanden.
+        """
+        import json as _json
+
+        # Excerpts aus dem EvidencePack sammeln
+        excerpts = []
+        for item in pack.web_results[:8]:
+            if item.excerpt:
+                excerpts.append(f"[{item.source.title}] {item.excerpt}")
+        for fc in pack.google_fact_check_matches:
+            excerpts.append(f"[Faktencheck: {fc.publisher}] {fc.claim_reviewed} → {fc.rating}")
+
+        if not excerpts or not verdict_reasoning.strip():
+            return -1.0
+
+        excerpts_text = "\n---\n".join(excerpts)
+
+        system_prompt = (
+            "Du bist ein Grounding-Prüfer. Du erhältst eine Begründung (Reasoning) "
+            "und eine Liste von Evidenz-Excerpts.\n\n"
+            "Prüfe für jede faktische Kernaussage im Reasoning, ob sie durch "
+            "mindestens einen Excerpt gestützt wird.\n\n"
+            "Antwortformat: JSON-Objekt mit:\n"
+            '{"statements": [{"text": "...", "supported": true/false}], '
+            '"supported_count": N, "total_count": N}\n\n'
+            "Ignoriere stilistische Elemente, Einleitungen und Schlussfolgerungen. "
+            "Prüfe nur faktische Aussagen (Zahlen, Daten, Fakten, Quellenverweise)."
+        )
+        user_msg = (
+            f"## Reasoning\n{verdict_reasoning}\n\n"
+            f"## Evidenz-Excerpts\n{excerpts_text}"
+        )
+
+        try:
+            raw = self.llm.complete(system_prompt, user_msg, response_format="json")
+            result = _json.loads(raw) if isinstance(raw, str) else raw
+            supported = int(result.get("supported_count", 0))
+            total = int(result.get("total_count", 0))
+            if total == 0:
+                return -1.0
+            return min(1.0, max(0.0, supported / total))
+        except Exception as e:
+            self._log(f"Self-RAG Grounding-Check fehlgeschlagen: {type(e).__name__}")
+            return -1.0

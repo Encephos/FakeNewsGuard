@@ -11,6 +11,7 @@ from unittest.mock import MagicMock, patch
 def _make_orchestrator(mocker, config):
     """Erstelle einen Orchestrator mit vollständig gemockten Agenten."""
     from orchestrator import Orchestrator
+    from tools.claim_router import ClaimRouter
 
     with patch("orchestrator.ClaimExtractorAgent") as MockCE, \
          patch("orchestrator.FactCheckerAgent") as MockFC, \
@@ -24,6 +25,7 @@ def _make_orchestrator(mocker, config):
 
         orchestrator = Orchestrator.__new__(Orchestrator)
         orchestrator.config = config
+        orchestrator._router = ClaimRouter()
 
         from models.schemas import (
             ClaimProcessingResult, ClaimType, FactCheckResult, FactRating,
@@ -155,6 +157,50 @@ class TestTopNSelection:
         assert "C3" in ids  # Zweithöchste Priorität
         assert "C1" not in ids  # Niedrigste – ausgeschlossen
 
+    def test_duplicate_canonical_hash_deduplicated(self, minimal_config):
+        """Claims mit identischem canonical_hash werden dedupliziert."""
+        from orchestrator import Orchestrator
+        from models.schemas import ClaimType, ClaimProcessingResult, ProcessedClaim
+
+        orch = Orchestrator.__new__(Orchestrator)
+        orch.config = minimal_config
+
+        claims = [
+            ProcessedClaim(id="C1", text="Variante A", type=ClaimType.FACTUAL,
+                           canonical_hash="abc123", priority_score=0.8, is_checkworthy=True),
+            ProcessedClaim(id="C2", text="Variante B", type=ClaimType.FACTUAL,
+                           canonical_hash="abc123", priority_score=0.7, is_checkworthy=True),
+            ProcessedClaim(id="C3", text="Anderer Claim", type=ClaimType.FACTUAL,
+                           canonical_hash="def456", priority_score=0.6, is_checkworthy=True),
+        ]
+        result = ClaimProcessingResult(claims=claims)
+        checkable = orch._select_top_claims(result)
+
+        ids = [c.id for c in checkable]
+        assert len(checkable) == 2
+        assert "C1" in ids  # Erster mit diesem Hash bleibt
+        assert "C2" not in ids  # Duplikat entfernt
+        assert "C3" in ids  # Anderer Hash bleibt
+
+    def test_empty_canonical_hash_not_deduplicated(self, minimal_config):
+        """Claims ohne canonical_hash werden nicht als Duplikate behandelt."""
+        from orchestrator import Orchestrator
+        from models.schemas import ClaimType, ClaimProcessingResult, ProcessedClaim
+
+        orch = Orchestrator.__new__(Orchestrator)
+        orch.config = minimal_config
+
+        claims = [
+            ProcessedClaim(id="C1", text="Claim A", type=ClaimType.FACTUAL,
+                           canonical_hash="", priority_score=0.8, is_checkworthy=True),
+            ProcessedClaim(id="C2", text="Claim B", type=ClaimType.FACTUAL,
+                           canonical_hash="", priority_score=0.7, is_checkworthy=True),
+        ]
+        result = ClaimProcessingResult(claims=claims)
+        checkable = orch._select_top_claims(result)
+
+        assert len(checkable) == 2
+
     def test_opinions_always_excluded(self, minimal_config):
         """OPINION Claims werden immer ausgeschlossen, unabhängig von top_n."""
         from orchestrator import Orchestrator
@@ -208,9 +254,12 @@ class TestOrchestratorWorkflow:
             NumberAuditResult, OverallRating, RhetoricAnalysisResult, SynthesisResult,
         )
 
+        from tools.claim_router import ClaimRouter
+
         orch = Orchestrator.__new__(Orchestrator)
         orch.config = minimal_config
         orch._on_step = None  # kein Step-Callback
+        orch._router = ClaimRouter()
 
         orch.claim_extractor = MagicMock()
         orch.claim_extractor.run_safe.return_value = extractor_result

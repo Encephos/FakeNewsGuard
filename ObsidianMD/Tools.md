@@ -12,7 +12,9 @@ Der `tools/`-Ordner enthält alle Infrastruktur-Werkzeuge. Agenten nutzen diese 
 |---|---|---|
 | `llm.py` | `LLMClient` | Provider-agnostische LLM-Abstraktion |
 | `web_search.py` | `WebSearchClient`, `AsyncWebSearchClient` | Suchmaschinen-Abstraktion |
-| `cache.py` | `ClaimCache` | SQLite-Cache für Agenten |
+| `cache.py` | `ClaimCache` | SQLite-Cache mit optionalem Semantic Cache |
+| `calibration_tracker.py` | `CalibrationTracker` | Brier Score, Reliability Diagrams |
+| `data_loader.py` | Funktionen + `reload_all()` | Hot-reloadbare YAML-Konfigurationen |
 | `retry.py` | `retry_call`, `retry_call_async` | Exponential-Backoff-Retry |
 | `archive.py` | `AnalysisArchive` | Persistentes Analyse-Archiv |
 | `user_db.py` | `UserDB` | SQLite-Nutzerdatenbank + JWT |
@@ -142,6 +144,39 @@ Konfigurierbar via RateLimitConfig
 ```
 
 Wird als FastAPI-Middleware eingebunden.
+
+---
+
+## Calibration Tracker (`tools/calibration_tracker.py`)
+
+SQLite-basierter Tracker für Confidence-Kalibrierung:
+
+```python
+class CalibrationTracker:
+    def record_prediction(claim_id, confidence, rating, analysis_id) → int
+    def record_ground_truth(claim_id, is_correct) → int
+    def compute_report(n_buckets=10) → CalibrationReport
+    def stats() → dict
+```
+
+**Metriken:**
+- **Brier Score:** `mean((confidence - is_correct)^2)` – misst Calibration-Fehler
+- **Reliability Diagram:** Buckets zeigen Über-/Unterkonfidenz nach Confidence-Intervall
+- **Accuracy:** Anteil korrekter Vorhersagen
+
+Genutzt von [[API|POST /api/admin/calibration]] zur Überwachung der Modell-Zuverlässigkeit.
+
+---
+
+## Data Loader (`tools/data_loader.py`)
+
+Hot-reloadbare Konfigurationen für Domain-Tiers, Scoring-Weights und andere Runtime-Daten:
+
+```python
+def reload_all() → int  # Clearing count
+```
+
+19 LRU-cached Funktionen laden YAML-Dateien – `reload_all()` setzt alle Caches zurück ohne Server-Neustart. Genutzt von [[API|POST /api/admin/reload-data]].
 
 ---
 

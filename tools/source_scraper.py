@@ -15,6 +15,30 @@ from tools.content_extractor import _HEADERS, _extract_article_text, _extract_ar
 from tools.scrape_ranker import RankedSource, extract_relevant_passages
 
 
+async def _crawl4ai_extract(url: str, timeout: float = 15.0) -> str:
+    """Crawl4AI Fallback – JS-gerenderte Seiten per Headless-Browser extrahieren.
+
+    Lazy-Import: Nur aktiv wenn crawl4ai installiert ist.
+    Gibt leeren String zurück wenn nicht verfügbar oder fehlgeschlagen.
+    """
+    try:
+        from crawl4ai import AsyncWebCrawler  # type: ignore[import-untyped]
+    except ImportError:
+        return ""
+
+    try:
+        async with AsyncWebCrawler() as crawler:
+            result = await asyncio.wait_for(
+                crawler.arun(url=url),
+                timeout=timeout,
+            )
+            if result and result.markdown:
+                return result.markdown.strip()
+    except Exception:
+        pass
+    return ""
+
+
 @dataclass
 class ScrapedSource:
     url: str
@@ -61,14 +85,20 @@ async def scrape_source(
         text = _extract_article_text(response.text)
         pub_date = ""
     if not text or len(text) < 100:
-        return ScrapedSource(
-            url=ranked.result.url,
-            tier_label=tier_label,
-            passage="",
-            low_relevance=False,
-            fetch_success=False,
-            error="Kein Inhalt extrahierbar",
-        )
+        # Crawl4AI Fallback: JS-gerenderte Seiten per Headless-Browser extrahieren
+        crawl4ai_text = await _crawl4ai_extract(ranked.result.url)
+        if crawl4ai_text and len(crawl4ai_text) >= 100:
+            text = crawl4ai_text
+            pub_date = pub_date or ""
+        else:
+            return ScrapedSource(
+                url=ranked.result.url,
+                tier_label=tier_label,
+                passage="",
+                low_relevance=False,
+                fetch_success=False,
+                error="Kein Inhalt extrahierbar",
+            )
 
     # Relevante Passagen extrahieren
     passage, low_relevance = extract_relevant_passages(text, claim_text)

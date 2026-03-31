@@ -23,8 +23,7 @@ from typing import Any
 logger = logging.getLogger("fng.fact_checker")
 
 from agents.base import BaseAgent
-from agents._legacy_fallback import _LegacyFallbackMixin  # Fallback – entfällt wenn v2 stabil
-from models.schemas import Claim, FactCheckResult
+from models.schemas import Claim, FactCheckResult, FactRating
 
 # ── Re-exports from agents.query_builder for backward compatibility ──────────
 # All query-building functions and constants have been moved to agents/query_builder.py.
@@ -49,7 +48,7 @@ from agents.query_builder import (  # noqa: F401
 )
 
 
-class FactCheckerAgent(_LegacyFallbackMixin, BaseAgent):
+class FactCheckerAgent(BaseAgent):
     """Fassade über EvidenceBuilderAgent + CoVeProcessor + VerdictAgent.
 
     Öffentliche API unverändert: execute(claim) -> FactCheckResult.
@@ -109,8 +108,7 @@ class FactCheckerAgent(_LegacyFallbackMixin, BaseAgent):
         pack, pack_error = self._evidence_builder.run_safe(claim, context=context)
         if pack_error or pack is None:
             self._log(f"EvidenceBuilder fehlgeschlagen: {pack_error}")
-            # Fallback: Legacy-Pfad
-            return self._legacy_fact_check(claim, context)
+            return self._unverifiable_fallback(claim, pack_error or "EvidenceBuilder fehlgeschlagen")
 
         # ── 2. CoVe (optional) ────────────────────────────────────────────────
         cove_trace = None
@@ -127,7 +125,7 @@ class FactCheckerAgent(_LegacyFallbackMixin, BaseAgent):
         )
         if verdict_error or result is None:
             self._log(f"VerdictAgent fehlgeschlagen: {verdict_error}")
-            return self._legacy_fact_check(claim, context)
+            return self._unverifiable_fallback(claim, verdict_error or "VerdictAgent fehlgeschlagen")
 
         self._cache_set(claim.text, result.model_dump(exclude={"evidence_pack", "cove_trace", "verdict_meta"}), context)
         return result
@@ -146,7 +144,7 @@ class FactCheckerAgent(_LegacyFallbackMixin, BaseAgent):
             pack = await self._evidence_builder.execute_async(claim, context=context)
         except Exception as e:
             self._log(f"EvidenceBuilder async fehlgeschlagen: {type(e).__name__}: {e}")
-            return await self._legacy_fact_check_async(claim, context)
+            return self._unverifiable_fallback(claim, f"EvidenceBuilder: {e}")
 
         # ── 2. CoVe im Thread-Pool (blockiert nicht den Event Loop) ──────────
         cove_trace = None
@@ -170,11 +168,19 @@ class FactCheckerAgent(_LegacyFallbackMixin, BaseAgent):
             )
         except Exception as e:
             self._log(f"VerdictAgent async fehlgeschlagen: {type(e).__name__}: {e}")
-            return await self._legacy_fact_check_async(claim, context)
+            return self._unverifiable_fallback(claim, f"VerdictAgent: {e}")
 
         self._cache_set(claim.text, result.model_dump(exclude={"evidence_pack", "cove_trace", "verdict_meta"}), context)
         return result
 
-    # ── Legacy Fallback ───────────────────────────────────────────────────────
-    # _legacy_fact_check / _legacy_fact_check_async und alle Hilfsmethoden
-    # sind in agents._legacy_fallback._LegacyFallbackMixin definiert.
+    # ── Fallback ──────────────────────────────────────────────────────────────
+
+    @staticmethod
+    def _unverifiable_fallback(claim: Claim, reason: str) -> FactCheckResult:
+        """Erzeuge ein UNVERIFIABLE-Ergebnis bei Pipeline-Fehler."""
+        return FactCheckResult(
+            claim_id=claim.id,
+            rating=FactRating.UNVERIFIABLE,
+            evidence=f"Automatische Prüfung fehlgeschlagen: {reason}",
+            sources=[],
+        )
