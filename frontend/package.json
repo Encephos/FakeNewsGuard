@@ -9,10 +9,12 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@remotion/player": "^4.0.442",
     "next": "16.1.7",
     "react": "19.2.3",
     "react-dom": "19.2.3",
-    "react-force-graph-2d": "^1.29.1"
+    "react-force-graph-2d": "^1.29.1",
+    "remotion": "^4.0.442"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
