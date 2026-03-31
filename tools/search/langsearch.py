@@ -8,8 +8,11 @@ import sys
 import httpx
 
 from config import LangSearchConfig, RetryConfig
+from config.infrastructure import HTTPTimeoutsConfig
 from tools.retry import retry_call, retry_call_async
 from tools.search.models import SearchResult
+
+_SEARCH_TIMEOUT = HTTPTimeoutsConfig().search
 
 
 class LangSearchClient:
@@ -59,7 +62,7 @@ class LangSearchClient:
                     "summary": True,
                     "count": n,
                 },
-                timeout=30.0,
+                timeout=_SEARCH_TIMEOUT,
             )
             resp.raise_for_status()
             return resp.json()
@@ -104,7 +107,7 @@ class LangSearchClient:
                 return [SearchResult(**r) for r in cached]
 
         async def _call():
-            async with httpx.AsyncClient(timeout=30.0) as client:
+            async with httpx.AsyncClient(timeout=_SEARCH_TIMEOUT) as client:
                 resp = await client.post(
                     f"{self.config.base_url}/web-search",
                     headers={

@@ -21,7 +21,7 @@ from urllib.parse import urlparse
 
 from tools.data_loader import (
     stopwords as load_stopwords, scrape_ranker_low_trust_domains,
-    paywall_domains,
+    paywall_domains, scrape_thresholds,
 )
 from tools.source_classifier import SourceTier, classify_source
 from tools.web_search import SearchResult
@@ -41,6 +41,9 @@ SOFT_PAYWALLS: set[str] = _pw["soft"]
 
 # Low-Trust Domains (aus data/low_trust_domains.yaml)
 _LOW_TRUST_DOMAINS: frozenset[str] = scrape_ranker_low_trust_domains()
+
+# Scrape-Decision-Schwellenwerte (aus data/scoring_weights.yaml)
+_ST = scrape_thresholds()
 
 
 # ── Dataclass ────────────────────────────────────────────────────
@@ -297,25 +300,25 @@ def rank_sources(
         if domain in KNOWN_PAYWALLS:
             rs.should_scrape = False
             rs.skip_reason = "paywall"
-        elif _is_low_trust_domain(domain) and rs.hybrid_score < 0.35:
+        elif _is_low_trust_domain(domain) and rs.hybrid_score < _ST.get("low_trust_min", 0.35):
             rs.should_scrape = False
             rs.skip_reason = "low_trust"
         elif rs.tier <= SourceTier.USER_GENERATED:
             rs.should_scrape = False
             rs.skip_reason = "low_tier"
-        elif rs.hybrid_score < 0.10 and rs.tier < SourceTier.FACT_CHECKER:
+        elif rs.hybrid_score < _ST.get("general_min", 0.10) and rs.tier < SourceTier.FACT_CHECKER:
             rs.should_scrape = False
             rs.skip_reason = "irrelevant"
         elif rs.tier >= SourceTier.FACT_CHECKER:
             rs.should_scrape = True
             rs.skip_reason = None
-        elif rs.tier == SourceTier.QUALITY_JOURNALISM and rs.hybrid_score >= 0.15:
+        elif rs.tier == SourceTier.QUALITY_JOURNALISM and rs.hybrid_score >= _ST.get("quality_journalism_min", 0.15):
             rs.should_scrape = True
             rs.skip_reason = None
-        elif rs.tier == SourceTier.QUALITY_JOURNALISM and rs.hybrid_score < 0.15:
+        elif rs.tier == SourceTier.QUALITY_JOURNALISM and rs.hybrid_score < _ST.get("quality_journalism_min", 0.15):
             rs.should_scrape = False
             rs.skip_reason = "irrelevant"
-        elif rs.tier == SourceTier.MEDIA and rs.hybrid_score >= 0.20:
+        elif rs.tier == SourceTier.MEDIA and rs.hybrid_score >= _ST.get("media_min", 0.20):
             rs.should_scrape = True
             rs.skip_reason = None
         elif rs.tier == SourceTier.MEDIA:
@@ -334,7 +337,7 @@ def rank_sources(
             if domain in SOFT_PAYWALLS:
                 rs.should_scrape = True
                 rs.skip_reason = None
-            elif rs.tier == SourceTier.MEDIA and rs.hybrid_score >= 0.12:
+            elif rs.tier == SourceTier.MEDIA and rs.hybrid_score >= _ST.get("media_fallback_min", 0.12):
                 rs.should_scrape = True
                 rs.skip_reason = None
 

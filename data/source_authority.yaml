@@ -1,0 +1,30 @@
+# Authority-Weights fuer institutionelle Datenquellen (tools/sources/registry.py).
+# Tier-Schwellen: >= 0.90 = Tier1 (OFFICIAL), >= 0.75 = Tier2,
+#                 >= 0.55 = Tier3, >= 0.35 = Tier4.
+
+weights:
+  eur_lex: 0.97
+  eurostat: 0.95
+  openfda: 0.95
+  dailymed: 0.94
+  companies_house: 0.93
+  uspto: 0.93
+  gleif: 0.92
+  clinical_trials: 0.91
+  world_bank: 0.88
+  pubmed: 0.85
+  crossref: 0.82
+  wikidata: 0.80
+  openalex: 0.78
+  cern_opendata: 0.87
+  arxiv: 0.70
+  gdelt: 0.55
+  wikipedia: 0.55
+
+# ── Tier-Schwellen ────────────────────────────────────────────────────────────
+
+tier_thresholds:
+  tier1_min: 0.90
+  tier2_min: 0.75
+  tier3_min: 0.55
+  tier4_min: 0.35

@@ -1,0 +1,33 @@
+# Verdict-Kalibrierung – Thresholds fuer VerdictAgent.
+# Getrennt von den Confidence-Ceilings (config/processing.py VerdictCalibrationConfig).
+
+# ── Freshness-Schwellen (verdict_agent._freshness_signal) ────────────────────
+
+freshness:
+  current_state_threshold: 0.60
+  general_threshold: 0.40
+
+# ── Quality-Schwellen (verdict_agent._uncertainty_signals) ───────────────────
+
+uncertainty:
+  quality_threshold: 0.3
+  offtopic_rate_threshold: 0.4
+  grounding_severe_threshold: 0.5
+  grounding_moderate_threshold: 0.75
+
+# ── Evidence-Klassifikation (evidence_scoring._classify_evidence_type) ───────
+
+evidence_classification:
+  min_direct_scope: 0.60
+  factchecker_relevance_min: 0.30
+  direct_relevance_min: 0.35
+  contextual_scope_min: 0.30
+  contextual_relevance_min: 0.25
+  max_contradictions: 5
+  max_excerpt_chars: 800
+
+# ── Excerpt-Laengen (source_evidence.py) ──────────────────────────────────────
+
+excerpt_length:
+  default: 400
+  extended: 800
