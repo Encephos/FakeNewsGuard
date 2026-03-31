@@ -19,7 +19,7 @@ interface AuthContextValue {
   token: string | null;
   loading: boolean;
   login: (email: string, password: string, rememberMe?: boolean) => Promise<void>;
-  register: (email: string, password: string, displayName?: string) => Promise<void>;
+  register: (email: string, password: string, displayName?: string, inviteCode?: string) => Promise<void>;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
   refreshUser: () => Promise<void>;
@@ -77,12 +77,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(data.user);
   }, []);
 
-  const register = useCallback(async (email: string, password: string, displayName?: string) => {
+  const register = useCallback(async (email: string, password: string, displayName?: string, inviteCode?: string) => {
     const res = await fetch(`${BASE_URL}/auth/register`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
-      body: JSON.stringify({ email, password, display_name: displayName || "" }),
+      body: JSON.stringify({ email, password, display_name: displayName || "", invite_code: inviteCode || "" }),
     });
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
