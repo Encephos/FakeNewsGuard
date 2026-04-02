@@ -117,7 +117,7 @@ class BaseAgent(ABC):
         """LLM-Call der JSON zurückgibt, mit Retry bei Parse-Fehler."""
         for attempt in range(2):
             try:
-                return self.llm.complete_json(system_prompt, user_message)
+                return self.llm.complete_json(system_prompt, user_message, agent_name=self.name)
             except ValueError:
                 if attempt == 0:
                     self._log("JSON-Parse fehlgeschlagen, versuche erneut...")
@@ -137,16 +137,17 @@ class BaseAgent(ABC):
     ) -> dict:
         """LLM-Call mit nativem Structured Output.  Fällt auf JSON-Mode zurück."""
         return self.llm.complete_structured(
-            system_prompt, user_message, schema, tool_name, tool_description
+            system_prompt, user_message, schema, tool_name, tool_description,
+            agent_name=self.name,
         )
 
     def _llm_text(self, system_prompt: str, user_message: str) -> str:
         """LLM-Call der Freitext zurückgibt."""
-        return self.llm.complete(system_prompt, user_message, response_format="text")
+        return self.llm.complete(system_prompt, user_message, response_format="text", agent_name=self.name)
 
     def _llm_vision(self, system_prompt: str, user_message: str, image_urls: list[str]) -> dict:
         """Vision-LLM-Call mit Bildern – gibt geparsten dict zurück."""
-        raw = self.llm.complete_vision(system_prompt, user_message, image_urls, response_format="json")
+        raw = self.llm.complete_vision(system_prompt, user_message, image_urls, response_format="json", agent_name=self.name)
         return LLMClient._parse_json(raw)
 
     def _web_search(self, query: str, max_results: int = 5) -> str:

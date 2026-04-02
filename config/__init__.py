@@ -19,7 +19,7 @@ from config.infrastructure import (  # noqa: F401
     TelegramConfig,
     UserDBConfig,
 )
-from config.llm import LLMConfig, RetryConfig  # noqa: F401
+from config.llm import LLMConfig, ModelPricingConfig, RetryConfig  # noqa: F401
 from config.processing import (  # noqa: F401
     ClaimProcessingConfig,
     ClaimQualitySignalConfig,
@@ -50,6 +50,7 @@ __all__ = [
     "GoogleFactCheckConfig",
     "GraphConfig",
     "LLMConfig",
+    "ModelPricingConfig",
     "LangSearchConfig",
     "PostgreSQLConfig",
     "RateLimitConfig",

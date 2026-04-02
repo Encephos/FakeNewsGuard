@@ -99,6 +99,9 @@ class PgUserDB:
                 "CREATE INDEX IF NOT EXISTS idx_usage_user "
                 "ON usage_log(user_id, created_at DESC)"
             )
+            conn.execute("ALTER TABLE usage_log ADD COLUMN IF NOT EXISTS total_tokens INTEGER DEFAULT 0")
+            conn.execute("ALTER TABLE usage_log ADD COLUMN IF NOT EXISTS estimated_cost_usd DOUBLE PRECISION DEFAULT 0.0")
+            conn.execute("ALTER TABLE usage_log ADD COLUMN IF NOT EXISTS analysis_id TEXT")
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS telegram_link_codes (
                     code        TEXT PRIMARY KEY,
@@ -332,12 +335,17 @@ class PgUserDB:
         claims: int = 0,
         rating: str | None = None,
         source: str = "web",
+        total_tokens: int = 0,
+        estimated_cost_usd: float = 0.0,
+        analysis_id: str | None = None,
     ) -> None:
         with self._conn() as conn:
             conn.execute(
-                "INSERT INTO usage_log (user_id, tier_used, created_at, claims, rating, source) "
-                "VALUES (%s, %s, %s, %s, %s, %s)",
-                (user_id, tier_used, time.time(), claims, rating, source),
+                "INSERT INTO usage_log (user_id, tier_used, created_at, claims, rating, source, "
+                "total_tokens, estimated_cost_usd, analysis_id) "
+                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                (user_id, tier_used, time.time(), claims, rating, source,
+                 total_tokens, estimated_cost_usd, analysis_id),
             )
 
     def get_user_usage(self, user_id: str, days: int = 30) -> list[dict[str, Any]]:
@@ -352,6 +360,29 @@ class PgUserDB:
             rows = cur.fetchall()
             cols = [d[0] for d in cur.description]
         return [dict(zip(cols, r)) for r in rows]
+
+    def get_cost_stats(self, days: int = 30) -> dict:
+        """Aggregierte Kosten- und Token-Statistiken ueber alle Nutzer."""
+        cutoff = time.time() - days * 86400
+        with self._conn() as conn:
+            cur = conn.execute(
+                """
+                SELECT
+                    tier_used,
+                    COUNT(*) AS analyses,
+                    COALESCE(SUM(total_tokens), 0) AS total_tokens,
+                    COALESCE(SUM(estimated_cost_usd), 0.0) AS total_cost_usd,
+                    COALESCE(AVG(estimated_cost_usd), 0.0) AS avg_cost_per_analysis
+                FROM usage_log
+                WHERE created_at > %s
+                GROUP BY tier_used
+                ORDER BY tier_used
+                """,
+                (cutoff,),
+            )
+            rows = cur.fetchall()
+            cols = [d[0] for d in cur.description]
+        return {"period_days": days, "by_tier": [dict(zip(cols, r)) for r in rows]}
 
     def migrate_from_json(self, json_path: str) -> int:
         """Import aus altem users.json – identisch mit SQLite-Version."""
@@ -430,6 +461,7 @@ class PgAnalysisArchive:
                 "CREATE INDEX IF NOT EXISTS idx_archive_fts "
                 "ON analysis_archive USING gin(search_vector)"
             )
+            conn.execute("ALTER TABLE analysis_archive ADD COLUMN IF NOT EXISTS cost_summary JSONB")
 
     @contextmanager
     def _conn(self):
@@ -473,6 +505,7 @@ class PgAnalysisArchive:
         source_url: str | None = None,
         platform: str | None = None,
         title: str | None = None,
+        cost_summary: dict | None = None,
     ) -> str:
         if not self._archive_cfg.enabled:
             return ""
@@ -496,9 +529,10 @@ class PgAnalysisArchive:
                 INSERT INTO analysis_archive
                     (id, created_at, input_text, source_url, platform,
                      overall_rating, confidence, summary, result_json,
-                     title, claims_count, techniques_count, input_hash, search_vector)
+                     title, claims_count, techniques_count, input_hash, search_vector,
+                     cost_summary)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                        to_tsvector('simple', %s))
+                        to_tsvector('simple', %s), %s)
                 """,
                 (
                     archive_id, time.time(), input_short, source_url, platform,
@@ -508,6 +542,7 @@ class PgAnalysisArchive:
                     json.dumps(result, ensure_ascii=False),
                     title, claims_count, techniques_count, lookup_hash,
                     fts_text,
+                    json.dumps(cost_summary) if cost_summary else None,
                 ),
             )
 

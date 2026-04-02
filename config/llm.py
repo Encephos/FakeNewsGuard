@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass
@@ -58,3 +58,19 @@ class TierModelConfig:
             self.model_medium = v
         if v := os.getenv("TIER_MODEL_FREE", ""):
             self.model_free = v
+
+
+@dataclass
+class ModelPricingConfig:
+    """Preise in USD pro 1 Million Tokens.
+
+    Env-Override moeglich: PRICING_INPUT_<MODEL_SLUG> / PRICING_OUTPUT_<MODEL_SLUG>
+    (MODEL_SLUG = Modell-ID mit / und - durch _ ersetzt, uppercase)
+    """
+
+    prices: dict[str, dict[str, float]] = field(default_factory=lambda: {
+        "google/gemma-3-4b-it":                {"input": 0.03, "output": 0.03},
+        "google/gemma-3-27b-it":               {"input": 0.10, "output": 0.10},
+        "qwen/qwen3-235b-a22b-thinking-2507":  {"input": 0.14, "output": 0.60},
+        "openrouter/free":                     {"input": 0.0,  "output": 0.0},
+    })

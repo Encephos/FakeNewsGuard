@@ -202,3 +202,11 @@ async def admin_revoke_registration_code(code_id: str, request: Request) -> dict
     if not user_db.revoke_registration_code(code_id):
         raise HTTPException(status_code=404, detail="Code nicht gefunden.")
     return {"ok": True}
+
+
+@router.get("/api/admin/cost-stats")
+async def admin_cost_stats(request: Request, days: int = 30) -> dict:
+    """Aggregierte Kosten- und Token-Statistiken (nur Admin)."""
+    require_admin(request)
+    db = get_user_db()
+    return db.get_cost_stats(days=days)
