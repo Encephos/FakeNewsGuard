@@ -74,3 +74,18 @@ class ModelPricingConfig:
         "qwen/qwen3-235b-a22b-thinking-2507":  {"input": 0.14, "output": 0.60},
         "openrouter/free":                     {"input": 0.0,  "output": 0.0},
     })
+
+    # CO2-Emissionen in Gramm pro 1000 Tokens (operationelle Inferenz).
+    # Basiert auf: TokenPowerBench-Skalierung, globaler Durchschnitts-Strommix
+    # ~475 gCO2/kWh, PUE ~1.2, moderne Datacenter-GPUs (H100/A100).
+    # Quellen: arxiv.org/html/2512.03024v1, arxiv.org/html/2511.05597
+    co2_per_1k_tokens: dict[str, float] = field(default_factory=lambda: {
+        "google/gemma-3-4b-it":                0.04,   # ~4B dense, sehr effizient
+        "google/gemma-3-27b-it":               0.30,   # ~27B dense
+        "qwen/qwen3-235b-a22b-thinking-2507":  0.40,   # ~235B MoE, 22B aktiv
+        "openrouter/free":                     0.05,   # konservativer Schaetzwert
+    })
+
+    # CO2 pro Websuche in Gramm (konservativer Schaetzwert basierend auf
+    # Google-Daten ~0.2g/Query, SearXNG-Overhead vernachlaessigbar).
+    co2_per_search_query: float = 0.20

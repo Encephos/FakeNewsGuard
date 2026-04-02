@@ -316,6 +316,7 @@ def run_analysis(self, job_id: str, text: str, url: str = "", tier: str = "max")
                     source="web",
                     total_tokens=cost.total_tokens if cost else 0,
                     estimated_cost_usd=cost.estimated_cost_usd if cost else 0.0,
+                    estimated_co2_grams=cost.estimated_co2_grams if cost else 0.0,
                     analysis_id=getattr(final_result, "analysis_id", None),
                 )
         except Exception:

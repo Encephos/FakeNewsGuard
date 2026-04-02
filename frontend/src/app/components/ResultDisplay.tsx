@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { AnalysisResult, ClaimResult, FactRating, RhetoricTechnique } from "../lib/types";
+import { AnalysisResult, ClaimResult, CostSummary, FactRating, RhetoricTechnique } from "../lib/types";
 
 const OVERALL_STYLE: Record<string, { color: string; label: string }> = {
   Wahr:                  { color: "text-success",  label: "Wahr" },
@@ -171,6 +171,9 @@ export default function ResultDisplay({ result, archiveId, sourceUrl }: ResultDi
           </ul>
         </Card>
       )}
+
+      {/* Impact footer */}
+      {result.cost_summary && <ImpactFooter cost={result.cost_summary} />}
     </div>
   );
 }
@@ -247,4 +250,89 @@ function Detail({ label, text }: { label: string; text: string }) {
       {text}
     </div>
   );
+}
+
+function ImpactFooter({ cost }: { cost: CostSummary }) {
+  const co2 = cost.estimated_co2_grams;
+  const agents = Object.entries(cost.tokens_per_agent);
+  const models = Object.entries(cost.co2_per_model);
+
+  return (
+    <div className="glass-card px-5 py-4">
+      <h3 className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3.5">
+        Analyse-Fussabdruck
+      </h3>
+
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
+        <MiniStat label="Tokens gesamt" value={formatTokens(cost.total_tokens)} />
+        <MiniStat label="LLM-Aufrufe" value={String(cost.call_count)} />
+        <MiniStat label="Kosten" value={`$${cost.estimated_cost_usd.toFixed(4)}`} />
+        <MiniStat label="CO2" value={formatCO2(co2)} />
+      </div>
+
+      {/* Agent token breakdown bar */}
+      {agents.length > 1 && cost.total_tokens > 0 && (
+        <div className="mb-3">
+          <p className="text-[10px] text-text-tertiary mb-1.5">Token-Verteilung nach Agent</p>
+          <div className="flex h-2 rounded-full overflow-hidden gap-px">
+            {agents.map(([agent, tokens]) => (
+              <div
+                key={agent}
+                className="h-full bg-accent/60 first:rounded-l-full last:rounded-r-full"
+                style={{ flex: tokens / cost.total_tokens }}
+                title={`${agent}: ${formatTokens(tokens)}`}
+              />
+            ))}
+          </div>
+          <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1.5">
+            {agents.map(([agent, tokens]) => (
+              <span key={agent} className="text-[10px] text-text-tertiary font-mono">
+                {agent} {formatTokens(tokens)}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* CO2 context */}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] text-text-tertiary">
+        {models.map(([model, grams]) => (
+          <span key={model} className="font-mono">
+            {model.split("/").pop()}: {formatCO2(grams)}
+          </span>
+        ))}
+        {cost.search_query_count > 0 && (
+          <span className="font-mono">
+            {cost.search_query_count} Websuche{cost.search_query_count !== 1 ? "n" : ""}: {formatCO2(cost.search_co2_grams)}
+          </span>
+        )}
+      </div>
+
+      <p className="text-[10px] text-text-tertiary mt-2 leading-relaxed opacity-70">
+        Schaetzwerte basierend auf TokenPowerBench-Skalierung, globalem Durchschnitts-Strommix (~475 gCO2/kWh)
+        und ~0.2 g CO2 pro Websuche.
+      </p>
+    </div>
+  );
+}
+
+function MiniStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <p className="font-mono text-sm text-text-primary font-medium tabular-nums">{value}</p>
+      <p className="text-[10px] text-text-tertiary">{label}</p>
+    </div>
+  );
+}
+
+function formatTokens(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
+  return String(n);
+}
+
+function formatCO2(grams: number): string {
+  if (grams >= 1000) return `${(grams / 1000).toFixed(2)} kg`;
+  if (grams >= 1) return `${grams.toFixed(2)} g`;
+  return `${(grams * 1000).toFixed(1)} mg`;
 }

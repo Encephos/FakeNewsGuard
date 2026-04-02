@@ -101,6 +101,7 @@ class PgUserDB:
             )
             conn.execute("ALTER TABLE usage_log ADD COLUMN IF NOT EXISTS total_tokens INTEGER DEFAULT 0")
             conn.execute("ALTER TABLE usage_log ADD COLUMN IF NOT EXISTS estimated_cost_usd DOUBLE PRECISION DEFAULT 0.0")
+            conn.execute("ALTER TABLE usage_log ADD COLUMN IF NOT EXISTS estimated_co2_grams DOUBLE PRECISION DEFAULT 0.0")
             conn.execute("ALTER TABLE usage_log ADD COLUMN IF NOT EXISTS analysis_id TEXT")
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS telegram_link_codes (
@@ -337,15 +338,16 @@ class PgUserDB:
         source: str = "web",
         total_tokens: int = 0,
         estimated_cost_usd: float = 0.0,
+        estimated_co2_grams: float = 0.0,
         analysis_id: str | None = None,
     ) -> None:
         with self._conn() as conn:
             conn.execute(
                 "INSERT INTO usage_log (user_id, tier_used, created_at, claims, rating, source, "
-                "total_tokens, estimated_cost_usd, analysis_id) "
-                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                "total_tokens, estimated_cost_usd, estimated_co2_grams, analysis_id) "
+                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
                 (user_id, tier_used, time.time(), claims, rating, source,
-                 total_tokens, estimated_cost_usd, analysis_id),
+                 total_tokens, estimated_cost_usd, estimated_co2_grams, analysis_id),
             )
 
     def get_user_usage(self, user_id: str, days: int = 30) -> list[dict[str, Any]]:
@@ -362,7 +364,7 @@ class PgUserDB:
         return [dict(zip(cols, r)) for r in rows]
 
     def get_cost_stats(self, days: int = 30) -> dict:
-        """Aggregierte Kosten- und Token-Statistiken ueber alle Nutzer."""
+        """Aggregierte Kosten-, Token- und CO2-Statistiken ueber alle Nutzer."""
         cutoff = time.time() - days * 86400
         with self._conn() as conn:
             cur = conn.execute(
@@ -372,7 +374,9 @@ class PgUserDB:
                     COUNT(*) AS analyses,
                     COALESCE(SUM(total_tokens), 0) AS total_tokens,
                     COALESCE(SUM(estimated_cost_usd), 0.0) AS total_cost_usd,
-                    COALESCE(AVG(estimated_cost_usd), 0.0) AS avg_cost_per_analysis
+                    COALESCE(AVG(estimated_cost_usd), 0.0) AS avg_cost_per_analysis,
+                    COALESCE(SUM(estimated_co2_grams), 0.0) AS total_co2_grams,
+                    COALESCE(AVG(estimated_co2_grams), 0.0) AS avg_co2_per_analysis
                 FROM usage_log
                 WHERE created_at > %s
                 GROUP BY tier_used
