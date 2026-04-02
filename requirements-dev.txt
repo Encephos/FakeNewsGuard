@@ -6,3 +6,4 @@ pytest-asyncio>=0.23.0
 pytest-mock>=3.12.0
 respx>=0.21.0          # HTTP-Mocking für httpx
 freezegun>=1.4.0       # Zeit-Mocking (für Cache-TTL Tests)
+fakeredis>=2.0.0       # Redis-Mock für Unit-Tests ohne echten Redis

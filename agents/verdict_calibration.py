@@ -326,6 +326,32 @@ def _calibrate_rating(
         )
         rating = FactRating.UNVERIFIABLE
 
+    # ── Aktuell-Zustand-Claim + direkte Belege + frische Quellen → TRUE ────────
+    # Wenn ein current-state Claim (z.B. "X ist Bundeskanzler") fälschlich als
+    # FALSE/MOSTLY_FALSE/MISLEADING bewertet wird, ABER direkte Belege mit
+    # ausreichender Freshness vorliegen, ist das LLM-Urteil vermutlich durch
+    # fehlerhafte temporale Logik entstanden (z.B. "Quelle sagt Amtsantritt
+    # Mai 2025" wird als "veraltet" behandelt statt als Beleg für aktuellen
+    # Zustand). In diesem Fall auf TRUE korrigieren.
+    try:
+        _freshness = float(quality.freshness_score) if quality else 0.0
+    except (TypeError, ValueError):
+        _freshness = 0.0
+    if (
+        is_current_state_claim
+        and not claim_is_negated
+        and rating in (FactRating.FALSE, FactRating.MOSTLY_FALSE, FactRating.MISLEADING)
+        and direct_count > 0
+        and _freshness >= 0.30
+        and not has_direct_refutation
+    ):
+        reasons.append(
+            f"Aktuell-Zustand-Claim: {rating.value} mit {direct_count} direkten "
+            f"Belegen und Freshness={_freshness:.2f} → TRUE "
+            "(Transitions-Quellen belegen aktuellen Zustand)"
+        )
+        rating = FactRating.TRUE
+
     # ── Aktuell-Zustand-Claim: keine frischen direkten Belege → UNVERIFIABLE ──
     # Veraltete Quellen (z.B. Artikel 2022 über Amtsinhaber) dürfen einen
     # aktuellen Zustandsclaim nicht widerlegen.  Wenn kein direkter Beweis
@@ -352,10 +378,6 @@ def _calibrate_rating(
     # Bei Meta-Disinfo-Artikeln können has_direct_refutation / Konsens
     # fehlklassifiziert sein, deshalb prüft diese Regel unabhängig davon.
     # NICHT bei negierten Claims – dort ist FALSE wahrscheinlich korrekt.
-    try:
-        _freshness = float(quality.freshness_score) if quality else 0.0
-    except (TypeError, ValueError):
-        _freshness = 0.0
     if (
         is_current_state_claim
         and not claim_is_negated
@@ -382,6 +404,7 @@ def _calibrate_confidence(
     is_current_state_claim: bool = False,
     stale_freshness_threshold: float = 0.40,
     vcal: VerdictCalibrationConfig | None = None,
+    rating: "FactRating | None" = None,
 ) -> tuple[float, list[str]]:
     """Regelbasierter Confidence-Postprocessor.
 
@@ -659,6 +682,14 @@ def _calibrate_confidence(
         penalty = 0.10 if claim_quality_score < 0.50 else 0.05
         reasons.append(f"Claim-Qualität niedrig ({claim_quality_score:.2f}) → -{penalty}")
         confidence -= penalty
+
+    # Floor: AGREEING-Konsens + positives Rating → Mindest-Confidence
+    if rating and quality and quality.source_consensus.value == "agreeing":
+        if rating in (FactRating.TRUE, FactRating.MOSTLY_TRUE):
+            floor = 0.60
+            if confidence < floor:
+                reasons.append(f"AGREEING-Konsens + {rating.value} → Floor {floor}")
+                confidence = max(confidence, floor)
 
     confidence = max(0.0, min(1.0, confidence))
     return confidence, reasons

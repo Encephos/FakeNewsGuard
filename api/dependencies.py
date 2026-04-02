@@ -30,22 +30,14 @@ correlation_id: contextvars.ContextVar[str] = contextvars.ContextVar(
     "correlation_id", default=""
 )
 
-# ── In-memory job store ──────────────────────────────────────────
-# { job_id: { status, steps, result, error, created_at } }
-jobs: dict[str, dict[str, Any]] = {}
+# ── Job Store (Redis-backed, replaces former in-memory dict) ─────
+from worker.job_store import get_job_store, reset_job_store  # noqa: E402
 
 # ── Job-Konfiguration (aus config/infrastructure.py, Env-Var-überschreibbar) ──
 _job_config = JobConfig()
 JOB_TTL_SECONDS = _job_config.ttl_seconds
 JOB_TIMEOUT_SECONDS = _job_config.timeout_seconds
 JOB_INACTIVITY_TIMEOUT = _job_config.inactivity_timeout
-
-
-def cleanup_old_jobs() -> None:
-    now = time.time()
-    stale = [jid for jid, j in jobs.items() if now - j["created_at"] > JOB_TTL_SECONDS]
-    for jid in stale:
-        del jobs[jid]
 
 
 # ── Rate-Limiter (singleton) ────────────────────────────────────
@@ -306,8 +298,8 @@ class LoginRequest(BaseModel):
 class AnalyzeRequest(BaseModel):
     text: str
     url: str | None = None
-    agent: str | None = None  # "Scout Lite" | "Scout Pro" | "Scout Max"
-    tier: str | None = None   # "lite" | "pro" | "max" (default: max)
+    agent: str | None = None  # "Scout Lite" | "Scout Pro" | "Scout Max" | "Commander Pro" | "Commander Max"
+    tier: str | None = None   # "lite" | "pro" | "max" | "commander-pro" | "commander-max"
 
 
 class ExtractRequest(BaseModel):

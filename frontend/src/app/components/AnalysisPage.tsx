@@ -71,8 +71,9 @@ export default function AnalysisPage() {
   // Restore tier preference from localStorage
   useEffect(() => {
     const saved = localStorage.getItem(TIER_STORAGE_KEY);
-    if (saved && (saved === "lite" || saved === "pro" || saved === "max")) {
-      setTier(saved);
+    const validTiers = ["lite", "pro", "max", "commander-pro", "commander-max"];
+    if (saved && validTiers.includes(saved)) {
+      setTier(saved as ScoutTier);
     }
   }, []);
 

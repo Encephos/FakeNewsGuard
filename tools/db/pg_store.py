@@ -757,26 +757,68 @@ class PgCrossReferenceGraph:
                  json.dumps(edge.properties), now),
             )
 
-    def get_neighbors(self, node_id: str, relation: str | None = None) -> list:
-        from tools.cross_reference import GraphNode
-        rel_filter = "AND relation = %s" if relation else ""
-        params = [node_id, relation] if relation else [node_id]
+    def get_edges(
+        self,
+        node_id: str,
+        direction: str = "both",
+        relation: str | None = None,
+    ) -> list:
+        """Alle Kanten eines Knotens (outgoing, incoming, oder both)."""
+        from tools.cross_reference import GraphEdge
+
+        clauses: list[str] = []
+        params: list[Any] = []
+
+        if direction in ("out", "both"):
+            clauses.append("source_id = %s")
+            params.append(node_id)
+        if direction in ("in", "both"):
+            clauses.append("target_id = %s")
+            params.append(node_id)
+
+        where = " OR ".join(clauses)
+        if relation:
+            where = f"({where}) AND relation = %s"
+            params.append(relation)
+
         with self._conn() as conn:
             cur = conn.execute(
-                f"""
-                SELECT n.id, n.type, n.label, n.properties
-                FROM graph_edges e
-                JOIN graph_nodes n ON n.id = e.target_id
-                WHERE e.source_id = %s {rel_filter}
-                """,
+                f"SELECT source_id, target_id, relation, properties FROM graph_edges WHERE {where} ORDER BY created_at DESC",
                 params,
             )
             rows = cur.fetchall()
+
         return [
-            GraphNode(id=r[0], type=r[1], label=r[2],
-                      properties=r[3] if isinstance(r[3], dict) else json.loads(r[3]))
+            GraphEdge(
+                source_id=r[0], target_id=r[1], relation=r[2],
+                properties=r[3] if isinstance(r[3], dict) else json.loads(r[3]),
+            )
             for r in rows
         ]
+
+    def get_neighbors(self, node_id: str, relation: str | None = None) -> list:
+        """Alle Nachbarknoten (via beliebige Kante, beide Richtungen)."""
+        from tools.cross_reference import GraphNode
+
+        edges = self.get_edges(node_id, relation=relation)
+        neighbor_ids = set()
+        for e in edges:
+            neighbor_ids.add(e.target_id if e.source_id == node_id else e.source_id)
+
+        nodes = []
+        with self._conn() as conn:
+            for nid in neighbor_ids:
+                cur = conn.execute(
+                    "SELECT id, type, label, properties FROM graph_nodes WHERE id = %s",
+                    (nid,),
+                )
+                row = cur.fetchone()
+                if row:
+                    nodes.append(GraphNode(
+                        id=row[0], type=row[1], label=row[2],
+                        properties=row[3] if isinstance(row[3], dict) else json.loads(row[3]),
+                    ))
+        return nodes
 
     def find_nodes(
         self,
@@ -817,6 +859,104 @@ class PgCrossReferenceGraph:
 
     def find_related_claims(self, claim_id: str) -> list:
         return self.get_neighbors(claim_id, relation="related_to")
+
+    def get_actor_claims(self, actor_name: str) -> list:
+        """Alle Claims, in denen ein Akteur erwaehnt wird."""
+        actor_nodes = self.find_nodes(node_type="ACTOR", label_search=actor_name)
+        if not actor_nodes:
+            return []
+
+        claims = []
+        for actor in actor_nodes:
+            neighbors = self.get_neighbors(actor.id, relation="mentions")
+            claims.extend(n for n in neighbors if n.type == "CLAIM")
+        return claims
+
+    def get_source_history(self, domain: str) -> dict[str, Any]:
+        """Wie oft und in welchem Kontext wurde eine Quelle verwendet?"""
+        source_nodes = self.find_nodes(node_type="SOURCE", label_search=domain)
+        if not source_nodes:
+            return {"domain": domain, "total_references": 0, "claims": []}
+
+        all_claims = []
+        for src in source_nodes:
+            edges = self.get_edges(src.id, direction="in")
+            for edge in edges:
+                claim_node = self.get_node(edge.source_id)
+                if claim_node and claim_node.type == "CLAIM":
+                    all_claims.append({
+                        "claim": claim_node.label[:100],
+                        "relation": edge.relation,
+                        "rating": claim_node.properties.get("rating", ""),
+                    })
+
+        return {
+            "domain": domain,
+            "total_references": len(all_claims),
+            "claims": all_claims,
+        }
+
+    def populate_from_result(
+        self,
+        analysis_id: str,
+        claims_analysis: list[dict[str, Any]],
+        original_text: str = "",
+    ) -> None:
+        """Trage die Ergebnisse einer Analyse in den Graphen ein."""
+        from tools.cross_reference import GraphNode, GraphEdge, _extract_domain, _extract_actors
+
+        claim_node_ids: list[str] = []
+
+        for claim in claims_analysis:
+            claim_id = f"{analysis_id}:{claim.get('id', 'C?')}"
+            claim_text = claim.get("text", "")
+            claim_rating = claim.get("rating", "")
+
+            # Claim-Knoten
+            self.add_node(GraphNode(
+                id=claim_id, type="CLAIM", label=claim_text,
+                properties={
+                    "rating": claim_rating,
+                    "claim_type": claim.get("type", ""),
+                    "analysis_id": analysis_id,
+                },
+            ))
+            claim_node_ids.append(claim_id)
+
+            # Source-Knoten + Kanten
+            sources = claim.get("sources", [])
+            for url in sources:
+                domain = _extract_domain(url)
+                source_id = f"src:{domain}"
+
+                self.add_node(GraphNode(
+                    id=source_id, type="SOURCE", label=domain,
+                    properties={"sample_url": url},
+                ))
+
+                relation = "supported_by" if claim_rating in ("TRUE", "MOSTLY_TRUE") else "referenced_by"
+                self.add_edge(GraphEdge(
+                    source_id=claim_id, target_id=source_id, relation=relation,
+                ))
+
+            # Akteur-Extraktion
+            actors = _extract_actors(claim_text)
+            for actor in actors:
+                actor_id = f"actor:{actor.lower().replace(' ', '_')}"
+                self.add_node(GraphNode(
+                    id=actor_id, type="ACTOR", label=actor,
+                ))
+                self.add_edge(GraphEdge(
+                    source_id=claim_id, target_id=actor_id, relation="mentions",
+                ))
+
+        # Beziehungen zwischen Claims der gleichen Analyse
+        for i, cid_a in enumerate(claim_node_ids):
+            for cid_b in claim_node_ids[i + 1:]:
+                self.add_edge(GraphEdge(
+                    source_id=cid_a, target_id=cid_b, relation="related_to",
+                    properties={"reason": "same_analysis"},
+                ))
 
     def stats(self) -> dict[str, Any]:
         with self._conn() as conn:

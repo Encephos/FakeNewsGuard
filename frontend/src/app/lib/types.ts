@@ -81,11 +81,11 @@ export interface ExtractedContent {
   url: string;
 }
 
-export type ScoutTier = "lite" | "pro" | "max";
+export type ScoutTier = "lite" | "pro" | "max" | "commander-pro" | "commander-max";
 
 export interface ScoutTierInfo {
   id: ScoutTier;
-  agent: string;       // "Scout Lite" | "Scout Pro" | "Scout Max"
+  agent: string;       // "Scout Lite" | "Scout Pro" | "Scout Max" | "Commander Pro" | "Commander Max"
   label: string;       // display label (localized)
   description: string; // short description (localized)
 }

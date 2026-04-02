@@ -146,6 +146,10 @@ const en = {
     proDesc: "Balanced · Gemma",
     max: "Scout Max",
     maxDesc: "Best Quality · Gemma + Qwen",
+    "commander-pro": "Cmdr Pro",
+    "commander-proDesc": "Iterative Search · Gemma",
+    "commander-max": "Cmdr Max",
+    "commander-maxDesc": "Iterative Search · Gemma + Qwen",
   },
 
   // ── Language switcher ─────────────────────────────────────────

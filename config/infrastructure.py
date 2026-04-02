@@ -7,6 +7,33 @@ from dataclasses import dataclass
 
 
 @dataclass
+class TelemetryConfig:
+    """Konfiguration fuer Observability (OpenTelemetry + Prometheus).
+
+    Env-Vars:
+        OTEL_ENABLED        – OpenTelemetry Tracing aktivieren (Default: false)
+        OTLP_ENDPOINT       – OTLP gRPC Collector Endpoint (Default: http://localhost:4317)
+        OTEL_SERVICE_NAME   – Service-Name in Traces (Default: fakeguard-api)
+        PROMETHEUS_ENABLED  – /metrics Endpoint aktivieren (Default: true)
+    """
+
+    otel_enabled: bool = False
+    otlp_endpoint: str = "http://localhost:4317"
+    prometheus_enabled: bool = True
+    service_name: str = "fakeguard-api"
+
+    def __post_init__(self) -> None:
+        if os.getenv("OTEL_ENABLED", "").lower() in ("1", "true"):
+            self.otel_enabled = True
+        if v := os.getenv("OTLP_ENDPOINT", ""):
+            self.otlp_endpoint = v
+        if os.getenv("PROMETHEUS_ENABLED", "").lower() in ("0", "false"):
+            self.prometheus_enabled = False
+        if v := os.getenv("OTEL_SERVICE_NAME", ""):
+            self.service_name = v
+
+
+@dataclass
 class UserDBConfig:
     """Konfiguration für die SQLite-Nutzerdatenbank."""
 
@@ -179,6 +206,37 @@ class JobConfig:
             self.claim_batch_size = int(v)
         if v := os.getenv("JOB_INACTIVITY_SCALING", ""):
             self.inactivity_scaling_per_claim = int(v)
+
+
+@dataclass
+class CeleryConfig:
+    """Konfiguration fuer Celery Task-Queue (Broker + Backend via Valkey/Redis).
+
+    Env-Vars:
+        CELERY_BROKER_URL         – Broker-URL (Default: redis://valkey:6379/1)
+        CELERY_RESULT_BACKEND     – Result-Backend-URL (Default: redis://valkey:6379/1)
+        CELERY_TASK_TIME_LIMIT    – Hard-Kill nach N Sekunden (Default: 1800)
+        CELERY_TASK_SOFT_TIME_LIMIT – SoftTimeLimitExceeded nach N Sekunden (Default: 1740)
+        CELERY_WORKER_CONCURRENCY – Worker-Parallelitaet (Default: 4)
+    """
+
+    broker_url: str = "redis://valkey:6379/1"
+    result_backend: str = "redis://valkey:6379/1"
+    task_time_limit: int = 1800
+    task_soft_time_limit: int = 1740
+    worker_concurrency: int = 4
+
+    def __post_init__(self) -> None:
+        if v := os.getenv("CELERY_BROKER_URL", ""):
+            self.broker_url = v
+        if v := os.getenv("CELERY_RESULT_BACKEND", ""):
+            self.result_backend = v
+        if v := os.getenv("CELERY_TASK_TIME_LIMIT", ""):
+            self.task_time_limit = int(v)
+        if v := os.getenv("CELERY_TASK_SOFT_TIME_LIMIT", ""):
+            self.task_soft_time_limit = int(v)
+        if v := os.getenv("CELERY_WORKER_CONCURRENCY", ""):
+            self.worker_concurrency = int(v)
 
 
 @dataclass

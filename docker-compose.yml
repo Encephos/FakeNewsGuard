@@ -63,6 +63,10 @@ services:
       - POSTGRES_HOST=postgres
       - POSTGRES_DB=fakeguard
       - POSTGRES_USER=fakeguard
+      - CELERY_BROKER_URL=redis://valkey:6379/1
+      - CELERY_RESULT_BACKEND=redis://valkey:6379/1
+      - OTEL_ENABLED=${OTEL_ENABLED:-false}
+      - OTLP_ENDPOINT=http://otel-collector:4317
       # DB_BACKEND=postgres und CACHE_BACKEND=valkey in .env setzen
     volumes:
       # Fallback-Volume falls SQLite-Mode aktiv (Dev/Migration)
@@ -85,6 +89,35 @@ services:
       - .env
     depends_on:
       - backend
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: fakenewsguard-worker
+    command: celery -A worker.celery_app worker --loglevel=info --concurrency=4
+    env_file:
+      - .env
+    environment:
+      - CELERY_BROKER_URL=redis://valkey:6379/1
+      - CELERY_RESULT_BACKEND=redis://valkey:6379/1
+      - SEARXNG_URL=http://searxng:8080
+      - VALKEY_URL=redis://valkey:6379/0
+      - POSTGRES_HOST=postgres
+      - POSTGRES_DB=fakeguard
+      - POSTGRES_USER=fakeguard
+      - OTEL_ENABLED=${OTEL_ENABLED:-false}
+      - OTLP_ENDPOINT=http://otel-collector:4317
+    volumes:
+      - fng_data:/app/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+      valkey:
+        condition: service_started
+      searxng:
+        condition: service_started
     restart: unless-stopped
 
   telegram-bot:
@@ -136,6 +169,31 @@ services:
         condition: service_healthy
     profiles:
       - migration
+
+  # ── Observability (nur mit --profile observability) ────────────────────
+  otel-collector:
+    image: otel/opentelemetry-collector:latest
+    container_name: fakenewsguard-otel
+    command: ["--config=/etc/otelcol/config.yaml"]
+    volumes:
+      - ./otel-collector-config.yaml:/etc/otelcol/config.yaml
+    ports:
+      - "4317:4317"
+    profiles:
+      - observability
+    restart: unless-stopped
+
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    container_name: fakenewsguard-jaeger
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+    ports:
+      - "16686:16686"
+      - "4318:4318"
+    profiles:
+      - observability
+    restart: unless-stopped
 
 volumes:
   fng_data:

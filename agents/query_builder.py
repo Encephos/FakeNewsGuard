@@ -501,6 +501,11 @@ def _build_search_queries(claim: Claim, original_text: str = "") -> list[str]:
         if profile_queries:
             is_underspecified = bool(_underspec_signals & set(claim.quality_signals or []))
             if not is_underspecified or len(profile_queries) >= 3:
+                # Kontext-Query aus Originaltext anhängen (Safety-Net)
+                if original_text and len(original_text) > len(claim.text) + 30:
+                    context_query = _build_context_query(claim, original_text)
+                    if context_query and context_query not in profile_queries:
+                        profile_queries.append(context_query)
                 return profile_queries
             # Profil dünn + unterspecified → weiter zu Query-Familien
 

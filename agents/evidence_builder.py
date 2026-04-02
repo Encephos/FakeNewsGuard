@@ -333,13 +333,29 @@ class EvidenceBuilderAgent(BaseAgent):
         except RuntimeError:
             return _asyncio.run(self.execute_async(input_data, context))
 
-    async def execute_async(self, input_data: Any, context: str = "") -> EvidencePack:
+    async def execute_with_queries_async(
+        self, claim: Claim, queries: list[str], context: str = "",
+    ) -> EvidencePack:
+        """Vom Commander aufgerufen mit vorgegebenen Queries.
+
+        Überspringt die interne Query-Generierung und nutzt die übergebenen
+        Queries direkt für Retrieval + EvidencePack-Assembly.
+        """
+        return await self.execute_async(claim, context=context, _queries_override=queries)
+
+    async def execute_async(
+        self, input_data: Any, context: str = "", _queries_override: list[str] | None = None,
+    ) -> EvidencePack:
         """Async-Version – Retrieval läuft parallel.
 
         Retrieval-Rollen (klar getrennt, Priorität bei Fusion):
             SearXNG    = primäre Breitensuche (alle Queries, kostenlos, self-hosted)
             LangSearch = semantische Hauptsuche (adaptiv 3–5 Queries, Dedup-Priorität)
             GFC        = strukturierter Shortcut-Layer (höchste Priorität)
+
+        Args:
+            _queries_override: Wenn gesetzt, werden diese Queries statt der
+                intern generierten verwendet (für Commander-Integration).
         """
         claim: Claim = input_data
         notes: list[str] = []
@@ -350,8 +366,12 @@ class EvidenceBuilderAgent(BaseAgent):
             profile = claim.search_profile
 
         # ── 1. Query-Optimierung ──────────────────────────────────────────────
-        queries = await self._build_queries_async(claim, context)
-        notes.append(f"Queries: {queries}")
+        if _queries_override is not None:
+            queries = list(_queries_override)
+            notes.append(f"Queries (Commander-Override): {queries}")
+        else:
+            queries = await self._build_queries_async(claim, context)
+            notes.append(f"Queries: {queries}")
 
         # Unspezifik-Notiz: falls Qualitätssignale auf fehlende Spezifik hinweisen,
         # festhalten dass generische Query-Familien genutzt wurden und die

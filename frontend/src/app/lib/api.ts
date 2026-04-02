@@ -99,6 +99,8 @@ const TIER_AGENT_MAP: Record<ScoutTier, string> = {
   lite: "Scout Lite",
   pro: "Scout Pro",
   max: "Scout Max",
+  "commander-pro": "Commander Pro",
+  "commander-max": "Commander Max",
 };
 
 /**

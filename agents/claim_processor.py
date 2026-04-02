@@ -258,14 +258,17 @@ class ClaimSelector(_LLMStageMixin):
 class Disambiguator(_LLMStageMixin):
     """Stufe 3: Erkennt und markiert mehrdeutige Claims."""
 
-    def disambiguate(self, claims: list[ProcessedClaim]) -> list[ProcessedClaim]:
+    def disambiguate(self, claims: list[ProcessedClaim], original_text: str = "") -> list[ProcessedClaim]:
         if not claims:
             return claims
 
         claims_text = "\n".join(
             f"[{c.id}]: {c.text} (Kontext: {c.context})" for c in claims
         )
-        user_msg = f"## Claims zur Disambiguierung\n\n{claims_text}"
+        context_section = ""
+        if original_text:
+            context_section = f"## Originaltext (Kontext)\n\n{original_text[:600]}\n\n"
+        user_msg = f"{context_section}## Claims zur Disambiguierung\n\n{claims_text}"
 
         raw = self._call_llm_json(_DISAMBIGUATOR_PROMPT, user_msg)
         results_by_id = {r["id"]: r for r in raw.get("results", []) if "id" in r}
@@ -280,7 +283,12 @@ class Disambiguator(_LLMStageMixin):
 
             # Aufgelöster Text überschreibt Originaltext wenn sinnvoll
             resolved = r.get("resolved_text", "")
-            new_text = resolved if resolved and level != AmbiguityLevel.NONE else claim.text
+            if resolved and level != AmbiguityLevel.NONE:
+                # Guard: LLM darf den Claim nicht negieren (z.B. "ist Y" → "ist kein Y")
+                resolved = _guard_negation(resolved, claim.text, {0: claim.text})
+                new_text = resolved
+            else:
+                new_text = claim.text
 
             updated.append(
                 claim.model_copy(update={
@@ -484,12 +492,15 @@ class ClaimFrameExtractor(_LLMStageMixin):
     Der Frame ist ab hier der strukturelle Wahrheitsträger.
     """
 
-    def extract(self, claims: list[ProcessedClaim]) -> list[ProcessedClaim]:
+    def extract(self, claims: list[ProcessedClaim], original_text: str = "") -> list[ProcessedClaim]:
         if not claims:
             return claims
 
         claims_text = "\n".join(f"[{c.id}]: {c.text}" for c in claims)
-        user_msg = f"## Claims zur Frame-Extraktion\n\n{claims_text}"
+        context_section = ""
+        if original_text:
+            context_section = f"## Originaltext (Kontext)\n\n{original_text[:800]}\n\n"
+        user_msg = f"{context_section}## Claims zur Frame-Extraktion\n\n{claims_text}"
 
         raw = self._call_llm_json(_FRAME_EXTRACTOR_PROMPT, user_msg)
         frames_by_id: dict[str, dict] = {
@@ -602,6 +613,10 @@ class ClaimDecomposer(_LLMStageMixin):
             for a in atomics:
                 try:
                     candidate_text = a.get("text", "")
+                    # Guard: LLM darf den Claim nicht negieren
+                    candidate_text = _guard_negation(
+                        candidate_text, original.text, {0: original.text}
+                    )
                     if not self._has_context_integrity(candidate_text, original):
                         _log(
                             f"  ✗ Mini-Claim verworfen ({original_id}): "
@@ -1107,7 +1122,7 @@ class ClaimProcessingPipeline:
 
         # Stufe 2.5: Frame Extraction (LLM) – baut ClaimFrame + SearchProfile
         try:
-            claims = self._frame_extractor.extract(claims)
+            claims = self._frame_extractor.extract(claims, text)
             frames_built = sum(1 for c in claims if c.frame is not None)
             notes.append(f"Stufe 2.5: {frames_built}/{len(claims)} ClaimFrames extrahiert")
         except Exception as e:
@@ -1115,7 +1130,7 @@ class ClaimProcessingPipeline:
 
         # Stufe 3: Disambiguation (LLM)
         try:
-            claims = self._disambiguator.disambiguate(claims)
+            claims = self._disambiguator.disambiguate(claims, text)
             notes.append("Stufe 3: Disambiguierung abgeschlossen")
         except Exception as e:
             notes.append(f"Stufe 3: Disambiguierung fehlgeschlagen ({type(e).__name__}) – übersprungen")

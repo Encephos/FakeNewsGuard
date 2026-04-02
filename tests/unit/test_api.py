@@ -2,30 +2,52 @@
 
 from __future__ import annotations
 
+import json
+
 import pytest
 from unittest.mock import patch, MagicMock
 
+import fakeredis
 from fastapi.testclient import TestClient
+
+
+_FAKE_USER = {"id": "test-user", "email": "test@example.com", "tier": "lite", "consent": 1, "admin": False}
 
 
 @pytest.fixture
 def client():
-    """TestClient für die FastAPI-App mit frischem Rate-Limiter pro Test.
+    """TestClient für die FastAPI-App mit fakeredis JobStore und gemocktem Celery.
 
-    _run_job wird gemockt – kein echter Analyse-Job wird gestartet,
-    Tests laufen dadurch sofort statt nach 10+ Minuten.
+    run_analysis.delay wird gemockt – kein echter Celery-Worker nötig.
+    get_current_user_optional wird gemockt – kein echtes JWT nötig.
     """
+    fake_redis_client = fakeredis.FakeRedis()
+
+    # Inject fakeredis into the JobStore singleton
+    from worker.job_store import get_job_store, reset_job_store
+    reset_job_store()
+    store = get_job_store(client=fake_redis_client)
+
+    def _instant_task(job_id: str, text: str, url: str = "", tier: str = "max") -> None:
+        """Simulate instant job completion without a real pipeline."""
+        if store.exists(job_id):
+            store.set_result(job_id, {"claims": [], "verdict": "UNVERIFIABLE"})
+
+    mock_delay = MagicMock(side_effect=_instant_task)
+
     import api
 
-    async def _instant_job(job_id: str, text: str, url: str = "", **kwargs) -> None:
-        """Simuliert sofortigen Job-Abschluss ohne echte Pipeline."""
-        if job_id in api._jobs:
-            api._jobs[job_id]["status"] = "done"
-            api._jobs[job_id]["result"] = {"claims": [], "verdict": "UNVERIFIABLE"}
-
-    with patch("api.analysis._run_job", side_effect=_instant_job):
+    with (
+        patch("api.analysis.run_analysis") as mock_task,
+        patch("api.analysis.get_current_user_optional", return_value=_FAKE_USER),
+    ):
+        mock_task.delay = mock_delay
         api._rate_limiter = None
         yield TestClient(api.app)
+
+    # Cleanup
+    reset_job_store()
+    fake_redis_client.flushall()
 
 
 # ── Health Endpoint ──────────────────────────────────────────────
@@ -33,8 +55,15 @@ def client():
 
 def test_health(client):
     resp = client.get("/api/health")
-    assert resp.status_code == 200
-    assert resp.json() == {"status": "ok"}
+    data = resp.json()
+    # Health-Check gibt erweiterte Struktur zurueck:
+    # status "ok"/"degraded", checks dict, uptime_seconds
+    assert resp.status_code in (200, 503)
+    assert data["status"] in ("ok", "degraded")
+    assert "checks" in data
+    assert "uptime_seconds" in data
+    for key in ("database", "cache", "search"):
+        assert key in data["checks"]
 
 
 # ── Analyze Endpoint Validierung ─────────────────────────────────

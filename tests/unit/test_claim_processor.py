@@ -283,3 +283,148 @@ class TestClaimPrioritizerAgent:
         result = agent.execute(claims)
         assert 0.0 <= result[0].harm_score <= 1.0
         assert 0.0 <= result[0].priority_score <= 1.0
+
+
+# ── Unit Tests: _guard_negation ──────────────────────────────────────────────
+
+
+class TestGuardNegation:
+    """Tests für die Negation-Guard-Funktion, die LLM-Negierungen erkennt."""
+
+    def test_no_negation_passthrough(self):
+        """Wenn LLM den Claim nicht negiert, wird er durchgelassen."""
+        from agents.claim_processor import _guard_negation
+        result = _guard_negation(
+            "Friedrich Merz ist der Bundeskanzler von Deutschland.",
+            "Friedrich Merz ist der Bundeskanzler von Deutschland.",
+            {0: "Friedrich Merz ist der Bundeskanzler von Deutschland."},
+        )
+        assert result == "Friedrich Merz ist der Bundeskanzler von Deutschland."
+
+    def test_kein_negation_detected(self):
+        """LLM fügt 'kein' ein → Guard fällt auf Original zurück."""
+        from agents.claim_processor import _guard_negation
+        result = _guard_negation(
+            "Friedrich Merz ist kein Bundeskanzler von Deutschland.",
+            "Friedrich Merz ist der Bundeskanzler von Deutschland.",
+            {0: "Friedrich Merz ist der Bundeskanzler von Deutschland."},
+        )
+        assert "kein" not in result.lower()
+        assert "Bundeskanzler" in result
+
+    def test_nicht_negation_detected(self):
+        """LLM fügt 'nicht' ein → Guard fällt auf Original zurück."""
+        from agents.claim_processor import _guard_negation
+        result = _guard_negation(
+            "Friedrich Merz ist nicht der Bundeskanzler.",
+            "Friedrich Merz ist der Bundeskanzler.",
+            {0: "Friedrich Merz ist der Bundeskanzler."},
+        )
+        assert "nicht" not in result.lower()
+
+    def test_negation_in_original_allowed(self):
+        """Wenn Original bereits Negation enthält, wird sie beibehalten."""
+        from agents.claim_processor import _guard_negation
+        result = _guard_negation(
+            "Er ist kein Arzt.",
+            "Er ist kein Arzt.",
+            {0: "Er ist kein Arzt."},
+        )
+        assert result == "Er ist kein Arzt."
+
+    def test_best_segment_selection(self):
+        """Bei mehreren Segmenten wird das passendste ausgewählt."""
+        from agents.claim_processor import _guard_negation
+        result = _guard_negation(
+            "Friedrich Merz ist kein Bundeskanzler.",
+            "Friedrich Merz ist Bundeskanzler. Angela Merkel war Kanzlerin.",
+            {
+                0: "Friedrich Merz ist Bundeskanzler.",
+                1: "Angela Merkel war Kanzlerin.",
+            },
+        )
+        # Sollte auf das Merz-Segment zurückfallen (mehr Wortüberlappung)
+        assert "Merz" in result
+        assert "kein" not in result.lower()
+
+
+# ── Integration Tests: Disambiguator Negation Guard ──────────────────────────
+
+
+class TestDisambiguatorNegationGuard:
+    """Stellt sicher, dass der Disambiguator Claims nicht negiert."""
+
+    def test_resolved_text_negation_blocked(self, mocker):
+        """Disambiguator mit negiertem resolved_text → Guard greift."""
+        from agents.claim_processor import Disambiguator
+        from models.schemas import ClaimType, ProcessedClaim
+
+        mock_llm = mocker.MagicMock()
+        mock_llm.complete.return_value = '{"results": [{"id": "C1", "ambiguity_level": "LOW", "ambiguity_reason": "Unklar ob aktuell", "requires_more_context": false, "resolved_text": "Friedrich Merz ist kein Bundeskanzler von Deutschland."}]}'
+
+        disamb = Disambiguator(mock_llm)
+        claims = [
+            ProcessedClaim(
+                id="C1",
+                text="Friedrich Merz ist der Bundeskanzler von Deutschland.",
+                type=ClaimType.FACTUAL,
+            )
+        ]
+        result = disamb.disambiguate(claims)
+        assert len(result) == 1
+        assert "kein" not in result[0].text.lower()
+        assert "Bundeskanzler" in result[0].text
+
+    def test_resolved_text_without_negation_accepted(self, mocker):
+        """Disambiguator mit sinnvollem resolved_text → wird übernommen."""
+        from agents.claim_processor import Disambiguator
+        from models.schemas import ClaimType, ProcessedClaim
+
+        mock_llm = mocker.MagicMock()
+        mock_llm.complete.return_value = '{"results": [{"id": "C1", "ambiguity_level": "LOW", "ambiguity_reason": "Zeitbezug unklar", "requires_more_context": false, "resolved_text": "Friedrich Merz ist seit 2025 der Bundeskanzler von Deutschland."}]}'
+
+        disamb = Disambiguator(mock_llm)
+        claims = [
+            ProcessedClaim(
+                id="C1",
+                text="Friedrich Merz ist der Bundeskanzler von Deutschland.",
+                type=ClaimType.FACTUAL,
+            )
+        ]
+        result = disamb.disambiguate(claims)
+        assert len(result) == 1
+        assert "seit 2025" in result[0].text
+
+
+# ── Regression Test: Merz-Kanzler-Claim ──────────────────────────────────────
+
+
+class TestMerzChancellorRegression:
+    """Regression: 'Friedrich Merz ist der Bundeskanzler' darf nicht negiert werden."""
+
+    def test_merz_claim_survives_pipeline_without_negation(self, mocker):
+        """Merz-Kanzler-Claim durchläuft Disambiguator ohne Negierung."""
+        from agents.claim_processor import Disambiguator
+        from models.schemas import ClaimType, ProcessedClaim
+
+        # Simuliere LLM das den Claim negiert (worst case)
+        mock_llm = mocker.MagicMock()
+        mock_llm.complete.return_value = '{"results": [{"id": "C1", "ambiguity_level": "MEDIUM", "ambiguity_reason": "Merz war nicht immer Kanzler", "requires_more_context": true, "resolved_text": "Friedrich Merz ist kein Bundeskanzler von Deutschland."}]}'
+
+        disamb = Disambiguator(mock_llm)
+        original_text = "Friedrich Merz ist der Bundeskanzler von Deutschland."
+        claims = [
+            ProcessedClaim(
+                id="C1",
+                text=original_text,
+                type=ClaimType.FACTUAL,
+            )
+        ]
+        result = disamb.disambiguate(claims)
+
+        assert len(result) == 1
+        # Claim-Text darf NICHT negiert sein
+        assert "kein" not in result[0].text.lower()
+        assert "nicht" not in result[0].text.lower()
+        # Originaltext muss erhalten bleiben
+        assert result[0].text == original_text

@@ -14,28 +14,50 @@ from __future__ import annotations
 
 import time
 import uuid
+from contextlib import asynccontextmanager
 from typing import Any
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from opentelemetry import trace as _otrace
 
 from config import AppConfig
 from i18n import set_default_locale
 from tools.logger import record_request, setup_logging
+from tools.telemetry import (
+    REQUEST_COUNT,
+    REQUEST_DURATION,
+    normalize_path,
+    setup_telemetry,
+)
 
-from .dependencies import cleanup_old_jobs, correlation_id, logger
+from .dependencies import correlation_id, logger
 
 # ── Logging einrichten ─────────────────────────────────────────────
 setup_logging()
 
-app = FastAPI(title="FakeNewsGuard API")
+_app_config = AppConfig()
+
+
+@asynccontextmanager
+async def _lifespan(app: FastAPI):
+    # ── Startup ────────────────────────────────────────────────────
+    setup_telemetry(_app_config.telemetry)
+    if _app_config.telemetry.otel_enabled:
+        from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+        FastAPIInstrumentor.instrument_app(app)
+    yield
+    # ── Shutdown ───────────────────────────────────────────────────
+
+
+app = FastAPI(title="FakeNewsGuard API", lifespan=_lifespan)
 
 # i18n auf konfigurierte Sprache setzen
-set_default_locale(AppConfig().language)
+set_default_locale(_app_config.language)
 
 # CORS -- konfigurierbar via CORS_ORIGINS Umgebungsvariable.
 # Standard: "*" (alle Origins), fuer Produktion explizit setzen.
-_cors_origins = AppConfig().cors_origins
+_cors_origins = _app_config.cors_origins
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins,
@@ -57,21 +79,35 @@ async def request_logging_middleware(request: Request, call_next: Any) -> Any:
     client_ip = request.client.host if request.client else "unknown"
 
     logger.info("-> %s %s [%s] rid=%s", method, path, client_ip, cid)
+    # OTEL: correlation_id als Span-Attribut setzen
+    span = _otrace.get_current_span()
+    if span.is_recording():
+        span.set_attribute("request.correlation_id", cid)
+
     try:
         response = await call_next(request)
         duration_ms = (time.monotonic() - start) * 1000
         record_request(path, response.status_code, duration_ms)
+
+        # Prometheus-Metriken
+        norm_path = normalize_path(path)
+        REQUEST_COUNT.labels(method=method, path=norm_path, status_code=str(response.status_code)).inc()
+        REQUEST_DURATION.labels(method=method, path=norm_path).observe(duration_ms / 1000)
+
         logger.info(
             "<- %s %s %d %.1fms rid=%s",
             method, path, response.status_code, duration_ms, cid,
         )
         response.headers["X-Request-ID"] = cid
-        # Periodisch abgelaufene Jobs bereinigen (guenstig, laeuft nur bei Requests)
-        cleanup_old_jobs()
         return response
     except Exception as exc:
         duration_ms = (time.monotonic() - start) * 1000
         record_request(path, 500, duration_ms)
+
+        norm_path = normalize_path(path)
+        REQUEST_COUNT.labels(method=method, path=norm_path, status_code="500").inc()
+        REQUEST_DURATION.labels(method=method, path=norm_path).observe(duration_ms / 1000)
+
         logger.exception("x %s %s ERROR %.1fms rid=%s: %s", method, path, duration_ms, cid, exc)
         raise
 
@@ -94,11 +130,9 @@ app.include_router(graph_router)
 app.include_router(utils_router)
 
 # ── Backward-compatibility re-exports ──────────────────────────────
-# Tests and other code may reference api._jobs, api._run_job, etc.
-from .dependencies import jobs as _jobs
-from .dependencies import _get_rate_limiter, cleanup_old_jobs as _cleanup_old_jobs
+from .dependencies import _get_rate_limiter
+from .dependencies import get_job_store
 from .dependencies import transform_result as _transform_result
-from .analysis import _run_job
 
 # Allow tests to reset rate limiter via api._rate_limiter = None
 import api.dependencies as _deps

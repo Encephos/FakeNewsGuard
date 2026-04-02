@@ -39,6 +39,7 @@ from models.schemas import (
     SynthesisResult,
 )
 from agents.claim_extractor import ClaimExtractorAgent
+from agents.commander import CommanderAgent
 from agents.fact_checker import FactCheckerAgent
 from agents.image_analyzer import ImageAnalyzerAgent
 from agents.number_auditor import NumberAuditorAgent
@@ -153,6 +154,16 @@ class Orchestrator:
         self.rhetoric_analyzer = RhetoricAnalyzerAgent(config, llm_powerful, search)
         self.synthesizer = SynthesizerAgent(config, llm_powerful, search)
         self._router = ClaimRouter()
+
+        # ── Commander (nur PRO/MAX) ──────────────────────────────────────────
+        if tier == ScoutTier.LITE or not config.commander.enabled:
+            self.commander: CommanderAgent | None = None
+        elif tier == ScoutTier.PRO:
+            self.commander = CommanderAgent(config, llm_fast, search)
+            self._log("  🎖 Commander Pro aktiv")
+        else:  # MAX
+            self.commander = CommanderAgent(config, llm_powerful, search)
+            self._log("  🎖 Commander Max aktiv")
 
     # ── Input Validation ──────────────────────────────────────────────────────
 
@@ -277,6 +288,28 @@ class Orchestrator:
         # ── Top-N Auswahl ────────────────────────────────────────────────────
         checkable = self._select_top_claims(extraction)
 
+        # ── Phase 1.5: Commander (PRO/MAX) ────────────────────────────────────
+        commander_packs: dict[str, Any] = {}
+        if self.commander:
+            self._step("commander", "\n🎖 PHASE 1.5: Commander – Iterative Suchverfeinerung")
+            cmd_result, cmd_error = self.commander.run_safe(
+                {
+                    "claims": checkable,
+                    "article_text": text,
+                    "evidence_builder": self.fact_checker._evidence_builder,
+                },
+                context=text,
+            )
+            if cmd_error:
+                self._log(f"  ⚠ Commander fehlgeschlagen, Fallback auf Standard-Pipeline: {cmd_error}")
+            elif cmd_result is not None:
+                commander_packs = cmd_result.evidence_packs
+                self._log(
+                    f"  ✓ Commander: {cmd_result.rounds_completed} Runden, "
+                    f"{cmd_result.total_prompts_used} Prompts, "
+                    f"{len(commander_packs)} EvidencePacks"
+                )
+
         # ── Phase 2: Claims prüfen ────────────────────────────────────────────
         self._step("fact_checking", f"\n🔄 PHASE 2: {len(checkable)} Claims prüfen")
 
@@ -287,7 +320,14 @@ class Orchestrator:
             self._step("fact_checking", f"\n  ── Fact-Check für {claim.id} ──")
             route_result, routed_claim = self._router.route_and_apply(claim)
             self._log(f"  🗺 Route: {route_result.rationale}")
-            fc_result, fc_error = self.fact_checker.run_safe(routed_claim, context=text)
+
+            # Commander hat EvidencePack vorbereitet → skip EvidenceBuilder
+            if claim.id in commander_packs:
+                fc_input: Any = {"claim": routed_claim, "evidence_pack": commander_packs[claim.id]}
+                fc_result, fc_error = self.fact_checker.run_safe(fc_input, context=text)
+            else:
+                fc_result, fc_error = self.fact_checker.run_safe(routed_claim, context=text)
+
             if fc_error:
                 self._log(f"  ⚠ Fact-Check fehlgeschlagen: {fc_error}")
                 analysis_errors.append(fc_error)
@@ -380,6 +420,28 @@ class Orchestrator:
 
         checkable = self._select_top_claims(extraction)
 
+        # ── Phase 1.5: Commander (PRO/MAX) ────────────────────────────────────
+        commander_packs: dict[str, Any] = {}
+        if self.commander:
+            self._step("commander", "\n🎖 PHASE 1.5: Commander – Iterative Suchverfeinerung")
+            cmd_result, cmd_error = await self.commander.run_safe_async(
+                {
+                    "claims": checkable,
+                    "article_text": text,
+                    "evidence_builder": self.fact_checker._evidence_builder,
+                },
+                context=text,
+            )
+            if cmd_error:
+                self._log(f"  ⚠ Commander fehlgeschlagen, Fallback auf Standard-Pipeline: {cmd_error}")
+            elif cmd_result is not None:
+                commander_packs = cmd_result.evidence_packs
+                self._log(
+                    f"  ✓ Commander: {cmd_result.rounds_completed} Runden, "
+                    f"{cmd_result.total_prompts_used} Prompts, "
+                    f"{len(commander_packs)} EvidencePacks"
+                )
+
         # ── Phase 2+3: Parallel ───────────────────────────────────────────────
         self._step("fact_checking", f"\n🔄 PHASE 2+3: {len(checkable)} Claims + Rhetoric (parallel)")
 
@@ -388,7 +450,13 @@ class Orchestrator:
             self._step("fact_checking", f"  ── Fact-Check für {claim.id} ──")
             route_result, routed_claim = self._router.route_and_apply(claim)
             self._log(f"  🗺 Route: {route_result.rationale}")
-            fc_result, fc_error = await self.fact_checker.run_safe_async(routed_claim, context=text)
+
+            # Commander hat EvidencePack vorbereitet → skip EvidenceBuilder
+            if claim.id in commander_packs:
+                fc_input: Any = {"claim": routed_claim, "evidence_pack": commander_packs[claim.id]}
+                fc_result, fc_error = await self.fact_checker.run_safe_async(fc_input, context=text)
+            else:
+                fc_result, fc_error = await self.fact_checker.run_safe_async(routed_claim, context=text)
             if fc_error:
                 self._log(f"  ⚠ Fact-Check fehlgeschlagen: {fc_error}")
                 errors.append(fc_error)

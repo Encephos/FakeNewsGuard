@@ -10,8 +10,8 @@ from .dependencies import (
     CreateRegistrationCodeRequest,
     UpdateTierRequest,
     get_archive,
+    get_job_store,
     get_user_db,
-    jobs,
     require_admin,
 )
 
@@ -79,9 +79,23 @@ async def admin_metrics(request: Request) -> dict:
     """Echtzeit-Systemmetriken (Requests, Latenzen, Auth-Stats). Admin only."""
     require_admin(request)
     snapshot = get_metrics_snapshot()
-    snapshot["active_jobs"] = sum(
-        1 for j in jobs.values() if j["status"] in ("pending", "running")
-    )
+    # Count active jobs via Redis SCAN
+    store = get_job_store()
+    r = store._r
+    active = 0
+    cursor = 0
+    while True:
+        cursor, keys = r.scan(cursor, match="fng:job:*", count=100)
+        for key in keys:
+            k = key.decode() if isinstance(key, bytes) else key
+            if k.endswith(":steps"):
+                continue
+            status = r.hget(key, "status")
+            if status and (status.decode() if isinstance(status, bytes) else status) in ("pending", "running"):
+                active += 1
+        if cursor == 0:
+            break
+    snapshot["active_jobs"] = active
     return snapshot
 
 
