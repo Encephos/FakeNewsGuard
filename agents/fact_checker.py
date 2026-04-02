@@ -97,18 +97,32 @@ class FactCheckerAgent(BaseAgent):
         return None
 
     def execute(self, input_data: Any, context: str = "") -> FactCheckResult:
-        """Synchrone Fact-Check-Pipeline: EvidenceBuilder → CoVe → VerdictAgent."""
-        claim: Claim = input_data
+        """Synchrone Fact-Check-Pipeline: EvidenceBuilder → CoVe → VerdictAgent.
+
+        input_data kann ein Claim oder ein dict sein:
+        - Claim: Normale Pipeline (EvidenceBuilder → CoVe → Verdict)
+        - dict mit "claim" + "evidence_pack": EvidenceBuilder wird übersprungen
+          (Commander hat EvidencePack bereits vorbereitet)
+        """
+        # ── Commander-Override: EvidencePack bereits vorhanden ────────────────
+        pack = None
+        if isinstance(input_data, dict) and "evidence_pack" in input_data:
+            claim = input_data["claim"]
+            pack = input_data["evidence_pack"]
+            self._log(f"EvidencePack-Override: {len(pack.web_results)} Items vom Commander")
+        else:
+            claim = input_data
 
         cached = self._check_cache(claim, context)
         if cached is not None:
             return cached
 
-        # ── 1. Evidence Builder ───────────────────────────────────────────────
-        pack, pack_error = self._evidence_builder.run_safe(claim, context=context)
-        if pack_error or pack is None:
-            self._log(f"EvidenceBuilder fehlgeschlagen: {pack_error}")
-            return self._unverifiable_fallback(claim, pack_error or "EvidenceBuilder fehlgeschlagen")
+        # ── 1. Evidence Builder (nur wenn kein Override) ─────────────────────
+        if pack is None:
+            pack, pack_error = self._evidence_builder.run_safe(claim, context=context)
+            if pack_error or pack is None:
+                self._log(f"EvidenceBuilder fehlgeschlagen: {pack_error}")
+                return self._unverifiable_fallback(claim, pack_error or "EvidenceBuilder fehlgeschlagen")
 
         # ── 2. CoVe (optional) ────────────────────────────────────────────────
         cove_trace = None
@@ -133,18 +147,27 @@ class FactCheckerAgent(BaseAgent):
     async def execute_async(self, input_data: Any, context: str = "") -> FactCheckResult:
         """Async Fact-Check-Pipeline."""
         import asyncio
-        claim: Claim = input_data
+
+        # ── Commander-Override: EvidencePack bereits vorhanden ────────────────
+        pack = None
+        if isinstance(input_data, dict) and "evidence_pack" in input_data:
+            claim = input_data["claim"]
+            pack = input_data["evidence_pack"]
+            self._log(f"EvidencePack-Override (async): {len(pack.web_results)} Items vom Commander")
+        else:
+            claim = input_data
 
         cached = self._check_cache(claim, context)
         if cached is not None:
             return cached
 
-        # ── 1. Evidence Builder (async) ───────────────────────────────────────
-        try:
-            pack = await self._evidence_builder.execute_async(claim, context=context)
-        except Exception as e:
-            self._log(f"EvidenceBuilder async fehlgeschlagen: {type(e).__name__}: {e}")
-            return self._unverifiable_fallback(claim, f"EvidenceBuilder: {e}")
+        # ── 1. Evidence Builder (async, nur wenn kein Override) ──────────────
+        if pack is None:
+            try:
+                pack = await self._evidence_builder.execute_async(claim, context=context)
+            except Exception as e:
+                self._log(f"EvidenceBuilder async fehlgeschlagen: {type(e).__name__}: {e}")
+                return self._unverifiable_fallback(claim, f"EvidenceBuilder: {e}")
 
         # ── 2. CoVe im Thread-Pool (blockiert nicht den Event Loop) ──────────
         cove_trace = None

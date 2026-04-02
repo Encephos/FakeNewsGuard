@@ -174,7 +174,7 @@ class SynthesizerConfig:
     highly_misleading_refuted_max: float = 0.3
 
     # ── Confidence-Aggregation ────────────────────────────────────────────────
-    claim_confidence_buffer: float = 0.10
+    claim_confidence_buffer: float = 0.25
     extraordinary_claim_confidence_ceiling: float = 0.80
 
     def __post_init__(self) -> None:
@@ -559,23 +559,23 @@ class VerdictCalibrationConfig:
         VCAL_MIN_GOOD_SOURCES_HIGH_CONF       – Default: 2
     """
 
-    ceiling_no_primary_source: float = 0.82
+    ceiling_no_primary_source: float = 0.88
     ceiling_offtopic_contamination: float = 0.75
     ceiling_weak_evidence: float = 0.70
-    ceiling_insufficient_consensus: float = 0.65
+    ceiling_insufficient_consensus: float = 0.72
     ceiling_poor_claim_quality: float = 0.72
     ceiling_low_avg_relevance: float = 0.68
     ceiling_very_low_avg_relevance: float = 0.58
     ceiling_high_low_trust: float = 0.62
-    ceiling_regulatory_no_official: float = 0.72
-    ceiling_contextual_only: float = 0.65
+    ceiling_regulatory_no_official: float = 0.78
+    ceiling_contextual_only: float = 0.75
     ceiling_high_weak_rate: float = 0.60
     ceiling_contextual_and_low_trust: float = 0.55
-    ceiling_regulatory_no_direct_evidence: float = 0.55
-    ceiling_stale_sources: float = 0.72
-    ceiling_current_state_no_fresh: float = 0.55
+    ceiling_regulatory_no_direct_evidence: float = 0.68
+    ceiling_stale_sources: float = 0.78
+    ceiling_current_state_no_fresh: float = 0.65
     ceiling_zero_useful_evidence: float = 0.50
-    ceiling_regulatory_noisy_contextual: float = 0.45
+    ceiling_regulatory_noisy_contextual: float = 0.58
     min_good_sources_for_high_conf: int = 2
 
     def __post_init__(self) -> None:

@@ -1157,7 +1157,7 @@ def _direction_weight(item: EvidenceItem) -> float:
     tier_weight = max(0.2, (6 - item.source.domain_tier) / 5.0)
     ev_weight = {
         EvidenceType.DIRECT: 1.0,
-        EvidenceType.CONTEXTUAL: 0.5,
+        EvidenceType.CONTEXTUAL: 0.65,
         EvidenceType.WEAK: 0.0,
     }
     return tier_weight * ev_weight.get(item.evidence_type, 0.0)

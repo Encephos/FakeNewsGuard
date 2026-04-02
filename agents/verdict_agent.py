@@ -130,10 +130,10 @@ Wenn ein Claim einen aktuellen Amts- oder Rolleninhaber beschreibt
 (z.B. „X ist Bundeskanzler", „Y ist Präsident", „Z ist CEO"):
 - Diese Claims sind zeitkritisch – nur Quellen aus der jüngsten Zeit zählen
 - Berechne das Alter jeder Quelle relativ zum heutigen Datum
-- Alte Quellen (> 1–2 Jahre vor dem heutigen Datum) können einen früheren
+- Alte Quellen (> 2 Jahre vor dem heutigen Datum) können einen früheren
   Zustand beschreiben und dürfen NICHT als Beleg für den aktuellen Zustand
   gewertet werden
-- Aktuelle Quellen (< 6 Monate alt), die den behaupteten Zustand bestätigen,
+- Aktuelle Quellen (< 12 Monate alt), die den behaupteten Zustand bestätigen,
   sind starke Belege – auch wenn ältere Quellen einen anderen Zustand nennen
 - Wenn ausschließlich veraltete Quellen vorliegen und keine aktuellen Quellen den
   behaupteten Zustand bestätigen: Wähle UNVERIFIABLE, nicht TRUE
@@ -141,6 +141,22 @@ Wenn ein Claim einen aktuellen Amts- oder Rolleninhaber beschreibt
   den Claim bestätigen: Wähle TRUE (der Amtswechsel ist belegt)
 - Wichtig: „Quelle von 2022 nennt Person X als Kanzler" ist KEIN Beleg für
   „Person X ist aktuell Kanzler" – prüfe das Datum jeder Quelle
+
+### Transitions-Quellen (Amtsantritt, Ernennung, Wahl)
+Wenn eine Quelle einen konkreten Amtsantritt oder eine Ernennung zu einem
+bestimmten Datum belegt (z.B. „wurde am 6. Mai 2025 zum Bundeskanzler gewählt"):
+- Das DATUM DES EREIGNISSES ist entscheidend, NICHT das Alter der Quelle
+- Wenn das Ereignisdatum VOR dem heutigen Datum liegt: Die Person HAT das Amt
+  angetreten und ist aktuell im Amt (sofern keine neuere Quelle einen Rücktritt
+  oder Amtswechsel belegt)
+- Eine Quelle von vor 10 Monaten, die einen Amtsantritt belegt, ist KEIN
+  veralteter Beleg — sie dokumentiert ein historisches Faktum mit andauernder
+  Gültigkeit
+- Bewerte solche Claims als TRUE, wenn der Amtsantritt durch Quellen belegt
+  ist und kein Gegenbeleg (Rücktritt, Abwahl, Nachfolger) vorliegt
+- Beispiel: Quellen belegen „Merz wurde am 6. Mai 2025 Kanzler", heutiges
+  Datum ist 31. März 2026, keine Quelle belegt einen Rücktritt →
+  „Merz ist Bundeskanzler" = TRUE
 
 ## Quellen-Qualitätshinweis
 Wenn die Evidenzquellen überwiegend aus allgemeinen Hilfsseiten bestehen
@@ -220,7 +236,7 @@ class VerdictAgent(BaseAgent):
         number_audit: NumberAuditResult | None = data.get("number_audit")
 
         # Prompt aufbauen (nur strukturierte Daten, kein roher Web-Inhalt)
-        user_msg = self._build_verdict_prompt(claim, pack, cove_trace, number_audit)
+        user_msg = self._build_verdict_prompt(claim, pack, cove_trace, number_audit, original_context=context)
 
         import logging
         _verdict_logger = logging.getLogger("fakenewsguard.verdict")
@@ -304,6 +320,7 @@ class VerdictAgent(BaseAgent):
             is_regulatory_claim=is_regulatory,
             is_current_state_claim=is_current_state,
             stale_freshness_threshold=stale_threshold,
+            rating=rating,
         )
 
         # Unsicherheitssignale aus Rating- + Confidence-Kalibrierung sammeln
@@ -431,6 +448,7 @@ class VerdictAgent(BaseAgent):
         pack: EvidencePack,
         cove_trace: CoVeTrace | None,
         number_audit: NumberAuditResult | None,
+        original_context: str = "",
     ) -> str:
         from datetime import date
 
@@ -444,6 +462,14 @@ class VerdictAgent(BaseAgent):
             f"Typ: {claim.type.value}\n"
             f"Kontext-Hinweis: {claim.context}\n",
         ]
+
+        if original_context:
+            parts.append(
+                f"\n## Originalkontext der Behauptung\n\n"
+                f"Die Behauptung stammt aus folgendem Text:\n{original_context[:500]}\n"
+                f"\nBeurteile den Claim im Kontext dieses Originaltexts. "
+                f"Evidenz, die sich nicht auf diesen Kontext bezieht, ist weniger relevant.\n"
+            )
 
         # Warnung bei sehr niedriger Evidenzqualität
         if pack.evidence_quality and pack.evidence_quality.overall_quality < 0.3:

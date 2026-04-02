@@ -154,8 +154,7 @@ class SynthesizerAgent(BaseAgent):
             min_claim_conf = min(claim_confidences)
             confidence = min(
                 raw_confidence,
-                avg_claim_conf,
-                min_claim_conf + synth_cfg.claim_confidence_buffer,
+                avg_claim_conf * 0.7 + min_claim_conf * 0.3 + synth_cfg.claim_confidence_buffer * 0.5,
             )
         else:
             confidence = raw_confidence
