@@ -1,15 +1,20 @@
-"""Analysis endpoints: /api/analyze, /api/extract, /api/jobs/{job_id}.
+"""Analysis endpoints: /api/analyze, /api/extract, /api/jobs/{job_id}, /api/jobs/{job_id}/stream.
 
 Job execution is delegated to a Celery worker (see worker/tasks.py).
 The API layer only submits jobs and polls their status from Redis.
+The ``/stream`` endpoint provides Server-Sent Events for real-time updates.
 """
 
 from __future__ import annotations
 
+import asyncio
+import json
 import time
 import uuid
+from typing import AsyncGenerator
 
 from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import StreamingResponse
 
 from config import AppConfig, ScoutTier
 from i18n import t
@@ -25,6 +30,11 @@ from .dependencies import (
     get_job_store,
     logger,
 )
+
+# ── SSE configuration ────────────────────────────────────────────────
+_SSE_POLL_INTERVAL_S: float = 0.5
+_SSE_MAX_DURATION_S: int = 2100  # 35 minutes
+_SSE_KEEPALIVE_INTERVAL_S: int = 15
 
 router = APIRouter()
 
@@ -199,3 +209,109 @@ async def get_job(job_id: str) -> dict:
         "agent": job.get("agent", "Scout Max"),
         "tier": job.get("tier", "max"),
     }
+
+
+# ── Server-Sent Events stream ────────────────────────────────────
+
+
+def _sse_event(event: str, data: dict | str, event_id: str | int = "") -> str:
+    """Format a single SSE event."""
+    payload = json.dumps(data, ensure_ascii=False) if isinstance(data, dict) else data
+    lines = f"event: {event}\n"
+    if event_id != "":
+        lines += f"id: {event_id}\n"
+    lines += f"data: {payload}\n\n"
+    return lines
+
+
+@router.get("/api/jobs/{job_id}/stream")
+async def stream_job(job_id: str, request: Request):
+    """Stream job progress via Server-Sent Events.
+
+    The generator polls Redis every 500ms and pushes new events.
+    Supports reconnection via the ``Last-Event-ID`` header.
+    """
+    store = get_job_store()
+    job = store.get(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail=t("api.errors.job_not_found"))
+
+    # Reconnection support: resume from last seen step index
+    last_event_id = request.headers.get("last-event-id", "")
+    start_index = 0
+    if last_event_id.isdigit():
+        start_index = int(last_event_id) + 1
+
+    async def _event_generator() -> AsyncGenerator[str, None]:
+        seen_step_count = start_index
+        extracted_content_sent = start_index > 0  # assume sent on reconnect
+        deadline = time.monotonic() + _SSE_MAX_DURATION_S
+        last_keepalive = time.monotonic()
+
+        try:
+            while time.monotonic() < deadline:
+                # Check if client disconnected
+                if await request.is_disconnected():
+                    return
+
+                job_data = store.get(job_id)
+                if job_data is None:
+                    yield _sse_event("error", {"error": "Job nicht mehr verfuegbar."}, "error")
+                    return
+
+                # Emit new steps
+                new_steps = store.get_steps_from(job_id, seen_step_count)
+                for i, step in enumerate(new_steps):
+                    step_index = seen_step_count + i
+                    yield _sse_event("step", step, step_index)
+                    last_keepalive = time.monotonic()
+                seen_step_count += len(new_steps)
+
+                # Emit extracted_content (once)
+                if not extracted_content_sent:
+                    ec = job_data.get("extracted_content")
+                    if ec:
+                        yield _sse_event("extracted_content", ec, "ec")
+                        extracted_content_sent = True
+                        last_keepalive = time.monotonic()
+
+                # Terminal states
+                status = job_data.get("status", "pending")
+                if status == "done":
+                    result_data = {
+                        "result": job_data.get("result"),
+                        "archive_id": job_data.get("archive_id"),
+                        "from_cache": job_data.get("from_cache", False),
+                        "agent": job_data.get("agent", "Scout Max"),
+                        "tier": job_data.get("tier", "max"),
+                    }
+                    yield _sse_event("done", result_data, "done")
+                    return
+
+                if status == "error":
+                    yield _sse_event("error", {"error": job_data.get("error", "Unbekannter Fehler")}, "error")
+                    return
+
+                # Keepalive comment to prevent connection timeout
+                if time.monotonic() - last_keepalive >= _SSE_KEEPALIVE_INTERVAL_S:
+                    yield ": keepalive\n\n"
+                    last_keepalive = time.monotonic()
+
+                await asyncio.sleep(_SSE_POLL_INTERVAL_S)
+
+            # Stream duration exceeded
+            yield _sse_event("timeout", {"error": "Stream-Timeout erreicht."}, "timeout")
+
+        except asyncio.CancelledError:
+            # Client disconnected — exit cleanly
+            return
+
+    return StreamingResponse(
+        _event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",  # Disable nginx buffering if present
+        },
+    )
