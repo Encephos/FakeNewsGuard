@@ -270,6 +270,7 @@ def run_analysis(self, job_id: str, text: str, url: str = "", tier: str = "max")
         store.set_result(job_id, transformed)
 
         # ── Auto-Archive ──────────────────────────────────────────
+        cost = getattr(final_result, "cost_summary", None)
         try:
             from api.dependencies import get_archive, get_graph
             archive = get_archive()
@@ -283,6 +284,7 @@ def run_analysis(self, job_id: str, text: str, url: str = "", tier: str = "max")
                 source_url=url or extracted.get("url"),
                 platform=extracted.get("platform"),
                 title=extracted.get("title"),
+                cost_summary=cost.model_dump() if cost else None,
             )
             store.update(job_id, archive_id=archive_id)
 
@@ -312,6 +314,9 @@ def run_analysis(self, job_id: str, text: str, url: str = "", tier: str = "max")
                     claims=len(transformed.get("claims", [])),
                     rating=transformed.get("overall_rating"),
                     source="web",
+                    total_tokens=cost.total_tokens if cost else 0,
+                    estimated_cost_usd=cost.estimated_cost_usd if cost else 0.0,
+                    analysis_id=getattr(final_result, "analysis_id", None),
                 )
         except Exception:
             pass  # Usage-Tracking darf Analyse nicht brechen

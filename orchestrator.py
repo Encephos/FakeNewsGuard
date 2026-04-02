@@ -251,6 +251,8 @@ class Orchestrator:
         """
         text = self._validate_input(text)
         self._analysis_id = uuid.uuid4().hex[:12]
+        from tools.cost_tracker import reset_accumulator
+        reset_accumulator()
         self._log("=" * 60)
         self._log("FAKTENCHECK GESTARTET")
         self._log("=" * 60)
@@ -366,6 +368,9 @@ class Orchestrator:
         if analysis_errors:
             result.analysis_errors.extend(analysis_errors)
 
+        from tools.cost_tracker import collect_summary
+        result.cost_summary = collect_summary(self.config.pricing)
+
         self._log("\n" + "=" * 60)
         self._log("FAKTENCHECK ABGESCHLOSSEN")
         self._log("=" * 60)
@@ -384,6 +389,8 @@ class Orchestrator:
         """
         text = self._validate_input(text)
         self._analysis_id = uuid.uuid4().hex[:12]
+        from tools.cost_tracker import reset_accumulator
+        reset_accumulator()
         self._log("=" * 60)
         self._log("FAKTENCHECK GESTARTET (async)")
         self._log("=" * 60)
@@ -507,6 +514,9 @@ class Orchestrator:
         result.analysis_id = self._analysis_id
         if analysis_errors:
             result.analysis_errors.extend(analysis_errors)
+
+        from tools.cost_tracker import collect_summary
+        result.cost_summary = collect_summary(self.config.pricing)
 
         self._log("\n" + "=" * 60)
         self._log("FAKTENCHECK ABGESCHLOSSEN")

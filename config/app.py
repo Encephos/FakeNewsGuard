@@ -32,7 +32,7 @@ from config.infrastructure import (  # noqa: E402
     TelemetryConfig,
     UserDBConfig,
 )
-from config.llm import LLMConfig, RetryConfig, TierModelConfig  # noqa: E402
+from config.llm import LLMConfig, ModelPricingConfig, RetryConfig, TierModelConfig  # noqa: E402
 from config.commander import CommanderConfig  # noqa: E402
 from config.processing import (  # noqa: E402
     ClaimProcessingConfig,
@@ -81,6 +81,7 @@ class AppConfig:
     verdict_calibration: VerdictCalibrationConfig = field(default_factory=VerdictCalibrationConfig)
     # ── Tier-Modellauswahl ────────────────────────────────────────────────────
     tier_models: TierModelConfig = field(default_factory=TierModelConfig)
+    pricing: ModelPricingConfig = field(default_factory=ModelPricingConfig)
     # ── Infrastruktur ─────────────────────────────────────────────────────────
     timeouts: HTTPTimeoutsConfig = field(default_factory=HTTPTimeoutsConfig)
     job: JobConfig = field(default_factory=JobConfig)

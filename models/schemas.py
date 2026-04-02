@@ -7,6 +7,8 @@ from typing import Optional
 
 from pydantic import BaseModel, Field
 
+from models.cost_models import CostSummary  # noqa: F401
+
 
 # ── Claim Extractor ──────────────────────────────────────────────
 
@@ -455,6 +457,10 @@ class SynthesisResult(BaseModel):
     analysis_errors: list[str] = Field(
         default_factory=list,
         description="Fehler einzelner Agenten – Analyse läuft trotzdem weiter",
+    )
+    cost_summary: CostSummary | None = Field(
+        default=None,
+        description="Aggregierter Token-Verbrauch und geschaetzte Kosten dieser Analyse",
     )
 
 

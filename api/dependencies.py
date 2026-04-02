@@ -249,6 +249,7 @@ def transform_result(result: Any, claims_map: dict[str, Any]) -> dict:
         "corrections": result.key_corrections or [],
         "fairness": result.fairness_notes or [],
         "sources": result.sources or [],
+        "cost_summary": result.cost_summary.model_dump() if result.cost_summary else None,
     }
 
 

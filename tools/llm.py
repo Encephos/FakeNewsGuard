@@ -11,6 +11,7 @@ from opentelemetry.trace import StatusCode
 
 from config import LLMConfig, RetryConfig
 from config.infrastructure import HTTPTimeoutsConfig
+from tools.cost_tracker import LLMUsage, record_usage
 from tools.retry import retry_call
 from tools.telemetry import LLM_DURATION, LLM_REQUEST_COUNT, get_tracer
 
@@ -107,9 +108,9 @@ class LLMClient:
             start = time.monotonic()
             try:
                 if self.config.provider == "anthropic":
-                    result = self._complete_anthropic(system_prompt, user_message)
+                    result = self._complete_anthropic(system_prompt, user_message, agent_name)
                 else:
-                    result = self._complete_openai(system_prompt, user_message, response_format)
+                    result = self._complete_openai(system_prompt, user_message, response_format, agent_name)
                 return result
             except Exception as e:
                 span.record_exception(e)
@@ -120,7 +121,7 @@ class LLMClient:
                 LLM_REQUEST_COUNT.labels(model=self.config.model, agent=agent_name).inc()
                 LLM_DURATION.labels(model=self.config.model, agent=agent_name).observe(duration)
 
-    def _complete_anthropic(self, system_prompt: str, user_message: str) -> str:
+    def _complete_anthropic(self, system_prompt: str, user_message: str, agent_name: str = "unknown") -> str:
         def _call():
             response = self._client.messages.create(
                 model=self.config.model,
@@ -129,6 +130,15 @@ class LLMClient:
                 system=system_prompt,
                 messages=[{"role": "user", "content": user_message}],
             )
+            try:
+                record_usage(LLMUsage(
+                    model=self.config.model, agent=agent_name,
+                    input_tokens=response.usage.input_tokens,
+                    output_tokens=response.usage.output_tokens,
+                    call_type="complete",
+                ))
+            except Exception:
+                pass
             return response.content[0].text
 
         return retry_call(
@@ -155,7 +165,7 @@ class LLMClient:
         ]
 
     def _complete_openai(
-        self, system_prompt: str, user_message: str, response_format: str
+        self, system_prompt: str, user_message: str, response_format: str, agent_name: str = "unknown"
     ) -> str:
         kwargs: dict[str, Any] = {
             "model": self.config.model,
@@ -175,6 +185,15 @@ class LLMClient:
 
         def _call():
             response = self._client.chat.completions.create(**kwargs)
+            try:
+                record_usage(LLMUsage(
+                    model=self.config.model, agent=agent_name,
+                    input_tokens=getattr(response.usage, "prompt_tokens", 0) or 0,
+                    output_tokens=getattr(response.usage, "completion_tokens", 0) or 0,
+                    call_type="complete",
+                ))
+            except Exception:
+                pass
             return response.choices[0].message.content or ""
 
         return retry_call(
@@ -191,6 +210,7 @@ class LLMClient:
         user_message: str,
         image_urls: list[str],
         response_format: str = "json",
+        agent_name: str = "unknown",
     ) -> str:
         """Vision-Call: sendet Text + Bilder an ein multimodales LLM.
 
@@ -199,6 +219,7 @@ class LLMClient:
             user_message: Textuelle Nachricht / Analyseanweisung.
             image_urls: Liste von Bild-URLs (max. 5 empfohlen).
             response_format: "text" oder "json".
+            agent_name: Name des aufrufenden Agenten (fuer Tracing).
 
         Returns:
             Die Antwort als String.
@@ -210,9 +231,9 @@ class LLMClient:
             )
 
         if self.config.provider == "anthropic":
-            return self._complete_vision_anthropic(system_prompt, user_message, image_urls)
+            return self._complete_vision_anthropic(system_prompt, user_message, image_urls, agent_name)
         else:
-            return self._complete_vision_openai(system_prompt, user_message, image_urls, response_format)
+            return self._complete_vision_openai(system_prompt, user_message, image_urls, response_format, agent_name)
 
     def _complete_vision_openai(
         self,
@@ -220,6 +241,7 @@ class LLMClient:
         user_message: str,
         image_urls: list[str],
         response_format: str,
+        agent_name: str = "unknown",
     ) -> str:
         """Vision-Call über OpenAI-kompatible API (openrouter/openai/ollama)."""
         image_parts: list[dict] = [
@@ -254,6 +276,15 @@ class LLMClient:
 
         def _call():
             response = self._client.chat.completions.create(**kwargs)
+            try:
+                record_usage(LLMUsage(
+                    model=self.config.model, agent=agent_name,
+                    input_tokens=getattr(response.usage, "prompt_tokens", 0) or 0,
+                    output_tokens=getattr(response.usage, "completion_tokens", 0) or 0,
+                    call_type="complete_vision",
+                ))
+            except Exception:
+                pass
             return response.choices[0].message.content or ""
 
         return retry_call(
@@ -269,6 +300,7 @@ class LLMClient:
         system_prompt: str,
         user_message: str,
         image_urls: list[str],
+        agent_name: str = "unknown",
     ) -> str:
         """Vision-Call über Anthropic API."""
         image_parts_anthropic: list[dict] = [
@@ -287,6 +319,15 @@ class LLMClient:
                 system=system_prompt,
                 messages=[{"role": "user", "content": user_content_anthropic}],
             )
+            try:
+                record_usage(LLMUsage(
+                    model=self.config.model, agent=agent_name,
+                    input_tokens=response.usage.input_tokens,
+                    output_tokens=response.usage.output_tokens,
+                    call_type="complete_vision",
+                ))
+            except Exception:
+                pass
             return response.content[0].text
 
         return retry_call(
@@ -297,9 +338,9 @@ class LLMClient:
             backoff_factor=self._retry.backoff_factor,
         )
 
-    def complete_json(self, system_prompt: str, user_message: str) -> dict:
+    def complete_json(self, system_prompt: str, user_message: str, agent_name: str = "unknown") -> dict:
         """Convenience: LLM-Call der direkt ein dict zurückgibt."""
-        raw = self.complete(system_prompt, user_message, response_format="json")
+        raw = self.complete(system_prompt, user_message, response_format="json", agent_name=agent_name)
         return self._parse_json(raw)
 
     def complete_structured(
@@ -333,11 +374,11 @@ class LLMClient:
             try:
                 if self.config.provider == "anthropic":
                     return self._complete_structured_anthropic(
-                        system_prompt, user_message, schema, tool_name, tool_description
+                        system_prompt, user_message, schema, tool_name, tool_description, agent_name
                     )
                 elif self.config.provider in ("openai", "openrouter"):
                     return self._complete_structured_openai(
-                        system_prompt, user_message, schema, tool_name, tool_description
+                        system_prompt, user_message, schema, tool_name, tool_description, agent_name
                     )
             except Exception:
                 pass  # Fallback auf JSON-Mode
@@ -355,6 +396,7 @@ class LLMClient:
         schema: dict,
         tool_name: str,
         tool_description: str,
+        agent_name: str = "unknown",
     ) -> dict:
         def _call():
             response = self._client.messages.create(
@@ -372,6 +414,15 @@ class LLMClient:
                 tool_choice={"type": "tool", "name": tool_name},
                 messages=[{"role": "user", "content": user_message}],
             )
+            try:
+                record_usage(LLMUsage(
+                    model=self.config.model, agent=agent_name,
+                    input_tokens=response.usage.input_tokens,
+                    output_tokens=response.usage.output_tokens,
+                    call_type="complete_structured",
+                ))
+            except Exception:
+                pass
             for block in response.content:
                 if block.type == "tool_use" and block.name == tool_name:
                     return block.input
@@ -392,6 +443,7 @@ class LLMClient:
         schema: dict,
         tool_name: str,
         tool_description: str,
+        agent_name: str = "unknown",
     ) -> dict:
         import json as _json
 
@@ -421,6 +473,15 @@ class LLMClient:
                 },
                 **extra,
             )
+            try:
+                record_usage(LLMUsage(
+                    model=self.config.model, agent=agent_name,
+                    input_tokens=getattr(response.usage, "prompt_tokens", 0) or 0,
+                    output_tokens=getattr(response.usage, "completion_tokens", 0) or 0,
+                    call_type="complete_structured",
+                ))
+            except Exception:
+                pass
             content = response.choices[0].message.content or "{}"
             return _json.loads(content)
 
