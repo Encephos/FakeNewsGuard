@@ -5,7 +5,7 @@ export interface AnalysisJobResult {
   archiveId?: string;
 }
 
-import { BACKEND_URL as BASE_URL, POLL_INTERVAL_MS, MAX_POLL_ATTEMPTS } from "@/config";
+import { BACKEND_URL as BASE_URL, POLL_INTERVAL_MS, MAX_POLL_ATTEMPTS, SSE_MAX_RECONNECT_FAILURES } from "@/config";
 
 
 // ── Auth token injection ────────────────────────────────────────
@@ -128,10 +128,81 @@ async function submitJob(text: string, url?: string, tier: ScoutTier = "max"): P
 }
 
 /**
- * Polls /api/jobs/{jobId} until done or error.
- * Calls onStep with new steps as they appear.
+ * SSE-based job streaming. Connects to /api/jobs/{jobId}/stream and
+ * receives events in real-time (~500ms latency instead of 2s polling).
  */
-export async function resumeJob(
+function resumeJobSSE(
+  jobId: string,
+  onStep: (step: Step) => void,
+  onExtractedContent?: (content: ExtractedContent) => void,
+): Promise<AnalysisJobResult> {
+  return new Promise((resolve, reject) => {
+    const url = `${BASE_URL}/jobs/${jobId}/stream`;
+    const es = new EventSource(url);
+    let settled = false;
+    let reconnectFailures = 0;
+
+    function close(fn: () => void) {
+      if (settled) return;
+      settled = true;
+      es.close();
+      fn();
+    }
+
+    es.addEventListener("step", (e: MessageEvent) => {
+      reconnectFailures = 0;  // successful message resets counter
+      try { onStep(JSON.parse(e.data) as Step); } catch { /* ignore parse errors */ }
+    });
+
+    es.addEventListener("extracted_content", (e: MessageEvent) => {
+      reconnectFailures = 0;
+      try { onExtractedContent?.(JSON.parse(e.data) as ExtractedContent); } catch { /* ignore */ }
+    });
+
+    es.addEventListener("done", (e: MessageEvent) => {
+      close(() => {
+        try {
+          const data = JSON.parse(e.data);
+          if (!data.result) return reject(new Error("Kein Ergebnis vom Server erhalten."));
+          resolve({
+            result: data.result as AnalysisResult,
+            archiveId: data.archive_id as string | undefined,
+          });
+        } catch { reject(new Error("Ungueltige Server-Antwort.")); }
+      });
+    });
+
+    es.addEventListener("error", (e: MessageEvent) => {
+      close(() => {
+        try {
+          const data = JSON.parse(e.data);
+          reject(new Error(data.error ?? "Analyse fehlgeschlagen."));
+        } catch { reject(new Error("Analyse fehlgeschlagen.")); }
+      });
+    });
+
+    es.addEventListener("timeout", () => {
+      close(() => reject(new Error("Zeitueberschreitung: Analyse dauert zu lange.")));
+    });
+
+    // Connection-level errors (network failure, server down)
+    es.onerror = () => {
+      reconnectFailures++;
+      if (reconnectFailures >= SSE_MAX_RECONNECT_FAILURES) {
+        // EventSource auto-reconnects, but after too many failures we give up
+        // and let the caller fall back to polling
+        close(() => reject(new Error("__SSE_FALLBACK__")));
+      }
+      // Otherwise let EventSource auto-reconnect (it sends Last-Event-ID)
+    };
+  });
+}
+
+/**
+ * Polling fallback: polls /api/jobs/{jobId} until done or error.
+ * Used when SSE is unavailable or fails.
+ */
+async function resumeJobPolling(
   jobId: string,
   onStep: (step: Step) => void,
   onExtractedContent?: (content: ExtractedContent) => void,
@@ -143,7 +214,7 @@ export async function resumeJob(
     await sleep(POLL_INTERVAL_MS);
 
     const res = await fetch(`${BASE_URL}/jobs/${jobId}`);
-    if (res.status === 404) throw new Error("Job nicht gefunden — möglicherweise abgelaufen.");
+    if (res.status === 404) throw new Error("Job nicht gefunden — moeglicherweise abgelaufen.");
     if (!res.ok) throw new Error(`Poll-Fehler: ${res.status} ${res.statusText}`);
 
     const data = await res.json();
@@ -175,7 +246,28 @@ export async function resumeJob(
     // status "pending" | "running" → keep polling
   }
 
-  throw new Error("Zeitüberschreitung: Analyse dauert zu lange.");
+  throw new Error("Zeitueberschreitung: Analyse dauert zu lange.");
+}
+
+/**
+ * Resume a job: tries SSE first, falls back to polling on failure.
+ */
+export async function resumeJob(
+  jobId: string,
+  onStep: (step: Step) => void,
+  onExtractedContent?: (content: ExtractedContent) => void,
+): Promise<AnalysisJobResult> {
+  try {
+    return await resumeJobSSE(jobId, onStep, onExtractedContent);
+  } catch (err) {
+    // SSE failed — fall back to polling
+    const msg = err instanceof Error ? err.message : "";
+    if (msg === "__SSE_FALLBACK__" || msg.includes("EventSource")) {
+      return resumeJobPolling(jobId, onStep, onExtractedContent);
+    }
+    // Real application error (job error, timeout) — rethrow
+    throw err;
+  }
 }
 
 /**

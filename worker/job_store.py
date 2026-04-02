@@ -125,7 +125,11 @@ class JobStore:
 
     def get_steps(self, job_id: str) -> list[dict[str, Any]]:
         """Return all steps for a job as a list of dicts."""
-        raw_list = self._r.lrange(self._steps_key(job_id), 0, -1)
+        return self.get_steps_from(job_id, 0)
+
+    def get_steps_from(self, job_id: str, start_index: int = 0) -> list[dict[str, Any]]:
+        """Return steps starting from *start_index* (uses LRANGE key start -1)."""
+        raw_list = self._r.lrange(self._steps_key(job_id), start_index, -1)
         steps: list[dict[str, Any]] = []
         for item in raw_list:
             s = item.decode() if isinstance(item, bytes) else item
