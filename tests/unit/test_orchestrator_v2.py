@@ -260,6 +260,7 @@ class TestOrchestratorWorkflow:
         orch.config = minimal_config
         orch._on_step = None  # kein Step-Callback
         orch._router = ClaimRouter()
+        orch.commander = None  # Commander deaktiviert in Tests
 
         orch.claim_extractor = MagicMock()
         orch.claim_extractor.run_safe.return_value = extractor_result

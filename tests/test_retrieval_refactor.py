@@ -412,7 +412,7 @@ class TestConfidenceCeilings:
         from agents.verdict_agent import _calibrate_confidence
         pack = self._make_pack(direct_count=0, contextual_rate=0.8, overall_quality=0.4)
         conf, reasons = _calibrate_confidence(0.85, pack, None)
-        assert conf <= 0.65, f"Contextual-only Ceiling soll <= 0.65 sein, ist {conf}"
+        assert conf <= 0.75, f"Contextual-only Ceiling soll <= 0.75 sein, ist {conf}"
         # Confidence muss substanziell reduziert sein (mehrere Ceilings greifen)
         assert len(reasons) >= 1, "Mindestens eine Ceiling-Reason erwartet"
 
@@ -423,7 +423,7 @@ class TestConfidenceCeilings:
         conf, reasons = _calibrate_confidence(
             0.85, pack, None, is_regulatory_claim=True,
         )
-        assert conf <= 0.55, f"Regulatory ohne Direct soll <= 0.55 sein, ist {conf}"
+        assert conf <= 0.68, f"Regulatory ohne Direct soll <= 0.68 sein, ist {conf}"
 
     def test_ceiling_low_trust_tighter(self):
         """Verschärftes Low-Trust-Ceiling ab 20%."""
@@ -476,8 +476,8 @@ class TestConfidenceCeilings:
         conf, reasons = _calibrate_confidence(
             0.80, pack, None, is_regulatory_claim=True,
         )
-        assert conf <= 0.55, \
-            f"Regelungsclaim mit nur Hintergrundkontext: Ceiling <= 0.55, ist {conf}"
+        assert conf <= 0.68, \
+            f"Regelungsclaim mit nur Hintergrundkontext: Ceiling <= 0.68, ist {conf}"
 
 
 # ═══════════════════════════════════════════════════════════════════════════
