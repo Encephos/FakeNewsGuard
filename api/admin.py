@@ -18,7 +18,7 @@ from .dependencies import (
 router = APIRouter()
 
 
-@router.get("/api/admin/users")
+@router.get("/admin/users")
 async def admin_list_users(request: Request) -> dict:
     """List all users with usage stats. Admin only."""
     require_admin(request)
@@ -27,7 +27,7 @@ async def admin_list_users(request: Request) -> dict:
     return {"users": users}
 
 
-@router.patch("/api/admin/users/{user_id}/tier")
+@router.patch("/admin/users/{user_id}/tier")
 async def admin_update_tier(user_id: str, req: UpdateTierRequest, request: Request) -> dict:
     """Change a user's tier. Admin only."""
     require_admin(request)
@@ -39,7 +39,7 @@ async def admin_update_tier(user_id: str, req: UpdateTierRequest, request: Reque
     return {"ok": True, "tier": req.tier}
 
 
-@router.get("/api/admin/users/{user_id}/usage")
+@router.get("/admin/users/{user_id}/usage")
 async def admin_user_usage(user_id: str, request: Request) -> dict:
     """Get usage log for a specific user. Admin only."""
     require_admin(request)
@@ -51,7 +51,7 @@ async def admin_user_usage(user_id: str, request: Request) -> dict:
     return {"user_id": user_id, "usage": usage}
 
 
-@router.get("/api/admin/stats")
+@router.get("/admin/stats")
 async def admin_stats(request: Request) -> dict:
     """Get overall platform stats. Admin only."""
     require_admin(request)
@@ -74,7 +74,7 @@ async def admin_stats(request: Request) -> dict:
     }
 
 
-@router.get("/api/admin/metrics")
+@router.get("/admin/metrics")
 async def admin_metrics(request: Request) -> dict:
     """Echtzeit-Systemmetriken (Requests, Latenzen, Auth-Stats). Admin only."""
     require_admin(request)
@@ -99,7 +99,7 @@ async def admin_metrics(request: Request) -> dict:
     return snapshot
 
 
-@router.get("/api/admin/logs")
+@router.get("/admin/logs")
 async def admin_logs(
     request: Request, limit: int = 100, level: str | None = None
 ) -> dict:
@@ -108,7 +108,7 @@ async def admin_logs(
     return {"logs": get_recent_logs(limit=limit, level=level)}
 
 
-@router.post("/api/admin/reload-data")
+@router.post("/admin/reload-data")
 async def admin_reload_data(request: Request) -> dict:
     """YAML-Daten (Domain-Tiers, Scoring-Weights, etc.) neu laden. Admin only."""
     require_admin(request)
@@ -118,7 +118,7 @@ async def admin_reload_data(request: Request) -> dict:
     return {"ok": True, "caches_cleared": count}
 
 
-@router.get("/api/admin/calibration")
+@router.get("/admin/calibration")
 async def admin_calibration(request: Request) -> dict:
     """Confidence-Calibration-Report (Brier Score + Reliability-Diagramm). Admin only."""
     require_admin(request)
@@ -146,7 +146,7 @@ async def admin_calibration(request: Request) -> dict:
     }
 
 
-@router.post("/api/admin/calibration/ground-truth")
+@router.post("/admin/calibration/ground-truth")
 async def admin_calibration_ground_truth(request: Request) -> dict:
     """Ground-Truth für einen Claim setzen. Body: {claim_id, is_correct}. Admin only."""
     require_admin(request)
@@ -169,7 +169,7 @@ async def admin_calibration_ground_truth(request: Request) -> dict:
 # ── Registration / invite codes ─────────────────────────────────
 
 
-@router.post("/api/admin/registration-codes")
+@router.post("/admin/registration-codes")
 async def admin_create_registration_code(
     req: CreateRegistrationCodeRequest, request: Request
 ) -> dict:
@@ -185,7 +185,7 @@ async def admin_create_registration_code(
     return code_record
 
 
-@router.get("/api/admin/registration-codes")
+@router.get("/admin/registration-codes")
 async def admin_list_registration_codes(request: Request) -> dict:
     """List all invite codes. Admin only."""
     require_admin(request)
@@ -194,7 +194,7 @@ async def admin_list_registration_codes(request: Request) -> dict:
     return {"codes": codes}
 
 
-@router.delete("/api/admin/registration-codes/{code_id}")
+@router.delete("/admin/registration-codes/{code_id}")
 async def admin_revoke_registration_code(code_id: str, request: Request) -> dict:
     """Revoke an invite code. Admin only."""
     require_admin(request)
@@ -204,7 +204,7 @@ async def admin_revoke_registration_code(code_id: str, request: Request) -> dict
     return {"ok": True}
 
 
-@router.get("/api/admin/cost-stats")
+@router.get("/admin/cost-stats")
 async def admin_cost_stats(request: Request, days: int = 30) -> dict:
     """Aggregierte Kosten- und Token-Statistiken (nur Admin)."""
     require_admin(request)

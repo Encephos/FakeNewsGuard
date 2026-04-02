@@ -11,7 +11,7 @@ from .dependencies import get_archive
 router = APIRouter()
 
 
-@router.get("/api/archive")
+@router.get("/archive")
 async def list_archive(
     limit: int = 50,
     offset: int = 0,
@@ -35,7 +35,7 @@ async def list_archive(
     )
 
 
-@router.get("/api/archive/{archive_id}")
+@router.get("/archive/{archive_id}")
 async def get_archive_entry(archive_id: str) -> dict:
     """Hole einen vollstaendigen Archiv-Eintrag mit allen Details."""
     archive = get_archive()
@@ -45,7 +45,7 @@ async def get_archive_entry(archive_id: str) -> dict:
     return entry
 
 
-@router.delete("/api/archive/{archive_id}")
+@router.delete("/archive/{archive_id}")
 async def delete_archive_entry(archive_id: str) -> dict:
     """Loesche einen einzelnen Archiv-Eintrag."""
     archive = get_archive()
@@ -55,7 +55,7 @@ async def delete_archive_entry(archive_id: str) -> dict:
     return {"deleted": True}
 
 
-@router.get("/api/archive-stats")
+@router.get("/archive-stats")
 async def archive_stats() -> dict:
     """Statistiken ueber das Archiv (Anzahl, Verteilung, etc.)."""
     archive = get_archive()

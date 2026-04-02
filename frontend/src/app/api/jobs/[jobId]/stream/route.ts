@@ -4,7 +4,7 @@ import { INTERNAL_BACKEND_URL } from "@/config";
 const BACKEND = INTERNAL_BACKEND_URL;
 
 /**
- * SSE proxy: streams backend /api/jobs/{jobId}/stream through Next.js
+ * SSE proxy: streams backend /api/v1/jobs/{jobId}/stream through Next.js
  * so the frontend EventSource can use same-origin requests (with auth).
  */
 export async function GET(
@@ -20,7 +20,7 @@ export async function GET(
 
   let backendRes: Response;
   try {
-    backendRes = await fetch(`${BACKEND}/api/jobs/${jobId}/stream`, {
+    backendRes = await fetch(`${BACKEND}/api/v1/jobs/${jobId}/stream`, {
       headers,
       cache: "no-store",
       // No timeout — SSE streams are long-lived

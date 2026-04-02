@@ -14,7 +14,7 @@ from .dependencies import get_archive
 router = APIRouter()
 
 
-@router.get("/api/export/pdf/{archive_id}")
+@router.get("/export/pdf/{archive_id}")
 async def export_pdf(archive_id: str) -> Response:
     """Exportiere einen Archiv-Eintrag als PDF-Report.
 
@@ -46,7 +46,7 @@ async def export_pdf(archive_id: str) -> Response:
     )
 
 
-@router.post("/api/export/pdf")
+@router.post("/export/pdf")
 async def export_pdf_from_result(req: dict) -> Response:
     """Exportiere ein Analyse-Ergebnis direkt als PDF (ohne Archiv).
 

@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
 
   let backendRes: Response;
   try {
-    backendRes = await fetch(`${BACKEND}/api/archive${qs ? `?${qs}` : ""}`, {
+    backendRes = await fetch(`${BACKEND}/api/v1/archive${qs ? `?${qs}` : ""}`, {
       headers,
       cache: "no-store",
       signal: AbortSignal.timeout(TIMEOUT_DEFAULT),

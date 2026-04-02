@@ -10,13 +10,13 @@ const nextConfig: NextConfig = {
     // archive, extract) are handled there and never reach these rewrites.
     const backend = "http://backend:8000";
     return [
-      { source: "/api/auth/:path*", destination: `${backend}/api/auth/:path*` },
-      { source: "/api/admin/:path*", destination: `${backend}/api/admin/:path*` },
-      { source: "/api/export/:path*", destination: `${backend}/api/export/:path*` },
-      { source: "/api/graph/:path*", destination: `${backend}/api/graph/:path*` },
+      { source: "/api/auth/:path*", destination: `${backend}/api/v1/auth/:path*` },
+      { source: "/api/admin/:path*", destination: `${backend}/api/v1/admin/:path*` },
+      { source: "/api/export/:path*", destination: `${backend}/api/v1/export/:path*` },
+      { source: "/api/graph/:path*", destination: `${backend}/api/v1/graph/:path*` },
       { source: "/api/health", destination: `${backend}/api/health` },
-      { source: "/api/locales", destination: `${backend}/api/locales` },
-      { source: "/api/archive-stats", destination: `${backend}/api/archive-stats` },
+      { source: "/api/locales", destination: `${backend}/api/v1/locales` },
+      { source: "/api/archive-stats", destination: `${backend}/api/v1/archive-stats` },
     ];
   },
 };

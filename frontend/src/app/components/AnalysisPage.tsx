@@ -47,7 +47,7 @@ export default function AnalysisPage() {
     // Persist consent to backend for logged-in users
     if (token) {
       try {
-        await fetch("/api/auth/consent", {
+        await fetch("/api/v1/auth/consent", {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         });

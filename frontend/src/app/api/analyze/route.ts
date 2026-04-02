@@ -11,7 +11,7 @@ export async function POST(req: NextRequest) {
 
   let backendRes: Response;
   try {
-    backendRes = await fetch(`${BACKEND}/api/analyze`, {
+    backendRes = await fetch(`${BACKEND}/api/v1/analyze`, {
       method: "POST",
       headers,
       body: JSON.stringify(body),

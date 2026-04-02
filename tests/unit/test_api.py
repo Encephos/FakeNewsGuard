@@ -70,18 +70,18 @@ def test_health(client):
 
 
 def test_analyze_rejects_empty_input(client):
-    resp = client.post("/api/analyze", json={"text": ""})
+    resp = client.post("/api/v1/analyze", json={"text": ""})
     assert resp.status_code == 400
 
 
 def test_analyze_rejects_whitespace_only(client):
-    resp = client.post("/api/analyze", json={"text": "   "})
+    resp = client.post("/api/v1/analyze", json={"text": "   "})
     assert resp.status_code == 400
 
 
 def test_analyze_returns_job_id(client):
     """Valider Input sollte einen job_id zurückgeben."""
-    resp = client.post("/api/analyze", json={"text": "Die Erde ist rund."})
+    resp = client.post("/api/v1/analyze", json={"text": "Die Erde ist rund."})
     assert resp.status_code == 200
     data = resp.json()
     assert "job_id" in data
@@ -92,7 +92,7 @@ def test_analyze_returns_job_id(client):
 
 
 def test_get_job_not_found(client):
-    resp = client.get("/api/jobs/nonexistent-id")
+    resp = client.get("/api/v1/jobs/nonexistent-id")
     assert resp.status_code == 404
 
 
@@ -100,11 +100,11 @@ def test_get_job_after_analyze(client):
     """Nach analyze() sollte der Job abrufbar sein."""
     import uuid
     unique_text = f"Testbehauptung {uuid.uuid4().hex[:8]} zum Prüfen."
-    resp = client.post("/api/analyze", json={"text": unique_text})
+    resp = client.post("/api/v1/analyze", json={"text": unique_text})
     data = resp.json()
     assert "job_id" in data
 
-    job_resp = client.get(f"/api/jobs/{data['job_id']}")
+    job_resp = client.get(f"/api/v1/jobs/{data['job_id']}")
     assert job_resp.status_code == 200
     job_data = job_resp.json()
     assert job_data["status"] in ("pending", "running", "done", "error")
@@ -137,11 +137,11 @@ def test_rate_limit_blocks_after_burst():
         patched_client = TestClient(app)
 
         # Erster Request: OK
-        resp1 = patched_client.post("/api/analyze", json={"text": "Rate Limit Test Eins"})
+        resp1 = patched_client.post("/api/v1/analyze", json={"text": "Rate Limit Test Eins"})
         assert resp1.status_code == 200
 
         # Zweiter Request: Rate-Limited
-        resp2 = patched_client.post("/api/analyze", json={"text": "Rate Limit Test Zwei"})
+        resp2 = patched_client.post("/api/v1/analyze", json={"text": "Rate Limit Test Zwei"})
         assert resp2.status_code == 429
 
 
@@ -149,7 +149,7 @@ def test_rate_limit_blocks_after_burst():
 
 
 def test_extract_rejects_empty_url(client):
-    resp = client.post("/api/extract", json={"url": ""})
+    resp = client.post("/api/v1/extract", json={"url": ""})
     assert resp.status_code == 400
 
 
@@ -157,7 +157,7 @@ def test_extract_rejects_empty_url(client):
 
 
 def test_archive_list(client):
-    resp = client.get("/api/archive")
+    resp = client.get("/api/v1/archive")
     assert resp.status_code == 200
     data = resp.json()
     assert "items" in data
@@ -165,10 +165,33 @@ def test_archive_list(client):
 
 
 def test_archive_not_found(client):
-    resp = client.get("/api/archive/nonexistent-id")
+    resp = client.get("/api/v1/archive/nonexistent-id")
     assert resp.status_code == 404
 
 
 def test_archive_stats(client):
-    resp = client.get("/api/archive-stats")
+    resp = client.get("/api/v1/archive-stats")
     assert resp.status_code == 200
+
+
+# ── Legacy Redirect (308) ───────────────────────────────────────
+
+
+def test_legacy_redirect_post(client):
+    """POST /api/analyze should 308 redirect to /api/v1/analyze."""
+    resp = client.post("/api/analyze", json={"text": "redirect test"}, follow_redirects=False)
+    assert resp.status_code == 308
+    assert "/api/v1/analyze" in resp.headers["location"]
+
+
+def test_legacy_redirect_get(client):
+    """GET /api/archive should 308 redirect to /api/v1/archive."""
+    resp = client.get("/api/archive", follow_redirects=False)
+    assert resp.status_code == 308
+    assert "/api/v1/archive" in resp.headers["location"]
+
+
+def test_health_no_redirect(client):
+    """/api/health must NOT redirect – it stays unversioned."""
+    resp = client.get("/api/health", follow_redirects=False)
+    assert resp.status_code != 308

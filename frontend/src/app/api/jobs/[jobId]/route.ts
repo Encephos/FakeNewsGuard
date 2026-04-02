@@ -14,7 +14,7 @@ export async function GET(
 
   let backendRes: Response;
   try {
-    backendRes = await fetch(`${BACKEND}/api/jobs/${jobId}`, {
+    backendRes = await fetch(`${BACKEND}/api/v1/jobs/${jobId}`, {
       headers,
       cache: "no-store",
       signal: AbortSignal.timeout(TIMEOUT_DEFAULT),
