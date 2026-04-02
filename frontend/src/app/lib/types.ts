@@ -62,6 +62,20 @@ export interface RhetoricTechnique {
   example: string;
 }
 
+export interface CostSummary {
+  total_input_tokens: number;
+  total_output_tokens: number;
+  total_tokens: number;
+  estimated_cost_usd: number;
+  cost_per_model: Record<string, number>;
+  tokens_per_agent: Record<string, number>;
+  call_count: number;
+  estimated_co2_grams: number;
+  co2_per_model: Record<string, number>;
+  search_query_count: number;
+  search_co2_grams: number;
+}
+
 export interface AnalysisResult {
   overall_rating: OverallRating;
   confidence: number;
@@ -71,6 +85,7 @@ export interface AnalysisResult {
   corrections: string[];
   fairness: string[];
   sources: string[];
+  cost_summary?: CostSummary | null;
 }
 
 export interface ExtractedContent {

@@ -9,6 +9,7 @@ from typing import Any
 import httpx
 
 from config import RetryConfig, SearchConfig
+from tools.cost_tracker import record_search
 from tools.retry import retry_call, retry_call_async
 from tools.search.models import SearchResult
 
@@ -24,6 +25,10 @@ class WebSearchClient:
         self, query: str, max_results: int | None = None, categories: str = "general",
     ) -> list[SearchResult]:
         """Führe eine Websuche durch."""
+        try:
+            record_search()
+        except Exception:
+            pass
         n = max_results or self.config.max_results
 
         if self.config.provider == "searxng":
@@ -255,6 +260,10 @@ class AsyncWebSearchClient:
         self, query: str, max_results: int | None = None, categories: str = "general",
     ) -> list[SearchResult]:
         """Führe eine Websuche asynchron durch."""
+        try:
+            record_search()
+        except Exception:
+            pass
         n = max_results or self.config.max_results
 
         async with httpx.AsyncClient(timeout=30.0) as client:

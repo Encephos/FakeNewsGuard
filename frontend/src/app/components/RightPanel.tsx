@@ -1,6 +1,6 @@
 "use client";
 
-import { Step, AnalysisResult, FactRating } from "../lib/types";
+import { Step, AnalysisResult, FactRating, CostSummary } from "../lib/types";
 
 const OVERALL_COLOR: Record<string, string> = {
   Wahr:                  "text-success",
@@ -106,11 +106,66 @@ export default function RightPanel({ steps, result, isAnalyzing }: RightPanelPro
           })}
         </div>
       </section>
+
+      {/* Impact */}
+      {result.cost_summary && <ImpactSection cost={result.cost_summary} />}
     </div>
   );
 }
 
-function Stat({ label, value }: { label: string; value: number }) {
+function ImpactSection({ cost }: { cost: CostSummary }) {
+  const co2 = cost.estimated_co2_grams;
+  // Vergleichswerte: eine Google-Suche ~ 0.2g CO2, eine E-Mail ~ 4g CO2
+  const searchEquiv = co2 > 0 ? Math.round(co2 / 0.2) : 0;
+
+  return (
+    <>
+      <div className="border-t border-[var(--glass-inner-border)]" />
+
+      <section>
+        <h4 className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3">
+          Ressourcen
+        </h4>
+        <div className="space-y-2">
+          <Stat label="Tokens" value={formatTokens(cost.total_tokens)} />
+          <Stat label="LLM-Aufrufe" value={String(cost.call_count)} />
+          <Stat label="Websuchen" value={String(cost.search_query_count)} />
+        </div>
+      </section>
+
+      <div className="border-t border-[var(--glass-inner-border)]" />
+
+      <section>
+        <h4 className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3">
+          Fussabdruck
+        </h4>
+        <div className="space-y-2">
+          <Stat label="Kosten" value={`$${cost.estimated_cost_usd.toFixed(4)}`} />
+          <Stat label="CO2" value={formatCO2(co2)} />
+        </div>
+        {searchEquiv > 0 && (
+          <p className="text-[10px] text-text-tertiary mt-2 leading-relaxed">
+            Entspricht ~{searchEquiv} Google-Suche{searchEquiv !== 1 ? "n" : ""}
+          </p>
+        )}
+      </section>
+    </>
+  );
+}
+
+function formatTokens(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
+  return String(n);
+}
+
+function formatCO2(grams: number): string {
+  if (grams >= 1000) return `${(grams / 1000).toFixed(2)} kg`;
+  if (grams >= 1) return `${grams.toFixed(2)} g`;
+  return `${(grams * 1000).toFixed(1)} mg`;
+}
+
+function Stat({ label, value }: { label: string; value: number | string }) {
   return (
     <div className="flex items-center justify-between">
       <span className="text-xs text-text-secondary">{label}</span>
