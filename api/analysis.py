@@ -41,7 +41,7 @@ router = APIRouter()
 
 # ── API endpoints ──────────────────────────────────────────────────
 
-@router.post("/api/extract")
+@router.post("/extract")
 async def extract_content(req: ExtractRequest, request: Request) -> dict:
     """Extract content from a URL without running analysis. Returns extracted text and metadata."""
     check_rate_limit(request)
@@ -67,7 +67,7 @@ async def extract_content(req: ExtractRequest, request: Request) -> dict:
         raise HTTPException(status_code=422, detail=t("api.errors.extraction_failed").format(error=e))
 
 
-@router.post("/api/analyze")
+@router.post("/analyze")
 async def analyze(req: AnalyzeRequest, request: Request) -> dict:
     """Submit an analysis job. Returns a job_id for polling.
 
@@ -188,7 +188,7 @@ async def analyze(req: AnalyzeRequest, request: Request) -> dict:
     return {"job_id": job_id}
 
 
-@router.get("/api/jobs/{job_id}")
+@router.get("/jobs/{job_id}")
 async def get_job(job_id: str) -> dict:
     """Poll job status. Frontend calls this every ~1.5 s."""
     store = get_job_store()
@@ -224,7 +224,7 @@ def _sse_event(event: str, data: dict | str, event_id: str | int = "") -> str:
     return lines
 
 
-@router.get("/api/jobs/{job_id}/stream")
+@router.get("/jobs/{job_id}/stream")
 async def stream_job(job_id: str, request: Request):
     """Stream job progress via Server-Sent Events.
 

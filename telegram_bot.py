@@ -183,7 +183,7 @@ async def poll_job(job_id: str) -> dict[str, Any]:
     async with httpx.AsyncClient(timeout=POLL_TIMEOUT) as client:
         for _ in range(MAX_POLL_ATTEMPTS):
             await asyncio.sleep(POLL_INTERVAL)
-            resp = await client.get(f"{BACKEND_URL}/api/jobs/{job_id}")
+            resp = await client.get(f"{BACKEND_URL}/api/v1/jobs/{job_id}")
             if resp.status_code == 404:
                 return {"status": "error", "error": "Job nicht gefunden."}
             data = resp.json()
@@ -232,7 +232,7 @@ async def _run_analysis(bot: TelegramBot, chat_id: int, msg_id: int, text: str, 
         auth_headers = {"Authorization": f"Bearer {auth_token}"}
 
         async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as client:
-            resp = await client.post(f"{BACKEND_URL}/api/analyze", json=body, headers=auth_headers)
+            resp = await client.post(f"{BACKEND_URL}/api/v1/analyze", json=body, headers=auth_headers)
             resp.raise_for_status()
             job_id = resp.json()["job_id"]
 
@@ -248,7 +248,7 @@ async def _run_analysis(bot: TelegramBot, chat_id: int, msg_id: int, text: str, 
                 if attempt % 5 == 0:
                     await bot.send_chat_action(chat_id)
 
-                resp = await client.get(f"{BACKEND_URL}/api/jobs/{job_id}")
+                resp = await client.get(f"{BACKEND_URL}/api/v1/jobs/{job_id}")
                 if resp.status_code == 404:
                     raise ValueError("Job nicht gefunden.")
 
@@ -358,7 +358,7 @@ async def handle_message(bot: TelegramBot, message: dict[str, Any]) -> None:
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
                 resp = await client.post(
-                    f"{BACKEND_URL}/api/auth/telegram/verify-link",
+                    f"{BACKEND_URL}/api/v1/auth/telegram/verify-link",
                     json={"code": link_code, "telegram_id": str(user_id)},
                 )
                 if resp.status_code == 200:

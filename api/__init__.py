@@ -50,7 +50,14 @@ async def _lifespan(app: FastAPI):
     # ── Shutdown ───────────────────────────────────────────────────
 
 
-app = FastAPI(title="FakeNewsGuard API", lifespan=_lifespan)
+app = FastAPI(
+    title="FakeNewsGuard API",
+    version="1.0.0",
+    openapi_url="/api/v1/openapi.json",
+    docs_url="/api/v1/docs",
+    redoc_url="/api/v1/redoc",
+    lifespan=_lifespan,
+)
 
 # i18n auf konfigurierte Sprache setzen
 set_default_locale(_app_config.language)
@@ -112,6 +119,25 @@ async def request_logging_middleware(request: Request, call_next: Any) -> Any:
         raise
 
 
+# ── Legacy-redirect middleware: /api/* → /api/v1/* (308) ──────────
+from starlette.responses import RedirectResponse as _RedirectResponse
+
+
+@app.middleware("http")
+async def legacy_api_redirect(request: Request, call_next: Any) -> Any:
+    path = request.url.path
+    if (
+        path.startswith("/api/")
+        and not path.startswith("/api/v1/")
+        and path not in ("/api/health",)
+    ):
+        new_path = "/api/v1" + path[4:]  # /api/foo → /api/v1/foo
+        query = str(request.url.query)
+        new_url = new_path + ("?" + query if query else "")
+        return _RedirectResponse(url=new_url, status_code=308)
+    return await call_next(request)
+
+
 # ── Include all routers ────────────────────────────────────────────
 from .auth import router as auth_router
 from .admin import router as admin_router
@@ -120,14 +146,20 @@ from .archive import router as archive_router
 from .export import router as export_router
 from .graph import router as graph_router
 from .utils import router as utils_router
+from .unversioned import router as unversioned_router
 
-app.include_router(auth_router)
-app.include_router(admin_router)
-app.include_router(analysis_router)
-app.include_router(archive_router)
-app.include_router(export_router)
-app.include_router(graph_router)
-app.include_router(utils_router)
+V1_PREFIX = "/api/v1"
+
+app.include_router(auth_router,     prefix=V1_PREFIX)
+app.include_router(admin_router,    prefix=V1_PREFIX)
+app.include_router(analysis_router, prefix=V1_PREFIX)
+app.include_router(archive_router,  prefix=V1_PREFIX)
+app.include_router(export_router,   prefix=V1_PREFIX)
+app.include_router(graph_router,    prefix=V1_PREFIX)
+app.include_router(utils_router,    prefix=V1_PREFIX)
+
+# Unversioned infrastructure endpoints (health, metrics)
+app.include_router(unversioned_router)
 
 # ── Backward-compatibility re-exports ──────────────────────────────
 from .dependencies import _get_rate_limiter

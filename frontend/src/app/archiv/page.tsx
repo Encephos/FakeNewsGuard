@@ -103,7 +103,7 @@ export default function ArchivePage() {
       if (ratingFilter) params.set("rating", ratingFilter);
       if (search) params.set("search", search);
 
-      const res = await fetch(`/api/archive?${params}`);
+      const res = await fetch(`/api/v1/archive?${params}`);
       if (!res.ok) throw new Error("Fehler beim Laden");
       const data: ArchiveList = await res.json();
       setItems(data.items);
@@ -121,7 +121,7 @@ export default function ArchivePage() {
 
   // Fetch stats once on mount
   useEffect(() => {
-    fetch("/api/archive-stats")
+    fetch("/api/v1/archive-stats")
       .then((res) => res.json())
       .then((data) => setStats(data))
       .catch((err) => console.error("Archive stats error:", err));
@@ -136,7 +136,7 @@ export default function ArchivePage() {
     setDetailLoading(true);
     setSelectedId(id);
     try {
-      const res = await fetch(`/api/archive/${id}`);
+      const res = await fetch(`/api/v1/archive/${id}`);
       if (!res.ok) throw new Error("Fehler beim Laden");
       const data: ArchiveDetail = await res.json();
       setDetail(data);
@@ -150,7 +150,7 @@ export default function ArchivePage() {
   const handleDelete = useCallback(async (id: string) => {
     if (!confirm("Diesen Eintrag wirklich löschen?")) return;
     try {
-      await fetch(`/api/archive/${id}`, { method: "DELETE" });
+      await fetch(`/api/v1/archive/${id}`, { method: "DELETE" });
       if (selectedId === id) {
         setSelectedId(null);
         setDetail(null);

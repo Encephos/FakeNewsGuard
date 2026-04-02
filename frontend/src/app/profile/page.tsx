@@ -94,7 +94,7 @@ export default function ProfilePage() {
     setLinkLoading(true);
     setLinkError("");
     try {
-      const res = await fetch("/api/auth/telegram/request-link", {
+      const res = await fetch("/api/v1/auth/telegram/request-link", {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -118,7 +118,7 @@ export default function ProfilePage() {
 
     setUnlinkLoading(true);
     try {
-      const res = await fetch("/api/auth/telegram/unlink", {
+      const res = await fetch("/api/v1/auth/telegram/unlink", {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });

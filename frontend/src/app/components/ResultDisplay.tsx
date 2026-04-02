@@ -41,10 +41,10 @@ export default function ResultDisplay({ result, archiveId, sourceUrl }: ResultDi
     try {
       if (archiveId) {
         // Archive-based export — simple GET, browser handles download
-        window.open(`/api/export/pdf/${archiveId}`, "_blank");
+        window.open(`/api/v1/export/pdf/${archiveId}`, "_blank");
       } else {
         // Direct result export via POST
-        const res = await fetch("/api/export/pdf", {
+        const res = await fetch("/api/v1/export/pdf", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({

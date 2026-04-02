@@ -30,7 +30,7 @@ _auth_config = AuthConfig()
 router = APIRouter()
 
 
-@router.post("/api/auth/register")
+@router.post("/auth/register")
 async def auth_register(req: RegisterRequest, request: Request) -> dict:
     """Register a new user account."""
     check_auth_rate_limit(request)
@@ -79,12 +79,12 @@ async def auth_register(req: RegisterRequest, request: Request) -> dict:
         secure=SECURE_COOKIES,
         samesite="lax",
         max_age=_auth_config.refresh_token_max_age,
-        path="/api/auth",
+        path="/api/v1/auth",
     )
     return response
 
 
-@router.post("/api/auth/login")
+@router.post("/auth/login")
 async def auth_login(req: LoginRequest, request: Request) -> dict:
     """Login with email and password."""
     check_auth_rate_limit(request)
@@ -120,12 +120,12 @@ async def auth_login(req: LoginRequest, request: Request) -> dict:
         secure=SECURE_COOKIES,
         samesite="lax",
         max_age=_auth_config.remember_me_max_age if req.remember_me else None,
-        path="/api/auth",
+        path="/api/v1/auth",
     )
     return response
 
 
-@router.post("/api/auth/refresh")
+@router.post("/auth/refresh")
 async def auth_refresh(request: Request) -> dict:
     """Refresh the access token using the refresh cookie."""
     token = request.cookies.get("refresh_token")
@@ -148,7 +148,7 @@ async def auth_refresh(request: Request) -> dict:
     return {"access_token": access_token}
 
 
-@router.get("/api/auth/me")
+@router.get("/auth/me")
 async def auth_me(request: Request) -> dict:
     """Get current user info from JWT."""
     user = get_current_user(request)
@@ -163,15 +163,15 @@ async def auth_me(request: Request) -> dict:
     }
 
 
-@router.post("/api/auth/logout")
+@router.post("/auth/logout")
 async def auth_logout() -> dict:
     """Clear the refresh token cookie."""
     response = JSONResponse(content={"ok": True})
-    response.delete_cookie(key="refresh_token", path="/api/auth")
+    response.delete_cookie(key="refresh_token", path="/api/v1/auth")
     return response
 
 
-@router.patch("/api/auth/profile")
+@router.patch("/auth/profile")
 async def auth_update_profile(req: UpdateProfileRequest, request: Request) -> dict:
     """Update current user's display name."""
     user = get_current_user(request)
@@ -195,7 +195,7 @@ async def auth_update_profile(req: UpdateProfileRequest, request: Request) -> di
     }
 
 
-@router.post("/api/auth/consent")
+@router.post("/auth/consent")
 async def auth_consent(request: Request) -> dict:
     """Set the logging consent flag for the current user."""
     user = get_current_user(request)
@@ -204,7 +204,7 @@ async def auth_consent(request: Request) -> dict:
     return {"ok": True}
 
 
-@router.post("/api/auth/telegram/request-link")
+@router.post("/auth/telegram/request-link")
 async def auth_telegram_request_link(request: Request) -> dict:
     """Generate a 6-char code for the user to send to the Telegram bot."""
     user = get_current_user(request)
@@ -216,7 +216,7 @@ async def auth_telegram_request_link(request: Request) -> dict:
     return {"code": code, "expires_in": _auth_config.link_code_expiration}
 
 
-@router.post("/api/auth/telegram/verify-link")
+@router.post("/auth/telegram/verify-link")
 async def auth_telegram_verify_link(req: TelegramVerifyRequest) -> dict:
     """Called by the Telegram bot to verify a link code and bind the account."""
     user_db = get_user_db()
@@ -230,7 +230,7 @@ async def auth_telegram_verify_link(req: TelegramVerifyRequest) -> dict:
     }
 
 
-@router.delete("/api/auth/telegram/unlink")
+@router.delete("/auth/telegram/unlink")
 async def auth_telegram_unlink(request: Request) -> dict:
     """Remove the Telegram link from the current user's account."""
     user = get_current_user(request)
@@ -242,7 +242,7 @@ async def auth_telegram_unlink(request: Request) -> dict:
     return {"ok": True}
 
 
-@router.post("/api/auth/setup-credentials")
+@router.post("/auth/setup-credentials")
 async def auth_setup_credentials(req: SetupCredentialsRequest) -> dict:
     """One-time endpoint to add email+password to a Telegram-only account.
 

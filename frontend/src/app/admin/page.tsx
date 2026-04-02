@@ -479,7 +479,7 @@ export default function AdminPage() {
     setUsageData(null);
     setUsageLoading(true);
     try {
-      const res = await fetch(`/api/admin/users/${u.id}/usage`, { headers: headers() });
+      const res = await fetch(`/api/v1/admin/users/${u.id}/usage`, { headers: headers() });
       if (res.ok) {
         const data = await res.json();
         setUsageData(data.usage || []);
@@ -498,8 +498,8 @@ export default function AdminPage() {
     setError("");
     try {
       const [usersRes, statsRes] = await Promise.all([
-        fetch("/api/admin/users", { headers: headers() }),
-        fetch("/api/admin/stats", { headers: headers() }),
+        fetch("/api/v1/admin/users", { headers: headers() }),
+        fetch("/api/v1/admin/stats", { headers: headers() }),
       ]);
       if (usersRes.status === 403 || statsRes.status === 403) {
         setError(t("admin.noAccess"));
@@ -527,8 +527,8 @@ export default function AdminPage() {
     try {
       const levelParam = logLevel ? `&level=${logLevel}` : "";
       const [metricsRes, logsRes] = await Promise.all([
-        fetch("/api/admin/metrics", { headers: headers() }),
-        fetch(`/api/admin/logs?limit=150${levelParam}`, { headers: headers() }),
+        fetch("/api/v1/admin/metrics", { headers: headers() }),
+        fetch(`/api/v1/admin/logs?limit=150${levelParam}`, { headers: headers() }),
       ]);
       if (metricsRes.ok) setMetrics(await metricsRes.json());
       if (logsRes.ok) {
@@ -547,7 +547,7 @@ export default function AdminPage() {
     if (!token) return;
     setInvitesLoading(true);
     try {
-      const res = await fetch("/api/admin/registration-codes", { headers: headers() });
+      const res = await fetch("/api/v1/admin/registration-codes", { headers: headers() });
       if (res.ok) {
         const data = await res.json();
         setInviteCodes(data.codes ?? []);
@@ -563,7 +563,7 @@ export default function AdminPage() {
     if (!token) return;
     setCreatingCode(true);
     try {
-      const res = await fetch("/api/admin/registration-codes", {
+      const res = await fetch("/api/v1/admin/registration-codes", {
         method: "POST",
         headers: headers(),
         body: JSON.stringify({
@@ -585,7 +585,7 @@ export default function AdminPage() {
 
   const handleRevokeCode = useCallback(async (codeId: string) => {
     if (!token) return;
-    const res = await fetch(`/api/admin/registration-codes/${codeId}`, {
+    const res = await fetch(`/api/v1/admin/registration-codes/${codeId}`, {
       method: "DELETE",
       headers: headers(),
     });
@@ -627,7 +627,7 @@ export default function AdminPage() {
   const handleTierChange = async (userId: string, newTier: string) => {
     setChangingTier(userId);
     try {
-      const res = await fetch(`/api/admin/users/${userId}/tier`, {
+      const res = await fetch(`/api/v1/admin/users/${userId}/tier`, {
         method: "PATCH",
         headers: headers(),
         body: JSON.stringify({ tier: newTier }),

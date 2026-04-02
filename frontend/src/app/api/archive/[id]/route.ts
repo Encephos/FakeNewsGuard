@@ -14,7 +14,7 @@ export async function GET(
 
   let backendRes: Response;
   try {
-    backendRes = await fetch(`${BACKEND}/api/archive/${id}`, {
+    backendRes = await fetch(`${BACKEND}/api/v1/archive/${id}`, {
       headers,
       cache: "no-store",
       signal: AbortSignal.timeout(TIMEOUT_DEFAULT),
@@ -44,7 +44,7 @@ export async function DELETE(
 
   let backendRes: Response;
   try {
-    backendRes = await fetch(`${BACKEND}/api/archive/${id}`, {
+    backendRes = await fetch(`${BACKEND}/api/v1/archive/${id}`, {
       method: "DELETE",
       headers,
       signal: AbortSignal.timeout(TIMEOUT_DEFAULT),

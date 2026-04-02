@@ -9,14 +9,14 @@ from .dependencies import get_graph
 router = APIRouter()
 
 
-@router.get("/api/graph/stats")
+@router.get("/graph/stats")
 async def graph_stats() -> dict:
     """Statistiken des Cross-Reference Graphen."""
     graph = get_graph()
     return graph.stats()
 
 
-@router.get("/api/graph/actor/{actor_name}")
+@router.get("/graph/actor/{actor_name}")
 async def graph_actor(actor_name: str) -> dict:
     """Alle Claims, in denen ein Akteur erwaehnt wird."""
     graph = get_graph()
@@ -30,14 +30,14 @@ async def graph_actor(actor_name: str) -> dict:
     }
 
 
-@router.get("/api/graph/source/{domain}")
+@router.get("/graph/source/{domain}")
 async def graph_source(domain: str) -> dict:
     """Wie oft und in welchem Kontext wurde eine Quelle verwendet?"""
     graph = get_graph()
     return graph.get_source_history(domain)
 
 
-@router.get("/api/graph/search")
+@router.get("/graph/search")
 async def graph_search(
     type: str | None = None,
     q: str | None = None,
@@ -54,7 +54,7 @@ async def graph_search(
     }
 
 
-@router.get("/api/graph/node/{node_id:path}")
+@router.get("/graph/node/{node_id:path}")
 async def graph_node(node_id: str) -> dict:
     """Knoten mit allen Kanten."""
     graph = get_graph()
