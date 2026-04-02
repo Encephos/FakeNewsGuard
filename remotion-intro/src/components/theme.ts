@@ -16,4 +16,5 @@ export const colors = {
 
 export const fonts = {
   sans: 'system-ui, -apple-system, sans-serif',
+  mono: '"SF Mono", "Fira Code", "Cascadia Code", "JetBrains Mono", Menlo, monospace',
 };

@@ -271,7 +271,8 @@ def format_steps_progress(steps: list[dict[str, Any]], tier: str = "") -> str:
             done_count += 1
 
     # Header
-    tier_label = f" \\({escape_md(tier.upper())}\\)" if tier else ""
+    tier_display = tier.upper().replace("-", " ") if tier else ""
+    tier_label = f" \\({escape_md(tier_display)}\\)" if tier_display else ""
     header = f"\U0001F9E0 {bold('Analyse')}{tier_label}  {escape_md(f'{done_count}/{_REQUIRED_PHASE_COUNT}')}"
 
     lines = [header, ""]
@@ -338,6 +339,11 @@ def format_start_message() -> str:
         f"  {escape_md('Beste Modelle, mehrere Quellen, Bildanalyse.')}",
         f"  {escape_md('Ergebnis in ca. 2\u20133 Minuten.')}",
         "",
+        f"  {code('/commander-pro')}  \u2013  {escape_md('Iterative Suche (Pro)')}",
+        f"  {code('/commander-max')}  \u2013  {escape_md('Iterative Suche (Max)')}",
+        f"  {escape_md('Commander verfeinert Suchanfragen iterativ für')}",
+        f"  {escape_md('maximale Evidenzqualität.')}",
+        "",
         f"  _{escape_md('Ohne Angabe wird dein Standard-Tier verwendet.')}_",
         "",
         divider(),
@@ -389,17 +395,20 @@ def format_help_message() -> str:
         f"\U0001F3AF {italic('Tier wählen:')}",
         f"  {code('/max')} {escape_md('https://x.com/user/status/123')}",
         f"  {code('/lite')} {escape_md('Deutschland hat 80 Millionen Einwohner')}",
+        f"  {code('/commander-pro')} {escape_md('Ein komplexer Artikel...')}",
         "",
         divider(),
         "",
         f"{bold('Alle Befehle')}",
-        f"  {code('/start')}        \u2013  {escape_md('Willkommensnachricht')}",
-        f"  {code('/help')}         \u2013  {escape_md('Diese Hilfe anzeigen')}",
-        f"  {code('/link <CODE>')}  \u2013  {escape_md('Telegram mit Webkonto verknüpfen')}",
-        f"  {code('/zustimmen')}    \u2013  {escape_md('Datenverarbeitung zustimmen')}",
-        f"  {code('/lite <Text>')}  \u2013  {escape_md('Schnellcheck')}",
-        f"  {code('/pro <Text>')}   \u2013  {escape_md('Standardanalyse')}",
-        f"  {code('/max <Text>')}   \u2013  {escape_md('Tiefenanalyse')}",
+        f"  {code('/start')}               \u2013  {escape_md('Willkommensnachricht')}",
+        f"  {code('/help')}                \u2013  {escape_md('Diese Hilfe anzeigen')}",
+        f"  {code('/link <CODE>')}         \u2013  {escape_md('Telegram mit Webkonto verknüpfen')}",
+        f"  {code('/zustimmen')}           \u2013  {escape_md('Datenverarbeitung zustimmen')}",
+        f"  {code('/lite <Text>')}         \u2013  {escape_md('Schnellcheck')}",
+        f"  {code('/pro <Text>')}          \u2013  {escape_md('Standardanalyse')}",
+        f"  {code('/max <Text>')}          \u2013  {escape_md('Tiefenanalyse')}",
+        f"  {code('/commander-pro <Text>')}  \u2013  {escape_md('Iterative Suche (Pro)')}",
+        f"  {code('/commander-max <Text>')}  \u2013  {escape_md('Iterative Suche (Max)')}",
         "",
         divider(),
         "",
@@ -416,6 +425,11 @@ def format_help_message() -> str:
         f"  {bold('MAX')} \u2013 {escape_md('Umfassende Tiefenanalyse mit den besten Modellen.')}",
         f"  {escape_md('Mehrere Quellen, Zahlenaudit, Bildanalyse.')}",
         f"  {escape_md('Ergebnis in ca. 2\u20133 Minuten.')}",
+        "",
+        f"  {bold('COMMANDER PRO / MAX')} \u2013 {escape_md('Wie Pro/Max, aber mit iterativer')}",
+        f"  {escape_md('Suchverfeinerung. Commander generiert Suchanfragen,')}",
+        f"  {escape_md('prüft ob der Kontext ausreicht und sucht bei Bedarf erneut.')}",
+        f"  {escape_md('Bis zu 3 Suchrunden für maximale Evidenzqualität.')}",
         "",
         f"  _{escape_md('Ohne Tier-Angabe wird automatisch dein Standard-Tier verwendet.')}_",
         "",

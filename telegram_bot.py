@@ -430,16 +430,20 @@ async def handle_message(bot: TelegramBot, message: dict[str, Any]) -> None:
         )
         return
 
-    # ── /lite, /pro, /max – start analysis with specific tier ──
-    for tier_cmd in ("lite", "pro", "max"):
+    # ── /lite, /pro, /max, /commander-pro, /commander-max – start analysis with specific tier ──
+    # Commander-Befehle zuerst prüfen (längerer Prefix)
+    for tier_cmd in ("commander-pro", "commander-max", "lite", "pro", "max"):
         if text.startswith(f"/{tier_cmd}"):
             # Check tier access: user can only use tiers up to their own level
+            # Commander-Tiers erfordern mindestens den Basis-Tier
             tier_levels = {"lite": 0, "pro": 1, "max": 2}
-            if tier_levels.get(tier_cmd, 0) > tier_levels.get(user_tier, 0):
+            base_tier = tier_cmd.replace("commander-", "") if tier_cmd.startswith("commander-") else tier_cmd
+            if tier_levels.get(base_tier, 0) > tier_levels.get(user_tier, 0):
+                label = tier_cmd.upper().replace("-", " ")
                 await bot.send_message(
                     chat_id,
                     f"\u274C {bold('Kein Zugriff')}\n\n"
-                    f"{escape_md(f'Dein aktueller Plan ({user_tier.upper()}) erlaubt keinen Zugriff auf {tier_cmd.upper()}.')}\n"
+                    f"{escape_md(f'Dein aktueller Plan ({user_tier.upper()}) erlaubt keinen Zugriff auf {label}.')}\n"
                     f"_{escape_md('Upgrade deinen Plan auf der Webseite.')}_"
                 )
                 return
