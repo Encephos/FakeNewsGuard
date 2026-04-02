@@ -142,6 +142,7 @@ async def legacy_api_redirect(request: Request, call_next: Any) -> Any:
 from .auth import router as auth_router
 from .admin import router as admin_router
 from .analysis import router as analysis_router
+from .analytics import router as analytics_router
 from .archive import router as archive_router
 from .export import router as export_router
 from .graph import router as graph_router
@@ -150,13 +151,14 @@ from .unversioned import router as unversioned_router
 
 V1_PREFIX = "/api/v1"
 
-app.include_router(auth_router,     prefix=V1_PREFIX)
-app.include_router(admin_router,    prefix=V1_PREFIX)
-app.include_router(analysis_router, prefix=V1_PREFIX)
-app.include_router(archive_router,  prefix=V1_PREFIX)
-app.include_router(export_router,   prefix=V1_PREFIX)
-app.include_router(graph_router,    prefix=V1_PREFIX)
-app.include_router(utils_router,    prefix=V1_PREFIX)
+app.include_router(auth_router,      prefix=V1_PREFIX)
+app.include_router(admin_router,     prefix=V1_PREFIX)
+app.include_router(analysis_router,  prefix=V1_PREFIX)
+app.include_router(analytics_router, prefix=V1_PREFIX)
+app.include_router(archive_router,   prefix=V1_PREFIX)
+app.include_router(export_router,    prefix=V1_PREFIX)
+app.include_router(graph_router,     prefix=V1_PREFIX)
+app.include_router(utils_router,     prefix=V1_PREFIX)
 
 # Unversioned infrastructure endpoints (health, metrics)
 app.include_router(unversioned_router)
