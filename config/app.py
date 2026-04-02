@@ -29,9 +29,11 @@ from config.infrastructure import (  # noqa: E402
     JobConfig,
     RateLimitConfig,
     TelegramConfig,
+    TelemetryConfig,
     UserDBConfig,
 )
 from config.llm import LLMConfig, RetryConfig, TierModelConfig  # noqa: E402
+from config.commander import CommanderConfig  # noqa: E402
 from config.processing import (  # noqa: E402
     ClaimProcessingConfig,
     CoVeConfig,
@@ -93,6 +95,8 @@ class AppConfig:
     # ── Produktions-Backends ──────────────────────────────────────────────────
     valkey: ValkeyConfig = field(default_factory=ValkeyConfig)
     postgres: PostgreSQLConfig = field(default_factory=PostgreSQLConfig)
+    commander: CommanderConfig = field(default_factory=CommanderConfig)
+    telemetry: TelemetryConfig = field(default_factory=TelemetryConfig)
     tier: ScoutTier = ScoutTier.PRO  # Scout-Stufe (lite / pro / max)
     verbose: bool = True  # Zeige Agent-Wechsel und Zwischenergebnisse
     language: str = "de"  # Primärsprache der Analyse

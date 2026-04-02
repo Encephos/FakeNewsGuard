@@ -4,11 +4,17 @@ from __future__ import annotations
 
 import json
 import re
+import time
 from typing import Any
+
+from opentelemetry.trace import StatusCode
 
 from config import LLMConfig, RetryConfig
 from config.infrastructure import HTTPTimeoutsConfig
 from tools.retry import retry_call
+from tools.telemetry import LLM_DURATION, LLM_REQUEST_COUNT, get_tracer
+
+_tracer = get_tracer("fng.llm")
 
 
 class LLMClient:
@@ -74,6 +80,7 @@ class LLMClient:
         system_prompt: str,
         user_message: str,
         response_format: str = "text",
+        agent_name: str = "unknown",
     ) -> str:
         """Sende eine Nachricht an das LLM und erhalte die Antwort.
 
@@ -82,6 +89,7 @@ class LLMClient:
             user_message: Die Nachricht / der Input.
             response_format: "text" oder "json" – bei json wird
                              das Modell angewiesen, JSON zu liefern.
+            agent_name: Name des aufrufenden Agenten (fuer Tracing).
 
         Returns:
             Die Antwort als String.
@@ -92,10 +100,25 @@ class LLMClient:
                 "Kein Markdown, keine Erklärungen, kein ```json Block. Nur das JSON-Objekt."
             )
 
-        if self.config.provider == "anthropic":
-            return self._complete_anthropic(system_prompt, user_message)
-        else:
-            return self._complete_openai(system_prompt, user_message, response_format)
+        with _tracer.start_as_current_span("llm.complete") as span:
+            span.set_attribute("llm.model", self.config.model)
+            span.set_attribute("llm.agent", agent_name)
+            span.set_attribute("llm.response_format", response_format)
+            start = time.monotonic()
+            try:
+                if self.config.provider == "anthropic":
+                    result = self._complete_anthropic(system_prompt, user_message)
+                else:
+                    result = self._complete_openai(system_prompt, user_message, response_format)
+                return result
+            except Exception as e:
+                span.record_exception(e)
+                span.set_status(StatusCode.ERROR, str(e))
+                raise
+            finally:
+                duration = time.monotonic() - start
+                LLM_REQUEST_COUNT.labels(model=self.config.model, agent=agent_name).inc()
+                LLM_DURATION.labels(model=self.config.model, agent=agent_name).observe(duration)
 
     def _complete_anthropic(self, system_prompt: str, user_message: str) -> str:
         def _call():
@@ -286,6 +309,7 @@ class LLMClient:
         schema: dict,
         tool_name: str = "output",
         tool_description: str = "Strukturierter Output",
+        agent_name: str = "unknown",
     ) -> dict:
         """LLM-Call mit nativem Structured Output (Anthropic tool_use / OpenAI json_schema).
 
@@ -297,21 +321,30 @@ class LLMClient:
             schema: JSON-Schema des erwarteten Outputs.
             tool_name: Name des Anthropic-Tools / OpenAI-Schemas.
             tool_description: Beschreibung für das Modell.
+            agent_name: Name des aufrufenden Agenten (fuer Tracing).
 
         Returns:
             Geparster dict.
         """
-        try:
-            if self.config.provider == "anthropic":
-                return self._complete_structured_anthropic(
-                    system_prompt, user_message, schema, tool_name, tool_description
-                )
-            elif self.config.provider in ("openai", "openrouter"):
-                return self._complete_structured_openai(
-                    system_prompt, user_message, schema, tool_name, tool_description
-                )
-        except Exception:
-            pass  # Fallback auf JSON-Mode
+        with _tracer.start_as_current_span("llm.complete_structured") as span:
+            span.set_attribute("llm.model", self.config.model)
+            span.set_attribute("llm.agent", agent_name)
+            start = time.monotonic()
+            try:
+                if self.config.provider == "anthropic":
+                    return self._complete_structured_anthropic(
+                        system_prompt, user_message, schema, tool_name, tool_description
+                    )
+                elif self.config.provider in ("openai", "openrouter"):
+                    return self._complete_structured_openai(
+                        system_prompt, user_message, schema, tool_name, tool_description
+                    )
+            except Exception:
+                pass  # Fallback auf JSON-Mode
+            finally:
+                duration = time.monotonic() - start
+                LLM_REQUEST_COUNT.labels(model=self.config.model, agent=agent_name).inc()
+                LLM_DURATION.labels(model=self.config.model, agent=agent_name).observe(duration)
 
         return self.complete_json(system_prompt, user_message)
 
