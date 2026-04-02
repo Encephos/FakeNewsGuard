@@ -33,6 +33,32 @@ const en = {
     profile: "Profile",
     newAnalysis: "New Analysis",
     backToArchive: "Back to Archive",
+    analytics: "Analytics",
+  },
+
+  // ── Analytics Dashboard ───────────────────────────────────────
+  analytics: {
+    title: "Analytics",
+    empty: "No analyses in the archive yet. Start your first analysis!",
+    period: {
+      "7d": "7 days",
+      "30d": "30 days",
+      "90d": "90 days",
+      all: "All",
+    },
+    kpi: {
+      total: "Total analyses",
+      avgConfidence: "Avg confidence",
+      topRating: "Top rating",
+      trend: "Trend",
+    },
+    timeline: { title: "Analysis Timeline" },
+    ratingTrend: { title: "Rating Distribution" },
+    topics: { title: "Top Topics" },
+    sources: { title: "Source Ranking", domain: "Domain", citations: "Citations", firstSeen: "First seen", lastSeen: "Last seen" },
+    platforms: { title: "Platforms" },
+    accuracy: { title: "Confidence Calibration", ideal: "Ideal", actual: "Actual" },
+    trend: { rising: "↑", stable: "→", declining: "↓" },
   },
 
   // ── Main page ─────────────────────────────────────────────────

@@ -25,6 +25,32 @@ const de = {
     profile: "Profil",
     newAnalysis: "Neue Analyse",
     backToArchive: "Zurück zum Archiv",
+    analytics: "Analytics",
+  },
+
+  // ── Analytics Dashboard ───────────────────────────────────────
+  analytics: {
+    title: "Analytics",
+    empty: "Noch keine Analysen im Archiv. Starte deine erste Analyse!",
+    period: {
+      "7d": "7 Tage",
+      "30d": "30 Tage",
+      "90d": "90 Tage",
+      all: "Alle",
+    },
+    kpi: {
+      total: "Analysen gesamt",
+      avgConfidence: "Ø Konfidenz",
+      topRating: "Häufigste Bewertung",
+      trend: "Trend",
+    },
+    timeline: { title: "Analyse-Verlauf" },
+    ratingTrend: { title: "Bewertungs-Entwicklung" },
+    topics: { title: "Top-Themen" },
+    sources: { title: "Quellen-Ranking", domain: "Domain", citations: "Zitierungen", firstSeen: "Erstmalig", lastSeen: "Zuletzt" },
+    platforms: { title: "Plattformen" },
+    accuracy: { title: "Konfidenz-Kalibrierung", ideal: "Ideal", actual: "Tatsächlich" },
+    trend: { rising: "↑", stable: "→", declining: "↓" },
   },
 
   // ── Main page ─────────────────────────────────────────────────

@@ -94,6 +94,16 @@ export default function Header() {
                 >
                   {t("graph.title")}
                 </Link>
+                <Link
+                  href="/analytics"
+                  className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                    isActive("/analytics")
+                      ? "bg-surface-hover text-text-primary"
+                      : "text-text-tertiary hover:text-text-secondary hover:bg-surface-hover/50"
+                  }`}
+                >
+                  {t("nav.analytics")}
+                </Link>
                 {user?.admin && (
                   <Link
                     href="/admin"
