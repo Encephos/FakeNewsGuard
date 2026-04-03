@@ -291,6 +291,14 @@ class Orchestrator:
         checkable = self._select_top_claims(extraction)
 
         # ── Phase 1.5: Commander (PRO/MAX) ────────────────────────────────────
+        # Pre-Routing: route_confidence für Difficulty-Berechnung annotieren.
+        # ClaimRouter cached intern – kein Mehraufwand bei späterer Routing-Phase.
+        if self.commander:
+            for claim in checkable:
+                route_result, _ = self._router.route_and_apply(claim)
+                if hasattr(claim, "route_confidence"):
+                    claim.route_confidence = route_result.confidence
+
         commander_packs: dict[str, Any] = {}
         if self.commander:
             self._step("commander", "\n🎖 PHASE 1.5: Commander – Iterative Suchverfeinerung")
@@ -428,6 +436,14 @@ class Orchestrator:
         checkable = self._select_top_claims(extraction)
 
         # ── Phase 1.5: Commander (PRO/MAX) ────────────────────────────────────
+        # Pre-Routing: route_confidence für Difficulty-Berechnung annotieren.
+        # ClaimRouter cached intern – kein Mehraufwand bei späterer Routing-Phase.
+        if self.commander:
+            for claim in checkable:
+                route_result, _ = self._router.route_and_apply(claim)
+                if hasattr(claim, "route_confidence"):
+                    claim.route_confidence = route_result.confidence
+
         commander_packs: dict[str, Any] = {}
         if self.commander:
             self._step("commander", "\n🎖 PHASE 1.5: Commander – Iterative Suchverfeinerung")

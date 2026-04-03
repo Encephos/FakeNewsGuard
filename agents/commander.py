@@ -20,6 +20,7 @@ from agents.prompts.commander_prompts import (
     COMMANDER_INITIAL_QUERY_PROMPT,
     COMMANDER_SUFFICIENCY_REVIEW_PROMPT,
 )
+from config.commander import CommanderConfig
 from models.commander_models import (
     CommanderClaimReview,
     CommanderResult,
@@ -64,6 +65,29 @@ class CommanderAgent(BaseAgent):
         accumulated_packs: dict[str, EvidencePack] = {}
         all_queries_per_claim: dict[str, list[str]] = {c.id: [] for c in claims}
 
+        # ── NEU: Per-Claim Difficulty + Budget ────────────────────────────────
+        claim_budgets: dict[str, tuple[int, int]] = {}
+        claim_difficulties: dict[str, float] = {}
+
+        for claim in claims:
+            rc = getattr(claim, "route_confidence", 0.50)
+            diff = compute_claim_difficulty(claim, route_confidence=rc)
+            claim_difficulties[claim.id] = diff
+            if cfg.adaptive_budget:
+                claim_budgets[claim.id] = difficulty_to_budget(diff, cfg)
+            else:
+                claim_budgets[claim.id] = (cfg.max_prompts_cap, cfg.max_total_queries_per_claim)
+
+        overall_max_prompts = max(b[0] for b in claim_budgets.values())
+
+        self._log(
+            "Adaptive Budgets: "
+            + ", ".join(
+                f"{cid[:8]}→diff={claim_difficulties[cid]:.2f}/prompts={claim_budgets[cid][0]}"
+                for cid in sorted(claim_budgets)
+            )
+        )
+
         # ── Prompt 1: Initiale Suchanfragen generieren ───────────────────────
         self._log("Prompt 1: Initiale Suchanfragen generieren")
         initial_queries = await self._generate_initial_queries(claims, article_text)
@@ -89,11 +113,26 @@ class CommanderAgent(BaseAgent):
             initial_queries, evidence_builder, claims,
         )
 
-        # ── Sufficiency-Loop (Prompt 2 bis max_prompts) ──────────────────────
+        # ── Sufficiency-Loop (Prompt 2 bis overall_max_prompts) ─────────────
         pending_claims = list(claims)  # Claims die noch nicht sufficient sind
 
-        while prompt_count < cfg.max_prompts and pending_claims:
-            # Mindestens min_prompts ausführen, danach nur wenn nötig
+        while prompt_count < overall_max_prompts and pending_claims:
+            # Claims deren individuelles Budget bereits erschöpft ist, vorher entfernen
+            budget_exhausted_ids: set[str] = set()
+            for claim in pending_claims[:]:
+                prompt_budget, _ = claim_budgets.get(claim.id, (cfg.max_prompts_cap, 12))
+                if prompt_count >= prompt_budget:
+                    budget_exhausted_ids.add(claim.id)
+                    self._log(
+                        f"  {claim.id[:8]} Budget erschöpft vor Review "
+                        f"(difficulty={claim_difficulties.get(claim.id, '?')}, "
+                        f"budget={prompt_budget}, used={prompt_count})"
+                    )
+                    pending_claims.remove(claim)
+
+            if not pending_claims:
+                break
+
             self._log(f"Prompt {prompt_count + 1}: Sufficiency-Review für {len(pending_claims)} Claims")
 
             review = await self._evaluate_sufficiency(
@@ -118,10 +157,11 @@ class CommanderAgent(BaseAgent):
                     if combined:
                         # Begrenzen auf max_queries_per_claim_per_round
                         combined = combined[:cfg.max_queries_per_claim_per_round]
-                        # Gesamtlimit prüfen
+                        # Individuelles Query-Budget prüfen
+                        _, query_budget = claim_budgets.get(claim_id, (cfg.max_prompts_cap, 12))
                         existing_count = len(all_queries_per_claim.get(claim_id, []))
-                        remaining_budget = cfg.max_total_queries_per_claim - existing_count
-                        combined = combined[:max(0, remaining_budget)]
+                        remaining = query_budget - existing_count
+                        combined = combined[:max(0, remaining)]
                         if combined:
                             new_queries[claim_id] = combined
                             all_queries_per_claim.setdefault(claim_id, []).extend(combined)
@@ -137,6 +177,7 @@ class CommanderAgent(BaseAgent):
                 claims_sufficient=len(sufficient_ids),
                 claims_needing_more=len(new_queries),
                 new_queries_generated=sum(len(qs) for qs in new_queries.values()),
+                claims_budget_exhausted=len(budget_exhausted_ids),
             ))
 
             # Wenn keine neuen Queries oder keine pending Claims → fertig
@@ -172,6 +213,8 @@ class CommanderAgent(BaseAgent):
             rounds_completed=prompt_count,
             total_prompts_used=prompt_count,
             round_logs=round_logs,
+            claim_difficulties=claim_difficulties,
+            claim_budgets={cid: b[0] for cid, b in claim_budgets.items()},
         )
 
     # ── Interne Methoden ─────────────────────────────────────────────────────
@@ -359,6 +402,84 @@ class CommanderAgent(BaseAgent):
 
 
 # ── Hilfsfunktionen ──────────────────────────────────────────────────────────
+
+
+def compute_claim_difficulty(
+    claim: Any,
+    route_confidence: float = 0.50,
+) -> float:
+    """Berechnet einen Schwierigkeits-Score [0.0, 1.0] aus vorhandenen Claim-Metadaten.
+
+    Kein LLM-Aufruf – rein regelbasiert aus vorhandenen Metadaten.
+
+    Returns:
+        0.0 = trivial (klarer Fakt, volle Struktur, gute Quellenlage)
+        1.0 = extrem schwierig (ambig, vage, keine Quellen, extraordinary)
+    """
+    score = 0.0
+
+    # ── 1. Ambiguität (Gewicht: 0.20) ────────────────────────────────────────
+    ambiguity_weights = {"NONE": 0.0, "LOW": 0.3, "MEDIUM": 0.7, "HIGH": 1.0}
+    amb_level = getattr(claim, "ambiguity_level", "NONE")
+    amb_str = amb_level.value if hasattr(amb_level, "value") else str(amb_level)
+    score += ambiguity_weights.get(amb_str, 0.5) * 0.20
+
+    if getattr(claim, "requires_more_context", False):
+        score += 0.05
+
+    # ── 2. Checkworthiness (Gewicht: 0.15) ───────────────────────────────────
+    # Niedrige Checkworthiness = schwerer zu prüfen
+    cw = getattr(claim, "checkworthiness_score", 0.5)
+    score += (1.0 - cw) * 0.15
+
+    # ── 3. Claim-Qualität / Falsifizierbarkeit (Gewicht: 0.20) ───────────────
+    quality = getattr(claim, "claim_quality_score", 0.5)
+    score += (1.0 - quality) * 0.20
+
+    # ── 4. Quality Signals (Gewicht: 0.15) ───────────────────────────────────
+    hard_signals = {
+        "extraordinary_claim", "elevated_burden_of_proof",
+        "missing_artifact_evidence", "underspecified_actor",
+    }
+    signals = set(getattr(claim, "quality_signals", []))
+    signal_hits = len(signals & hard_signals)
+    score += min(1.0, signal_hits / 2.0) * 0.15
+
+    # ── 5. Frame-Vollständigkeit (Gewicht: 0.15) ─────────────────────────────
+    frame = getattr(claim, "frame", None)
+    if frame is None:
+        score += 0.15
+    else:
+        core_fields = ["subject", "predicate", "object", "institution"]
+        empty = sum(1 for f in core_fields if not getattr(frame, f, None))
+        score += (empty / len(core_fields)) * 0.15
+
+    # ── 6. Route Confidence (Gewicht: 0.15) ──────────────────────────────────
+    # Niedrige Route-Confidence = schwerer Quellen zu finden
+    score += (1.0 - route_confidence) * 0.15
+
+    return round(min(1.0, max(0.0, score)), 2)
+
+
+def difficulty_to_budget(
+    difficulty: float,
+    cfg: CommanderConfig,
+) -> tuple[int, int]:
+    """Mappt Difficulty-Score auf (prompt_budget, query_budget) pro Claim.
+
+    Schwellwerte und Budgets kommen aus CommanderConfig.
+
+    Returns:
+        (prompt_budget, query_budget)
+    """
+    if difficulty < 0.25:
+        return (cfg.easy_max_prompts, cfg.easy_max_queries)
+    elif difficulty < 0.50:
+        return (cfg.moderate_max_prompts, cfg.moderate_max_queries)
+    elif difficulty < 0.75:
+        return (cfg.hard_max_prompts, cfg.hard_max_queries)
+    else:
+        return (cfg.very_hard_max_prompts, cfg.very_hard_max_queries)
 
 
 def _parse_new_queries(data: Any) -> dict[str, list[str]]:
