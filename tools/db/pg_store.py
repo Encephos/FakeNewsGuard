@@ -423,11 +423,32 @@ class PgAnalysisArchive:
     Identische öffentliche Schnittstelle wie tools/archive.AnalysisArchive.
     """
 
+    _placeholder = "%s"
+
     def __init__(self, pg_cfg: PostgreSQLConfig, archive_cfg: ArchiveConfig) -> None:
         self._cfg = pg_cfg
         self._archive_cfg = archive_cfg
         if archive_cfg.enabled:
             self._init_db()
+
+    @property
+    def config(self) -> ArchiveConfig:
+        return self._archive_cfg
+
+    @contextmanager
+    def _connect(self):
+        """Drop-in equivalent of AnalysisArchive._connect() with dict-row support."""
+        from psycopg.rows import dict_row
+        conn = _get_conn(self._cfg)
+        conn.row_factory = dict_row
+        try:
+            yield conn
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
 
     def _init_db(self) -> None:
         with _pg(self._cfg) as conn:
@@ -827,6 +848,26 @@ class PgCrossReferenceGraph:
             )
             rows = cur.fetchall()
 
+        return [
+            GraphEdge(
+                source_id=r[0], target_id=r[1], relation=r[2],
+                properties=r[3] if isinstance(r[3], dict) else json.loads(r[3]),
+            )
+            for r in rows
+        ]
+
+    def get_edges_between(self, node_ids: list[str]) -> list:
+        """Kanten zwischen einer Menge von Knoten (beide Endpunkte in node_ids)."""
+        from tools.cross_reference import GraphEdge
+        if not node_ids:
+            return []
+        with self._conn() as conn:
+            cur = conn.execute(
+                "SELECT source_id, target_id, relation, properties "
+                "FROM graph_edges WHERE source_id = ANY(%s) AND target_id = ANY(%s)",
+                (node_ids, node_ids),
+            )
+            rows = cur.fetchall()
         return [
             GraphEdge(
                 source_id=r[0], target_id=r[1], relation=r[2],

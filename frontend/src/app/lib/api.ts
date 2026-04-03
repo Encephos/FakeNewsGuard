@@ -300,11 +300,13 @@ export async function fetchGraphSearch(
   type?: string,
   q?: string,
   limit = 50,
+  includeEdges = false,
 ): Promise<GraphSearchResult> {
   const params = new URLSearchParams();
   if (type) params.set("type", type);
   if (q) params.set("q", q);
   params.set("limit", String(limit));
+  if (includeEdges) params.set("include_edges", "true");
   const res = await fetch(`${BASE_URL}/graph/search?${params}`);
   if (!res.ok) throw new Error(`Graph search error: ${res.status}`);
   return res.json();

@@ -143,4 +143,5 @@ export interface GraphNodeDetail {
 
 export interface GraphSearchResult {
   nodes: GraphNode[];
+  edges?: GraphEdge[];
 }

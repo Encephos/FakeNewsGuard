@@ -109,18 +109,10 @@ export default function NetworkPage() {
   const loadGraph = useCallback(async (search = "", type = "") => {
     setIsSearching(true);
     try {
-      const result = await fetchGraphSearch(type, search, 200);
-      
-      // Also fetch edges for these nodes if it's the default view, or just map them
-      // Since fetchGraphSearch only returns nodes, we render them. For a more complete
-      // initial graph, we'd need an endpoint that returns nodes AND edges. 
-      // This is a simplified view of nodes.
+      const result = await fetchGraphSearch(type, search, 200, true);
       const nodes = result.nodes.map(n => ({ ...n, val: NODE_SIZES[n.type] || 4 }));
-      
-      // If we have selected a node, we might want to keep its specific edges,
-      // but if doing a broad search, we will only show nodes as a scatter plot unless
-      // we fetch random edges. For now we will just show the nodes.
-      setGraphData({ nodes, links: [] });
+      const links = (result.edges ?? []).map(e => ({ source: e.source, target: e.target, relation: e.relation }));
+      setGraphData({ nodes, links });
       setSelectedNode(null);
     } catch (err) {
       console.error("Failed to fetch graph data:", err);
@@ -265,6 +257,8 @@ export default function NetworkPage() {
             width={dimensions.width}
             height={dimensions.height}
             graphData={graphData}
+            warmupTicks={100}
+            cooldownTicks={200}
             nodeLabel="label"
             nodeColor={(node: any) => 
                node.id === selectedNode?.node.id ? "#ffffff" : (NODE_COLORS[node.type] || "#888")

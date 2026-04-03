@@ -42,16 +42,25 @@ async def graph_search(
     type: str | None = None,
     q: str | None = None,
     limit: int = 50,
+    include_edges: bool = False,
 ) -> dict:
     """Suche im Graphen nach Knoten."""
     graph = get_graph()
     nodes = graph.find_nodes(node_type=type, label_search=q, limit=limit)
-    return {
+    result: dict = {
         "nodes": [
             {"id": n.id, "type": n.type, "label": n.label, "properties": n.properties}
             for n in nodes
         ],
     }
+    if include_edges:
+        node_ids = [n.id for n in nodes]
+        edges = graph.get_edges_between(node_ids)
+        result["edges"] = [
+            {"source": e.source_id, "target": e.target_id, "relation": e.relation}
+            for e in edges
+        ]
+    return result
 
 
 @router.get("/graph/node/{node_id:path}")
