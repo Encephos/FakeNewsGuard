@@ -45,6 +45,7 @@ class CommanderRoundLog(BaseModel):
     claims_sufficient: int = 0
     claims_needing_more: int = 0
     new_queries_generated: int = 0
+    claims_budget_exhausted: int = 0
 
 
 class CommanderResult(BaseModel):
@@ -56,3 +57,11 @@ class CommanderResult(BaseModel):
     rounds_completed: int = 0
     total_prompts_used: int = 0
     round_logs: list[CommanderRoundLog] = Field(default_factory=list)
+    claim_difficulties: dict[str, float] = Field(
+        default_factory=dict,
+        description="claim_id → difficulty score [0.0–1.0]",
+    )
+    claim_budgets: dict[str, int] = Field(
+        default_factory=dict,
+        description="claim_id → zugewiesenes Prompt-Budget",
+    )

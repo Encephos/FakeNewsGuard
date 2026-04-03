@@ -227,6 +227,12 @@ class ProcessedClaim(Claim):
             "'underspecified_actor', 'extraordinary_claim', 'elevated_burden_of_proof'."
         ),
     )
+    route_confidence: float = Field(
+        default=0.50,
+        ge=0.0,
+        le=1.0,
+        description="Confidence des ClaimRouters für diesen Claim [0.0–1.0]",
+    )
 
 
 class ClaimProcessingResult(BaseModel):
