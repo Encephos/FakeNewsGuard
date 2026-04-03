@@ -216,6 +216,168 @@ def format_result(result: dict[str, Any]) -> str:
     return "\n".join(parts)
 
 
+# ── Compact Overview (for inline-keyboard flow) ─────────────────
+
+def format_result_overview(result: dict[str, Any]) -> str:
+    """Compact result overview – shown with inline keyboard buttons."""
+    parts: list[str] = []
+
+    rating = result.get("overall_rating", "?")
+    confidence = result.get("confidence", 0)
+    emoji = rating_emoji(rating)
+
+    # Hero Header
+    parts.append(f"{emoji}  {bold(rating.upper())}")
+    parts.append(confidence_bar(confidence))
+    parts.append("")
+
+    # Summary
+    summary = result.get("summary", "")
+    if summary:
+        parts.append(f"\U0001F4DD {bold('Zusammenfassung')}")
+        parts.append(escape_md(summary))
+        parts.append("")
+
+    # Claims – compact, one line each
+    claims = result.get("claims", [])
+    if claims:
+        parts.append(divider())
+        parts.append(f"\U0001F50D {bold('Behauptungen')}  _{escape_md(f'({len(claims)})')}_")
+        parts.append("")
+        for i, claim in enumerate(claims, 1):
+            r = claim.get("rating", "")
+            re_ = fact_rating_emoji(r)
+            label = fact_rating_label(r)
+            text = claim.get("text", "")
+            if len(text) > 80:
+                text = text[:77] + "..."
+            parts.append(f"{re_} *{escape_md(f'#{i}')}*  {escape_md(text)}")
+            parts.append(f"    \u2192 {italic(label)}")
+        parts.append("")
+        parts.append(f"_{escape_md('Details per Button abrufbar \u2193')}_")
+
+    # Footer
+    parts.append("")
+    parts.append(escape_md("_____"))
+    parts.append(f"_{escape_md('FakeNewsGuard \u00B7 KI-Faktencheck')}_")
+
+    return "\n".join(parts)
+
+
+def format_claim_detail(claim: dict[str, Any], index: int) -> str:
+    """Full detail view for a single claim."""
+    parts: list[str] = []
+
+    r = claim.get("rating", "")
+    re_ = fact_rating_emoji(r)
+    label = fact_rating_label(r)
+
+    parts.append(f"{re_} {bold(f'Behauptung #{index + 1}')}")
+    parts.append(f"{escape_md(claim.get('text', ''))}")
+    parts.append(f"\u2192 {italic(label)}")
+    parts.append("")
+
+    evidence = claim.get("evidence", "")
+    if evidence:
+        parts.append(f"\U0001F4CB {bold('Evidenz')}")
+        parts.append(f"{escape_md(evidence)}")
+        parts.append("")
+
+    correction = claim.get("correction", "")
+    if correction:
+        parts.append(f"\u26A0\uFE0F {bold('Korrektur')}")
+        parts.append(f"{escape_md(correction)}")
+        parts.append("")
+
+    missing = claim.get("missing_context", "")
+    if missing:
+        parts.append(f"\U0001F4AC {bold('Fehlender Kontext')}")
+        parts.append(f"{escape_md(missing)}")
+        parts.append("")
+
+    na = claim.get("number_audit")
+    if na and na.get("manipulation", "NONE") != "NONE":
+        parts.append(f"\U0001F4CA {bold('Zahlenmanipulation')}")
+        parts.append(f"{escape_md(na.get('manipulation', ''))}")
+        if na.get("calculation"):
+            parts.append(f"{escape_md(na['calculation'])}")
+        if na.get("correct_value"):
+            parts.append(f"\u2192 {escape_md(na['correct_value'])}")
+        parts.append("")
+
+    sources = claim.get("sources", [])
+    if sources:
+        parts.append(f"\U0001F517 {bold('Quellen')}")
+        for src in sources[:5]:
+            if src.startswith("http"):
+                domain = re.sub(r"^https?://(?:www\.)?", "", src).split("/")[0]
+                parts.append(f"  \u2023 {link(domain, src)}")
+            else:
+                parts.append(f"  \u2023 {escape_md(src)}")
+
+    return "\n".join(parts)
+
+
+def format_rhetoric_section(rhetoric: list[dict[str, Any]]) -> str:
+    """Full rhetoric/manipulation techniques section."""
+    parts: list[str] = []
+    parts.append(f"\U0001F3AD {bold('Manipulationstechniken')}  _{escape_md(f'({len(rhetoric)})')}_")
+    parts.append("")
+    for tech in rhetoric:
+        sev = tech.get("severity", "")
+        sev_e = severity_emoji(sev)
+        sev_l = severity_label(sev)
+        parts.append(f"{sev_e} {bold(tech.get('name', ''))}  \u00B7  {italic(sev_l)}")
+        if tech.get("description"):
+            parts.append(f"    {escape_md(tech['description'])}")
+        if tech.get("example"):
+            parts.append(f"    \u00AB{escape_md(tech['example'])}\u00BB")
+        parts.append("")
+    return "\n".join(parts)
+
+
+def format_sources_section(sources: list[str]) -> str:
+    """Full sources section."""
+    parts: list[str] = []
+    parts.append(f"\U0001F517 {bold('Quellen')}")
+    parts.append("")
+    for src in sources[:12]:
+        if src.startswith("http"):
+            domain = re.sub(r"^https?://(?:www\.)?", "", src).split("/")[0]
+            parts.append(f"  \u2023 {link(domain, src)}")
+        else:
+            parts.append(f"  \u2023 {escape_md(src)}")
+    return "\n".join(parts)
+
+
+def format_corrections_section(corrections: list[str]) -> str:
+    """Full corrections section."""
+    parts: list[str] = []
+    parts.append(f"\u270F\uFE0F {bold('Korrekturen')}")
+    parts.append("")
+    for i, corr in enumerate(corrections, 1):
+        parts.append(f"  {escape_md(str(i))}\\. {escape_md(corr)}")
+    return "\n".join(parts)
+
+
+def format_fairness_section(fairness: list[str]) -> str:
+    """Full fairness section."""
+    parts: list[str] = []
+    parts.append(f"\u2705 {bold('Was korrekt war')}")
+    parts.append("")
+    for note in fairness:
+        parts.append(f"  \u2022 {escape_md(note)}")
+    return "\n".join(parts)
+
+
+def format_tier_selection() -> str:
+    """Short prompt for tier selection keyboard."""
+    return (
+        f"\U0001F9E0 {bold('Analyse-Stufe wählen')}\n\n"
+        f"{escape_md('Wähle die gewünschte Analyse-Tiefe:')}"
+    )
+
+
 # ── Progress Display ─────────────────────────────────────────────
 
 _PHASES = [
