@@ -51,6 +51,22 @@ _LOCALIZED_TO_ENUM: dict[str, str] = {
 }
 
 
+def _confidence_to_p_reliable(rating_str: str, confidence_pct: int) -> float:
+    """Wandelt (Rating, Konfidenz) in P(reliable) für Brier-Score um.
+
+    Confidence bedeutet "wie sicher bin ich in mein Rating", nicht P(reliable).
+    Bei negativen Ratings muss die Konfidenz invertiert werden.
+    """
+    score = RATING_SCORE.get(_normalize_rating(rating_str), 3)
+    conf = (confidence_pct or 0) / 100
+    if score >= 4:    # RELIABLE, MOSTLY_RELIABLE
+        return conf
+    elif score <= 2:  # MISLEADING, HIGHLY_MISLEADING, FABRICATED
+        return 1.0 - conf
+    else:             # MIXED
+        return 0.5
+
+
 def _normalize_rating(raw: str | None, fallback: str = "MIXED") -> str:
     """Map a stored overall_rating value to its canonical enum key.
 
@@ -431,14 +447,17 @@ class AnalyticsEngine:
             for b in bands
         ]
 
-        # Simple Brier-score approximation: MSE between normalized confidence and
-        # binary "reliable" outcome (score >= 4 → 1, else → 0)
+        # Brier-score: MSE between P(reliable) and binary outcome.
+        # P(reliable) is derived from both rating AND confidence:
+        #   - RELIABLE/MOSTLY_RELIABLE: P(reliable) = confidence
+        #   - MISLEADING/HIGHLY_MISLEADING/FABRICATED: P(reliable) = 1 - confidence
+        #   - MIXED: P(reliable) = 0.5
         brier = 0.0
         if rows:
             for row in rows:
-                conf_norm = (row["confidence"] or 0) / 100
+                p_rel = _confidence_to_p_reliable(row["overall_rating"], row["confidence"] or 0)
                 outcome = 1.0 if RATING_SCORE.get(_normalize_rating(row["overall_rating"]), 0) >= 4 else 0.0
-                brier += (conf_norm - outcome) ** 2
+                brier += (p_rel - outcome) ** 2
             brier = round(brier / len(rows), 4)
 
         return {

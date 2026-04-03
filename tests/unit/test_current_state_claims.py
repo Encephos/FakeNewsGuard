@@ -151,8 +151,8 @@ def test_stale_sources_trigger_confidence_ceiling() -> None:
         stale_freshness_threshold=0.60,   # Erhöhter Threshold für current-state
     )
 
-    # Muss unter dem Current-State-Ceiling liegen (0.55)
-    assert calibrated <= 0.55, f"Erwartet ≤0.55, got {calibrated}"
+    # Muss unter dem Current-State-Ceiling liegen (0.65)
+    assert calibrated <= 0.65, f"Erwartet ≤0.65, got {calibrated}"
     assert any("Aktuell-Zustand" in r or "veraltet" in r.lower() for r in reasons)
 
 

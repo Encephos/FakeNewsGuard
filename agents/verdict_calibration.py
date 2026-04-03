@@ -644,6 +644,16 @@ def _calibrate_confidence(
             )
             confidence = min(confidence, _ceil)
 
+    # ── Anti-Stacking ────────────────────────────────────────────────────────
+    # Wenn ≥2 Ceilings gefeuert haben, darf die Confidence nicht unter den
+    # combined_ceiling_floor fallen – verhindert pathologisches Stacking.
+    n_ceilings = sum(1 for r in reasons if "Ceiling" in r)
+    if n_ceilings >= 2 and confidence < vcal.combined_ceiling_floor:
+        reasons.append(
+            f"Anti-Stacking ({n_ceilings} Ceilings) → Floor {vcal.combined_ceiling_floor}"
+        )
+        confidence = max(confidence, vcal.combined_ceiling_floor)
+
     # ── Penalties ─────────────────────────────────────────────────────────────
 
     # Penalty: zu wenige gute Quellen (Tier 1-3 oder Fact-Check)
@@ -690,6 +700,29 @@ def _calibrate_confidence(
             if confidence < floor:
                 reasons.append(f"AGREEING-Konsens + {rating.value} → Floor {floor}")
                 confidence = max(confidence, floor)
+
+    # Floor: Primärquelle + AGREEING-Konsens
+    if has_primary and quality and quality.source_consensus.value == "agreeing":
+        _floor = vcal.floor_primary_and_agreeing
+        if confidence < _floor:
+            reasons.append(f"Primärquelle + AGREEING → Floor {_floor}")
+            confidence = max(confidence, _floor)
+
+    # Floor: Direkter Fact-Check-Match
+    if has_fc and quality and quality.has_fact_check_direct_match:
+        _floor = vcal.floor_fact_check_direct_match
+        if confidence < _floor:
+            reasons.append(f"FC-Direct-Match → Floor {_floor}")
+            confidence = max(confidence, _floor)
+
+    # Floor: Mehrere High-Trust-Quellen + AGREEING
+    if (quality and quality.source_consensus.value == "agreeing"
+            and quality.direct_evidence_count >= 2
+            and quality.low_trust_rate < 0.2):
+        _floor = vcal.floor_multi_high_trust_agreeing
+        if confidence < _floor:
+            reasons.append(f"Multi-High-Trust + AGREEING → Floor {_floor}")
+            confidence = max(confidence, _floor)
 
     confidence = max(0.0, min(1.0, confidence))
     return confidence, reasons

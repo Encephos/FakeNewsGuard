@@ -152,10 +152,13 @@ class SynthesizerAgent(BaseAgent):
         if claim_confidences:
             avg_claim_conf = sum(claim_confidences) / len(claim_confidences)
             min_claim_conf = min(claim_confidences)
-            confidence = min(
-                raw_confidence,
-                avg_claim_conf * 0.7 + min_claim_conf * 0.3 + synth_cfg.claim_confidence_buffer * 0.5,
+            claim_aggregate = (
+                avg_claim_conf * 0.7
+                + min_claim_conf * 0.3
+                + synth_cfg.claim_confidence_buffer * 0.5
             )
+            w = synth_cfg.claim_confidence_blend_weight
+            confidence = raw_confidence * (1 - w) + claim_aggregate * w
         else:
             confidence = raw_confidence
 
