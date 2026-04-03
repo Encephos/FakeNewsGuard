@@ -15,7 +15,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Python-Dependencies installieren
 COPY requirements.txt requirements-media.txt ./
-RUN pip install --no-cache-dir -r requirements.txt -r requirements-media.txt
+RUN pip install --no-cache-dir -r requirements.txt -r requirements-media.txt \
+    && python -m spacy download de_core_news_lg
 
 # Anwendungscode kopieren
 COPY . .

@@ -96,7 +96,7 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: fakenewsguard-worker
-    command: celery -A worker.celery_app worker --loglevel=info --concurrency=4
+    command: python3 -m celery -A worker.celery_app worker --loglevel=info --concurrency=4
     env_file:
       - .env
     environment:
