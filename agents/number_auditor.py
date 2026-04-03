@@ -2,11 +2,16 @@
 
 from __future__ import annotations
 
+import importlib
+import logging
+import re
 from typing import Any
 
 from agents.base import BaseAgent
 from i18n import t
-from models.schemas import NUMBER_AUDIT_SCHEMA, Claim, ManipulationType, NumberAuditResult
+from models.schemas import NUMBER_AUDIT_SCHEMA, Claim, ClaimType, ManipulationType, NumberAuditResult
+from tools.claim_router import RouteResult
+from tools.sources.registry import SourceRegistry
 from tools.web_search import WebSearchClient
 
 SYSTEM_PROMPT = """\
@@ -63,13 +68,57 @@ statistische Aussagen auf Korrektheit und Manipulationstechniken.
 }
 """
 
+_PERCENT_CURRENCY_RE = re.compile(r"\d+\s*%|€|\$|£|EUR|USD")
+
 
 class NumberAuditorAgent(BaseAgent):
     name = "Number Auditor"
     emoji = "🔢"
 
+    def _parse_input(self, input_data: Any) -> tuple[Claim, RouteResult | None]:
+        """Akzeptiert Claim direkt oder dict mit 'claim' und optionalem 'route_result'."""
+        if isinstance(input_data, dict):
+            return input_data["claim"], input_data.get("route_result")
+        return input_data, None
+
+    def _compute_search_depth(self, claim: Claim, route_result: RouteResult | None) -> int:
+        """Berechnet die Suchtiefe anhand von Claim-Eigenschaften und Routing-Konfidenz."""
+        depth = 5
+        if claim.type == ClaimType.STATISTICAL:
+            depth += 3
+        if _PERCENT_CURRENCY_RE.search(claim.text):
+            depth += 2
+        if route_result is not None and route_result.confidence > 0.7:
+            depth += 2
+        return min(depth, 12)
+
+    def _fetch_institutional_context(self, claim: Claim, route_result: RouteResult) -> str:
+        """Fragt institutionelle Source-Clients ab und gibt formatierten Kontext-String zurück."""
+        parts: list[str] = []
+        for src_cfg in route_result.sources[:3]:
+            try:
+                reg = SourceRegistry.get(src_cfg.source_id)
+                if reg is None:
+                    continue
+                mod_path, cls_name = reg.source_class.rsplit(".", 1)
+                client_cls = getattr(importlib.import_module(mod_path), cls_name)
+                items = client_cls().search(claim.text, max_results=3)
+                for item in items:
+                    parts.append(
+                        f"[{reg.source_id}] {item.title}\n"
+                        f"URL: {item.url}\n"
+                        f"{item.abstract or ''}"
+                    )
+            except Exception as exc:
+                logging.warning(
+                    "NumberAuditor: Source-Client '%s' fehlgeschlagen: %s",
+                    src_cfg.source_id,
+                    exc,
+                )
+        return "\n\n".join(parts)
+
     def execute(self, input_data: Any, context: str = "") -> NumberAuditResult:
-        claim: Claim = input_data
+        claim, route_result = self._parse_input(input_data)
 
         cached = self._cache_get(claim.text, context)
         if cached is not None:
@@ -80,12 +129,19 @@ class NumberAuditorAgent(BaseAgent):
 
         suffix = t("agents.number_auditor.search_suffix")
         search_query = f"{claim.text} {suffix}"
-        search_results = self._web_search(search_query, max_results=3)
+        depth = self._compute_search_depth(claim, route_result)
+        search_results = self._web_search(search_query, max_results=depth)
+
+        if route_result is not None:
+            inst = self._fetch_institutional_context(claim, route_result)
+            if inst:
+                search_results += f"\n\n## Institutionelle Quellen\n\n{inst}"
+
         return self._audit_with_context(claim, search_results, context)
 
     async def execute_async(self, input_data: Any, context: str = "") -> NumberAuditResult:
         """Async-Version – Suche läuft non-blocking."""
-        claim: Claim = input_data
+        claim, route_result = self._parse_input(input_data)
 
         cached = self._cache_get(claim.text, context)
         if cached is not None:
@@ -96,8 +152,15 @@ class NumberAuditorAgent(BaseAgent):
 
         suffix = t("agents.number_auditor.search_suffix")
         search_query = f"{claim.text} {suffix}"
-        results = await self.async_search.search_async(search_query, max_results=3)
+        depth = self._compute_search_depth(claim, route_result)
+        results = await self.async_search.search_async(search_query, max_results=depth)
         search_results = WebSearchClient.format_results_for_llm(results)
+
+        if route_result is not None:
+            inst = self._fetch_institutional_context(claim, route_result)
+            if inst:
+                search_results += f"\n\n## Institutionelle Quellen\n\n{inst}"
+
         return self._audit_with_context(claim, search_results, context)
 
     def _audit_with_context(self, claim: Claim, search_results: str, context: str) -> NumberAuditResult:

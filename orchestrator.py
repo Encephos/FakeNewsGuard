@@ -377,7 +377,10 @@ class Orchestrator:
                 fc_context = ""
                 if fc_result is not None:
                     fc_context = f"Fact-Check: {fc_result.rating.value}\nEvidenz: {fc_result.evidence}"
-                na_result, na_error = self.number_auditor.run_safe(routed_claim, context=fc_context)
+                na_result, na_error = self.number_auditor.run_safe(
+                    {"claim": routed_claim, "route_result": route_result},
+                    context=fc_context,
+                )
                 if na_error:
                     self._log(f"  ⚠ Number-Audit fehlgeschlagen: {na_error}")
                     analysis_errors.append(na_error)
@@ -535,7 +538,10 @@ class Orchestrator:
                 fc_context = ""
                 if fc_result is not None:
                     fc_context = f"Fact-Check: {fc_result.rating.value}\nEvidenz: {fc_result.evidence}"
-                na_result, na_error = await self.number_auditor.run_safe_async(routed_claim, context=fc_context)
+                na_result, na_error = await self.number_auditor.run_safe_async(
+                    {"claim": routed_claim, "route_result": route_result},
+                    context=fc_context,
+                )
                 if na_error:
                     self._log(f"  ⚠ Number-Audit fehlgeschlagen: {na_error}")
                     errors.append(na_error)
