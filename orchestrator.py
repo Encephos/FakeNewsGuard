@@ -33,6 +33,7 @@ from models.schemas import (
     ClaimProcessingResult,
     ClaimType,
     FactCheckResult,
+    ImageAnalysisResult,
     NumberAuditResult,
     OverallRating,
     RhetoricAnalysisResult,
@@ -54,6 +55,32 @@ from tools.web_search import WebSearchClient
 class InputValidationError(ValueError):
     """Wird geworfen wenn der Input die Validierung nicht besteht."""
     pass
+
+
+def _format_image_analysis(result: ImageAnalysisResult) -> str:
+    """Konvertiert ImageAnalysisResult in lesbaren Text-Block fuer LLM-Kontext."""
+    parts: list[str] = []
+    for item in result.items:
+        idx = item.image_index + 1
+        parts.append(f"### Bild {idx}")
+        if item.ocr_text:
+            parts.append(f"**Sichtbarer Text:** {item.ocr_text}")
+        if item.visible_elements:
+            parts.append(f"**Erkannte Elemente:** {', '.join(item.visible_elements)}")
+        if item.manipulation_signs:
+            parts.append(f"**Manipulationsanzeichen:** {', '.join(item.manipulation_signs)}")
+        if item.emotional_framing:
+            parts.append(f"**Emotionales Framing:** {item.emotional_framing}")
+        if item.infographic_data:
+            parts.append(f"**Infografik-Daten:** {item.infographic_data}")
+        if item.context_clues:
+            parts.append(f"**Kontexthinweise:** {', '.join(item.context_clues)}")
+        parts.append("")
+    if result.cross_image_observations:
+        parts.append(f"**Zusammenspiel der Bilder:** {result.cross_image_observations}")
+    if result.overall_assessment:
+        parts.append(f"**Gesamteinschaetzung:** {result.overall_assessment}")
+    return "\n".join(parts).strip()
 
 
 def _should_run_number_auditor(claim: "Claim") -> bool:
@@ -237,11 +264,12 @@ class Orchestrator:
 
     # ── Synchrone Analyse ─────────────────────────────────────────────────────
 
-    def analyze(self, text: str) -> SynthesisResult:
+    def analyze(self, text: str, image_urls: list[str] | None = None) -> SynthesisResult:
         """Analysiere einen Text vollständig (synchron).
 
         Args:
             text: Der zu prüfende Text.
+            image_urls: Optionale Liste von Bild-URLs für die Bildanalyse.
 
         Returns:
             SynthesisResult mit Gesamtbewertung.
@@ -363,14 +391,31 @@ class Orchestrator:
             self._log(f"  ⚠ Rhetoric-Analyse fehlgeschlagen: {rhetoric_error}")
             analysis_errors.append(rhetoric_error)
 
+        # ── Phase 3.5: Bildanalyse (optional) ────────────────────────────────
+        image_analysis_result: ImageAnalysisResult | None = None
+        if image_urls:
+            self._step("image_analysis", "\n🖼 PHASE 3.5: Bildanalyse")
+            img_res, img_err = self.image_analyzer.run_safe(
+                {"image_urls": image_urls, "post_text": text[:500]}
+            )
+            if img_err:
+                self._log(f"  ⚠ Bildanalyse fehlgeschlagen: {img_err}")
+                analysis_errors.append(img_err)
+            else:
+                image_analysis_result = img_res
+
         # ── Phase 4: Synthese ─────────────────────────────────────────────────
         self._step("synthesis", "\n📊 PHASE 4: Synthese")
-        synthesis_input = {
+        synthesis_input: dict[str, Any] = {
             "original_text": text,
             "fact_checks": fact_checks,
             "number_audits": number_audits,
             "rhetoric": rhetoric_result,
         }
+        if image_analysis_result is not None:
+            synthesis_input["image_analysis"] = _format_image_analysis(image_analysis_result)
+            synthesis_input["image_analysis_result"] = image_analysis_result
+
         result = self.synthesizer.run(synthesis_input)
         result.analysis_id = self._analysis_id
         if analysis_errors:
@@ -386,11 +431,11 @@ class Orchestrator:
 
     # ── Asynchrone Analyse ────────────────────────────────────────────────────
 
-    async def analyze_async(self, text: str) -> SynthesisResult:
-        """Async-Version von analyze() – Phase 2+3 laufen parallel.
+    async def analyze_async(self, text: str, image_urls: list[str] | None = None) -> SynthesisResult:
+        """Async-Version von analyze() – Phase 2+3 (+optional Bildanalyse) laufen parallel.
 
         Claim Processing (Phase 1) und Synthese (Phase 4) laufen sequenziell.
-        Phase 2 (alle Claims) + Phase 3 (Rhetoric) laufen parallel.
+        Phase 2 (alle Claims) + Phase 3 (Rhetoric) + Phase 3.5 (Bildanalyse) laufen parallel.
 
         Raises:
             InputValidationError: Bei leerem Input.
@@ -499,13 +544,22 @@ class Orchestrator:
         tasks = [check_claim(c) for c in checkable]
         tasks.append(self.rhetoric_analyzer.run_safe_async(text))  # type: ignore[arg-type]
 
+        image_task_included = bool(image_urls)
+        if image_task_included:
+            tasks.append(  # type: ignore[arg-type]
+                self.image_analyzer.run_safe_async(
+                    {"image_urls": image_urls, "post_text": text[:500]}
+                )
+            )
+
         raw_results = await asyncio.gather(*tasks, return_exceptions=False)
 
         fact_checks: list[FactCheckResult] = []
         number_audits: list[NumberAuditResult] = []
         rhetoric_result = None
+        n_claims = len(checkable)
 
-        for claim_result in raw_results[:-1]:
+        for claim_result in raw_results[:n_claims]:
             fc, na, errs = claim_result  # type: ignore[misc]
             if fc is not None:
                 fact_checks.append(fc)
@@ -513,19 +567,32 @@ class Orchestrator:
                 number_audits.append(na)
             analysis_errors.extend(errs)
 
-        rhetoric_result, rhetoric_error = raw_results[-1]  # type: ignore[misc]
+        rhetoric_result, rhetoric_error = raw_results[n_claims]  # type: ignore[misc]
         if rhetoric_error:
             self._log(f"  ⚠ Rhetoric-Analyse fehlgeschlagen: {rhetoric_error}")
             analysis_errors.append(rhetoric_error)
 
+        image_analysis_result: ImageAnalysisResult | None = None
+        if image_task_included:
+            img_res, img_err = raw_results[n_claims + 1]  # type: ignore[misc]
+            if img_err:
+                self._log(f"  ⚠ Bildanalyse fehlgeschlagen: {img_err}")
+                analysis_errors.append(img_err)
+            else:
+                image_analysis_result = img_res
+
         # ── Phase 4: Synthese ─────────────────────────────────────────────────
         self._step("synthesis", "\n📊 PHASE 4: Synthese")
-        synthesis_input = {
+        synthesis_input: dict[str, Any] = {
             "original_text": text,
             "fact_checks": fact_checks,
             "number_audits": number_audits,
             "rhetoric": rhetoric_result,
         }
+        if image_analysis_result is not None:
+            synthesis_input["image_analysis"] = _format_image_analysis(image_analysis_result)
+            synthesis_input["image_analysis_result"] = image_analysis_result
+
         result = self.synthesizer.run(synthesis_input)
         result.analysis_id = self._analysis_id
         if analysis_errors:
