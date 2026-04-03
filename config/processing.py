@@ -222,6 +222,7 @@ class EvidenceRetrievalConfig:
         PRE_SCRAPE_OFFTOPIC_PENALTY   – Mindest-Penalty damit Kandidat vor Scraping entfernt wird (Default: 0.70)
         CLAIM_SCOPE_MIN_DIRECT        – Min. claim_scope_score für direct evidence (Default: 0.60)
         CURRENT_STATE_TIME_RANGE      – SearXNG time_range für Aktuell-Zustand-Claims (Default: month)
+        SEMANTIC_DEDUP_THRESHOLD      – Trigram-Jaccard-Schwelle für Mirror-Domain-Dedup (Default: 0.65)
 
     Env-Vars (optionales Tavily-Plugin, nur bei TavilyConfig.enabled=True wirksam):
         TAVILY_PRIMARY_QUERIES        – Tavily-Queries in Primärrunde (Default: 1)
@@ -244,6 +245,7 @@ class EvidenceRetrievalConfig:
     weak_evidence_threshold: float = 0.25
     low_trust_confidence_penalty: float = 0.20
     pre_scrape_offtopic_penalty: float = 0.70
+    semantic_dedup_threshold: float = 0.65
     # ── Evidence-Typing ───────────────────────────────────────────────────────
     claim_scope_min_direct: float = 0.60
     # ── Freshness / Recency ───────────────────────────────────────────────────
@@ -310,6 +312,8 @@ class EvidenceRetrievalConfig:
             self.pre_scrape_offtopic_penalty = float(v)
         if v := os.getenv("CLAIM_SCOPE_MIN_DIRECT", ""):
             self.claim_scope_min_direct = float(v)
+        if v := os.getenv("SEMANTIC_DEDUP_THRESHOLD", ""):
+            self.semantic_dedup_threshold = float(v)
         if v := os.getenv("CURRENT_STATE_TIME_RANGE", ""):
             self.current_state_time_range = v
         if v := os.getenv("ITERATIVE_SEARCH_ENABLED", ""):

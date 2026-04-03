@@ -125,16 +125,67 @@ _META_DISINFO_PATTERN: re.Pattern[str] = re.compile(
 
 # ── Deduplication ─────────────────────────────────────────────────────────────
 
-def _dedup_results(results: list[SearchResult]) -> list[SearchResult]:
-    """Dedupliziere Suchergebnisse nach URL."""
+def _text_trigrams(text: str) -> set[str]:
+    """Word-level trigrams for Jaccard similarity. Lowercased, non-word chars removed."""
+    words = re.sub(r'\W+', ' ', text.lower()).split()
+    return {' '.join(words[i:i+3]) for i in range(max(0, len(words) - 2))}
+
+
+def _jaccard_similarity(a: set[str], b: set[str]) -> float:
+    if not a or not b:
+        return 0.0
+    return len(a & b) / len(a | b)
+
+
+def _dedup_results(
+    results: list[SearchResult],
+    semantic_threshold: float = 0.65,
+) -> list[SearchResult]:
+    """Dedupliziere Suchergebnisse.
+
+    Stufe 1 – URL: exakte Normalisierung (trailing slash, lowercase).
+              Erstes Vorkommen gewinnt → LangSearch hat Priorität.
+    Stufe 2 – Semantisch: Trigram-Jaccard auf snippet/content.
+              Bei Duplikat: niedrigerer domain_tier gewinnt (1=best).
+              Bei Gleichstand: erstes Vorkommen gewinnt.
+    """
+    # ── Stage 1: URL dedup ────────────────────────────────────────────────
     seen: set[str] = set()
-    unique: list[SearchResult] = []
+    url_unique: list[SearchResult] = []
     for r in results:
         norm_url = r.url.rstrip("/").lower()
         if norm_url not in seen:
             seen.add(norm_url)
-            unique.append(r)
-    return unique
+            url_unique.append(r)
+
+    # ── Stage 2: Semantic dedup via trigram Jaccard ───────────────────────
+    if semantic_threshold <= 0.0:
+        return url_unique
+
+    kept: list[SearchResult] = []
+    kept_trigrams: list[set[str]] = []
+
+    for r in url_unique:
+        text = r.content or r.snippet  # prefer full text when available
+        r_trigrams = _text_trigrams(text)
+        dup_idx: int | None = None
+
+        for i, kt in enumerate(kept_trigrams):
+            if _jaccard_similarity(r_trigrams, kt) >= semantic_threshold:
+                dup_idx = i
+                break
+
+        if dup_idx is None:
+            kept.append(r)
+            kept_trigrams.append(r_trigrams)
+        else:
+            existing = kept[dup_idx]
+            if _domain_tier(r.url) < _domain_tier(existing.url):
+                kept[dup_idx] = r
+                kept_trigrams[dup_idx] = r_trigrams
+            # else: keep existing (order = LangSearch priority)
+
+    return kept
 
 
 def _extract_domain(url: str) -> str:

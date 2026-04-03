@@ -45,6 +45,76 @@ class TestDeduplication:
         assert unique[1].title == "Second"
 
 
+# ── Unit Tests: Semantic Deduplication ───────────────────────────────────────
+
+class TestSemanticDeduplication:
+    """Trigram-based semantic dedup of near-duplicate SearchResults."""
+
+    def _make_result(self, url: str, snippet: str) -> "SearchResult":
+        from tools.web_search import SearchResult
+        return SearchResult(title="T", url=url, snippet=snippet)
+
+    def test_near_duplicates_collapsed_to_best_tier(self):
+        from agents.evidence_scoring import _dedup_results
+        text = (
+            "Der Bundestag hat heute das neue Sicherheitsgesetz mit großer Mehrheit "
+            "verabschiedet und damit einen wichtigen Schritt in der Innenpolitik vollzogen."
+        )
+        results = [
+            self._make_result("https://random-blog.de/artikel", text),
+            self._make_result("https://www.reuters.com/article", text),
+            self._make_result("https://www.destatis.de/news", text),  # tier 1 wins
+        ]
+        unique = _dedup_results(results, semantic_threshold=0.65)
+        assert len(unique) == 1
+        assert "destatis.de" in unique[0].url
+
+    def test_distinct_content_not_deduped(self):
+        from agents.evidence_scoring import _dedup_results
+        results = [
+            self._make_result("https://a.com", "Inflation stieg im März auf 4,2 Prozent laut Statistikamt"),
+            self._make_result("https://b.com", "Bundestag beschloss neues Waffengesetz mit knapper Mehrheit"),
+        ]
+        unique = _dedup_results(results, semantic_threshold=0.65)
+        assert len(unique) == 2
+
+    def test_threshold_zero_disables_semantic_dedup(self):
+        from agents.evidence_scoring import _dedup_results
+        text = "gleicher text wird nicht dedupliziert wenn threshold auf null gesetzt ist hier"
+        results = [
+            self._make_result("https://a.com/x", text),
+            self._make_result("https://b.com/y", text),
+        ]
+        unique = _dedup_results(results, semantic_threshold=0.0)
+        assert len(unique) == 2
+
+    def test_text_trigrams_basic(self):
+        from agents.evidence_scoring import _text_trigrams
+        trigrams = _text_trigrams("the cat sat on mat")
+        assert "the cat sat" in trigrams
+        assert "cat sat on" in trigrams
+        assert "sat on mat" in trigrams
+        assert len(trigrams) == 3
+
+    def test_text_trigrams_short_text(self):
+        from agents.evidence_scoring import _text_trigrams
+        assert _text_trigrams("one two") == set()
+        assert _text_trigrams("") == set()
+
+    def test_jaccard_identical(self):
+        from agents.evidence_scoring import _jaccard_similarity
+        s = {"a b c", "b c d"}
+        assert _jaccard_similarity(s, s) == 1.0
+
+    def test_jaccard_disjoint(self):
+        from agents.evidence_scoring import _jaccard_similarity
+        assert _jaccard_similarity({"a b c"}, {"x y z"}) == 0.0
+
+    def test_jaccard_empty(self):
+        from agents.evidence_scoring import _jaccard_similarity
+        assert _jaccard_similarity(set(), {"a b c"}) == 0.0
+
+
 # ── Unit Tests: Domain Tier ───────────────────────────────────────────────────
 
 class TestDomainTier:
