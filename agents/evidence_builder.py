@@ -568,7 +568,7 @@ class EvidenceBuilderAgent(BaseAgent):
             source_clients_count = len(source_search_results)
             all_results.extend(source_search_results)
 
-        unique_results = _dedup_results(all_results)
+        unique_results = _dedup_results(all_results, retrieval_cfg.semantic_dedup_threshold)
 
         # ── Cross-Encoder Re-Ranking (Phase 2) ─────────────────────────────
         ce_scores: dict[str, float] = {}
@@ -641,7 +641,7 @@ class EvidenceBuilderAgent(BaseAgent):
                 )
                 fallback_results = await self._fallback_retrieval(claim, queries)
                 if fallback_results:
-                    unique_results = _dedup_results(all_results + fallback_results)
+                    unique_results = _dedup_results(all_results + fallback_results, retrieval_cfg.semantic_dedup_threshold)
                     if reranker_available():
                         ce_ranked = rerank(claim.text, unique_results, top_k=30)
                         ce_scores = {r.url: float(s) for r, s in ce_ranked}
@@ -709,7 +709,7 @@ class EvidenceBuilderAgent(BaseAgent):
                 for results_list in refinement_results.values():
                     fallback_results.extend(results_list)
 
-            unique_results = _dedup_results(all_results + fallback_results)
+            unique_results = _dedup_results(all_results + fallback_results, retrieval_cfg.semantic_dedup_threshold)
             # Re-rank mit Cross-Encoder (inkl. neue Ergebnisse)
             if reranker_available():
                 ce_ranked = rerank(claim.text, unique_results, top_k=30)
