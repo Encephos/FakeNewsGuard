@@ -33,6 +33,8 @@ def _input_hash(text: str = "", url: str = "") -> str:
 class AnalysisArchive:
     """Persistentes Archiv vergangener Faktencheck-Analysen."""
 
+    _placeholder = "?"
+
     def __init__(self, config: ArchiveConfig) -> None:
         self.config = config
         self._db_path = config.db_path
@@ -235,7 +237,7 @@ class AnalysisArchive:
                     input_short,
                     source_url,
                     platform,
-                    result.get("overall_rating", "?"),
+                    result.get("overall_rating_key") or result.get("overall_rating", "?"),
                     result.get("confidence", 0),
                     summary_text,
                     json.dumps(result, ensure_ascii=False),

@@ -4,11 +4,19 @@ import { useState } from "react";
 import { AnalysisResult, ClaimResult, CostSummary, FactRating, RhetoricTechnique } from "../lib/types";
 
 const OVERALL_STYLE: Record<string, { color: string; label: string }> = {
+  // Localized labels (legacy archive data)
   Wahr:                  { color: "text-success",  label: "Wahr" },
   "Größtenteils wahr":   { color: "text-success",  label: "Größtenteils wahr" },
   Irreführend:           { color: "text-warning",  label: "Irreführend" },
   "Größtenteils falsch": { color: "text-error",    label: "Größtenteils falsch" },
   Falsch:                { color: "text-error",    label: "Falsch" },
+  // Enum keys
+  RELIABLE:              { color: "text-success",  label: "Wahr" },
+  MOSTLY_RELIABLE:       { color: "text-success",  label: "Größtenteils wahr" },
+  MIXED:                 { color: "text-warning",  label: "Irreführend" },
+  MISLEADING:            { color: "text-warning",  label: "Irreführend" },
+  HIGHLY_MISLEADING:     { color: "text-error",    label: "Größtenteils falsch" },
+  FABRICATED:            { color: "text-error",    label: "Falsch" },
 };
 
 const CLAIM_STYLE: Record<FactRating, { color: string; border: string; label: string }> = {

@@ -234,6 +234,7 @@ def transform_result(result: Any, claims_map: dict[str, Any]) -> dict:
         "overall_rating": get_rating_map().get(
             result.overall_rating.value, t("api.ratings.MIXED")
         ),
+        "overall_rating_key": result.overall_rating.value,
         "confidence": round(result.confidence * 100),
         "summary": result.summary,
         "claims": frontend_claims,

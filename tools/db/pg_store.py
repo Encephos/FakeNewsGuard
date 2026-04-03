@@ -561,7 +561,7 @@ class PgAnalysisArchive:
                 """,
                 (
                     archive_id, time.time(), input_short, source_url, platform,
-                    result.get("overall_rating", "?"),
+                    result.get("overall_rating_key") or result.get("overall_rating", "?"),
                     result.get("confidence", 0),
                     summary_text,
                     json.dumps(result, ensure_ascii=False),

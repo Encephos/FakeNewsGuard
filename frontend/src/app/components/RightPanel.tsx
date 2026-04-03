@@ -3,11 +3,19 @@
 import { Step, AnalysisResult, FactRating, CostSummary } from "../lib/types";
 
 const OVERALL_COLOR: Record<string, string> = {
+  // Localized labels (legacy archive data)
   Wahr:                  "text-success",
   "Größtenteils wahr":   "text-success",
   Irreführend:           "text-warning",
   "Größtenteils falsch": "text-error",
   Falsch:                "text-error",
+  // Enum keys
+  RELIABLE:              "text-success",
+  MOSTLY_RELIABLE:       "text-success",
+  MIXED:                 "text-warning",
+  MISLEADING:            "text-warning",
+  HIGHLY_MISLEADING:     "text-error",
+  FABRICATED:            "text-error",
 };
 
 const RATING_GROUPS: { label: string; ratings: FactRating[]; dot: string }[] = [

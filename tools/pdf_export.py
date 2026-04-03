@@ -31,11 +31,19 @@ from reportlab.platypus import (
 # ── Farben ────────────────────────────────────────────────────────
 
 _RATING_COLORS: dict[str, colors.Color] = {
+    # Localized labels (legacy)
     "Wahr": colors.HexColor("#22c55e"),
     "Größtenteils wahr": colors.HexColor("#84cc16"),
     "Irreführend": colors.HexColor("#f59e0b"),
     "Größtenteils falsch": colors.HexColor("#ef4444"),
     "Falsch": colors.HexColor("#dc2626"),
+    # Enum keys
+    "RELIABLE": colors.HexColor("#22c55e"),
+    "MOSTLY_RELIABLE": colors.HexColor("#84cc16"),
+    "MIXED": colors.HexColor("#f59e0b"),
+    "MISLEADING": colors.HexColor("#f59e0b"),
+    "HIGHLY_MISLEADING": colors.HexColor("#ef4444"),
+    "FABRICATED": colors.HexColor("#dc2626"),
 }
 
 _CLAIM_RATING_COLORS: dict[str, colors.Color] = {

@@ -43,11 +43,19 @@ interface ArchiveStats {
 // ── Helpers ─────────────────────────────────────────────────────
 
 const RATING_STYLES: Record<string, { bg: string; text: string }> = {
+  // Localized labels (legacy archive data)
   Wahr:                  { bg: "bg-success/15", text: "text-success" },
   "Größtenteils wahr":   { bg: "bg-success/15", text: "text-success" },
   Irreführend:           { bg: "bg-warning/15", text: "text-warning" },
   "Größtenteils falsch": { bg: "bg-error/15",   text: "text-error" },
   Falsch:                { bg: "bg-error/15",   text: "text-error" },
+  // Enum keys
+  RELIABLE:              { bg: "bg-success/15", text: "text-success" },
+  MOSTLY_RELIABLE:       { bg: "bg-success/15", text: "text-success" },
+  MIXED:                 { bg: "bg-warning/15", text: "text-warning" },
+  MISLEADING:            { bg: "bg-warning/15", text: "text-warning" },
+  HIGHLY_MISLEADING:     { bg: "bg-error/15",   text: "text-error" },
+  FABRICATED:            { bg: "bg-error/15",   text: "text-error" },
 };
 
 const PLATFORM_ICONS: Record<string, string> = {
