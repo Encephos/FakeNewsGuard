@@ -378,3 +378,86 @@ class TestZeroUsefulEvidenceCeiling:
         pack.evidence_quality.direct_evidence_count = 0
         confidence, reasons = _calibrate_confidence(0.80, pack, None)
         assert not any("brauchbare Evidenz" in r for r in reasons)
+
+
+class TestConfidenceFloors:
+    """Confidence-Floors bei starker Evidenz."""
+
+    def test_floor_primary_and_agreeing(self):
+        """Primärquelle + AGREEING-Konsens → Floor 0.65."""
+        pack = _make_evidence_pack(
+            has_primary=True,
+            has_fc=False,
+            overall_quality=0.2,  # schwach → Ceiling drückt runter
+            consensus=SourceConsensus.AGREEING,
+        )
+        # CoVe-Penalties drücken Confidence unter den Floor
+        cove = _make_cove_trace(contradictions=True, unanswered=3, confidence_delta=-0.15)
+        confidence, reasons = _calibrate_confidence(0.90, pack, cove)
+        assert confidence >= 0.65
+        assert any("Primärquelle + AGREEING" in r for r in reasons)
+
+    def test_floor_primary_and_agreeing_not_triggered(self):
+        """Ohne AGREEING-Konsens → kein Floor."""
+        pack = _make_evidence_pack(
+            has_primary=True,
+            has_fc=False,
+            overall_quality=0.2,
+            consensus=SourceConsensus.MIXED,
+        )
+        confidence, reasons = _calibrate_confidence(0.90, pack, None)
+        assert not any("Primärquelle + AGREEING" in r for r in reasons)
+
+    def test_floor_fact_check_direct_match(self):
+        """Direkter Fact-Check-Match → Floor 0.70."""
+        pack = _make_evidence_pack(
+            has_primary=False,
+            has_fc=True,
+            overall_quality=0.2,
+            consensus=SourceConsensus.INSUFFICIENT,
+        )
+        pack.evidence_quality.has_fact_check_direct_match = True
+        cove = _make_cove_trace(contradictions=True, unanswered=3, confidence_delta=-0.15)
+        confidence, reasons = _calibrate_confidence(0.90, pack, cove)
+        assert confidence >= 0.70
+        assert any("FC-Direct-Match" in r for r in reasons)
+
+    def test_floor_fact_check_no_direct_match(self):
+        """Fact-Check ohne Direct-Match → kein Floor."""
+        pack = _make_evidence_pack(
+            has_primary=False,
+            has_fc=True,
+            overall_quality=0.2,
+            consensus=SourceConsensus.INSUFFICIENT,
+        )
+        pack.evidence_quality.has_fact_check_direct_match = False
+        confidence, reasons = _calibrate_confidence(0.90, pack, None)
+        assert not any("FC-Direct-Match" in r for r in reasons)
+
+    def test_floor_multi_high_trust_agreeing(self):
+        """Mehrere High-Trust + AGREEING → Floor 0.60."""
+        pack = _make_evidence_pack(
+            has_primary=False,
+            has_fc=False,
+            overall_quality=0.2,
+            consensus=SourceConsensus.AGREEING,
+        )
+        pack.evidence_quality.direct_evidence_count = 3
+        pack.evidence_quality.low_trust_rate = 0.1
+        cove = _make_cove_trace(contradictions=True, unanswered=3, confidence_delta=-0.15)
+        confidence, reasons = _calibrate_confidence(0.90, pack, cove)
+        assert confidence >= 0.60
+        assert any("Multi-High-Trust" in r for r in reasons)
+
+    def test_floor_multi_high_trust_not_triggered_low_direct(self):
+        """Zu wenig DIRECT evidence → kein Floor."""
+        pack = _make_evidence_pack(
+            has_primary=False,
+            has_fc=False,
+            overall_quality=0.2,
+            consensus=SourceConsensus.AGREEING,
+        )
+        pack.evidence_quality.direct_evidence_count = 1
+        pack.evidence_quality.low_trust_rate = 0.1
+        confidence, reasons = _calibrate_confidence(0.90, pack, None)
+        assert not any("Multi-High-Trust" in r for r in reasons)

@@ -578,6 +578,11 @@ class VerdictCalibrationConfig:
     ceiling_regulatory_noisy_contextual: float = 0.58
     min_good_sources_for_high_conf: int = 2
 
+    # ── Floors ────────────────────────────────────────────────────────────────
+    floor_primary_and_agreeing: float = 0.65
+    floor_fact_check_direct_match: float = 0.70
+    floor_multi_high_trust_agreeing: float = 0.60
+
     def __post_init__(self) -> None:
         _map = {
             "VCAL_CEILING_NO_PRIMARY_SOURCE": "ceiling_no_primary_source",
@@ -603,3 +608,9 @@ class VerdictCalibrationConfig:
                 setattr(self, attr, float(v))
         if v := os.getenv("VCAL_MIN_GOOD_SOURCES_HIGH_CONF", ""):
             self.min_good_sources_for_high_conf = int(v)
+        if v := os.getenv("VCAL_FLOOR_PRIMARY_AGREEING", ""):
+            self.floor_primary_and_agreeing = float(v)
+        if v := os.getenv("VCAL_FLOOR_FC_DIRECT_MATCH", ""):
+            self.floor_fact_check_direct_match = float(v)
+        if v := os.getenv("VCAL_FLOOR_MULTI_HIGH_TRUST", ""):
+            self.floor_multi_high_trust_agreeing = float(v)
