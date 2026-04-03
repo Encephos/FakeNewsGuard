@@ -644,6 +644,16 @@ def _calibrate_confidence(
             )
             confidence = min(confidence, _ceil)
 
+    # ── Anti-Stacking ────────────────────────────────────────────────────────
+    # Wenn ≥2 Ceilings gefeuert haben, darf die Confidence nicht unter den
+    # combined_ceiling_floor fallen – verhindert pathologisches Stacking.
+    n_ceilings = sum(1 for r in reasons if "Ceiling" in r)
+    if n_ceilings >= 2 and confidence < vcal.combined_ceiling_floor:
+        reasons.append(
+            f"Anti-Stacking ({n_ceilings} Ceilings) → Floor {vcal.combined_ceiling_floor}"
+        )
+        confidence = max(confidence, vcal.combined_ceiling_floor)
+
     # ── Penalties ─────────────────────────────────────────────────────────────
 
     # Penalty: zu wenige gute Quellen (Tier 1-3 oder Fact-Check)

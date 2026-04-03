@@ -539,44 +539,48 @@ class VerdictCalibrationConfig:
     Alle Werte sind via Env-Vars überschreibbar für Feintuning.
 
     Env-Vars:
-        VCAL_CEILING_NO_PRIMARY_SOURCE        – Default: 0.82
+        VCAL_CEILING_NO_PRIMARY_SOURCE        – Default: 0.88
         VCAL_CEILING_OFFTOPIC_CONTAMINATION   – Default: 0.75
-        VCAL_CEILING_WEAK_EVIDENCE            – Default: 0.70
-        VCAL_CEILING_INSUFFICIENT_CONSENSUS   – Default: 0.65
-        VCAL_CEILING_POOR_CLAIM_QUALITY       – Default: 0.72
-        VCAL_CEILING_LOW_AVG_RELEVANCE        – Default: 0.68
-        VCAL_CEILING_VERY_LOW_AVG_RELEVANCE   – Default: 0.58
-        VCAL_CEILING_HIGH_LOW_TRUST           – Default: 0.62
-        VCAL_CEILING_REGULATORY_NO_OFFICIAL   – Default: 0.72
-        VCAL_CEILING_CONTEXTUAL_ONLY          – Default: 0.65
-        VCAL_CEILING_HIGH_WEAK_RATE           – Default: 0.60
-        VCAL_CEILING_CONTEXTUAL_AND_LOW_TRUST – Default: 0.55
-        VCAL_CEILING_REGULATORY_NO_DIRECT     – Default: 0.55
-        VCAL_CEILING_STALE_SOURCES            – Default: 0.72
-        VCAL_CEILING_CURRENT_STATE_NO_FRESH   – Default: 0.55
+        VCAL_CEILING_WEAK_EVIDENCE            – Default: 0.75
+        VCAL_CEILING_INSUFFICIENT_CONSENSUS   – Default: 0.75
+        VCAL_CEILING_POOR_CLAIM_QUALITY       – Default: 0.75
+        VCAL_CEILING_LOW_AVG_RELEVANCE        – Default: 0.72
+        VCAL_CEILING_VERY_LOW_AVG_RELEVANCE   – Default: 0.62
+        VCAL_CEILING_HIGH_LOW_TRUST           – Default: 0.65
+        VCAL_CEILING_REGULATORY_NO_OFFICIAL   – Default: 0.78
+        VCAL_CEILING_CONTEXTUAL_ONLY          – Default: 0.75
+        VCAL_CEILING_HIGH_WEAK_RATE           – Default: 0.65
+        VCAL_CEILING_CONTEXTUAL_AND_LOW_TRUST – Default: 0.60
+        VCAL_CEILING_REGULATORY_NO_DIRECT     – Default: 0.68
+        VCAL_CEILING_STALE_SOURCES            – Default: 0.78
+        VCAL_CEILING_CURRENT_STATE_NO_FRESH   – Default: 0.65
         VCAL_CEILING_ZERO_USEFUL_EVIDENCE     – Default: 0.50
-        VCAL_CEILING_REGULATORY_NOISY_CTX     – Default: 0.45
+        VCAL_CEILING_REGULATORY_NOISY_CTX     – Default: 0.62
+        VCAL_COMBINED_CEILING_FLOOR           – Default: 0.45
         VCAL_MIN_GOOD_SOURCES_HIGH_CONF       – Default: 2
     """
 
     ceiling_no_primary_source: float = 0.88
     ceiling_offtopic_contamination: float = 0.75
-    ceiling_weak_evidence: float = 0.70
-    ceiling_insufficient_consensus: float = 0.72
-    ceiling_poor_claim_quality: float = 0.72
-    ceiling_low_avg_relevance: float = 0.68
-    ceiling_very_low_avg_relevance: float = 0.58
-    ceiling_high_low_trust: float = 0.62
+    ceiling_weak_evidence: float = 0.75
+    ceiling_insufficient_consensus: float = 0.75
+    ceiling_poor_claim_quality: float = 0.75
+    ceiling_low_avg_relevance: float = 0.72
+    ceiling_very_low_avg_relevance: float = 0.62
+    ceiling_high_low_trust: float = 0.65
     ceiling_regulatory_no_official: float = 0.78
     ceiling_contextual_only: float = 0.75
-    ceiling_high_weak_rate: float = 0.60
-    ceiling_contextual_and_low_trust: float = 0.55
+    ceiling_high_weak_rate: float = 0.65
+    ceiling_contextual_and_low_trust: float = 0.60
     ceiling_regulatory_no_direct_evidence: float = 0.68
     ceiling_stale_sources: float = 0.78
     ceiling_current_state_no_fresh: float = 0.65
     ceiling_zero_useful_evidence: float = 0.50
-    ceiling_regulatory_noisy_contextual: float = 0.58
+    ceiling_regulatory_noisy_contextual: float = 0.62
     min_good_sources_for_high_conf: int = 2
+
+    # ── Anti-Stacking ─────────────────────────────────────────────────────────
+    combined_ceiling_floor: float = 0.45
 
     # ── Floors ────────────────────────────────────────────────────────────────
     floor_primary_and_agreeing: float = 0.65
@@ -608,6 +612,8 @@ class VerdictCalibrationConfig:
                 setattr(self, attr, float(v))
         if v := os.getenv("VCAL_MIN_GOOD_SOURCES_HIGH_CONF", ""):
             self.min_good_sources_for_high_conf = int(v)
+        if v := os.getenv("VCAL_COMBINED_CEILING_FLOOR", ""):
+            self.combined_ceiling_floor = float(v)
         if v := os.getenv("VCAL_FLOOR_PRIMARY_AGREEING", ""):
             self.floor_primary_and_agreeing = float(v)
         if v := os.getenv("VCAL_FLOOR_FC_DIRECT_MATCH", ""):
