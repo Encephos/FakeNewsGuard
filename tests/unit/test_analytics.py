@@ -276,13 +276,24 @@ def test_accuracy_brier_score_reliable():
     assert result["overall_brier_score"] < 0.1
 
 
-def test_accuracy_brier_score_wrong():
+def test_accuracy_brier_score_confident_negative():
     now = time.time()
-    # High-confidence FABRICATED → high Brier score
+    # High-confidence FABRICATED → low Brier score (correctly confident negative rating)
+    # p_rel = 1 - 0.9 = 0.1, outcome = 0 → (0.1 - 0)² = 0.01
     rows = [_make_row(now - i, overall_rating="FABRICATED", confidence=90) for i in range(5)]
     engine = _make_engine(rows)
     result = engine.accuracy(period="30d")
-    assert result["overall_brier_score"] > 0.5
+    assert result["overall_brier_score"] < 0.05
+
+
+def test_accuracy_brier_score_low_confidence_negative():
+    now = time.time()
+    # Low-confidence FABRICATED → high Brier score (uncertain negative = bad calibration)
+    # p_rel = 1 - 0.3 = 0.7, outcome = 0 → (0.7 - 0)² = 0.49
+    rows = [_make_row(now - i, overall_rating="FABRICATED", confidence=30) for i in range(5)]
+    engine = _make_engine(rows)
+    result = engine.accuracy(period="30d")
+    assert result["overall_brier_score"] > 0.4
 
 
 # ── Platforms tests ───────────────────────────────────────────────────
