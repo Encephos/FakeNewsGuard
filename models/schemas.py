@@ -468,6 +468,10 @@ class SynthesisResult(BaseModel):
         default=None,
         description="Aggregierter Token-Verbrauch und geschaetzte Kosten dieser Analyse",
     )
+    image_analysis: ImageAnalysisResult | None = Field(
+        default=None,
+        description="Ergebnisse der Bildanalyse, falls Bilder übergeben wurden",
+    )
 
 
 # ── JSON-Schemata für Structured Output ──────────────────────────

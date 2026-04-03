@@ -383,3 +383,53 @@ class TestOrchestratorWorkflow:
         long_text = "x" * 20_000
         result = orch._validate_input(long_text)
         assert len(result) <= minimal_config.max_input_chars
+
+    def test_image_analyzer_called_when_image_urls_provided(self, minimal_config):
+        """analyze() ruft image_analyzer.run_safe() auf wenn image_urls übergeben werden."""
+        from models.schemas import (
+            ClaimProcessingResult, ClaimType, ImageAnalysisResult,
+            OverallRating, ProcessedClaim,
+        )
+
+        claim = ProcessedClaim(
+            id="C1", text="Test", type=ClaimType.FACTUAL,
+            priority_score=0.8, is_checkworthy=True,
+        )
+        orch = self._make_orch(
+            minimal_config, claim,
+            extractor_result=(ClaimProcessingResult(claims=[claim]), None),
+        )
+        img_result = ImageAnalysisResult(items=[])
+        orch.image_analyzer = MagicMock()
+        orch.image_analyzer.run_safe.return_value = (img_result, None)
+
+        orch.analyze("Test Text", image_urls=["https://example.com/img.jpg"])
+
+        orch.image_analyzer.run_safe.assert_called_once()
+        call_input = orch.image_analyzer.run_safe.call_args[0][0]
+        assert call_input["image_urls"] == ["https://example.com/img.jpg"]
+        assert "post_text" in call_input
+
+        synth_call_input = orch.synthesizer.run.call_args[0][0]
+        assert "image_analysis" in synth_call_input
+        assert "image_analysis_result" in synth_call_input
+
+    def test_image_analyzer_not_called_without_image_urls(self, minimal_config):
+        """analyze() ohne image_urls ruft image_analyzer.run_safe() NICHT auf."""
+        from models.schemas import ClaimProcessingResult, ClaimType, ProcessedClaim
+
+        claim = ProcessedClaim(
+            id="C1", text="Test", type=ClaimType.FACTUAL,
+            priority_score=0.8, is_checkworthy=True,
+        )
+        orch = self._make_orch(
+            minimal_config, claim,
+            extractor_result=(ClaimProcessingResult(claims=[claim]), None),
+        )
+        orch.image_analyzer = MagicMock()
+
+        orch.analyze("Test Text")
+
+        orch.image_analyzer.run_safe.assert_not_called()
+        synth_call_input = orch.synthesizer.run.call_args[0][0]
+        assert "image_analysis" not in synth_call_input

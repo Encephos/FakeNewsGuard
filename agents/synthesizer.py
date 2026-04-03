@@ -11,6 +11,7 @@ from models.schemas import (
     SYNTHESIS_SCHEMA,
     FactCheckResult,
     FactRating,
+    ImageAnalysisResult,
     NumberAuditResult,
     OverallRating,
     RhetoricAnalysisResult,
@@ -63,8 +64,9 @@ class SynthesizerAgent(BaseAgent):
         rhetoric: RhetoricAnalysisResult | None = data.get("rhetoric")
         original_text: str = data.get("original_text", "")
         image_analysis: str = data.get("image_analysis", "")
+        image_analysis_result: ImageAnalysisResult | None = data.get("image_analysis_result")
 
-        signals = self._compute_aggregation_signals(fact_checks, rhetoric)
+        signals = self._compute_aggregation_signals(fact_checks, rhetoric, image_analysis_result)
 
         # Kontext für das LLM zusammenbauen
         parts: list[str] = [f"## Originaltext\n\n{original_text}\n"]
@@ -181,6 +183,7 @@ class SynthesizerAgent(BaseAgent):
             manipulation_techniques=rhetoric.techniques if rhetoric else [],
             fairness_notes=raw.get("fairness_notes", []),
             sources=all_sources,
+            image_analysis=image_analysis_result,
         )
 
     # ── Aggregationssignale ──────────────────────────────────────
@@ -189,6 +192,7 @@ class SynthesizerAgent(BaseAgent):
         self,
         fact_checks: list[FactCheckResult],
         rhetoric: RhetoricAnalysisResult | None,
+        image_analysis: ImageAnalysisResult | None = None,
     ) -> AggregationSignals:
         """Berechnet abgeleitete Signale aus Fact-Checks und Rhetorik-Analyse."""
         signals = AggregationSignals()
@@ -227,6 +231,13 @@ class SynthesizerAgent(BaseAgent):
                 1 for tech in rhetoric.techniques
                 if tech.severity == Severity.HIGH
             )
+
+        if image_analysis:
+            manipulation_count = sum(
+                1 for item in image_analysis.items if item.manipulation_signs
+            )
+            if manipulation_count:
+                signals.rhetoric_score = min(1.0, signals.rhetoric_score + manipulation_count * 1.0)
 
         return signals
 

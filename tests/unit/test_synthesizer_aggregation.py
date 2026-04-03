@@ -162,6 +162,41 @@ class TestComputeAggregationSignals:
         assert signals.rhetoric_score == 0.0
         assert signals.n_high_rhetoric == 0
 
+    def test_image_manipulation_increases_rhetoric_score(self):
+        """Bild mit manipulation_signs erhöht rhetoric_score um 1.0 (capped)."""
+        from models.schemas import ImageAnalysisItem, ImageAnalysisResult
+
+        agent = _make_agent()
+        img = ImageAnalysisResult(items=[
+            ImageAnalysisItem(image_index=0, manipulation_signs=["inkonsistente Beleuchtung"]),
+        ])
+        signals = agent._compute_aggregation_signals([], None, image_analysis=img)
+        assert signals.rhetoric_score == pytest.approx(1.0)
+
+    def test_multiple_manipulated_images_capped_at_one(self):
+        """Mehrere Bilder mit manipulation_signs: rhetoric_score bleibt ≤ 1.0."""
+        from models.schemas import ImageAnalysisItem, ImageAnalysisResult
+
+        agent = _make_agent()
+        img = ImageAnalysisResult(items=[
+            ImageAnalysisItem(image_index=0, manipulation_signs=["Artefakt A"]),
+            ImageAnalysisItem(image_index=1, manipulation_signs=["Artefakt B"]),
+            ImageAnalysisItem(image_index=2, manipulation_signs=["Artefakt C"]),
+        ])
+        signals = agent._compute_aggregation_signals([], None, image_analysis=img)
+        assert signals.rhetoric_score == pytest.approx(1.0)
+
+    def test_no_manipulation_signs_no_score_change(self):
+        """Bild ohne manipulation_signs ändert rhetoric_score nicht."""
+        from models.schemas import ImageAnalysisItem, ImageAnalysisResult
+
+        agent = _make_agent()
+        img = ImageAnalysisResult(items=[
+            ImageAnalysisItem(image_index=0, manipulation_signs=[]),
+        ])
+        signals = agent._compute_aggregation_signals([], None, image_analysis=img)
+        assert signals.rhetoric_score == pytest.approx(0.0)
+
     def test_empty_rhetoric_techniques_gives_zero_score(self):
         agent = _make_agent()
         rhetoric = RhetoricAnalysisResult(techniques=[], overall_framing="")
