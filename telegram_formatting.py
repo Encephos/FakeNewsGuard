@@ -268,6 +268,18 @@ def format_claim_detail(claim: dict[str, Any], index: int) -> str:
     """Full detail view for a single claim."""
     parts: list[str] = []
 
+    is_satire = claim.get("is_satire", False)
+    if is_satire:
+        parts.append(f"\U0001F3AD {bold(f'Behauptung #{index + 1}')}")
+        parts.append(f"{escape_md(claim.get('text', ''))}")
+        parts.append(f"\u2192 {italic('Satire')}")
+        correction = claim.get("correction", "")
+        if correction:
+            parts.append("")
+            parts.append(f"\U0001F3AD {bold('Satire')}")
+            parts.append(f"{escape_md(correction)}")
+        return "\n".join(parts)
+
     r = claim.get("rating", "")
     re_ = fact_rating_emoji(r)
     label = fact_rating_label(r)
@@ -404,11 +416,15 @@ def _get_phase_status(phase_id: str, steps: list[dict[str, Any]]) -> str:
     phase_steps = [s for s in steps if s.get("phase") == phase_id]
     if not phase_steps:
         return "pending"
-    if any(s.get("status") == "running" for s in phase_steps):
-        return "running"
     if any(s.get("status") == "error" for s in phase_steps):
         return "error"
-    return "done"
+    running_count = sum(1 for s in phase_steps if s.get("status") == "running")
+    done_count    = sum(1 for s in phase_steps if s.get("status") == "done")
+    if running_count > done_count:
+        return "running"
+    if running_count > 0 or done_count > 0:
+        return "done"
+    return "pending"
 
 
 def _get_phase_detail(phase_id: str, steps: list[dict[str, Any]]) -> str:
@@ -419,6 +435,36 @@ def _get_phase_detail(phase_id: str, steps: list[dict[str, Any]]) -> str:
     last = phase_steps[-1]
     msg = last.get("message", "")
     return msg[:80] if msg else ""
+
+
+def _get_claim_steps(steps: list[dict[str, Any]]) -> list[str]:
+    """Return all extracted claim lines from Phase 1 (e.g. 'C1 [FACTUAL] prio=...: ...')."""
+    import re
+    return [
+        s["message"]
+        for s in steps
+        if s.get("phase") == "Phase 1"
+        and s.get("status") == "done"
+        and re.match(r"C\d+\s*\[", s.get("message", ""))
+    ]
+
+
+def _get_factcheck_steps(steps: list[dict[str, Any]]) -> list[str]:
+    """Return per-claim fact-check lines from Phase 2: results, errors, and running checks."""
+    import re
+    results = []
+    for s in steps:
+        if s.get("phase") != "Phase 2":
+            continue
+        msg = s.get("message", "")
+        status = s.get("status", "done")
+        if status == "done" and re.match(r"Claim\s+C\d+", msg):
+            results.append(msg)
+        elif status == "error" and re.match(r"Fehler\s+bei\s+C\d+", msg):
+            results.append(msg)
+        elif status == "running" and msg.startswith("Prüfe"):
+            results.append(msg)
+    return results
 
 
 def format_steps_progress(steps: list[dict[str, Any]], tier: str = "") -> str:
@@ -449,11 +495,29 @@ def format_steps_progress(steps: list[dict[str, Any]], tier: str = "") -> str:
         emoji = _STATUS_EMOJI.get(status, "\u23F3")
         lines.append(f"{emoji}  {escape_md(phase['label'])}")
 
-        # Show detail for running or error phases
-        if status in ("running", "error"):
-            detail = _get_phase_detail(phase["id"], steps)
-            if detail:
-                lines.append(f"      \u21B3 {escape_md(detail)}")
+        if phase["id"] == "Phase 1":
+            claim_lines = _get_claim_steps(steps)
+            for msg in claim_lines:
+                lines.append(f"      \u21B3 {escape_md(msg[:100])}")
+            if not claim_lines and status in ("running", "error"):
+                detail = _get_phase_detail(phase["id"], steps)
+                if detail:
+                    lines.append(f"      \u21B3 {escape_md(detail)}")
+
+        elif phase["id"] == "Phase 2":
+            fc_lines = _get_factcheck_steps(steps)
+            for msg in fc_lines:
+                lines.append(f"      \u21B3 {escape_md(msg[:100])}")
+            if not fc_lines and status in ("running", "error"):
+                detail = _get_phase_detail(phase["id"], steps)
+                if detail:
+                    lines.append(f"      \u21B3 {escape_md(detail)}")
+
+        else:
+            if status in ("running", "error"):
+                detail = _get_phase_detail(phase["id"], steps)
+                if detail:
+                    lines.append(f"      \u21B3 {escape_md(detail)}")
 
     return "\n".join(lines)
 

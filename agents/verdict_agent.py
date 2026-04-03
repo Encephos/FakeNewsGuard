@@ -14,10 +14,12 @@ Wichtig:
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from agents.base import BaseAgent
 from tools.data_loader import (
+    satire_domains,
     verdict_freshness_thresholds,
     verdict_uncertainty_thresholds,
 )
@@ -189,6 +191,10 @@ Quellen sind aktueller als dein Wissen. Wenn Quellen und Vorwissen sich
 widersprechen: Rating = TRUE oder MOSTLY_TRUE basierend auf den Quellen,
 NIEMALS FALSE basierend auf veraltetem Vorwissen.
 
+## Satire und Parodie
+Falls der Claim offensichtlich satirisch oder parodistisch ist, vermerke dies
+im Feld 'correction' und bewerte als UNVERIFIABLE.
+
 ## Rhetorische Sprache im Claim-Text
 Der Claim-Text kann rhetorisch manipulative Formulierungen enthalten (Alarmsprache,
 emotionale Verstärkung, Framing). Das beeinflusst NICHT dein Faktenurteil:
@@ -228,12 +234,37 @@ class VerdictAgent(BaseAgent):
     name = "Verdict Agent"
     emoji = "⚖️"
 
+    def _check_satire(self, claim: Any, pack: Any) -> bool:
+        """Gibt True zurück wenn Claim oder Top-Quellen von einer Satire-Domain stammen."""
+        _satire = satire_domains()
+        source_url = getattr(claim, "source_url", None) or ""
+        if source_url:
+            domain = re.sub(r"^https?://(?:www\.)?", "", source_url).split("/")[0].lower()
+            if domain in _satire:
+                return True
+        for src in pack.selected_sources:
+            if src.domain.lower() in _satire:
+                return True
+        return False
+
     def execute(self, input_data: Any, context: str = "") -> FactCheckResult:
         data: dict = input_data
         claim: Claim = data["claim"]
         pack: EvidencePack = data["evidence_pack"]
         cove_trace: CoVeTrace | None = data.get("cove_trace")
         number_audit: NumberAuditResult | None = data.get("number_audit")
+
+        # ── Satire-Erkennung (vor LLM-Call) ──────────────────────────────────
+        if self._check_satire(claim, pack):
+            self._log(f"Satire erkannt für {claim.id} – überspringe LLM-Call")
+            return FactCheckResult(
+                claim_id=claim.id,
+                rating=FactRating.UNVERIFIABLE,
+                confidence=0.85,
+                evidence="Quelle identifiziert als Satire-Medium.",
+                correction="Diese Aussage stammt von einer Satire-Publikation und ist nicht als Tatsachenbehauptung gemeint.",
+                is_satire=True,
+            )
 
         # Prompt aufbauen (nur strukturierte Daten, kein roher Web-Inhalt)
         user_msg = self._build_verdict_prompt(claim, pack, cove_trace, number_audit, original_context=context)

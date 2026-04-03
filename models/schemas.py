@@ -385,6 +385,10 @@ class FactCheckResult(BaseModel):
         default=None,
         description="Metadaten zum Urteil (Unsicherheitssignale etc.)",
     )
+    is_satire: bool = Field(
+        default=False,
+        description="True wenn Claim aus einer Satire-Publikation stammt",
+    )
 
 
 # ── Number Auditor ───────────────────────────────────────────────
