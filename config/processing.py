@@ -175,6 +175,7 @@ class SynthesizerConfig:
 
     # ── Confidence-Aggregation ────────────────────────────────────────────────
     claim_confidence_buffer: float = 0.25
+    claim_confidence_blend_weight: float = 0.4
     extraordinary_claim_confidence_ceiling: float = 0.80
 
     def __post_init__(self) -> None:
@@ -194,6 +195,8 @@ class SynthesizerConfig:
             self.highly_misleading_refuted_max = float(v)
         if v := os.getenv("SYNTH_CLAIM_CONFIDENCE_BUFFER", ""):
             self.claim_confidence_buffer = float(v)
+        if v := os.getenv("SYNTH_CLAIM_CONFIDENCE_BLEND_WEIGHT", ""):
+            self.claim_confidence_blend_weight = float(v)
         if v := os.getenv("SYNTH_EXTRAORDINARY_CLAIM_CONF_CEILING", ""):
             self.extraordinary_claim_confidence_ceiling = float(v)
 
