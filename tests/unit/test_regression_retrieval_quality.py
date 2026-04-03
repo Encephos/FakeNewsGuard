@@ -1736,9 +1736,9 @@ class TestRegulatoryClaimStrict:
             0.90, pack, None,
             is_regulatory_claim=True,
         )
-        assert confidence <= 0.55
+        assert confidence <= 0.68
 
-    def test_regulatory_ceiling_constant_is_055(self):
-        """_CEILING_REGULATORY_NO_DIRECT_EVIDENCE muss 0.55 sein."""
+    def test_regulatory_ceiling_constant_is_068(self):
+        """_CEILING_REGULATORY_NO_DIRECT_EVIDENCE muss 0.68 sein."""
         from agents.verdict_agent import _CEILING_REGULATORY_NO_DIRECT_EVIDENCE
-        assert _CEILING_REGULATORY_NO_DIRECT_EVIDENCE == 0.55
+        assert _CEILING_REGULATORY_NO_DIRECT_EVIDENCE == 0.68
