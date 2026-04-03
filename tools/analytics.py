@@ -31,6 +31,41 @@ RATING_SCORE: dict[str, int] = {
 
 _ALL_RATINGS = list(RATING_SCORE.keys())
 
+# ── Reverse mapping: localized display strings → canonical enum key ──
+# Covers German (de) and English (en) translations so that archived rows
+# stored with localized labels are correctly normalised.
+_LOCALIZED_TO_ENUM: dict[str, str] = {
+    # German
+    "Wahr": "RELIABLE",
+    "Größtenteils wahr": "MOSTLY_RELIABLE",
+    "Irreführend": "MIXED",          # DE maps both MIXED and MISLEADING → same label
+    "Größtenteils falsch": "HIGHLY_MISLEADING",
+    "Falsch": "FABRICATED",
+    # English
+    "True": "RELIABLE",
+    "Mostly true": "MOSTLY_RELIABLE",
+    "Mixed": "MIXED",
+    "Misleading": "MISLEADING",
+    "Mostly false": "HIGHLY_MISLEADING",
+    "False": "FABRICATED",
+}
+
+
+def _normalize_rating(raw: str | None, fallback: str = "MIXED") -> str:
+    """Map a stored overall_rating value to its canonical enum key.
+
+    Handles three cases:
+      1. Already an enum key (e.g. "RELIABLE") → returned as-is
+      2. Localized label (e.g. "Wahr", "Mostly true") → mapped to enum key
+      3. Unknown / None → *fallback*
+    """
+    if not raw:
+        return fallback
+    if raw in RATING_SCORE:
+        return raw
+    return _LOCALIZED_TO_ENUM.get(raw, fallback)
+
+
 # ── Stopwords (German + English, common short words) ─────────────────
 _STOPWORDS: frozenset[str] = frozenset({
     # German
@@ -139,14 +174,15 @@ class AnalyticsEngine:
         """
         if not self._archive.config.enabled:
             return []
+        ph = getattr(self._archive, "_placeholder", "?")
         with self._archive._connect() as conn:
             if cutoff is not None:
                 rows = conn.execute(
-                    """
+                    f"""
                     SELECT id, created_at, overall_rating, confidence,
                            claims_count, techniques_count, platform, result_json
                     FROM analysis_archive
-                    WHERE created_at >= ?
+                    WHERE created_at >= {ph}
                     ORDER BY created_at ASC
                     """,
                     (cutoff,),
@@ -189,7 +225,7 @@ class AnalyticsEngine:
             b["count"] += 1
             b["confidence_sum"] += row["confidence"] or 0
             b["claims_sum"] += row["claims_count"] or 0
-            rating = row["overall_rating"] or "MIXED"
+            rating = _normalize_rating(row["overall_rating"])
             if rating in b["rating_distribution"]:
                 b["rating_distribution"][rating] += 1
 
@@ -247,7 +283,7 @@ class AnalyticsEngine:
         # Also aggregate rating scores per topic word
         topic_ratings: dict[str, list[float]] = defaultdict(list)
         for row in rows:
-            score = RATING_SCORE.get(row["overall_rating"] or "", 3)
+            score = RATING_SCORE.get(_normalize_rating(row["overall_rating"]), 3)
             try:
                 data = json.loads(row["result_json"])
                 for claim in data.get("claims", []):
@@ -361,7 +397,7 @@ class AnalyticsEngine:
             b["count"] += 1
             if conf >= 75:
                 b["high_conf_count"] += 1
-            if (row["overall_rating"] or "") == "FABRICATED":
+            if _normalize_rating(row["overall_rating"]) == "FABRICATED":
                 b["fabricated_count"] += 1
 
         accuracy_over_time = []
@@ -382,7 +418,7 @@ class AnalyticsEngine:
         for row in rows:
             conf = row["confidence"] or 0
             idx = min(conf // 20, 4)
-            score = RATING_SCORE.get(row["overall_rating"] or "", 3)
+            score = RATING_SCORE.get(_normalize_rating(row["overall_rating"]), 3)
             bands[idx]["count"] += 1
             bands[idx]["score_sum"] += score
 
@@ -401,7 +437,7 @@ class AnalyticsEngine:
         if rows:
             for row in rows:
                 conf_norm = (row["confidence"] or 0) / 100
-                outcome = 1.0 if RATING_SCORE.get(row["overall_rating"] or "", 0) >= 4 else 0.0
+                outcome = 1.0 if RATING_SCORE.get(_normalize_rating(row["overall_rating"]), 0) >= 4 else 0.0
                 brier += (conf_norm - outcome) ** 2
             brier = round(brier / len(rows), 4)
 
@@ -430,7 +466,7 @@ class AnalyticsEngine:
             d = plat[p]
             d["count"] += 1
             d["confidence_sum"] += row["confidence"] or 0
-            d["score_sum"] += RATING_SCORE.get(row["overall_rating"] or "", 3)
+            d["score_sum"] += RATING_SCORE.get(_normalize_rating(row["overall_rating"]), 3)
 
         result = sorted(plat.values(), key=lambda x: x["count"], reverse=True)
         platforms_list = [
