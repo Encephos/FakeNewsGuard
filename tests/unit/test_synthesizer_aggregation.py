@@ -468,3 +468,76 @@ class TestGuardrailIntegration:
 
         result = agent._apply_rating_guardrails(OverallRating.MIXED, signals)
         assert result == OverallRating.MIXED
+
+
+# ── Tests: Satire-Ausschluss aus Aggregation ─────────────────────────────────
+
+
+class TestSatireExclusion:
+
+    def test_satire_claim_excluded_from_refuted_ratio(self):
+        """Satire-Claim (is_satire=True) zählt nicht als widerlegt."""
+        agent = _make_agent()
+        satire_fc = FactCheckResult(
+            claim_id="C1",
+            rating=FactRating.UNVERIFIABLE,
+            evidence="Satire erkannt",
+            is_satire=True,
+            confidence=0.85,
+        )
+        false_fc = _make_fc("C2", FactRating.FALSE, confidence=0.90)
+
+        signals = agent._compute_aggregation_signals([satire_fc, false_fc], None)
+
+        # Nur false_fc zählt als widerlegt, von 2 Claims gesamt
+        assert signals.n_claims == 2
+        assert signals.refuted_ratio == pytest.approx(0.5)
+
+    def test_satire_unverifiable_excluded_from_unverified_ratio(self):
+        """Satire-UNVERIFIABLE zählt nicht in unverified_ratio."""
+        agent = _make_agent()
+        satire_fc = FactCheckResult(
+            claim_id="C1",
+            rating=FactRating.UNVERIFIABLE,
+            evidence="Satire erkannt",
+            is_satire=True,
+            confidence=0.85,
+        )
+        normal_fc = _make_fc("C2", FactRating.MISLEADING)
+
+        signals = agent._compute_aggregation_signals([satire_fc, normal_fc], None)
+
+        assert signals.unverified_ratio == pytest.approx(0.0)
+
+    def test_multiple_satire_claims_all_excluded(self):
+        """Mehrere Satire-Claims beeinflussen weder refuted_ratio noch unverified_ratio."""
+        agent = _make_agent()
+        satire_1 = FactCheckResult(
+            claim_id="C1", rating=FactRating.UNVERIFIABLE,
+            evidence="", is_satire=True, confidence=0.85,
+        )
+        satire_2 = FactCheckResult(
+            claim_id="C2", rating=FactRating.UNVERIFIABLE,
+            evidence="", is_satire=True, confidence=0.85,
+        )
+        real_false = _make_fc("C3", FactRating.FALSE, confidence=0.80)
+
+        signals = agent._compute_aggregation_signals([satire_1, satire_2, real_false], None)
+
+        assert signals.n_claims == 3
+        assert signals.refuted_ratio == pytest.approx(1 / 3)
+        assert signals.unverified_ratio == pytest.approx(0.0)
+
+    def test_only_satire_claims_gives_zero_ratios(self):
+        """Nur Satire-Claims → refuted_ratio und unverified_ratio beide 0.0."""
+        agent = _make_agent()
+        satire_fc = FactCheckResult(
+            claim_id="C1", rating=FactRating.UNVERIFIABLE,
+            evidence="", is_satire=True, confidence=0.85,
+        )
+
+        signals = agent._compute_aggregation_signals([satire_fc], None)
+
+        assert signals.n_claims == 1
+        assert signals.refuted_ratio == pytest.approx(0.0)
+        assert signals.unverified_ratio == pytest.approx(0.0)

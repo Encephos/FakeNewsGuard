@@ -350,6 +350,14 @@ def pagerank_adjustments() -> list[tuple[int, float]]:
     return [(e["min_rank"], e["adjustment"]) for e in raw]
 
 
+# ── Satire-Domains ───────────────────────────────────────────────────────────
+
+@lru_cache(maxsize=1)
+def satire_domains() -> frozenset[str]:
+    """Lade bekannte Satire-Domains aus satire_domains.yaml."""
+    data = _load_yaml("satire_domains.yaml")
+    return frozenset(data.get("domains", []))
+
 
 # ── Hot-Reload ───────────────────────────────────────────────────────────────
 
@@ -383,6 +391,7 @@ _CACHED_LOADERS = [
     source_authority_weights,
     source_tier_thresholds,
     pagerank_adjustments,
+    satire_domains,
 ]
 
 

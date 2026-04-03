@@ -138,6 +138,10 @@ class SynthesizerAgent(BaseAgent):
         # Wenn Guardrail das Rating korrigiert hat und alle Claims positiv sind,
         # ist die LLM-Summary wahrscheinlich widersprüchlich → ersetzen.
         summary = raw.get("summary", "")
+        satire_count = sum(1 for fc in fact_checks if fc.is_satire)
+        if satire_count:
+            satire_note = f"{satire_count} Claim{'s' if satire_count > 1 else ''} als Satire identifiziert."
+            summary = f"{summary} {satire_note}".strip() if summary else satire_note
         if rating != llm_rating and fact_checks:
             positive_ratings = {FactRating.TRUE, FactRating.MOSTLY_TRUE}
             if all(fc.rating in positive_ratings for fc in fact_checks):
@@ -202,10 +206,12 @@ class SynthesizerAgent(BaseAgent):
             refuted = sum(
                 1 for fc in fact_checks
                 if fc.rating in (FactRating.FALSE, FactRating.MOSTLY_FALSE)
+                and not fc.is_satire
             )
             unverified = sum(
                 1 for fc in fact_checks
                 if fc.rating == FactRating.UNVERIFIABLE
+                and not fc.is_satire
             )
             signals.refuted_ratio = refuted / signals.n_claims
             signals.unverified_ratio = unverified / signals.n_claims

@@ -166,6 +166,102 @@ class TestVerdictAgent:
         assert len(result.sources) == len(set(result.sources))
 
 
+# ── Tests: Satire-Erkennung ───────────────────────────────────────────────────
+
+
+class TestVerdictAgentSatireDetection:
+    def test_satire_source_skips_llm_call(
+        self, mocker, minimal_config, sample_processed_claim
+    ):
+        """EvidencePack mit der-postillon.com → is_satire=True, kein LLM-Call."""
+        from agents.verdict_agent import VerdictAgent
+        from models.evidence_models import EvidencePack, EvidenceSource
+
+        mock_llm = mocker.MagicMock()
+        mock_search = mocker.MagicMock()
+        agent = VerdictAgent(minimal_config, mock_llm, mock_search)
+
+        satire_pack = EvidencePack(
+            claim_id="C1",
+            claim_text="Test-Satire-Claim",
+            selected_sources=[
+                EvidenceSource(
+                    url="https://der-postillon.com/2024/artikel",
+                    domain="der-postillon.com",
+                    domain_tier=5,
+                )
+            ],
+        )
+
+        result = agent.execute({
+            "claim": sample_processed_claim,
+            "evidence_pack": satire_pack,
+        })
+
+        from models.schemas import FactRating
+        assert result.is_satire is True
+        assert result.rating == FactRating.UNVERIFIABLE
+        assert result.confidence == pytest.approx(0.85)
+        mock_llm.complete_structured.assert_not_called()
+
+    def test_non_satire_source_calls_llm(
+        self, mocker, minimal_config, sample_processed_claim, sample_evidence_pack
+    ):
+        """Normales EvidencePack → kein Satire-Flag, LLM wird aufgerufen."""
+        from agents.verdict_agent import VerdictAgent
+
+        mock_llm = mocker.MagicMock()
+        mock_llm.complete_structured.return_value = {
+            "claim_id": "C1",
+            "rating": "FALSE",
+            "evidence": "Test",
+            "correction": "",
+            "missing_context": "",
+            "sources": [],
+        }
+        mock_search = mocker.MagicMock()
+        agent = VerdictAgent(minimal_config, mock_llm, mock_search)
+
+        result = agent.execute({
+            "claim": sample_processed_claim,
+            "evidence_pack": sample_evidence_pack,
+        })
+
+        assert result.is_satire is False
+        mock_llm.complete_structured.assert_called_once()
+
+    def test_satire_correction_text_is_set(
+        self, mocker, minimal_config, sample_processed_claim
+    ):
+        """Satire-Erkennung setzt eine erklärende correction."""
+        from agents.verdict_agent import VerdictAgent
+        from models.evidence_models import EvidencePack, EvidenceSource
+
+        mock_llm = mocker.MagicMock()
+        mock_search = mocker.MagicMock()
+        agent = VerdictAgent(minimal_config, mock_llm, mock_search)
+
+        satire_pack = EvidencePack(
+            claim_id="C1",
+            claim_text="Satire-Test",
+            selected_sources=[
+                EvidenceSource(
+                    url="https://babylonbee.com/news/test",
+                    domain="babylonbee.com",
+                    domain_tier=5,
+                )
+            ],
+        )
+
+        result = agent.execute({
+            "claim": sample_processed_claim,
+            "evidence_pack": satire_pack,
+        })
+
+        assert result.is_satire is True
+        assert "Satire" in result.correction
+
+
 # ── Integration Test: VerdictAgent + CoVeTrace Flow ──────────────────────────
 
 class TestVerdictAgentCoVeIntegration:
