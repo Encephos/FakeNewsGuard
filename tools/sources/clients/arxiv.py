@@ -127,8 +127,74 @@ class ArXivClient(BaseSourceAdapter):
             return None
 
     def normalize(self, record: dict) -> OfficialEvidenceItem:
-        """Nicht direkt verwendet; nutze _normalize_entry stattdessen."""
-        raise NotImplementedError("Use _normalize_entry for XML entries")
+        """Konvertiere einen arXiv-Dict-Datensatz zu OfficialEvidenceItem.
+
+        Spiegelt _normalize_entry() 1:1, liest aber aus Dict-Keys statt XML-Elementen.
+        Setzt item.confidence = item.compute_confidence() selbst (im Gegensatz zu
+        _normalize_entry(), dessen Aufrufer search()/fetch_details() dies übernehmen).
+
+        Args:
+            record: Dict mit folgenden Keys (alle optional):
+                "id"         – volle arXiv-URL (z.B. "http://arxiv.org/abs/2301.12345v2")
+                "title"      – Titel
+                "summary"    – Abstract
+                "published"  – ISO-8601 (z.B. "2023-01-15T12:34:56Z")
+                "authors"    – Liste von Autorennamen (Strings)
+                "categories" – Liste von Kategorien (Strings)
+
+        Returns:
+            Vollständig befülltes OfficialEvidenceItem mit gesetztem confidence.
+        """
+        arxiv_url = record.get("id", "")
+        arxiv_id = arxiv_url.rsplit("/", 1)[-1] if arxiv_url else ""
+
+        title = record.get("title", "")
+        summary = record.get("summary", "")
+
+        published_str = record.get("published", "")
+        published_at = _parse_arxiv_date(published_str)
+
+        author_names = record.get("authors", [])[:3]
+
+        categories_list = record.get("categories", [])
+        category = categories_list[0] if categories_list else ""
+
+        url = arxiv_url
+
+        facts = [
+            NormalizedFact(
+                fact_type=FactType.RESEARCH_FINDING,
+                subject=title[:120],
+                predicate="arXiv Preprint",
+                value=summary[:200] if summary else "Preprint submitted to arXiv",
+                source_snippet=summary[:400] if summary else title,
+                reference_period=published_str[:10] if published_str else "",
+                qualifier=f"Category: {category}" if category else "",
+                confidence=0.85,
+            )
+        ]
+
+        recency = compute_recency_score(published_at, half_life_years=_HALF_LIFE_YEARS)
+
+        item = OfficialEvidenceItem(
+            **self._policy_kwargs(),
+            record_id=arxiv_id,
+            title=title,
+            url=url,
+            abstract=summary[:1200] if summary else "",
+            published_at=published_at,
+            jurisdiction="global",
+            entity_mentions=author_names,
+            recency_score=recency,
+            normalized_facts=facts,
+            raw_fields={
+                "arxiv_id": arxiv_id,
+                "category": category,
+                "authors": author_names,
+            },
+        )
+        item.confidence = item.compute_confidence()
+        return item
 
     def _normalize_entry(self, entry: ET.Element) -> OfficialEvidenceItem:
         """Konvertiere arXiv Atom-Entry zu OfficialEvidenceItem."""

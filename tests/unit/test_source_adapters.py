@@ -33,6 +33,7 @@ from tools.sources.adapter_guardian import (
     SourceRateLimiter,
 )
 from tools.sources.clients import (
+    ArXivClient,
     WorldBankClient,
     ClinicalTrialsClient,
     OpenAlexClient,
@@ -712,6 +713,83 @@ class TestClinicalTrialsMockResponses:
         status_facts = [f for f in item.normalized_facts if f.fact_type == FactType.TRIAL_STATUS]
         assert len(status_facts) > 0
         assert "Rekrutierend" in status_facts[0].value
+
+
+class TestArXivMockResponses:
+    """Mock-Tests für ArXivClient.normalize() und _normalize_entry()."""
+
+    _SAMPLE_RECORD = {
+        "id": "http://arxiv.org/abs/2301.12345v2",
+        "title": "Attention Is All You Need",
+        "summary": "We propose a new simple network architecture, the Transformer.",
+        "published": "2023-01-15T12:34:56Z",
+        "authors": ["Ashish Vaswani", "Noam Shazeer", "Niki Parmar"],
+        "categories": ["cs.AI", "cs.LG"],
+    }
+
+    def test_arxiv_normalize_valid_record(self):
+        client = ArXivClient()
+        item = client.normalize(self._SAMPLE_RECORD)
+
+        assert item.record_id == "2301.12345v2"
+        assert item.title == "Attention Is All You Need"
+        assert item.authority_score == 0.70
+        assert len(item.normalized_facts) == 1
+
+    def test_arxiv_normalize_research_finding_fact_type(self):
+        client = ArXivClient()
+        item = client.normalize(self._SAMPLE_RECORD)
+
+        assert item.normalized_facts[0].fact_type == FactType.RESEARCH_FINDING
+
+    def test_arxiv_normalize_confidence_computed(self):
+        client = ArXivClient()
+        item = client.normalize(self._SAMPLE_RECORD)
+
+        # authority_score=0.70 → 0.70 * 0.40 = 0.28 Minimum
+        assert item.confidence > 0
+
+    def test_arxiv_normalize_entry_xml(self):
+        """_normalize_entry() mit manuell konstruiertem ET.Element."""
+        import xml.etree.ElementTree as ET
+
+        ATOM = "http://www.w3.org/2005/Atom"
+        ARXIV_NS = "http://arxiv.org/schemas/atom"
+
+        entry = ET.Element(f"{{{ATOM}}}entry")
+
+        id_elem = ET.SubElement(entry, f"{{{ATOM}}}id")
+        id_elem.text = "http://arxiv.org/abs/2301.12345v2"
+
+        title_elem = ET.SubElement(entry, f"{{{ATOM}}}title")
+        title_elem.text = "Test Paper Title"
+
+        summary_elem = ET.SubElement(entry, f"{{{ATOM}}}summary")
+        summary_elem.text = "Test abstract text"
+
+        published_elem = ET.SubElement(entry, f"{{{ATOM}}}published")
+        published_elem.text = "2023-01-15T12:34:56Z"
+
+        author_elem = ET.SubElement(entry, f"{{{ATOM}}}author")
+        name_elem = ET.SubElement(author_elem, f"{{{ATOM}}}name")
+        name_elem.text = "Author One"
+
+        cat_elem = ET.SubElement(entry, f"{{{ARXIV_NS}}}primary-category")
+        cat_elem.set("term", "cs.AI")
+
+        client = ArXivClient()
+        item = client._normalize_entry(entry)
+
+        assert isinstance(item, OfficialEvidenceItem)
+        assert item.record_id == "2301.12345v2"
+
+    def test_arxiv_normalize_missing_fields(self):
+        """normalize() mit leerem Dict – kein Exception, Item zurückgegeben."""
+        client = ArXivClient()
+        item = client.normalize({})
+
+        assert isinstance(item, OfficialEvidenceItem)
+        assert item.record_id == ""
 
 
 if __name__ == "__main__":
