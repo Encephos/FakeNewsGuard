@@ -4,6 +4,11 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../lib/auth";
 import { useI18n } from "../lib/i18n";
+import {
+  PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid,
+  AreaChart, Area,
+} from "recharts";
 
 // ── Types ──────────────────────────────────────────────────────────
 
@@ -64,6 +69,14 @@ interface LogEntry {
   exc?: string;
 }
 
+interface AnalyticsData {
+  verdict_distribution: Record<string, number>;
+  confidence_histogram: Array<{ bucket: string; count: number }>;
+  top_domains: Array<{ domain: string; count: number; avg_tier: number }>;
+  analyses_per_day: Array<{ date: string; count: number }>;
+  period_days: number;
+}
+
 // ── Constants ──────────────────────────────────────────────────────
 
 const TIER_OPTIONS = ["lite", "pro", "max"] as const;
@@ -95,6 +108,26 @@ const LOG_LEVEL_DOT: Record<string, string> = {
   ERROR: "bg-error",
   CRITICAL: "bg-error",
 };
+
+const VERDICT_COLORS: Record<string, string> = {
+  TRUE: "#22c55e",
+  MOSTLY_TRUE: "#86efac",
+  MISLEADING: "#eab308",
+  MOSTLY_FALSE: "#f97316",
+  FALSE: "#ef4444",
+  UNVERIFIABLE: "#6b7280",
+};
+
+const HISTOGRAM_COLORS = [
+  "#ef4444", "#f97316", "#fb923c", "#fbbf24", "#facc15",
+  "#a3e635", "#4ade80", "#34d399", "#10b981", "#22c55e",
+];
+
+function domainTierColor(tier: number): string {
+  if (tier <= 2) return "#22c55e";
+  if (tier === 3) return "#eab308";
+  return "#f97316";
+}
 
 // ── Helpers ────────────────────────────────────────────────────────
 
@@ -416,6 +449,15 @@ function TabIconInvites() {
   );
 }
 
+function TabIconAnalytics() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 3v18h18" />
+      <path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3" />
+    </svg>
+  );
+}
+
 // ── Main Page ──────────────────────────────────────────────────────
 
 export default function AdminPage() {
@@ -423,7 +465,7 @@ export default function AdminPage() {
   const { t } = useI18n();
   const router = useRouter();
 
-  type Tab = "users" | "invites" | "system";
+  type Tab = "users" | "invites" | "system" | "analytics";
   const [activeTab, setActiveTab] = useState<Tab>("users");
 
   // Users tab state
@@ -465,6 +507,11 @@ export default function AdminPage() {
   const [newCodeExpiresDays, setNewCodeExpiresDays] = useState<number | null>(null);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [creatingCode, setCreatingCode] = useState(false);
+
+  // Analytics tab state
+  const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
+  const [analyticsDays, setAnalyticsDays] = useState(30);
 
   const headers = useCallback(
     () => ({
@@ -559,6 +606,23 @@ export default function AdminPage() {
     }
   }, [token, headers]);
 
+  const fetchAnalyticsData = useCallback(async () => {
+    if (!token) return;
+    setAnalyticsLoading(true);
+    try {
+      const [analyticsRes, metricsRes] = await Promise.all([
+        fetch(`/api/v1/admin/analytics?days=${analyticsDays}`, { headers: headers() }),
+        fetch("/api/v1/admin/metrics", { headers: headers() }),
+      ]);
+      if (analyticsRes.ok) setAnalyticsData(await analyticsRes.json());
+      if (metricsRes.ok) setMetrics(await metricsRes.json());
+    } catch {
+      // non-critical
+    } finally {
+      setAnalyticsLoading(false);
+    }
+  }, [token, headers, analyticsDays]);
+
   const handleCreateCode = useCallback(async () => {
     if (!token) return;
     setCreatingCode(true);
@@ -622,6 +686,24 @@ export default function AdminPage() {
       fetchInviteCodes();
     }
   }, [activeTab, token, user, fetchInviteCodes]);
+
+  useEffect(() => {
+    if (activeTab === "analytics" && token && user?.admin) {
+      fetchAnalyticsData();
+    }
+  }, [activeTab, token, user, fetchAnalyticsData]);
+
+  // Auto-refresh worker queue every 10s while Analytics tab is active
+  useEffect(() => {
+    if (activeTab !== "analytics" || !token || !user?.admin) return;
+    const id = setInterval(async () => {
+      try {
+        const res = await fetch("/api/v1/admin/metrics", { headers: headers() });
+        if (res.ok) setMetrics(await res.json());
+      } catch { /* non-critical */ }
+    }, 10000);
+    return () => clearInterval(id);
+  }, [activeTab, token, user, headers]);
 
   // ── Tier change ──────────────────────────────────────────────────
   const handleTierChange = async (userId: string, newTier: string) => {
@@ -708,7 +790,7 @@ export default function AdminPage() {
 
         {/* Tab switcher */}
         <div className="flex gap-0.5 glass-inner rounded-xl p-1">
-          {(["users", "invites", "system"] as Tab[]).map((tab) => (
+          {(["users", "invites", "system", "analytics"] as Tab[]).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -718,7 +800,7 @@ export default function AdminPage() {
                   : "text-text-tertiary hover:text-text-primary hover:bg-surface-hover/50"
               }`}
             >
-              {tab === "users" ? <TabIconUsers /> : tab === "invites" ? <TabIconInvites /> : <TabIconSystem />}
+              {tab === "users" ? <TabIconUsers /> : tab === "invites" ? <TabIconInvites /> : tab === "system" ? <TabIconSystem /> : <TabIconAnalytics />}
               {t(`admin.tab.${tab}`)}
             </button>
           ))}
@@ -1316,6 +1398,190 @@ export default function AdminPage() {
               )}
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ── TAB: ANALYTICS ────────────────────────────────────────── */}
+      {activeTab === "analytics" && (
+        <div className="space-y-6 animate-fade-in">
+          {/* Period selector + worker queue gauge + refresh */}
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div className="flex gap-1 glass-inner rounded-xl p-1">
+              {([7, 30, 90] as const).map((d) => (
+                <button
+                  key={d}
+                  onClick={() => setAnalyticsDays(d)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                    analyticsDays === d
+                      ? "bg-accent text-white"
+                      : "text-text-tertiary hover:text-text-primary"
+                  }`}
+                >
+                  {d}d
+                </button>
+              ))}
+            </div>
+            <div className="flex items-center gap-2">
+              {metrics != null && (
+                <div className="glass-inner rounded-xl px-3 py-1.5 flex items-center gap-2">
+                  <span className="text-[10px] uppercase tracking-wider text-text-tertiary font-medium">
+                    {t("admin.system.activeJobs")}
+                  </span>
+                  <span className={`text-sm font-semibold tabular-nums ${metrics.active_jobs > 0 ? "text-warning" : "text-success"}`}>
+                    {metrics.active_jobs}
+                  </span>
+                </div>
+              )}
+              <button
+                onClick={fetchAnalyticsData}
+                disabled={analyticsLoading}
+                className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 glass-inner rounded-lg text-text-secondary hover:text-text-primary transition-all disabled:opacity-50"
+              >
+                <IconRefresh spinning={analyticsLoading} />
+                {t("admin.system.refresh")}
+              </button>
+            </div>
+          </div>
+
+          {analyticsLoading && !analyticsData ? (
+            <div className="flex items-center justify-center py-20">
+              <div className="w-8 h-8 rounded-full border-2 border-accent/30 border-t-accent animate-spin" />
+            </div>
+          ) : analyticsData ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+
+              {/* Verdict Distribution — PieChart (donut) */}
+              <div className="glass-card rounded-2xl overflow-hidden">
+                <div className="px-5 py-3.5 border-b border-border">
+                  <h3 className="text-sm font-semibold text-text-primary">{t("admin.analytics.verdictDistribution")}</h3>
+                  <p className="text-[10px] text-text-tertiary mt-0.5">Last {analyticsData.period_days} days</p>
+                </div>
+                <div className="p-4">
+                  <ResponsiveContainer width="100%" height={240}>
+                    <PieChart>
+                      <Pie
+                        data={Object.entries(analyticsData.verdict_distribution).map(([name, value]) => ({ name, value }))}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={55}
+                        outerRadius={85}
+                        paddingAngle={2}
+                        dataKey="value"
+                      >
+                        {Object.entries(analyticsData.verdict_distribution).map(([name]) => (
+                          <Cell key={name} fill={VERDICT_COLORS[name] ?? "#6b7280"} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        contentStyle={{ background: "var(--color-surface, #1a1a2e)", border: "1px solid var(--color-border, #2a2a3e)", borderRadius: "8px", fontSize: "11px" }}
+                        formatter={(value: number, name: string) => {
+                          const total = Object.values(analyticsData.verdict_distribution).reduce((a, b) => a + b, 0);
+                          return [`${value} (${total ? Math.round((value / total) * 100) : 0}%)`, name];
+                        }}
+                      />
+                      <Legend iconSize={8} wrapperStyle={{ fontSize: "10px", paddingTop: "8px" }} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              {/* Confidence Histogram — BarChart */}
+              <div className="glass-card rounded-2xl overflow-hidden">
+                <div className="px-5 py-3.5 border-b border-border">
+                  <h3 className="text-sm font-semibold text-text-primary">{t("admin.analytics.confidenceHistogram")}</h3>
+                </div>
+                <div className="p-4">
+                  <ResponsiveContainer width="100%" height={240}>
+                    <BarChart data={analyticsData.confidence_histogram} margin={{ top: 4, right: 4, bottom: 4, left: -20 }}>
+                      <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.1} />
+                      <XAxis dataKey="bucket" tick={{ fontSize: 9 }} tickLine={false} axisLine={false} />
+                      <YAxis tick={{ fontSize: 9 }} tickLine={false} axisLine={false} allowDecimals={false} />
+                      <Tooltip
+                        contentStyle={{ background: "var(--color-surface, #1a1a2e)", border: "1px solid var(--color-border, #2a2a3e)", borderRadius: "8px", fontSize: "11px" }}
+                      />
+                      <Bar dataKey="count" radius={[3, 3, 0, 0]}>
+                        {analyticsData.confidence_histogram.map((_, i) => (
+                          <Cell key={i} fill={HISTOGRAM_COLORS[i]} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              {/* Top Domains — Horizontal BarChart */}
+              <div className="glass-card rounded-2xl overflow-hidden">
+                <div className="px-5 py-3.5 border-b border-border">
+                  <h3 className="text-sm font-semibold text-text-primary">{t("admin.analytics.topDomains")}</h3>
+                </div>
+                <div className="p-4">
+                  {analyticsData.top_domains.length > 0 ? (
+                    <ResponsiveContainer width="100%" height={Math.max(200, analyticsData.top_domains.length * 26)}>
+                      <BarChart layout="vertical" data={analyticsData.top_domains} margin={{ top: 4, right: 12, bottom: 4, left: 8 }}>
+                        <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.1} horizontal={false} />
+                        <XAxis type="number" tick={{ fontSize: 9 }} tickLine={false} axisLine={false} allowDecimals={false} />
+                        <YAxis type="category" dataKey="domain" width={110} tick={{ fontSize: 9 }} tickLine={false} axisLine={false} />
+                        <Tooltip
+                          contentStyle={{ background: "var(--color-surface, #1a1a2e)", border: "1px solid var(--color-border, #2a2a3e)", borderRadius: "8px", fontSize: "11px" }}
+                        />
+                        <Bar dataKey="count" radius={[0, 3, 3, 0]}>
+                          {analyticsData.top_domains.map((d, i) => (
+                            <Cell key={i} fill={domainTierColor(d.avg_tier)} />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <p className="text-xs text-text-tertiary text-center py-8">{t("admin.analytics.noData")}</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Analyses Per Day — AreaChart */}
+              <div className="glass-card rounded-2xl overflow-hidden">
+                <div className="px-5 py-3.5 border-b border-border">
+                  <h3 className="text-sm font-semibold text-text-primary">{t("admin.analytics.analysesPerDay")}</h3>
+                </div>
+                <div className="p-4">
+                  <ResponsiveContainer width="100%" height={240}>
+                    <AreaChart data={analyticsData.analyses_per_day} margin={{ top: 4, right: 4, bottom: 4, left: -20 }}>
+                      <defs>
+                        <linearGradient id="analyticsAreaGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
+                          <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.1} />
+                      <XAxis
+                        dataKey="date"
+                        tick={{ fontSize: 9 }}
+                        tickLine={false}
+                        axisLine={false}
+                        tickFormatter={(v: string) => v.slice(5)}
+                        interval="preserveStartEnd"
+                      />
+                      <YAxis tick={{ fontSize: 9 }} tickLine={false} axisLine={false} allowDecimals={false} />
+                      <Tooltip
+                        contentStyle={{ background: "var(--color-surface, #1a1a2e)", border: "1px solid var(--color-border, #2a2a3e)", borderRadius: "8px", fontSize: "11px" }}
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="count"
+                        stroke="#6366f1"
+                        strokeWidth={2}
+                        fill="url(#analyticsAreaGrad)"
+                        dot={false}
+                        activeDot={{ r: 4, fill: "#6366f1" }}
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+            </div>
+          ) : (
+            <p className="text-xs text-text-tertiary text-center py-10">{t("admin.analytics.noData")}</p>
+          )}
         </div>
       )}
     </div>

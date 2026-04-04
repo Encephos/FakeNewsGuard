@@ -208,6 +208,7 @@ const en = {
       users: "Users",
       invites: "Invites",
       system: "System",
+      analytics: "Analytics",
     },
     invites: {
       title: "Invite Codes",
@@ -247,6 +248,13 @@ const en = {
       allLevels: "All Levels",
       noLogs: "No logs available.",
       refresh: "Refresh",
+    },
+    analytics: {
+      verdictDistribution: "Verdict Distribution",
+      confidenceHistogram: "Confidence Distribution",
+      topDomains: "Top Domains",
+      analysesPerDay: "Analyses per Day",
+      noData: "No data for this period.",
     },
   },
 
