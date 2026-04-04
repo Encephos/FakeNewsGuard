@@ -63,6 +63,17 @@ from models.schemas import (
 from models.verdict_models import CoVeTrace, FinalVerdictMeta
 
 
+def _words(text: str) -> set[str]:
+    """Normalisiert Text zu Wort-Set (lowercase, alphanumerisch)."""
+    return set(re.findall(r'\b\w+\b', text.lower()))
+
+
+def _jaccard(a: set[str], b: set[str]) -> float:
+    if not a or not b:
+        return 0.0
+    return len(a & b) / len(a | b)
+
+
 _VERDICT_SYSTEM_PROMPT = """\
 Du bist ein Fact-Checker. Deine EINZIGE Aufgabe: Fälle ein fundiertes Urteil
 über die gegebene Behauptung basierend auf den bereitgestellten Fakten.
@@ -548,52 +559,91 @@ class VerdictAgent(BaseAgent):
     ) -> float:
         """Self-RAG: Prüfe ob das Verdict-Reasoning durch Evidence-Excerpts gestützt ist.
 
-        Extrahiert Kernaussagen aus dem Reasoning und prüft per LLM-Call,
-        ob jede Aussage durch die zitierten Excerpts belegt ist.
+        Kein zusätzlicher LLM-Call – Bewertung via Jaccard-Similarity auf Wortebene.
 
         Returns:
-            Grounding-Score (0.0–1.0): Anteil gestützter Aussagen.
-            -1.0 wenn Prüfung fehlschlägt oder keine Aussagen vorhanden.
+            Grounding-Score (0.0–1.0): Anteil gestützter Sätze.
+            -1.0 wenn keine scorebbaren Sätze vorhanden oder keine Excerpts.
         """
-        import json as _json
+        import logging as _logging
+        _logger = _logging.getLogger(__name__)
 
-        # Excerpts aus dem EvidencePack sammeln
-        excerpts = []
+        # 1. Excerpts sammeln
+        excerpt_texts: list[str] = []
         for item in pack.web_results[:8]:
             if item.excerpt:
-                excerpts.append(f"[{item.source.title}] {item.excerpt}")
+                excerpt_texts.append(item.excerpt.lower())
         for fc in pack.google_fact_check_matches:
-            excerpts.append(f"[Faktencheck: {fc.publisher}] {fc.claim_reviewed} → {fc.rating}")
+            excerpt_texts.append(f"{fc.claim_reviewed} {fc.rating}".lower())
 
-        if not excerpts or not verdict_reasoning.strip():
+        if not excerpt_texts or not verdict_reasoning.strip():
             return -1.0
 
-        excerpts_text = "\n---\n".join(excerpts)
+        # Domain-Set für URL-Bonus
+        domains: set[str] = set()
+        for src in pack.selected_sources:
+            if src.domain:
+                domains.add(src.domain.lower())
+        for item in pack.web_results[:8]:
+            if item.source.domain:
+                domains.add(item.source.domain.lower())
 
-        system_prompt = (
-            "Du bist ein Grounding-Prüfer. Du erhältst eine Begründung (Reasoning) "
-            "und eine Liste von Evidenz-Excerpts.\n\n"
-            "Prüfe für jede faktische Kernaussage im Reasoning, ob sie durch "
-            "mindestens einen Excerpt gestützt wird.\n\n"
-            "Antwortformat: JSON-Objekt mit:\n"
-            '{"statements": [{"text": "...", "supported": true/false}], '
-            '"supported_count": N, "total_count": N}\n\n'
-            "Ignoriere stilistische Elemente, Einleitungen und Schlussfolgerungen. "
-            "Prüfe nur faktische Aussagen (Zahlen, Daten, Fakten, Quellenverweise)."
-        )
-        user_msg = (
-            f"## Reasoning\n{verdict_reasoning}\n\n"
-            f"## Evidenz-Excerpts\n{excerpts_text}"
-        )
+        all_excerpt_words: list[set[str]] = [_words(t) for t in excerpt_texts]
 
-        try:
-            raw = self.llm.complete(system_prompt, user_msg, response_format="json")
-            result = _json.loads(raw) if isinstance(raw, str) else raw
-            supported = int(result.get("supported_count", 0))
-            total = int(result.get("total_count", 0))
-            if total == 0:
-                return -1.0
-            return min(1.0, max(0.0, supported / total))
-        except Exception as e:
-            self._log(f"Self-RAG Grounding-Check fehlgeschlagen: {type(e).__name__}")
+        # 2. Sätze splitten, kurze Füllsätze ignorieren
+        raw_sentences = re.split(r'[.!?]+', verdict_reasoning)
+        scoreable: list[str] = [s.strip() for s in raw_sentences if len(_words(s)) >= 5]
+
+        if not scoreable:
             return -1.0
+
+        # 3. Grounding pro Satz prüfen
+        _NUMBER_RE = re.compile(r'\b\d[\d.,]*\b')
+        grounded = 0
+        ungrounded: list[str] = []
+
+        for sent in scoreable:
+            sent_lower = sent.lower()
+            sent_words = _words(sent_lower)
+            sent_nums = set(_NUMBER_RE.findall(sent_lower))
+            is_grounded = False
+
+            # Jaccard-Check
+            for exc_words in all_excerpt_words:
+                if _jaccard(sent_words, exc_words) >= 0.15:
+                    is_grounded = True
+                    break
+
+            # Bonus: Zahlen-Übereinstimmung
+            if not is_grounded and sent_nums:
+                for exc_text in excerpt_texts:
+                    if sent_nums & set(_NUMBER_RE.findall(exc_text)):
+                        is_grounded = True
+                        break
+
+            # Bonus: Domain/URL-Erwähnung
+            if not is_grounded:
+                for domain in domains:
+                    if domain and domain in sent_lower:
+                        is_grounded = True
+                        break
+
+            if is_grounded:
+                grounded += 1
+            else:
+                ungrounded.append(sent)
+
+        score = grounded / len(scoreable)
+
+        # 4. Logging
+        _logger.debug(
+            "Self-RAG grounding %s: %.2f (%d/%d sentences)",
+            getattr(pack, "claim_id", "?"), score, grounded, len(scoreable),
+        )
+        if score < 0.5:
+            _logger.warning(
+                "Self-RAG grounding LOW (%.2f) for claim %s — ungrounded: %s",
+                score, getattr(pack, "claim_id", "?"), ungrounded,
+            )
+
+        return score
