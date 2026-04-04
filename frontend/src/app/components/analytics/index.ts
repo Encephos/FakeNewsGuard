@@ -1,4 +1,5 @@
 export { KPICards } from "./KPICards";
+export { PeriodSelector } from "./PeriodSelector";
 export { TimelineChart } from "./TimelineChart";
 export { RatingDistribution } from "./RatingDistribution";
 export { TopTopics } from "./TopTopics";

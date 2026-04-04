@@ -45,6 +45,10 @@ const en = {
       "30d": "30 days",
       "90d": "90 days",
       all: "All",
+      custom: "Custom",
+      customFrom: "From",
+      customTo: "To",
+      customError: "Start date must be before end date",
     },
     kpi: {
       total: "Total analyses",

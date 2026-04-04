@@ -118,18 +118,48 @@ _PERIOD_DEFAULTS: dict[str, tuple[int | None, str]] = {
 }
 
 
-def _parse_period(period: str, bucket: str | None) -> tuple[float | None, str]:
-    """Return (cutoff_unix_ts | None, bucket_key).
+def _parse_period(
+    period: str,
+    bucket: str | None,
+    date_from: str | None = None,
+    date_to: str | None = None,
+) -> tuple[float | None, float | None, str]:
+    """Return (cutoff_from, cutoff_to | None, bucket_key).
 
-    cutoff_unix_ts is None for 'all', otherwise now - N days.
-    bucket_key is 'day' | 'week' | 'month'.
+    When *date_from*/*date_to* are provided (ISO-8601 date strings),
+    they take precedence over *period*.  The bucket is auto-selected
+    based on the span: ≤14d → day, ≤120d → week, else month.
     """
+    if date_from and date_to:
+        try:
+            dt_from = datetime.strptime(date_from, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+            dt_to = datetime.strptime(date_to, "%Y-%m-%d").replace(
+                hour=23, minute=59, second=59, tzinfo=timezone.utc
+            )
+        except ValueError:
+            # Fall through to preset period on invalid dates
+            return _parse_period(period, bucket)
+        ts_from = dt_from.timestamp()
+        ts_to = dt_to.timestamp()
+        if ts_from > ts_to:
+            return _parse_period(period, bucket)
+        span_days = (ts_to - ts_from) / 86400
+        if bucket and bucket in _BUCKET_FMT:
+            chosen_bucket = bucket
+        elif span_days <= 14:
+            chosen_bucket = "day"
+        elif span_days <= 120:
+            chosen_bucket = "week"
+        else:
+            chosen_bucket = "month"
+        return ts_from, ts_to, chosen_bucket
+
     days, default_bucket = _PERIOD_DEFAULTS.get(period, (30, "day"))
     chosen_bucket = bucket if bucket in _BUCKET_FMT else default_bucket
     if days is None:
-        return None, chosen_bucket
+        return None, None, chosen_bucket
     cutoff = time.time() - days * 86400
-    return cutoff, chosen_bucket
+    return cutoff, None, chosen_bucket
 
 
 def _bucket_label(ts: float, fmt: str) -> str:
@@ -183,7 +213,7 @@ class AnalyticsEngine:
         self._cache[key] = (result, time.time())
         return result
 
-    def _fetch_rows(self, cutoff: float | None) -> list[dict]:
+    def _fetch_rows(self, cutoff: float | None, cutoff_to: float | None = None) -> list[dict]:
         """Fetch all archive rows within the time window.
 
         Returns lightweight dicts (no full result_json parsing yet).
@@ -192,7 +222,18 @@ class AnalyticsEngine:
             return []
         ph = getattr(self._archive, "_placeholder", "?")
         with self._archive._connect() as conn:
-            if cutoff is not None:
+            if cutoff is not None and cutoff_to is not None:
+                rows = conn.execute(
+                    f"""
+                    SELECT id, created_at, overall_rating, confidence,
+                           claims_count, techniques_count, platform, result_json
+                    FROM analysis_archive
+                    WHERE created_at >= {ph} AND created_at <= {ph}
+                    ORDER BY created_at ASC
+                    """,
+                    (cutoff, cutoff_to),
+                ).fetchall()
+            elif cutoff is not None:
                 rows = conn.execute(
                     f"""
                     SELECT id, created_at, overall_rating, confidence,
@@ -217,14 +258,17 @@ class AnalyticsEngine:
 
     # ── Public aggregation methods ────────────────────────────────────
 
-    def timeline(self, period: str = "30d", bucket: str | None = None) -> dict:
+    def timeline(
+        self, period: str = "30d", bucket: str | None = None,
+        date_from: str | None = None, date_to: str | None = None,
+    ) -> dict:
         """Time-bucketed analysis counts + confidence + rating distribution."""
-        key = f"timeline:{period}:{bucket}"
-        return self._cached(key, lambda: self._compute_timeline(period, bucket))
+        key = f"timeline:{period}:{bucket}:{date_from}:{date_to}"
+        return self._cached(key, lambda: self._compute_timeline(period, bucket, date_from, date_to))
 
-    def _compute_timeline(self, period: str, bucket: str | None) -> dict:
-        cutoff, bkt = _parse_period(period, bucket)
-        rows = self._fetch_rows(cutoff)
+    def _compute_timeline(self, period: str, bucket: str | None, date_from: str | None = None, date_to: str | None = None) -> dict:
+        cutoff, cutoff_to, bkt = _parse_period(period, bucket, date_from, date_to)
+        rows = self._fetch_rows(cutoff, cutoff_to)
 
         buckets: dict[str, dict] = {}
         for row in rows:
@@ -263,14 +307,17 @@ class AnalyticsEngine:
             "total_analyses": len(rows),
         }
 
-    def topics(self, period: str = "30d") -> dict:
+    def topics(
+        self, period: str = "30d",
+        date_from: str | None = None, date_to: str | None = None,
+    ) -> dict:
         """Most frequent topics/keywords extracted from claim texts."""
-        key = f"topics:{period}"
-        return self._cached(key, lambda: self._compute_topics(period))
+        key = f"topics:{period}:{date_from}:{date_to}"
+        return self._cached(key, lambda: self._compute_topics(period, date_from, date_to))
 
-    def _compute_topics(self, period: str) -> dict:
-        cutoff, _ = _parse_period(period, None)
-        rows = self._fetch_rows(cutoff)
+    def _compute_topics(self, period: str, date_from: str | None = None, date_to: str | None = None) -> dict:
+        cutoff, cutoff_to, _ = _parse_period(period, None, date_from, date_to)
+        rows = self._fetch_rows(cutoff, cutoff_to)
 
         if not rows:
             return {"topics": [], "period": period}
@@ -332,14 +379,17 @@ class AnalyticsEngine:
 
         return {"topics": result_topics, "period": period}
 
-    def sources(self, period: str = "30d") -> dict:
+    def sources(
+        self, period: str = "30d",
+        date_from: str | None = None, date_to: str | None = None,
+    ) -> dict:
         """Top cited sources and their reliability metrics."""
-        key = f"sources:{period}"
-        return self._cached(key, lambda: self._compute_sources(period))
+        key = f"sources:{period}:{date_from}:{date_to}"
+        return self._cached(key, lambda: self._compute_sources(period, date_from, date_to))
 
-    def _compute_sources(self, period: str) -> dict:
-        cutoff, _ = _parse_period(period, None)
-        rows = self._fetch_rows(cutoff)
+    def _compute_sources(self, period: str, date_from: str | None = None, date_to: str | None = None) -> dict:
+        cutoff, cutoff_to, _ = _parse_period(period, None, date_from, date_to)
+        rows = self._fetch_rows(cutoff, cutoff_to)
 
         domain_data: dict[str, dict] = {}
         for row in rows:
@@ -386,14 +436,17 @@ class AnalyticsEngine:
             "period": period,
         }
 
-    def accuracy(self, period: str = "30d", bucket: str | None = None) -> dict:
+    def accuracy(
+        self, period: str = "30d", bucket: str | None = None,
+        date_from: str | None = None, date_to: str | None = None,
+    ) -> dict:
         """Confidence calibration and rating distribution over time."""
-        key = f"accuracy:{period}:{bucket}"
-        return self._cached(key, lambda: self._compute_accuracy(period, bucket))
+        key = f"accuracy:{period}:{bucket}:{date_from}:{date_to}"
+        return self._cached(key, lambda: self._compute_accuracy(period, bucket, date_from, date_to))
 
-    def _compute_accuracy(self, period: str, bucket: str | None) -> dict:
-        cutoff, bkt = _parse_period(period, bucket)
-        rows = self._fetch_rows(cutoff)
+    def _compute_accuracy(self, period: str, bucket: str | None, date_from: str | None = None, date_to: str | None = None) -> dict:
+        cutoff, cutoff_to, bkt = _parse_period(period, bucket, date_from, date_to)
+        rows = self._fetch_rows(cutoff, cutoff_to)
 
         # Time-bucketed accuracy
         time_buckets: dict[str, dict] = {}
@@ -468,14 +521,17 @@ class AnalyticsEngine:
             "bucket": bkt,
         }
 
-    def platforms(self, period: str = "30d") -> dict:
+    def platforms(
+        self, period: str = "30d",
+        date_from: str | None = None, date_to: str | None = None,
+    ) -> dict:
         """Breakdown of analyses by platform."""
-        key = f"platforms:{period}"
-        return self._cached(key, lambda: self._compute_platforms(period))
+        key = f"platforms:{period}:{date_from}:{date_to}"
+        return self._cached(key, lambda: self._compute_platforms(period, date_from, date_to))
 
-    def _compute_platforms(self, period: str) -> dict:
-        cutoff, _ = _parse_period(period, None)
-        rows = self._fetch_rows(cutoff)
+    def _compute_platforms(self, period: str, date_from: str | None = None, date_to: str | None = None) -> dict:
+        cutoff, cutoff_to, _ = _parse_period(period, None, date_from, date_to)
+        rows = self._fetch_rows(cutoff, cutoff_to)
 
         plat: dict[str, dict] = {}
         for row in rows:

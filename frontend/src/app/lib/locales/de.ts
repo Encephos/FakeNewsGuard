@@ -37,6 +37,10 @@ const de = {
       "30d": "30 Tage",
       "90d": "90 Tage",
       all: "Alle",
+      custom: "Benutzerdefiniert",
+      customFrom: "Von",
+      customTo: "Bis",
+      customError: "Startdatum muss vor Enddatum liegen",
     },
     kpi: {
       total: "Analysen gesamt",

@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useI18n } from "../lib/i18n";
 import {
   KPICards,
+  PeriodSelector,
   TimelineChart,
   RatingDistribution,
   TopTopics,
@@ -13,6 +14,7 @@ import {
 } from "../components/analytics";
 import {
   Period,
+  DateRange,
   TimelineData,
   TopicsData,
   SourcesData,
@@ -21,11 +23,10 @@ import {
   computeKpis,
 } from "../components/analytics/types";
 
-const PERIODS: Period[] = ["7d", "30d", "90d", "all"];
-
 export default function AnalyticsPage() {
   const { t } = useI18n();
   const [period, setPeriod] = useState<Period>("30d");
+  const [dateRange, setDateRange] = useState<DateRange | null>(null);
 
   const [timeline, setTimeline] = useState<TimelineData | null>(null);
   const [topics, setTopics] = useState<TopicsData | null>(null);
@@ -36,9 +37,18 @@ export default function AnalyticsPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    let qs: string;
+    if (period === "custom" && dateRange?.from && dateRange?.to) {
+      if (dateRange.from > dateRange.to) return;
+      qs = `date_from=${dateRange.from}&date_to=${dateRange.to}`;
+    } else if (period === "custom") {
+      return; // wait for valid date range
+    } else {
+      qs = `period=${period}`;
+    }
+
     setLoading(true);
     setError(null);
-    const p = `period=${period}`;
     const fetchJson = (url: string) =>
       fetch(url).then((r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -46,11 +56,11 @@ export default function AnalyticsPage() {
       });
 
     Promise.all([
-      fetchJson(`/api/v1/analytics/timeline?${p}`),
-      fetchJson(`/api/v1/analytics/topics?${p}`),
-      fetchJson(`/api/v1/analytics/sources?${p}`),
-      fetchJson(`/api/v1/analytics/accuracy?${p}`),
-      fetchJson(`/api/v1/analytics/platforms?${p}`),
+      fetchJson(`/api/v1/analytics/timeline?${qs}`),
+      fetchJson(`/api/v1/analytics/topics?${qs}`),
+      fetchJson(`/api/v1/analytics/sources?${qs}`),
+      fetchJson(`/api/v1/analytics/accuracy?${qs}`),
+      fetchJson(`/api/v1/analytics/platforms?${qs}`),
     ])
       .then(([tl, tp, sr, ac, pf]) => {
         if (tl.error === "archive_disabled") {
@@ -65,7 +75,7 @@ export default function AnalyticsPage() {
       })
       .catch(() => setError("fetch_error"))
       .finally(() => setLoading(false));
-  }, [period]);
+  }, [period, dateRange]);
 
   const kpis = useMemo(() => computeKpis(timeline), [timeline]);
 
@@ -79,20 +89,13 @@ export default function AnalyticsPage() {
         <span className="text-sm font-semibold text-text-primary mr-1">
           {t("analytics.title")}
         </span>
-        <div className="flex items-center gap-1 ml-auto">
-          {PERIODS.map((p) => (
-            <button
-              key={p}
-              onClick={() => setPeriod(p)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                period === p
-                  ? "bg-accent text-white"
-                  : "glass-inner text-text-secondary hover:text-text-primary"
-              }`}
-            >
-              {t(`analytics.period.${p}`)}
-            </button>
-          ))}
+        <div className="ml-auto">
+          <PeriodSelector
+            period={period}
+            onPeriodChange={setPeriod}
+            dateRange={dateRange}
+            onDateRangeChange={setDateRange}
+          />
         </div>
       </div>
 
