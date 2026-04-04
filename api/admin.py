@@ -210,3 +210,11 @@ async def admin_cost_stats(request: Request, days: int = 30) -> dict:
     require_admin(request)
     db = get_user_db()
     return db.get_cost_stats(days=days)
+
+
+@router.get("/admin/analytics")
+async def admin_analytics(request: Request, days: int = 30) -> dict:
+    """Aggregated analysis stats for the Analytics dashboard. Admin only."""
+    require_admin(request)
+    archive = get_archive()
+    return archive.analytics_data(days=days)

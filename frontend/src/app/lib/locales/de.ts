@@ -200,6 +200,7 @@ const de = {
       users: "Nutzer",
       invites: "Einladungen",
       system: "System",
+      analytics: "Analytics",
     },
     invites: {
       title: "Einladungscodes",
@@ -239,6 +240,13 @@ const de = {
       allLevels: "Alle Level",
       noLogs: "Keine Logs vorhanden.",
       refresh: "Aktualisieren",
+    },
+    analytics: {
+      verdictDistribution: "Urteilsverteilung",
+      confidenceHistogram: "Konfidenz-Verteilung",
+      topDomains: "Top-Domains",
+      analysesPerDay: "Analysen pro Tag",
+      noData: "Keine Daten für diesen Zeitraum.",
     },
   },
 

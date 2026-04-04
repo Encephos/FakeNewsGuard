@@ -470,6 +470,91 @@ class AnalysisArchive:
             "max_entries": self.config.max_entries,
         }
 
+    def analytics_data(self, days: int = 30) -> dict[str, Any]:
+        """Aggregated analytics for the admin dashboard."""
+        KNOWN_RATINGS = ["TRUE", "MOSTLY_TRUE", "MISLEADING", "MOSTLY_FALSE", "FALSE", "UNVERIFIABLE"]
+        empty_histogram = [{"bucket": f"{i/10:.1f}-{(i+1)/10:.1f}", "count": 0} for i in range(10)]
+
+        if not self.config.enabled:
+            return {
+                "verdict_distribution": {k: 0 for k in KNOWN_RATINGS},
+                "confidence_histogram": empty_histogram,
+                "top_domains": [],
+                "analyses_per_day": [],
+                "period_days": days,
+            }
+
+        import time
+        from datetime import date, timedelta
+        from urllib.parse import urlparse
+
+        cutoff = time.time() - days * 86400
+
+        with self._connect() as conn:
+            # 1. Verdict distribution
+            verdict_distribution: dict[str, int] = {k: 0 for k in KNOWN_RATINGS}
+            for row in conn.execute(
+                "SELECT overall_rating, COUNT(*) as cnt FROM analysis_archive "
+                "WHERE created_at > ? GROUP BY overall_rating",
+                (cutoff,),
+            ):
+                verdict_distribution[row["overall_rating"]] = row["cnt"]
+
+            # 2. Confidence histogram (confidence is INTEGER 0-100)
+            buckets = [0] * 10
+            for row in conn.execute(
+                "SELECT confidence FROM analysis_archive WHERE created_at > ?",
+                (cutoff,),
+            ):
+                idx = min(row["confidence"] // 10, 9)
+                buckets[idx] += 1
+            confidence_histogram = [
+                {"bucket": f"{i/10:.1f}-{(i+1)/10:.1f}", "count": buckets[i]}
+                for i in range(10)
+            ]
+
+            # 3. Top domains (extract from source_url in Python)
+            domain_counts: dict[str, int] = {}
+            for row in conn.execute(
+                "SELECT source_url FROM analysis_archive "
+                "WHERE created_at > ? AND source_url IS NOT NULL",
+                (cutoff,),
+            ):
+                netloc = urlparse(row["source_url"]).netloc
+                domain = netloc[4:] if netloc.startswith("www.") else netloc
+                if domain:
+                    domain_counts[domain] = domain_counts.get(domain, 0) + 1
+            top_domains = [
+                {"domain": d, "count": c, "avg_tier": 0}
+                for d, c in sorted(domain_counts.items(), key=lambda x: -x[1])[:15]
+            ]
+
+            # 4. Analyses per day
+            day_map: dict[str, int] = {}
+            for row in conn.execute(
+                "SELECT date(created_at, 'unixepoch') as day, COUNT(*) as cnt "
+                "FROM analysis_archive WHERE created_at > ? GROUP BY day ORDER BY day",
+                (cutoff,),
+            ):
+                day_map[row["day"]] = row["cnt"]
+
+        # Fill missing days with 0 so the chart has no gaps
+        start_date = date.fromtimestamp(cutoff)
+        end_date = date.today()
+        analyses_per_day: list[dict[str, Any]] = []
+        current = start_date
+        while current <= end_date:
+            analyses_per_day.append({"date": current.isoformat(), "count": day_map.get(current.isoformat(), 0)})
+            current += timedelta(days=1)
+
+        return {
+            "verdict_distribution": verdict_distribution,
+            "confidence_histogram": confidence_histogram,
+            "top_domains": top_domains,
+            "analyses_per_day": analyses_per_day,
+            "period_days": days,
+        }
+
     # ── Maintenance ──────────────────────────────────────────────
 
     def _enforce_max_entries(self) -> None:
