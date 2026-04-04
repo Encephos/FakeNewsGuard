@@ -292,3 +292,89 @@ class TestVerdictAgentCoVeIntegration:
         assert isinstance(result.rating, FactRating)
         assert result.evidence != ""
         assert result.claim_id == "C1"
+
+
+# ── Unit Tests: _check_verdict_grounding() ──────────────────────────────────
+
+class TestCheckVerdictGrounding:
+    @pytest.fixture
+    def agent(self, minimal_config, mocker):
+        mock_llm = mocker.MagicMock()
+        mock_search = mocker.MagicMock()
+        from agents.verdict_agent import VerdictAgent
+        return VerdictAgent(minimal_config, mock_llm, mock_search)
+
+    def _make_pack(self, excerpts: list[str], domains: list[str] | None = None):
+        from models.evidence_models import (
+            EvidenceItem,
+            EvidencePack,
+            EvidenceSource,
+        )
+        web_results = [
+            EvidenceItem(
+                source=EvidenceSource(
+                    url=f"https://{d}/test",
+                    title=f"Source {i}",
+                    domain=d,
+                    domain_tier=2,
+                ),
+                excerpt=exc,
+                relevance_score=0.8,
+            )
+            for i, (exc, d) in enumerate(
+                zip(excerpts, (domains or ["example.com"] * len(excerpts)))
+            )
+        ]
+        return EvidencePack(
+            claim_id="TEST",
+            claim_text="test claim",
+            web_results=web_results,
+        )
+
+    def test_high_overlap_returns_high_score(self, agent):
+        """Verdict-Text der fast wörtlich Excerpts zitiert → Score > 0.8."""
+        excerpt = (
+            "Die Polizeiliche Kriminalstatistik zeigt einen Anstieg von 5,5 Prozent "
+            "bei registrierten Straftaten im Jahr 2023 laut Bundesinnenministerium."
+        )
+        # Verdict repeats core words from excerpt
+        verdict = (
+            "Die Polizeiliche Kriminalstatistik zeigt einen Anstieg von 5,5 Prozent "
+            "bei registrierten Straftaten im Jahr 2023 laut Bundesinnenministerium. "
+            "Das Bundesinnenministerium bestätigt den Anstieg von 5,5 Prozent in der "
+            "Kriminalstatistik 2023 für registrierte Straftaten in Deutschland."
+        )
+        pack = self._make_pack([excerpt])
+        score = agent._check_verdict_grounding(verdict, pack)
+        assert score > 0.8
+
+    def test_hallucinated_reasoning_returns_low_score(self, agent):
+        """Verdict-Text ohne Überlappung mit Excerpts → Score < 0.3."""
+        excerpt = "Die Inflationsrate lag im März 2024 bei 2,2 Prozent laut Statistikamt."
+        verdict = (
+            "Quantenmechanische Phänomene beeinflussen die Quantenchromodynamik "
+            "in supraleitenden Materialien bei Temperaturen nahe dem absoluten Nullpunkt. "
+            "Subatomare Teilchen folgen der Schrödinger-Gleichung in verschränkten Systemen."
+        )
+        pack = self._make_pack([excerpt])
+        score = agent._check_verdict_grounding(verdict, pack)
+        assert score < 0.3
+
+    def test_number_bonus_applies(self, agent):
+        """Satz mit Zahl die auch im Excerpt vorkommt → als grounded gewertet."""
+        excerpt = "Im Jahr 2023 wurden 42 Prozent mehr Fälle registriert als im Vorjahr."
+        # Sentence shares the number 42 but uses completely different vocabulary
+        verdict = (
+            "Laut verfügbaren Quellen wurden deutlich mehr Vorfälle gemeldet. "
+            "Die Steigerungsrate betrug 42 Prozent gegenüber dem Vergleichszeitraum."
+        )
+        pack = self._make_pack([excerpt])
+        score = agent._check_verdict_grounding(verdict, pack)
+        # At least the sentence with 42% should be grounded via number bonus
+        assert score > 0.0
+
+    def test_empty_reasoning_returns_minus_one(self, agent):
+        """Leerer verdict_reasoning → -1.0."""
+        pack = self._make_pack(["Beliebiger Excerpt mit Text über Statistiken."])
+        assert agent._check_verdict_grounding("", pack) == -1.0
+        assert agent._check_verdict_grounding("   ", pack) == -1.0
