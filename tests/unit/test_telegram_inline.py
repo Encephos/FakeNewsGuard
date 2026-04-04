@@ -164,7 +164,7 @@ class TestFormatSections:
 
 # ── Keyboard Building Tests ─────────────────────────────────────
 
-from telegram_bot import (
+from bot.keyboards import (
     TIER_LEVELS,
     _build_result_keyboard,
     _build_tier_keyboard,
@@ -269,7 +269,7 @@ class TestBuildResultKeyboard:
 
 # ── Cache Tests ─────────────────────────────────────────────────
 
-from telegram_bot import (
+from bot.cache import (
     _cleanup_caches,
     _pending_texts,
     _result_cache,
