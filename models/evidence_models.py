@@ -11,10 +11,36 @@ Trust Boundary:
 
 from __future__ import annotations
 
+import hashlib
+import time
+from dataclasses import dataclass, field
 from enum import Enum
 from typing import Optional
 
 from pydantic import BaseModel, Field
+
+
+# ── URL-Content-Cache ─────────────────────────────────────────────────────────
+
+
+@dataclass
+class ScrapedContent:
+    """Gecachte URL-Inhalte für UrlContentCache (session-scoped).
+
+    Speichert den extrahierten Passage-Text einer URL, sodass bei einem
+    Cache-Hit der HTTP-Request übersprungen werden kann.
+    """
+
+    url: str
+    text: str
+    tier_label: str = ""
+    publish_date: str = ""
+    scraped_at: float = field(default_factory=time.time)
+    content_hash: str = ""
+
+    def __post_init__(self) -> None:
+        if not self.content_hash and self.text:
+            self.content_hash = hashlib.sha256(self.text.encode()).hexdigest()
 
 
 # ── Quellen-Qualität ──────────────────────────────────────────────────────────

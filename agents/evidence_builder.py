@@ -119,8 +119,11 @@ class EvidenceBuilderAgent(BaseAgent):
         super().__init__(*args, **kwargs)
 
         # Search Cache (Valkey wenn verfügbar, sonst In-Memory)
-        from tools.db.factory import create_search_cache
+        from tools.db.factory import create_search_cache, create_url_cache
         self._search_cache = create_search_cache(self.config)
+
+        # URL-Content-Cache (session-scoped, verhindert redundantes Scraping)
+        self._url_cache = create_url_cache(self.config)
 
         # Google Fact Check Client
         self._gfc_client = FactCheckDatabaseClient(
@@ -903,14 +906,52 @@ class EvidenceBuilderAgent(BaseAgent):
         if content_skipped:
             self._log(f"LangSearch-Content ausreichend: {content_skipped} Scraping-Requests eingespart")
 
-        scrape_count = sum(1 for rs in ranked if rs.should_scrape)
-        self._log(f"Scraping {scrape_count} von {len(ranked)} Quellen...")
+        # ── 4. Cache-aware Scraping ───────────────────────────────────────────
+        from models.evidence_models import ScrapedContent
+        from tools.scrape_ranker import extract_relevant_passages
 
-        scraped = await scrape_sources(
+        cache_hits: list[ScrapedSource] = []
+        for rs in ranked:
+            if not rs.should_scrape:
+                continue
+            cached = self._url_cache.get(rs.result.url)
+            if cached is not None:
+                self._log(f"URL-Cache Hit: {rs.result.url}")
+                passage, low_relevance = extract_relevant_passages(cached.text, claim.text)
+                cache_hits.append(ScrapedSource(
+                    url=cached.url,
+                    tier_label=cached.tier_label,
+                    passage=passage,
+                    low_relevance=low_relevance,
+                    fetch_success=True,
+                    error=None,
+                    publication_date=cached.publish_date,
+                ))
+                rs.should_scrape = False  # aus frischem Scraping ausschließen
+
+        scrape_count = sum(1 for rs in ranked if rs.should_scrape)
+        if cache_hits:
+            self._log(f"URL-Cache: {len(cache_hits)} Hits, {scrape_count} frische Scrapes")
+        else:
+            self._log(f"Scraping {scrape_count} von {len(ranked)} Quellen...")
+
+        fresh_scraped = await scrape_sources(
             ranked, claim.text,
             max_concurrent=self.config.searxng.max_concurrent_searches,
             timeout=self.config.searxng.scrape_timeout,
         )
+
+        # Frische Ergebnisse im Cache speichern
+        for s in fresh_scraped:
+            if s.fetch_success and s.passage:
+                self._url_cache.set(s.url, ScrapedContent(
+                    url=s.url,
+                    text=s.passage,
+                    tier_label=s.tier_label,
+                    publish_date=s.publication_date,
+                ))
+
+        scraped = cache_hits + fresh_scraped
         success = sum(1 for s in scraped if s.fetch_success)
         self._log(f"Scraping: {success}/{len(scraped)} erfolgreich")
         return ranked, scraped
