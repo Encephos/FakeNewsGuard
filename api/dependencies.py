@@ -16,7 +16,7 @@ from config.infrastructure import AuthConfig, JobConfig
 from i18n import t
 from tools.db.factory import create_archive, create_graph, create_user_db
 from tools.logger import get_logger, record_auth_attempt
-from tools.rate_limiter import RateLimiter
+from tools.rate_limiter import RateLimiter, ValkeyRateLimiter, create_rate_limiter
 from tools.user_db import create_access_token, create_refresh_token, decode_token
 
 # ── Logging ──────────────────────────────────────────────────────
@@ -41,14 +41,14 @@ JOB_INACTIVITY_TIMEOUT = _job_config.inactivity_timeout
 
 
 # ── Rate-Limiter (singleton) ────────────────────────────────────
-_rate_limiter: RateLimiter | None = None
+_rate_limiter: RateLimiter | ValkeyRateLimiter | None = None
 
 
-def _get_rate_limiter() -> RateLimiter:
+def _get_rate_limiter() -> RateLimiter | ValkeyRateLimiter:
     global _rate_limiter
     if _rate_limiter is None:
         config = AppConfig()
-        _rate_limiter = RateLimiter(config.rate_limit)
+        _rate_limiter = create_rate_limiter(config.rate_limit, config.valkey)
     return _rate_limiter
 
 
@@ -98,21 +98,20 @@ def get_user_db():
 
 
 # ── Auth Rate-Limiter (konfigurierbar via RateLimitConfig) ──────
-_auth_rate_limiter: RateLimiter | None = None
+_auth_rate_limiter: RateLimiter | ValkeyRateLimiter | None = None
 
 
-def _get_auth_rate_limiter() -> RateLimiter:
+def _get_auth_rate_limiter() -> RateLimiter | ValkeyRateLimiter:
     global _auth_rate_limiter
     if _auth_rate_limiter is None:
         config = AppConfig()
         rl = config.rate_limit
-        _auth_rate_limiter = RateLimiter(
-            RateLimitConfig(
-                enabled=True,
-                requests_per_minute=rl.auth_requests_per_minute,
-                burst=rl.auth_burst,
-            )
+        auth_rl = RateLimitConfig(
+            enabled=True,
+            requests_per_minute=rl.auth_requests_per_minute,
+            burst=rl.auth_burst,
         )
+        _auth_rate_limiter = create_rate_limiter(auth_rl, config.valkey)
     return _auth_rate_limiter
 
 
