@@ -24,7 +24,7 @@ from models.evidence_models import ScrapedContent
 def _normalize_url(url: str) -> str:
     """Normalisiere URL für Cache-Key: lowercase, trailing slash entfernen, Query-Params sortieren."""
     parsed = urlparse(url.lower().rstrip("/"))
-    sorted_query = urlencode(sorted(parse_qs(parsed.query, keep_blank_values=True).items()))
+    sorted_query = urlencode(sorted(parse_qs(parsed.query, keep_blank_values=True).items()), doseq=True)
     return parsed._replace(query=sorted_query).geturl()
 
 
