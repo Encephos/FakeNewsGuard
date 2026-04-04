@@ -51,6 +51,13 @@ def create_search_cache(config: "AppConfig"):
     return InMemorySearchCache(config.search_cache)
 
 
+def create_url_cache(config: "AppConfig") -> "UrlContentCache":
+    """UrlContentCache: Valkey als L2 wenn CACHE_BACKEND=valkey, sonst nur In-Memory."""
+    from tools.url_cache import UrlContentCache  # noqa: PLC0415
+    valkey_cfg = config.valkey if config.valkey.enabled else None
+    return UrlContentCache(valkey_config=valkey_cfg, ttl_seconds=config.cache.url_cache_ttl)
+
+
 def create_user_db(config: "AppConfig"):
     """UserDB: PostgreSQL wenn DB_BACKEND=postgres, sonst SQLite."""
     if config.postgres.enabled:

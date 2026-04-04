@@ -95,6 +95,7 @@ class CacheConfig:
     db_path: str = ".fakeguard_cache.db"
     ttl_hours: int = 24  # Wie lange gecachte Ergebnisse gültig sind
     semantic_cache: bool = False  # Embedding-basierte Similarity-Suche als Fallback
+    url_cache_ttl: int = 3600  # URL-Content-Cache TTL in Sekunden (Default: 1 Stunde)
 
     def __post_init__(self) -> None:
         if env_path := os.getenv("CACHE_DB_PATH", ""):
@@ -103,3 +104,5 @@ class CacheConfig:
             self.ttl_hours = int(env_ttl)
         if os.getenv("CACHE_SEMANTIC", "").lower() in ("1", "true", "yes"):
             self.semantic_cache = True
+        if env_url_ttl := os.getenv("URL_CACHE_TTL", ""):
+            self.url_cache_ttl = int(env_url_ttl)
