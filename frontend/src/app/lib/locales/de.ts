@@ -37,6 +37,10 @@ const de = {
       "30d": "30 Tage",
       "90d": "90 Tage",
       all: "Alle",
+      custom: "Benutzerdefiniert",
+      customFrom: "Von",
+      customTo: "Bis",
+      customError: "Startdatum muss vor Enddatum liegen",
     },
     kpi: {
       total: "Analysen gesamt",
@@ -50,6 +54,20 @@ const de = {
     sources: { title: "Quellen-Ranking", domain: "Domain", citations: "Zitierungen", firstSeen: "Erstmalig", lastSeen: "Zuletzt" },
     platforms: { title: "Plattformen" },
     accuracy: { title: "Konfidenz-Kalibrierung", ideal: "Ideal", actual: "Tatsächlich" },
+    export: { csv: "CSV herunterladen", png: "PNG herunterladen" },
+    layout: {
+      settings: "Dashboard-Einstellungen",
+      showWidget: "Widgets anzeigen",
+      dragHint: "Ziehen zum Sortieren",
+    },
+    widget: {
+      timeline: "Analyse-Verlauf",
+      ratingDist: "Bewertungs-Entwicklung",
+      topics: "Top-Themen",
+      platforms: "Plattformen",
+      sources: "Quellen-Ranking",
+      accuracy: "Konfidenz-Kalibrierung",
+    },
     trend: { rising: "↑", stable: "→", declining: "↓" },
   },
 

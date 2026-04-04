@@ -45,6 +45,10 @@ const en = {
       "30d": "30 days",
       "90d": "90 days",
       all: "All",
+      custom: "Custom",
+      customFrom: "From",
+      customTo: "To",
+      customError: "Start date must be before end date",
     },
     kpi: {
       total: "Total analyses",
@@ -58,6 +62,20 @@ const en = {
     sources: { title: "Source Ranking", domain: "Domain", citations: "Citations", firstSeen: "First seen", lastSeen: "Last seen" },
     platforms: { title: "Platforms" },
     accuracy: { title: "Confidence Calibration", ideal: "Ideal", actual: "Actual" },
+    export: { csv: "Download CSV", png: "Download PNG" },
+    layout: {
+      settings: "Dashboard settings",
+      showWidget: "Show widgets",
+      dragHint: "Drag to reorder",
+    },
+    widget: {
+      timeline: "Analysis Timeline",
+      ratingDist: "Rating Distribution",
+      topics: "Top Topics",
+      platforms: "Platforms",
+      sources: "Source Ranking",
+      accuracy: "Confidence Calibration",
+    },
     trend: { rising: "↑", stable: "→", declining: "↓" },
   },
 
