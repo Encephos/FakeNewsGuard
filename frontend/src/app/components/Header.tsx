@@ -40,6 +40,9 @@ export default function Header() {
 
   const isActive = (path: string) => pathname === path;
 
+  // Embed pages run inside iframes and need no navigation
+  if (pathname?.endsWith("/embed")) return null;
+
   return (
     <header className="fixed top-3 left-4 right-4 z-50 glass-bar rounded-2xl">
       <div className="flex items-center justify-between px-4 py-2">

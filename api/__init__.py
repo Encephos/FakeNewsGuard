@@ -144,6 +144,7 @@ from .admin import router as admin_router
 from .analysis import router as analysis_router
 from .analytics import router as analytics_router
 from .archive import router as archive_router
+from .share import router as share_router
 from .export import router as export_router
 from .graph import router as graph_router
 from .utils import router as utils_router
@@ -156,6 +157,7 @@ app.include_router(admin_router,     prefix=V1_PREFIX)
 app.include_router(analysis_router,  prefix=V1_PREFIX)
 app.include_router(analytics_router, prefix=V1_PREFIX)
 app.include_router(archive_router,   prefix=V1_PREFIX)
+app.include_router(share_router,     prefix=V1_PREFIX)
 app.include_router(export_router,    prefix=V1_PREFIX)
 app.include_router(graph_router,     prefix=V1_PREFIX)
 app.include_router(utils_router,     prefix=V1_PREFIX)

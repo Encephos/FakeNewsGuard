@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { AnalysisResult } from "../lib/types";
 import ResultDisplay from "../components/ResultDisplay";
+import { createShare, listShares, deleteShare, CreateShareResponse, ShareToken } from "../lib/api";
 
 // ── Types ───────────────────────────────────────────────────────
 
@@ -99,6 +100,7 @@ export default function ArchivePage() {
   const [detail, setDetail] = useState<ArchiveDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [stats, setStats] = useState<ArchiveStats | null>(null);
+  const [shareModalOpen, setShareModalOpen] = useState(false);
 
   const LIMIT = 20;
 
@@ -175,6 +177,7 @@ export default function ArchivePage() {
   // ── Detail View ─────────────────────────────────────────────
   if (selectedId && detail) {
     return (
+      <>
       <div className="min-h-[calc(100vh-64px)] px-4 py-6">
         <div className="max-w-4xl mx-auto">
           {/* Back button */}
@@ -205,6 +208,20 @@ export default function ArchivePage() {
                 </p>
               </div>
               <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setShareModalOpen(true)}
+                  className="inline-flex items-center gap-1.5 text-xs text-text-tertiary hover:text-text-secondary transition-colors"
+                  title="Link teilen"
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="18" cy="5" r="3" />
+                    <circle cx="6" cy="12" r="3" />
+                    <circle cx="18" cy="19" r="3" />
+                    <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+                    <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+                  </svg>
+                  Teilen
+                </button>
                 <button
                   onClick={() => window.open(`/api/export/pdf/${detail.id}`, "_blank")}
                   className="inline-flex items-center gap-1.5 text-xs text-text-tertiary hover:text-text-secondary transition-colors"
@@ -246,6 +263,11 @@ export default function ArchivePage() {
           <ResultDisplay result={detail.result} archiveId={detail.id} sourceUrl={detail.source_url || undefined} />
         </div>
       </div>
+
+      {shareModalOpen && (
+        <ShareModal archiveId={detail.id} onClose={() => setShareModalOpen(false)} />
+      )}
+      </>
     );
   }
 
@@ -491,6 +513,220 @@ function ArchiveCard({
               <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
             </svg>
           </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Share Modal ─────────────────────────────────────────────────
+
+const EXPIRY_OPTIONS = [
+  { label: "7 Tage", value: 7 },
+  { label: "30 Tage", value: 30 },
+  { label: "90 Tage", value: 90 },
+  { label: "Kein Ablauf", value: null },
+] as const;
+
+function ShareModal({
+  archiveId,
+  onClose,
+}: {
+  archiveId: string;
+  onClose: () => void;
+}) {
+  const [expiresDays, setExpiresDays] = useState<number | null>(30);
+  const [allowEmbed, setAllowEmbed] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [created, setCreated] = useState<CreateShareResponse | null>(null);
+  const [shares, setShares] = useState<ShareToken[]>([]);
+  const [loadingShares, setLoadingShares] = useState(true);
+  const [copiedToken, setCopiedToken] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    listShares(archiveId)
+      .then(setShares)
+      .catch(() => {})
+      .finally(() => setLoadingShares(false));
+  }, [archiveId]);
+
+  const handleCreate = async () => {
+    setCreating(true);
+    setError(null);
+    try {
+      const result = await createShare(archiveId, { expires_days: expiresDays, allow_embed: allowEmbed });
+      setCreated(result);
+      const updated = await listShares(archiveId);
+      setShares(updated);
+    } catch {
+      setError("Fehler beim Erstellen des Links.");
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const handleDelete = async (token: string) => {
+    try {
+      await deleteShare(token);
+      setShares((prev) => prev.filter((s) => s.token !== token));
+      if (created?.token === token) setCreated(null);
+    } catch {
+      setError("Fehler beim Löschen.");
+    }
+  };
+
+  const handleCopy = (text: string, token: string) => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopiedToken(token);
+      setTimeout(() => setCopiedToken(null), 2000);
+    });
+  };
+
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={onClose}>
+      <div className="glass-card w-full max-w-md max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border/30">
+          <h2 className="text-sm font-bold font-mono text-text-primary">Link teilen</h2>
+          <button onClick={onClose} className="text-text-tertiary hover:text-text-primary">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="px-5 py-4 space-y-4">
+          {/* Create form */}
+          <div className="space-y-3">
+            {/* Expiry */}
+            <div>
+              <label className="text-[10px] font-mono uppercase tracking-wider text-text-tertiary block mb-1.5">
+                Ablauf
+              </label>
+              <div className="flex gap-1.5 flex-wrap">
+                {EXPIRY_OPTIONS.map((opt) => (
+                  <button
+                    key={String(opt.value)}
+                    onClick={() => setExpiresDays(opt.value)}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-mono transition-colors ${
+                      expiresDays === opt.value
+                        ? "bg-accent/20 text-accent"
+                        : "glass-inner text-text-secondary hover:text-text-primary"
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Allow embed toggle */}
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-text-secondary">Einbetten erlauben</span>
+              <button
+                onClick={() => setAllowEmbed(!allowEmbed)}
+                className={`relative w-9 h-5 rounded-full transition-colors ${allowEmbed ? "bg-accent" : "bg-surface-hover"}`}
+              >
+                <span
+                  className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${
+                    allowEmbed ? "translate-x-4" : "translate-x-0.5"
+                  }`}
+                />
+              </button>
+            </div>
+
+            {error && <p className="text-xs text-error">{error}</p>}
+
+            <button
+              onClick={handleCreate}
+              disabled={creating}
+              className="w-full py-2 rounded-lg text-xs font-mono bg-accent/15 text-accent hover:bg-accent/25 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {creating ? "Wird erstellt…" : "Link erstellen"}
+            </button>
+          </div>
+
+          {/* Newly created link */}
+          {created && (
+            <div className="glass-inner rounded-xl px-4 py-3 space-y-2">
+              <p className="text-[10px] font-mono uppercase tracking-wider text-text-tertiary">Neuer Link</p>
+              <div className="flex items-center gap-2">
+                <code className="flex-1 text-[11px] font-mono text-text-secondary truncate">
+                  {origin}{created.share_url}
+                </code>
+                <button
+                  onClick={() => handleCopy(`${origin}${created.share_url}`, created.token)}
+                  className="shrink-0 text-text-tertiary hover:text-text-primary"
+                >
+                  {copiedToken === created.token ? (
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12" /></svg>
+                  ) : (
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>
+                  )}
+                </button>
+              </div>
+              {created.embed_url && (
+                <details className="text-[10px] text-text-tertiary">
+                  <summary className="cursor-pointer hover:text-text-secondary">Embed-Code anzeigen</summary>
+                  <code className="block mt-1.5 text-[10px] font-mono text-text-secondary bg-surface-hover rounded px-2 py-1.5 break-all">
+                    {`<iframe src="${origin}${created.embed_url}" width="100%" height="400" frameborder="0" style="border:none;border-radius:8px;"></iframe>`}
+                  </code>
+                </details>
+              )}
+            </div>
+          )}
+
+          {/* Existing shares */}
+          {!loadingShares && shares.length > 0 && (
+            <div>
+              <p className="text-[10px] font-mono uppercase tracking-wider text-text-tertiary mb-2">
+                Bestehende Links ({shares.length})
+              </p>
+              <div className="space-y-1.5">
+                {shares.map((share) => (
+                  <div key={share.token} className="glass-inner rounded-lg px-3 py-2 flex items-center gap-2">
+                    <div className="flex-1 min-w-0">
+                      <code className="text-[10px] font-mono text-text-secondary truncate block">
+                        /share/{share.token}
+                      </code>
+                      <span className="text-[9px] text-text-tertiary">
+                        {share.view_count} Aufrufe
+                        {share.expires_at && (
+                          <> · läuft ab {new Date(share.expires_at * 1000).toLocaleDateString("de-DE")}</>
+                        )}
+                        {share.allow_embed && <> · Embed</>}
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => handleCopy(`${origin}/share/${share.token}`, share.token)}
+                      className="shrink-0 text-text-tertiary hover:text-text-primary"
+                      title="Link kopieren"
+                    >
+                      {copiedToken === share.token ? (
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12" /></svg>
+                      ) : (
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>
+                      )}
+                    </button>
+                    <button
+                      onClick={() => handleDelete(share.token)}
+                      className="shrink-0 text-text-tertiary hover:text-error"
+                      title="Löschen"
+                    >
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                        <polyline points="3 6 5 6 21 6" />
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                      </svg>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

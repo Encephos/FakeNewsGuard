@@ -487,6 +487,21 @@ class PgAnalysisArchive:
                 "ON analysis_archive USING gin(search_vector)"
             )
             conn.execute("ALTER TABLE analysis_archive ADD COLUMN IF NOT EXISTS cost_summary JSONB")
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS archive_shares (
+                    id          TEXT PRIMARY KEY,
+                    archive_id  TEXT NOT NULL REFERENCES analysis_archive(id) ON DELETE CASCADE,
+                    token       TEXT UNIQUE NOT NULL,
+                    created_by  TEXT NOT NULL,
+                    created_at  DOUBLE PRECISION NOT NULL,
+                    expires_at  DOUBLE PRECISION,
+                    view_count  INTEGER DEFAULT 0,
+                    allow_embed BOOLEAN DEFAULT FALSE
+                )
+            """)
+            conn.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_shares_token ON archive_shares(token)"
+            )
 
     @contextmanager
     def _conn(self):
@@ -716,6 +731,80 @@ class PgAnalysisArchive:
                     """,
                     (excess,),
                 )
+
+    # ── Share-Links ───────────────────────────────────────────────────────────
+
+    def create_share(
+        self,
+        archive_id: str,
+        created_by: str,
+        expires_days: int | None = None,
+        allow_embed: bool = False,
+    ) -> dict[str, Any]:
+        import secrets as _secrets
+        share_id = str(uuid.uuid4())
+        token = _secrets.token_urlsafe(16)
+        now = time.time()
+        expires_at = (now + expires_days * 86400) if expires_days else None
+        with self._conn() as conn:
+            conn.execute(
+                """
+                INSERT INTO archive_shares
+                    (id, archive_id, token, created_by, created_at, expires_at, allow_embed)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                """,
+                (share_id, archive_id, token, created_by, now, expires_at, allow_embed),
+            )
+        return {
+            "id": share_id,
+            "archive_id": archive_id,
+            "token": token,
+            "created_by": created_by,
+            "created_at": now,
+            "expires_at": expires_at,
+            "view_count": 0,
+            "allow_embed": allow_embed,
+        }
+
+    def get_share_by_token(self, token: str) -> dict[str, Any] | None:
+        with self._conn() as conn:
+            cur = conn.execute(
+                "SELECT * FROM archive_shares WHERE token = %s", (token,)
+            )
+            row = cur.fetchone()
+            if row is None:
+                return None
+            d = dict(zip([c[0] for c in cur.description], row))
+            if d.get("expires_at") is not None and d["expires_at"] < time.time():
+                return None
+            conn.execute(
+                "UPDATE archive_shares SET view_count = view_count + 1 WHERE token = %s",
+                (token,),
+            )
+        return d
+
+    def delete_share(self, token: str, user_id: str) -> bool:
+        with self._conn() as conn:
+            cur = conn.execute(
+                "SELECT created_by FROM archive_shares WHERE token = %s", (token,)
+            )
+            row = cur.fetchone()
+            if row is None:
+                return False
+            if row[0] != user_id:
+                return False
+            conn.execute("DELETE FROM archive_shares WHERE token = %s", (token,))
+        return True
+
+    def list_shares_for_archive(self, archive_id: str) -> list[dict[str, Any]]:
+        with self._conn() as conn:
+            cur = conn.execute(
+                "SELECT * FROM archive_shares WHERE archive_id = %s ORDER BY created_at DESC",
+                (archive_id,),
+            )
+            rows = cur.fetchall()
+            cols = [c[0] for c in cur.description]
+        return [dict(zip(cols, r)) for r in rows]
 
 
 # ── PostgreSQL CrossReferenceGraph ────────────────────────────────────────────

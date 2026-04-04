@@ -334,6 +334,58 @@ export async function fetchGraphSource(
   return res.json();
 }
 
+// ── Share API ──────────────────────────────────────────────────────────────
+
+export interface ShareToken {
+  id: string;
+  archive_id: string;
+  token: string;
+  created_by: string;
+  created_at: number;
+  expires_at: number | null;
+  view_count: number;
+  allow_embed: boolean;
+}
+
+export interface CreateShareResponse {
+  token: string;
+  share_url: string;
+  api_url: string;
+  embed_url: string | null;
+  expires_at: number | null;
+  allow_embed: boolean;
+}
+
+export async function createShare(
+  archiveId: string,
+  opts: { expires_days: number | null; allow_embed: boolean },
+): Promise<CreateShareResponse> {
+  const res = await fetch(`${BASE_URL}/archive/${archiveId}/share`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify(opts),
+  });
+  if (!res.ok) throw new Error(`Create share error: ${res.status}`);
+  return res.json();
+}
+
+export async function listShares(archiveId: string): Promise<ShareToken[]> {
+  const res = await fetch(`${BASE_URL}/archive/${archiveId}/shares`, {
+    headers: authHeaders(),
+  });
+  if (!res.ok) throw new Error(`List shares error: ${res.status}`);
+  const data = await res.json();
+  return data.shares ?? [];
+}
+
+export async function deleteShare(token: string): Promise<void> {
+  const res = await fetch(`${BASE_URL}/share/${token}`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
+  if (res.status !== 204 && !res.ok) throw new Error(`Delete share error: ${res.status}`);
+}
+
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
