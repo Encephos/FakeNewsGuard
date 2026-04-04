@@ -16,7 +16,9 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import secrets
 import sqlite3
+import time
 import uuid
 from contextlib import contextmanager
 from typing import Any
@@ -106,6 +108,25 @@ class AnalysisArchive:
                     content_rowid=rowid
                 )
                 """
+            )
+
+            # archive_shares – Token-basierte öffentliche Share-Links
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS archive_shares (
+                    id          TEXT PRIMARY KEY,
+                    archive_id  TEXT NOT NULL REFERENCES analysis_archive(id) ON DELETE CASCADE,
+                    token       TEXT UNIQUE NOT NULL,
+                    created_by  TEXT NOT NULL,
+                    created_at  REAL NOT NULL,
+                    expires_at  REAL,
+                    view_count  INTEGER DEFAULT 0,
+                    allow_embed INTEGER DEFAULT 0
+                )
+                """
+            )
+            conn.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_shares_token ON archive_shares(token)"
             )
 
             # FTS-Index initial befüllen (idempotent: nur wenn leer)
@@ -554,6 +575,81 @@ class AnalysisArchive:
             "analyses_per_day": analyses_per_day,
             "period_days": days,
         }
+
+    # ── Share-Links ──────────────────────────────────────────────
+
+    def create_share(
+        self,
+        archive_id: str,
+        created_by: str,
+        expires_days: int | None = None,
+        allow_embed: bool = False,
+    ) -> dict[str, Any]:
+        """Erstelle einen öffentlichen Share-Link für einen Archiv-Eintrag."""
+        share_id = str(uuid.uuid4())
+        token = secrets.token_urlsafe(16)
+        now = time.time()
+        expires_at = (now + expires_days * 86400) if expires_days else None
+
+        with self._connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO archive_shares
+                    (id, archive_id, token, created_by, created_at, expires_at, allow_embed)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (share_id, archive_id, token, created_by, now, expires_at,
+                 1 if allow_embed else 0),
+            )
+
+        return {
+            "id": share_id,
+            "archive_id": archive_id,
+            "token": token,
+            "created_by": created_by,
+            "created_at": now,
+            "expires_at": expires_at,
+            "view_count": 0,
+            "allow_embed": allow_embed,
+        }
+
+    def get_share_by_token(self, token: str) -> dict[str, Any] | None:
+        """Hole Share-Eintrag per Token; prüft Ablauf und inkrementiert view_count."""
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM archive_shares WHERE token = ?", (token,)
+            ).fetchone()
+            if row is None:
+                return None
+            if row["expires_at"] is not None and row["expires_at"] < time.time():
+                return None
+            conn.execute(
+                "UPDATE archive_shares SET view_count = view_count + 1 WHERE token = ?",
+                (token,),
+            )
+        return dict(row)
+
+    def delete_share(self, token: str, user_id: str) -> bool:
+        """Lösche einen Share-Link. Nur der Ersteller darf löschen."""
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT created_by FROM archive_shares WHERE token = ?", (token,)
+            ).fetchone()
+            if row is None:
+                return False
+            if row["created_by"] != user_id:
+                return False
+            conn.execute("DELETE FROM archive_shares WHERE token = ?", (token,))
+        return True
+
+    def list_shares_for_archive(self, archive_id: str) -> list[dict[str, Any]]:
+        """Liste alle Share-Links für einen Archiv-Eintrag."""
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM archive_shares WHERE archive_id = ? ORDER BY created_at DESC",
+                (archive_id,),
+            ).fetchall()
+        return [dict(r) for r in rows]
 
     # ── Maintenance ──────────────────────────────────────────────
 
