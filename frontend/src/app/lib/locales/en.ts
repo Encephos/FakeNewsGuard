@@ -62,6 +62,7 @@ const en = {
     sources: { title: "Source Ranking", domain: "Domain", citations: "Citations", firstSeen: "First seen", lastSeen: "Last seen" },
     platforms: { title: "Platforms" },
     accuracy: { title: "Confidence Calibration", ideal: "Ideal", actual: "Actual" },
+    export: { csv: "Download CSV", png: "Download PNG" },
     trend: { rising: "↑", stable: "→", declining: "↓" },
   },
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useI18n } from "../lib/i18n";
 import {
   KPICards,
@@ -20,8 +20,10 @@ import {
   SourcesData,
   AccuracyData,
   PlatformsData,
+  RATINGS_ORDER,
   computeKpis,
 } from "../components/analytics/types";
+import { exportCsv, makeCsvFilename } from "../components/analytics/exportCsv";
 
 export default function AnalyticsPage() {
   const { t } = useI18n();
@@ -36,13 +38,17 @@ export default function AnalyticsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const periodLabel = period === "custom" && dateRange
+    ? `${dateRange.from}_${dateRange.to}`
+    : period;
+
   useEffect(() => {
     let qs: string;
     if (period === "custom" && dateRange?.from && dateRange?.to) {
       if (dateRange.from > dateRange.to) return;
       qs = `date_from=${dateRange.from}&date_to=${dateRange.to}`;
     } else if (period === "custom") {
-      return; // wait for valid date range
+      return;
     } else {
       qs = `period=${period}`;
     }
@@ -78,8 +84,107 @@ export default function AnalyticsPage() {
   }, [period, dateRange]);
 
   const kpis = useMemo(() => computeKpis(timeline), [timeline]);
-
   const isEmpty = !loading && timeline?.total_analyses === 0;
+
+  // ── CSV export callbacks ─────────────────────────────────────────
+  const csvTimeline = useCallback(() => {
+    if (!timeline?.buckets) return;
+    const ratingCols = RATINGS_ORDER.map((r) => ({
+      key: r,
+      header: r.replace(/_/g, " "),
+    }));
+    exportCsv(
+      timeline.buckets.map((b) => ({
+        date: b.date,
+        count: b.count,
+        avg_confidence: b.avg_confidence,
+        avg_claims: b.avg_claims_per_analysis,
+        ...b.rating_distribution,
+      })),
+      [
+        { key: "date", header: "Date" },
+        { key: "count", header: "Analyses" },
+        { key: "avg_confidence", header: "Avg Confidence" },
+        { key: "avg_claims", header: "Avg Claims" },
+        ...ratingCols,
+      ],
+      makeCsvFilename("timeline", periodLabel),
+    );
+  }, [timeline, periodLabel]);
+
+  const csvRatingDist = useCallback(() => {
+    if (!timeline?.buckets) return;
+    exportCsv(
+      timeline.buckets.map((b) => {
+        const total = b.count || 1;
+        const row: Record<string, unknown> = { date: b.date };
+        for (const r of RATINGS_ORDER) {
+          row[r] = Math.round(((b.rating_distribution[r] ?? 0) / total) * 100);
+        }
+        return row;
+      }),
+      [
+        { key: "date", header: "Date" },
+        ...RATINGS_ORDER.map((r) => ({ key: r, header: r.replace(/_/g, " ") + " %" })),
+      ],
+      makeCsvFilename("rating_distribution", periodLabel),
+    );
+  }, [timeline, periodLabel]);
+
+  const csvTopics = useCallback(() => {
+    if (!topics?.topics) return;
+    exportCsv(
+      topics.topics as unknown as Record<string, unknown>[],
+      [
+        { key: "topic", header: "Topic" },
+        { key: "count", header: "Count" },
+        { key: "avg_rating_score", header: "Avg Rating Score" },
+        { key: "trend", header: "Trend" },
+      ],
+      makeCsvFilename("topics", periodLabel),
+    );
+  }, [topics, periodLabel]);
+
+  const csvPlatforms = useCallback(() => {
+    if (!platforms?.platforms) return;
+    exportCsv(
+      platforms.platforms as unknown as Record<string, unknown>[],
+      [
+        { key: "platform", header: "Platform" },
+        { key: "count", header: "Count" },
+        { key: "avg_rating_score", header: "Avg Rating Score" },
+        { key: "avg_confidence", header: "Avg Confidence" },
+      ],
+      makeCsvFilename("platforms", periodLabel),
+    );
+  }, [platforms, periodLabel]);
+
+  const csvSources = useCallback(() => {
+    if (!sources?.sources) return;
+    exportCsv(
+      sources.sources as unknown as Record<string, unknown>[],
+      [
+        { key: "domain", header: "Domain" },
+        { key: "citation_count", header: "Citations" },
+        { key: "first_seen", header: "First Seen" },
+        { key: "last_seen", header: "Last Seen" },
+      ],
+      makeCsvFilename("sources", periodLabel),
+    );
+  }, [sources, periodLabel]);
+
+  const csvAccuracy = useCallback(() => {
+    if (!accuracy?.confidence_bands) return;
+    exportCsv(
+      accuracy.confidence_bands as unknown as Record<string, unknown>[],
+      [
+        { key: "range", header: "Range" },
+        { key: "count", header: "Count" },
+        { key: "avg_rating_score", header: "Avg Rating Score" },
+      ],
+      makeCsvFilename("accuracy", periodLabel),
+    );
+  }, [accuracy, periodLabel]);
 
   return (
     <div className="min-h-screen pt-20 pb-12 px-4 sm:px-6 max-w-6xl mx-auto">
@@ -124,6 +229,7 @@ export default function AnalyticsPage() {
                 <TimelineChart
                   buckets={timeline?.buckets ?? []}
                   loading={loading}
+                  onExportCsv={csvTimeline}
                 />
               </div>
 
@@ -131,23 +237,27 @@ export default function AnalyticsPage() {
                 <RatingDistribution
                   buckets={timeline?.buckets ?? []}
                   loading={loading}
+                  onExportCsv={csvRatingDist}
                 />
               </div>
 
               <TopTopics
                 topics={topics?.topics ?? []}
                 loading={loading}
+                onExportCsv={csvTopics}
               />
 
               <PlatformDonut
                 platforms={platforms?.platforms ?? []}
                 loading={loading}
+                onExportCsv={csvPlatforms}
               />
 
               <div className="lg:col-span-2">
                 <SourcesTable
                   sources={sources}
                   loading={loading}
+                  onExportCsv={csvSources}
                 />
               </div>
 
@@ -155,6 +265,7 @@ export default function AnalyticsPage() {
                 <AccuracyCalibration
                   accuracy={accuracy}
                   loading={loading}
+                  onExportCsv={csvAccuracy}
                 />
               </div>
             </div>
