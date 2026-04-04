@@ -20,6 +20,7 @@ sentence-transformers>=2.2.0  # Zieht torch als Abhängigkeit
 psycopg[binary,pool]>=3.1.0
 redis>=5.0.0
 celery[redis]>=5.4.0
+flower>=2.0.0
 # Observability (OpenTelemetry + Prometheus)
 opentelemetry-sdk>=1.20.0
 opentelemetry-exporter-otlp-proto-grpc>=1.20.0

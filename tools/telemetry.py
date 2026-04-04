@@ -113,3 +113,22 @@ LLM_DURATION = Histogram(
     "LLM call duration in seconds",
     ["model", "agent"],
 )
+CELERY_TASKS_TOTAL = Counter(
+    "fng_celery_tasks_total",
+    "Total Celery tasks by name and outcome",
+    ["task_name", "state"],
+)
+CELERY_TASK_DURATION = Histogram(
+    "fng_celery_task_duration_seconds",
+    "Celery task execution duration in seconds",
+    ["task_name"],
+    buckets=[1, 5, 15, 30, 60, 120, 300, 600, 900, 1800],
+)
+CELERY_ACTIVE_TASKS = Gauge(
+    "fng_celery_active_tasks",
+    "Currently executing Celery tasks",
+)
+CELERY_QUEUE_LENGTH = Gauge(
+    "fng_celery_queue_length",
+    "Pending tasks in the Celery broker queue",
+)

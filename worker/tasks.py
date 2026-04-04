@@ -16,6 +16,7 @@ from celery.exceptions import SoftTimeLimitExceeded
 
 from worker.celery_app import celery_app
 from worker.job_store import get_job_store
+from tools.telemetry import CELERY_QUEUE_LENGTH
 
 from config import AppConfig, ScoutTier
 from config.infrastructure import JobConfig
@@ -368,3 +369,6 @@ def check_stale_jobs() -> None:
                 store.set_error(job_id, t("api.errors.timeout_inactivity").format(seconds=int(idle)))
         if cursor == 0:
             break
+    # Update queue-length metric
+    queue_len = r.llen("celery")
+    CELERY_QUEUE_LENGTH.set(queue_len)
