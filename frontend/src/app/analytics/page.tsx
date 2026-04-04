@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef, type ReactNode } from "react";
 import { useI18n } from "../lib/i18n";
 import {
   KPICards,
@@ -11,10 +11,14 @@ import {
   PlatformDonut,
   SourcesTable,
   AccuracyCalibration,
+  DashboardGrid,
+  WidgetVisibilityToggle,
+  useDashboardLayout,
 } from "../components/analytics";
 import {
   Period,
   DateRange,
+  WidgetId,
   TimelineData,
   TopicsData,
   SourcesData,
@@ -30,6 +34,7 @@ export default function AnalyticsPage() {
   const { t } = useI18n();
   const [period, setPeriod] = useState<Period>("30d");
   const [dateRange, setDateRange] = useState<DateRange | null>(null);
+  const { order, visible, reorder, toggleVisibility } = useDashboardLayout();
 
   const [timeline, setTimeline] = useState<TimelineData | null>(null);
   const [topics, setTopics] = useState<TopicsData | null>(null);
@@ -215,20 +220,82 @@ export default function AnalyticsPage() {
     if (accuracyRef.current) exportPng(accuracyRef.current, makePngFilename("accuracy", periodLabel));
   }, [periodLabel]);
 
+  // ── Widget map for DashboardGrid ─────────────────────────────────
+  const widgetMap: Record<WidgetId, ReactNode> = {
+    timeline: (
+      <TimelineChart
+        buckets={timeline?.buckets ?? []}
+        loading={loading}
+        onExportCsv={csvTimeline}
+        onExportPng={pngTimeline}
+        chartRef={timelineRef}
+      />
+    ),
+    ratingDist: (
+      <RatingDistribution
+        buckets={timeline?.buckets ?? []}
+        loading={loading}
+        onExportCsv={csvRatingDist}
+        onExportPng={pngRating}
+        chartRef={ratingRef}
+      />
+    ),
+    topics: (
+      <TopTopics
+        topics={topics?.topics ?? []}
+        loading={loading}
+        onExportCsv={csvTopics}
+        onExportPng={pngTopics}
+        chartRef={topicsRef}
+      />
+    ),
+    platforms: (
+      <PlatformDonut
+        platforms={platforms?.platforms ?? []}
+        loading={loading}
+        onExportCsv={csvPlatforms}
+        onExportPng={pngPlatforms}
+        chartRef={platformsRef}
+      />
+    ),
+    sources: (
+      <SourcesTable
+        sources={sources}
+        loading={loading}
+        onExportCsv={csvSources}
+      />
+    ),
+    accuracy: (
+      <AccuracyCalibration
+        accuracy={accuracy}
+        loading={loading}
+        onExportCsv={csvAccuracy}
+        onExportPng={pngAccuracy}
+        chartRef={accuracyRef}
+      />
+    ),
+  };
+
+  const visibleOrder = order.filter((id) => visible[id]);
+
   return (
     <div className="min-h-screen pt-20 pb-12 px-4 sm:px-6 max-w-6xl mx-auto">
 
-      {/* Period selector */}
+      {/* Period selector + settings */}
       <div className="flex items-center gap-2 mb-6">
         <span className="text-sm font-semibold text-text-primary mr-1">
           {t("analytics.title")}
         </span>
-        <div className="ml-auto">
+        <div className="flex items-center gap-2 ml-auto">
           <PeriodSelector
             period={period}
             onPeriodChange={setPeriod}
             dateRange={dateRange}
             onDateRangeChange={setDateRange}
+          />
+          <WidgetVisibilityToggle
+            visible={visible}
+            onToggle={toggleVisibility}
           />
         </div>
       </div>
@@ -253,61 +320,9 @@ export default function AnalyticsPage() {
           )}
 
           {!isEmpty && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              <div className="lg:col-span-2">
-                <TimelineChart
-                  buckets={timeline?.buckets ?? []}
-                  loading={loading}
-                  onExportCsv={csvTimeline}
-                  onExportPng={pngTimeline}
-                  chartRef={timelineRef}
-                />
-              </div>
-
-              <div className="lg:col-span-2">
-                <RatingDistribution
-                  buckets={timeline?.buckets ?? []}
-                  loading={loading}
-                  onExportCsv={csvRatingDist}
-                  onExportPng={pngRating}
-                  chartRef={ratingRef}
-                />
-              </div>
-
-              <TopTopics
-                topics={topics?.topics ?? []}
-                loading={loading}
-                onExportCsv={csvTopics}
-                onExportPng={pngTopics}
-                chartRef={topicsRef}
-              />
-
-              <PlatformDonut
-                platforms={platforms?.platforms ?? []}
-                loading={loading}
-                onExportCsv={csvPlatforms}
-                onExportPng={pngPlatforms}
-                chartRef={platformsRef}
-              />
-
-              <div className="lg:col-span-2">
-                <SourcesTable
-                  sources={sources}
-                  loading={loading}
-                  onExportCsv={csvSources}
-                />
-              </div>
-
-              <div className="lg:col-span-2">
-                <AccuracyCalibration
-                  accuracy={accuracy}
-                  loading={loading}
-                  onExportCsv={csvAccuracy}
-                  onExportPng={pngAccuracy}
-                  chartRef={accuracyRef}
-                />
-              </div>
-            </div>
+            <DashboardGrid order={visibleOrder} onReorder={reorder}>
+              {widgetMap}
+            </DashboardGrid>
           )}
         </>
       )}

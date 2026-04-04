@@ -63,6 +63,19 @@ const en = {
     platforms: { title: "Platforms" },
     accuracy: { title: "Confidence Calibration", ideal: "Ideal", actual: "Actual" },
     export: { csv: "Download CSV", png: "Download PNG" },
+    layout: {
+      settings: "Dashboard settings",
+      showWidget: "Show widgets",
+      dragHint: "Drag to reorder",
+    },
+    widget: {
+      timeline: "Analysis Timeline",
+      ratingDist: "Rating Distribution",
+      topics: "Top Topics",
+      platforms: "Platforms",
+      sources: "Source Ranking",
+      accuracy: "Confidence Calibration",
+    },
     trend: { rising: "↑", stable: "→", declining: "↓" },
   },
 

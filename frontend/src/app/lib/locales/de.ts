@@ -55,6 +55,19 @@ const de = {
     platforms: { title: "Plattformen" },
     accuracy: { title: "Konfidenz-Kalibrierung", ideal: "Ideal", actual: "Tatsächlich" },
     export: { csv: "CSV herunterladen", png: "PNG herunterladen" },
+    layout: {
+      settings: "Dashboard-Einstellungen",
+      showWidget: "Widgets anzeigen",
+      dragHint: "Ziehen zum Sortieren",
+    },
+    widget: {
+      timeline: "Analyse-Verlauf",
+      ratingDist: "Bewertungs-Entwicklung",
+      topics: "Top-Themen",
+      platforms: "Plattformen",
+      sources: "Quellen-Ranking",
+      accuracy: "Konfidenz-Kalibrierung",
+    },
     trend: { rising: "↑", stable: "→", declining: "↓" },
   },
 
