@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useI18n } from "../lib/i18n";
 import {
   KPICards,
@@ -24,6 +24,7 @@ import {
   computeKpis,
 } from "../components/analytics/types";
 import { exportCsv, makeCsvFilename } from "../components/analytics/exportCsv";
+import { exportPng, makePngFilename } from "../components/analytics/exportPng";
 
 export default function AnalyticsPage() {
   const { t } = useI18n();
@@ -85,6 +86,13 @@ export default function AnalyticsPage() {
 
   const kpis = useMemo(() => computeKpis(timeline), [timeline]);
   const isEmpty = !loading && timeline?.total_analyses === 0;
+
+  // ── Chart refs for PNG export ────────────────────────────────────
+  const timelineRef = useRef<HTMLDivElement>(null);
+  const ratingRef = useRef<HTMLDivElement>(null);
+  const topicsRef = useRef<HTMLDivElement>(null);
+  const platformsRef = useRef<HTMLDivElement>(null);
+  const accuracyRef = useRef<HTMLDivElement>(null);
 
   // ── CSV export callbacks ─────────────────────────────────────────
   const csvTimeline = useCallback(() => {
@@ -186,6 +194,27 @@ export default function AnalyticsPage() {
     );
   }, [accuracy, periodLabel]);
 
+  // ── PNG export callbacks ─────────────────────────────────────────
+  const pngTimeline = useCallback(() => {
+    if (timelineRef.current) exportPng(timelineRef.current, makePngFilename("timeline", periodLabel));
+  }, [periodLabel]);
+
+  const pngRating = useCallback(() => {
+    if (ratingRef.current) exportPng(ratingRef.current, makePngFilename("rating_distribution", periodLabel));
+  }, [periodLabel]);
+
+  const pngTopics = useCallback(() => {
+    if (topicsRef.current) exportPng(topicsRef.current, makePngFilename("topics", periodLabel));
+  }, [periodLabel]);
+
+  const pngPlatforms = useCallback(() => {
+    if (platformsRef.current) exportPng(platformsRef.current, makePngFilename("platforms", periodLabel));
+  }, [periodLabel]);
+
+  const pngAccuracy = useCallback(() => {
+    if (accuracyRef.current) exportPng(accuracyRef.current, makePngFilename("accuracy", periodLabel));
+  }, [periodLabel]);
+
   return (
     <div className="min-h-screen pt-20 pb-12 px-4 sm:px-6 max-w-6xl mx-auto">
 
@@ -230,6 +259,8 @@ export default function AnalyticsPage() {
                   buckets={timeline?.buckets ?? []}
                   loading={loading}
                   onExportCsv={csvTimeline}
+                  onExportPng={pngTimeline}
+                  chartRef={timelineRef}
                 />
               </div>
 
@@ -238,6 +269,8 @@ export default function AnalyticsPage() {
                   buckets={timeline?.buckets ?? []}
                   loading={loading}
                   onExportCsv={csvRatingDist}
+                  onExportPng={pngRating}
+                  chartRef={ratingRef}
                 />
               </div>
 
@@ -245,12 +278,16 @@ export default function AnalyticsPage() {
                 topics={topics?.topics ?? []}
                 loading={loading}
                 onExportCsv={csvTopics}
+                onExportPng={pngTopics}
+                chartRef={topicsRef}
               />
 
               <PlatformDonut
                 platforms={platforms?.platforms ?? []}
                 loading={loading}
                 onExportCsv={csvPlatforms}
+                onExportPng={pngPlatforms}
+                chartRef={platformsRef}
               />
 
               <div className="lg:col-span-2">
@@ -266,6 +303,8 @@ export default function AnalyticsPage() {
                   accuracy={accuracy}
                   loading={loading}
                   onExportCsv={csvAccuracy}
+                  onExportPng={pngAccuracy}
+                  chartRef={accuracyRef}
                 />
               </div>
             </div>
