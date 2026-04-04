@@ -627,7 +627,10 @@ class AnalysisArchive:
                 "UPDATE archive_shares SET view_count = view_count + 1 WHERE token = ?",
                 (token,),
             )
-        return dict(row)
+            updated = conn.execute(
+                "SELECT * FROM archive_shares WHERE token = ?", (token,)
+            ).fetchone()
+        return dict(updated)
 
     def delete_share(self, token: str, user_id: str) -> bool:
         """Lösche einen Share-Link. Nur der Ersteller darf löschen."""
