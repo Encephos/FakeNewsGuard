@@ -354,11 +354,16 @@ def _is_offtopic_content(
     title: str,
     snippet: str,
     profile: ClaimSearchProfile,
+    topic_model: ArticleTopicModel | None = None,
 ) -> tuple[bool, float]:
     """Prüfe ob Titel/Snippet inhaltlich off-topic sind, gemessen am SearchProfile.
 
     Geht über URL-Muster hinaus: prüft ob Kernentitäten, Institution, Ort
     und Policy-Kontext im Ergebnis vorhanden sind.
+
+    Wenn ein ArticleTopicModel vorhanden ist, werden Topic-Entities als
+    zusätzliche Soft-Anker geprüft. Evidence die weder Claim- noch
+    Topic-Anker trifft erhält eine härtere Penalty.
 
     Returns:
         (is_offtopic, penalty) — penalty 0.0–0.8 für Ranking-Abwertung.
@@ -461,11 +466,30 @@ def _is_offtopic_content(
 
     # Weiche Abwertung: Weniger als die Hälfte der erwarteten Anker
     if total_anchors >= 3 and hits == 0:
+        # Topic-Rettung: Wenn keine Claim-Anker aber Topic-Anker treffen,
+        # reduziere Penalty (Quelle ist zumindest thematisch relevant)
+        if topic_model and topic_model.key_entities:
+            topic_hits = sum(
+                1 for e in topic_model.key_entities
+                if e.lower() in combined
+            )
+            if topic_hits >= 2:
+                return False, 0.35  # Thematisch relevant, aber Claim-unspezifisch
         return True, 0.5
 
     # Schwache Treffer → leichte Abwertung
     if total_anchors >= 2 and hits < total_anchors / 2:
         return False, 0.3
+
+    # Topic-Verschärfung: Claim-Anker treffen, aber KEINE Topic-Anker →
+    # die Quelle deckt den Claim formal ab, ist aber thematisch entfernt
+    if topic_model and topic_model.key_entities and hits >= 1:
+        topic_hits = sum(
+            1 for e in topic_model.key_entities
+            if e.lower() in combined
+        )
+        if topic_hits == 0 and len(topic_model.key_entities) >= 3:
+            return False, 0.25  # Leichte Abwertung: formal passend, thematisch entfernt
 
     return False, 0.0
 
@@ -962,7 +986,7 @@ def _rank_evidence_items(
         content_penalty = 0.0
         if profile:
             content_offtopic, content_penalty = _is_offtopic_content(
-                title, snippet, profile
+                title, snippet, profile, topic_model=topic_model,
             )
             # Erhöhte Discard-Schwelle: 0.30 statt 0.25 – fängt mehr Randtreffer ab
             if content_offtopic and rel < 0.30 and not is_fc and not has_gfc_match:
