@@ -35,6 +35,7 @@ from config import AppConfig, ClaimQualitySignalConfig
 from i18n import t
 from models.schemas import (
     AmbiguityLevel,
+    ArticleTopicModel,
     Claim,
     ClaimFrame,
     ClaimProcessingResult,
@@ -49,6 +50,7 @@ from agents.prompts.claim_prompts import (
     _DISAMBIGUATOR_PROMPT,
     _FRAME_EXTRACTOR_PROMPT,
     _PRIORITIZER_PROMPT,
+    _TOPIC_EXTRACTOR_PROMPT,
 )
 from tools.llm import LLMClient
 from tools.web_search import WebSearchClient
@@ -581,12 +583,24 @@ class ClaimDecomposer(_LLMStageMixin):
 
         return True
 
-    def decompose(self, claims: list[ProcessedClaim]) -> list[ProcessedClaim]:
+    def decompose(
+        self,
+        claims: list[ProcessedClaim],
+        topic_model: ArticleTopicModel | None = None,
+    ) -> list[ProcessedClaim]:
         if not claims:
             return claims
 
         claims_text = "\n".join(f"[{c.id}]: {c.text}" for c in claims)
         user_msg = f"## Claims zur Zerlegung\n\n{claims_text}"
+
+        # Topic-Kontext für den Decomposer: Kernentitäten als Anker
+        if topic_model:
+            entities = ", ".join(topic_model.key_entities[:5])
+            user_msg = (
+                f"## Artikelthema\n{topic_model.primary_topic}\n"
+                f"Kernentitäten: {entities}\n\n{user_msg}"
+            )
 
         raw = self._call_llm_json(_DECOMPOSER_PROMPT, user_msg)
 
@@ -1052,6 +1066,220 @@ class ClaimPrioritizerAgent(BaseAgent):
         return updated
 
 
+# ── Topical Centrality ───────────────────────────────────────────────────────
+
+
+def _compute_topical_centrality(
+    claims: list[ProcessedClaim],
+    topic_model: ArticleTopicModel,
+) -> list[ProcessedClaim]:
+    """Berechne Topical Centrality für jeden Claim.
+
+    Misst Entity-Overlap zwischen Claim-Text/Frame und dem ArticleTopicModel.
+    Claims die zentral für das Artikelthema sind, erhalten höhere Werte.
+    """
+    signals = [e.lower() for e in topic_model.key_entities if e]
+    keywords = [k.lower() for k in topic_model.topic_keywords if k]
+    all_signals = signals + keywords
+
+    if not all_signals:
+        return claims
+
+    result: list[ProcessedClaim] = []
+    for c in claims:
+        text_lower = c.text.lower()
+        # Frame-Felder ebenfalls prüfen
+        frame_text = ""
+        if c.frame:
+            parts = [
+                c.frame.institution, c.frame.location,
+                c.frame.policy_context, c.frame.subject, c.frame.object,
+            ]
+            frame_text = " ".join(p.lower() for p in parts if p)
+
+        combined = f"{text_lower} {frame_text}"
+        hits = sum(1 for s in all_signals if s in combined)
+        # Skaliere: ab 30% Treffer ist zentral (1.0)
+        centrality = min(1.0, (hits / len(all_signals)) / 0.3)
+        result.append(c.model_copy(update={"topical_centrality": centrality}))
+
+    return result
+
+
+# ── Dependency Detector ──────────────────────────────────────────────────────
+
+
+class DependencyDetector:
+    """Erkennt logische Abhängigkeiten zwischen Claims (regelbasiert, kein LLM).
+
+    Abhängigkeitstypen:
+        - policy_sanction: Sanktion-Claim → hängt von Policy-Claim ab
+        - regulation_enforcement: Enforcement-Claim → hängt von Regulation-Claim ab
+        - context_number: Zahlen-Claim → hängt von Kontext-Claim ab (gleicher Akteur)
+    """
+
+    @staticmethod
+    def detect(claims: list[ProcessedClaim]) -> list[ProcessedClaim]:
+        """Erkenne Abhängigkeiten zwischen Claims durch Frame-Vergleich.
+
+        Mutiert Claims nicht direkt, sondern gibt aktualisierte Kopien zurück.
+        """
+        if len(claims) < 2:
+            return claims
+
+        # Index: Claims mit Policy/Regulation-Frame
+        policy_claims: list[ProcessedClaim] = []
+        sanction_claims: list[ProcessedClaim] = []
+        enforcement_claims: list[ProcessedClaim] = []
+        number_claims: list[ProcessedClaim] = []
+
+        for c in claims:
+            if not c.frame:
+                continue
+            if c.frame.policy_context and not c.frame.sanction and not c.frame.enforcement:
+                policy_claims.append(c)
+            if c.frame.sanction:
+                sanction_claims.append(c)
+            if c.frame.enforcement:
+                enforcement_claims.append(c)
+            if c.type == ClaimType.STATISTICAL and c.frame.numbers:
+                number_claims.append(c)
+
+        updates: dict[str, dict[str, Any]] = {}
+
+        # Sanktion → Policy Dependency
+        for sc in sanction_claims:
+            for pc in policy_claims:
+                if _frames_share_context(sc.frame, pc.frame):
+                    updates.setdefault(sc.id, {"depends_on": [], "dependency_type": ""})
+                    updates[sc.id]["depends_on"].append(pc.id)
+                    updates[sc.id]["dependency_type"] = "policy_sanction"
+
+        # Enforcement → Regulation Dependency
+        for ec in enforcement_claims:
+            for pc in policy_claims:
+                if _frames_share_context(ec.frame, pc.frame):
+                    updates.setdefault(ec.id, {"depends_on": [], "dependency_type": ""})
+                    updates[ec.id]["depends_on"].append(pc.id)
+                    updates[ec.id]["dependency_type"] = "regulation_enforcement"
+
+        # Number → Context Dependency (gleicher Akteur/Institution)
+        for nc in number_claims:
+            for other in claims:
+                if other.id == nc.id or not other.frame:
+                    continue
+                if other.type != ClaimType.STATISTICAL and _frames_share_context(nc.frame, other.frame):
+                    updates.setdefault(nc.id, {"depends_on": [], "dependency_type": ""})
+                    if other.id not in updates[nc.id]["depends_on"]:
+                        updates[nc.id]["depends_on"].append(other.id)
+                    if not updates[nc.id]["dependency_type"]:
+                        updates[nc.id]["dependency_type"] = "context_number"
+
+        if not updates:
+            return claims
+
+        result: list[ProcessedClaim] = []
+        for c in claims:
+            if c.id in updates:
+                result.append(c.model_copy(update=updates[c.id]))
+            else:
+                result.append(c)
+
+        dep_count = sum(1 for c in result if c.depends_on)
+        _log(f"DependencyDetector: {dep_count} Claims mit Abhängigkeiten erkannt")
+        return result
+
+
+def _frames_share_context(a: ClaimFrame | None, b: ClaimFrame | None) -> bool:
+    """Prüfe ob zwei Frames denselben Kontext teilen (Institution, Location, Policy)."""
+    if not a or not b:
+        return False
+
+    # Institution-Match
+    inst_match = False
+    if a.institution and b.institution:
+        inst_match = (
+            a.institution.lower() in b.institution.lower()
+            or b.institution.lower() in a.institution.lower()
+        )
+
+    # Location-Match
+    loc_match = False
+    if a.location and b.location:
+        loc_match = (
+            a.location.lower() in b.location.lower()
+            or b.location.lower() in a.location.lower()
+        )
+
+    # Policy-Match
+    policy_match = False
+    if a.policy_context and b.policy_context:
+        policy_match = (
+            a.policy_context.lower() in b.policy_context.lower()
+            or b.policy_context.lower() in a.policy_context.lower()
+        )
+
+    # Mindestens 2 von 3 Kontextfeldern müssen übereinstimmen
+    return sum([inst_match, loc_match, policy_match]) >= 1 and (inst_match or loc_match)
+
+
+# ── Topic Extractor ──────────────────────────────────────────────────────────
+
+
+class TopicExtractor:
+    """Extrahiert ein ArticleTopicModel aus dem Volltext.
+
+    Wird einmalig in Phase 1 ausgeführt (nach Claim-Selektion, vor Decomposition).
+    Das Ergebnis fließt in alle nachfolgenden Pipeline-Stufen ein.
+    """
+
+    _VALID_DOMAINS = frozenset({
+        "REGULATORY", "SCIENTIFIC", "POLITICAL", "ECONOMIC",
+        "SOCIAL", "HEALTH", "GENERAL",
+    })
+
+    def __init__(self, llm: LLMClient) -> None:
+        self._llm = llm
+
+    def extract(self, text: str) -> ArticleTopicModel | None:
+        """Extrahiere Topic Model aus Artikeltext.
+
+        Returns:
+            ArticleTopicModel oder None bei Fehler.
+        """
+        user_msg = f"## Artikeltext\n\n{text[:4000]}"
+        try:
+            raw = self._llm.complete_json(
+                system=_TOPIC_EXTRACTOR_PROMPT,
+                user=user_msg,
+            )
+        except Exception as e:
+            _log(f"TopicExtractor LLM-Fehler: {type(e).__name__}: {e}")
+            return None
+
+        if not isinstance(raw, dict):
+            _log("TopicExtractor: LLM-Antwort ist kein dict")
+            return None
+
+        domain = raw.get("domain", "GENERAL")
+        if domain not in self._VALID_DOMAINS:
+            domain = "GENERAL"
+
+        try:
+            return ArticleTopicModel(
+                primary_topic=raw.get("primary_topic", ""),
+                key_entities=raw.get("key_entities", []),
+                topic_keywords=raw.get("topic_keywords", []),
+                domain=domain,
+                geographic_scope=raw.get("geographic_scope", ""),
+                temporal_scope=raw.get("temporal_scope", ""),
+                narrative_arc=raw.get("narrative_arc", ""),
+            )
+        except Exception as e:
+            _log(f"TopicExtractor: Modell-Validierung fehlgeschlagen: {e}")
+            return None
+
+
 # ── ClaimProcessingPipeline ────────────────────────────────────────────────────
 
 class ClaimProcessingPipeline:
@@ -1081,6 +1309,7 @@ class ClaimProcessingPipeline:
         _llm_small = llm_small or llm
         self._splitter = SentenceSplitter()
         self._selector = ClaimSelector(_llm_small)
+        self._topic_extractor = TopicExtractor(_llm_small)
         self._frame_extractor = ClaimFrameExtractor(_llm_small)  # Stage 2.5
         self._disambiguator = Disambiguator(_llm_small)
         self._decomposer = ClaimDecomposer(_llm_small)
@@ -1120,6 +1349,20 @@ class ClaimProcessingPipeline:
                 total_segments=len(segments),
             )
 
+        # Topic Extraction (parallel zu den Claims, aber aus Volltext)
+        topic_model: ArticleTopicModel | None = None
+        try:
+            topic_model = self._topic_extractor.extract(text)
+            if topic_model:
+                notes.append(
+                    f"TopicExtractor: '{topic_model.primary_topic}' "
+                    f"({topic_model.domain}, {len(topic_model.key_entities)} Entitäten)"
+                )
+            else:
+                notes.append("TopicExtractor: Kein Topic-Modell extrahiert – übersprungen")
+        except Exception as e:
+            notes.append(f"TopicExtractor: Fehlgeschlagen ({type(e).__name__}) – übersprungen")
+
         # Stufe 2.5: Frame Extraction (LLM) – baut ClaimFrame + SearchProfile
         try:
             claims = self._frame_extractor.extract(claims, text)
@@ -1135,9 +1378,9 @@ class ClaimProcessingPipeline:
         except Exception as e:
             notes.append(f"Stufe 3: Disambiguierung fehlgeschlagen ({type(e).__name__}) – übersprungen")
 
-        # Stufe 4: Decomposition (LLM)
+        # Stufe 4: Decomposition (LLM) – mit Topic-Kontext falls verfügbar
         try:
-            claims = self._decomposer.decompose(claims)
+            claims = self._decomposer.decompose(claims, topic_model=topic_model)
             notes.append(f"Stufe 4: {len(claims)} Claims nach Zerlegung")
         except Exception as e:
             notes.append(f"Stufe 4: Zerlegung fehlgeschlagen ({type(e).__name__}) – übersprungen")
@@ -1174,6 +1417,11 @@ class ClaimProcessingPipeline:
         except Exception as e:
             notes.append(f"Stufe 5: Kanonisierung fehlgeschlagen ({type(e).__name__})")
 
+        # Stufe 5.5: Topical Centrality (regelbasiert, kein LLM)
+        if topic_model and topic_model.key_entities:
+            claims = _compute_topical_centrality(claims, topic_model)
+            notes.append("Stufe 5.5: Topical Centrality berechnet")
+
         # Stufe 6: Prioritization (LLM-Agent)
         try:
             result, error = self._prioritizer.run_safe(claims)
@@ -1185,11 +1433,21 @@ class ClaimProcessingPipeline:
         except Exception as e:
             notes.append(f"Stufe 6: Priorisierung fehlgeschlagen ({type(e).__name__})")
 
+        # Stufe 7: Dependency Detection (regelbasiert, kein LLM)
+        try:
+            claims = DependencyDetector.detect(claims)
+            dep_count = sum(1 for c in claims if c.depends_on)
+            if dep_count:
+                notes.append(f"Stufe 7: {dep_count} Claim-Abhängigkeiten erkannt")
+        except Exception as e:
+            notes.append(f"Stufe 7: Dependency-Detection fehlgeschlagen ({type(e).__name__}) – übersprungen")
+
         return ClaimProcessingResult(
             claims=claims,
             implicit_claims=implicit_claims,
             processing_notes=notes,
             total_segments=len(segments),
+            topic_model=topic_model,
         )
 
 

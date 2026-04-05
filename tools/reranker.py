@@ -55,6 +55,7 @@ def rerank(
     claim_text: str,
     results: list["SearchResult"],
     top_k: int = 30,
+    topic_context: str = "",
 ) -> list[tuple["SearchResult", float]]:
     """Re-ranke Suchergebnisse nach semantischer Relevanz.
 
@@ -62,6 +63,8 @@ def rerank(
         claim_text: Der zu prüfende Claim-Text.
         results: Liste von SearchResult-Objekten.
         top_k: Maximale Anzahl zu bewertender Ergebnisse.
+        topic_context: Optionaler Artikelthema-Kontext für Disambiguierung.
+            Wird als " | Kontext: {topic_context}" an den Claim angehängt.
 
     Returns:
         Liste von (SearchResult, score) Tupeln, sortiert nach Score absteigend.
@@ -73,9 +76,14 @@ def rerank(
     if model is None or not candidates:
         return [(r, 0.5) for r in candidates]
 
-    # Paare bilden: (Claim, Titel + Snippet)
+    # Topic-Kontext für Disambiguierung generischer Claims anhängen
+    query = claim_text
+    if topic_context:
+        query = f"{claim_text} | Kontext: {topic_context}"
+
+    # Paare bilden: (Query, Titel + Snippet)
     pairs = [
-        (claim_text, f"{r.title} {r.snippet}")
+        (query, f"{r.title} {r.snippet}")
         for r in candidates
     ]
 

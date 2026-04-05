@@ -234,6 +234,68 @@ class ProcessedClaim(Claim):
         description="Confidence des ClaimRouters für diesen Claim [0.0–1.0]",
     )
 
+    # ── Topical Centrality ─────────────────────────────────────
+    topical_centrality: float = Field(
+        default=0.5,
+        ge=0.0,
+        le=1.0,
+        description=(
+            "Wie zentral ist der Claim für das Artikelthema? "
+            "1.0=Kern des Artikels, 0.0=peripherer Nebensatz. "
+            "Berechnet aus Entity-Overlap mit dem ArticleTopicModel."
+        ),
+    )
+
+    # ── Claim Dependencies (DependencyDetector) ─────────────────
+    depends_on: list[str] = Field(
+        default_factory=list,
+        description=(
+            "IDs der Claims von denen dieser Claim logisch abhängt. "
+            "Z.B. ein Sanktions-Claim hängt von einem Policy-Claim ab."
+        ),
+    )
+    dependency_type: str = Field(
+        default="",
+        description="Art der Abhängigkeit: 'policy_sanction', 'regulation_enforcement', 'context_number', ''",
+    )
+
+
+class ArticleTopicModel(BaseModel):
+    """Übergreifendes Themenmodell des analysierten Artikels.
+
+    Wird einmalig in Phase 1 aus dem Volltext extrahiert und an alle
+    nachfolgenden Pipeline-Stufen durchgereicht. Ermöglicht topic-aware
+    Query-Generierung, Evidence-Ranking und Off-Topic-Filterung.
+    """
+
+    primary_topic: str = Field(
+        description="Kernthema in einem Satz (z.B. 'Kommunale Verkehrsregulierung in Hannover')",
+    )
+    key_entities: list[str] = Field(
+        default_factory=list,
+        description="Zentrale Entitäten: Personen, Institutionen, Orte, Konzepte",
+    )
+    topic_keywords: list[str] = Field(
+        default_factory=list,
+        description="Thematische Schlüsselwörter für Suche und Filterung",
+    )
+    domain: str = Field(
+        default="GENERAL",
+        description="Themendomäne: REGULATORY, SCIENTIFIC, POLITICAL, ECONOMIC, SOCIAL, HEALTH, GENERAL",
+    )
+    geographic_scope: str = Field(
+        default="",
+        description="Geografischer Bezug (z.B. 'Hannover, Niedersachsen')",
+    )
+    temporal_scope: str = Field(
+        default="",
+        description="Zeitlicher Bezug (z.B. '2024-2025' oder 'aktuell')",
+    )
+    narrative_arc: str = Field(
+        default="",
+        description="2-Satz Zusammenfassung der These/Erzählung des Artikels",
+    )
+
 
 class ClaimProcessingResult(BaseModel):
     """Ergebnis der mehrstufigen Claim-Processing-Pipeline.
@@ -255,6 +317,10 @@ class ClaimProcessingResult(BaseModel):
     total_segments: int = Field(
         default=0,
         description="Anzahl Sätze/Segmente im Originaltext",
+    )
+    topic_model: Optional[ArticleTopicModel] = Field(
+        default=None,
+        description="Übergreifendes Themenmodell des analysierten Artikels",
     )
 
     def to_extraction_result(self) -> ClaimExtractionResult:

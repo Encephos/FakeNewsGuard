@@ -57,6 +57,107 @@ class InputValidationError(ValueError):
     pass
 
 
+def _build_cross_claim_evidence_map(
+    fact_checks: list[FactCheckResult],
+) -> dict[str, list[dict[str, str]]]:
+    """Baue eine Map: URL → list[{claim_id, direction}].
+
+    Identifiziert Quellen die für mehrere Claims relevant sind.
+    Wenn eine Tier-1-Quelle 3 von 5 Claims widerlegt, ist das ein
+    stärkeres Signal als jeder Einzelverdikt.
+
+    Returns:
+        Dict mit URLs als Keys. Nur URLs die bei >=2 Claims auftauchen.
+    """
+    url_map: dict[str, list[dict[str, str]]] = {}
+
+    for fc in fact_checks:
+        if not fc.evidence_pack:
+            continue
+        for item in fc.evidence_pack.web_results:
+            url = item.source.url
+            if not url:
+                continue
+            entry = {
+                "claim_id": fc.claim_id,
+                "direction": item.source_direction.value if item.source_direction else "neutral",
+                "tier": str(item.source.domain_tier),
+            }
+            url_map.setdefault(url, []).append(entry)
+
+    # Nur URLs behalten die bei mindestens 2 Claims auftauchen
+    return {url: claims for url, claims in url_map.items() if len(claims) >= 2}
+
+
+def _apply_cross_claim_consistency(
+    fact_checks: list[FactCheckResult],
+    claims: list[Claim],
+) -> tuple[list[FactCheckResult], list[str]]:
+    """Prüfe Konsistenz zwischen abhängigen Claims und propagiere Confidence.
+
+    1. Wenn Claim A (Policy) = FALSE/UNVERIFIABLE, aber abhängiger Claim B
+       (Sanktion) = TRUE/MOSTLY_TRUE → logischer Widerspruch.
+    2. Confidence-Propagation: Abhängiger Claim erhält Confidence-Penalty
+       wenn der Parent-Claim schwach bewertet ist.
+
+    Returns:
+        (updated_fact_checks, consistency_warnings)
+    """
+    from models.schemas import ProcessedClaim
+
+    # Claims-Index aufbauen
+    claims_by_id = {c.id: c for c in claims}
+    fc_by_claim = {fc.claim_id: fc for fc in fact_checks}
+
+    warnings: list[str] = []
+    updates: dict[str, dict] = {}
+
+    negative_ratings = {"FALSE", "MOSTLY_FALSE", "UNVERIFIABLE"}
+    positive_ratings = {"TRUE", "MOSTLY_TRUE"}
+
+    for claim in claims:
+        if not isinstance(claim, ProcessedClaim) or not claim.depends_on:
+            continue
+
+        my_fc = fc_by_claim.get(claim.id)
+        if not my_fc:
+            continue
+
+        for parent_id in claim.depends_on:
+            parent_fc = fc_by_claim.get(parent_id)
+            if not parent_fc:
+                continue
+
+            my_rating = my_fc.rating.value if hasattr(my_fc.rating, 'value') else str(my_fc.rating)
+            parent_rating = parent_fc.rating.value if hasattr(parent_fc.rating, 'value') else str(parent_fc.rating)
+
+            # Widerspruch: Parent negativ, Child positiv
+            if parent_rating in negative_ratings and my_rating in positive_ratings:
+                warnings.append(
+                    f"Widerspruch: {claim.id} ({my_rating}) hängt von "
+                    f"{parent_id} ({parent_rating}) ab [{claim.dependency_type}]"
+                )
+
+            # Confidence-Propagation: Parent schwach → Child Penalty
+            if parent_rating in negative_ratings and my_fc.confidence > 0:
+                penalty = 0.20
+                new_conf = max(0.0, my_fc.confidence - penalty)
+                updates[claim.id] = {"confidence": new_conf}
+
+    if not updates and not warnings:
+        return fact_checks, warnings
+
+    # Aktualisierte FactCheckResults erstellen
+    result: list[FactCheckResult] = []
+    for fc in fact_checks:
+        if fc.claim_id in updates:
+            result.append(fc.model_copy(update=updates[fc.claim_id]))
+        else:
+            result.append(fc)
+
+    return result, warnings
+
+
 def _format_image_analysis(result: ImageAnalysisResult) -> str:
     """Konvertiert ImageAnalysisResult in lesbaren Text-Block fuer LLM-Kontext."""
     parts: list[str] = []
@@ -312,11 +413,20 @@ class Orchestrator:
                 sources=[],
             )
 
+        # Topic Model aus Phase 1 extrahieren
+        topic_model = getattr(extraction, "topic_model", None)
+        if topic_model:
+            self._log(f"  🎯 Topic: {topic_model.primary_topic} [{topic_model.domain}]")
+
         for claim in extraction.claims:
             self._log(f"  {claim.id} [{claim.type.value}] (prio={claim.priority_score:.2f}): {claim.text}")
 
         # ── Top-N Auswahl ────────────────────────────────────────────────────
         checkable = self._select_top_claims(extraction)
+
+        # Topic Model am EvidenceBuilder setzen (für topic-aware Retrieval)
+        if topic_model and hasattr(self.fact_checker, "_evidence_builder"):
+            self.fact_checker._evidence_builder.topic_model = topic_model
 
         # ── Phase 1.5: Commander (PRO/MAX) ────────────────────────────────────
         # Pre-Routing: route_confidence für Difficulty-Berechnung annotieren.
@@ -387,6 +497,13 @@ class Orchestrator:
                 elif na_result is not None:
                     number_audits.append(na_result)
 
+        # ── Cross-Claim Consistency (nach Phase 2) ──────────────────────────
+        fact_checks, consistency_warnings = _apply_cross_claim_consistency(
+            fact_checks, checkable,
+        )
+        for w in consistency_warnings:
+            self._log(f"  ⚠ {w}")
+
         # ── Phase 3: Rhetoric-Analyse ─────────────────────────────────────────
         self._step("rhetoric", "\n🎭 PHASE 3: Rhetoric-Analyse")
         rhetoric_result, rhetoric_error = self.rhetoric_analyzer.run_safe(text)
@@ -407,6 +524,11 @@ class Orchestrator:
             else:
                 image_analysis_result = img_res
 
+        # ── Cross-Claim Evidence Map ────────────────────────────────────────
+        cross_claim_map = _build_cross_claim_evidence_map(fact_checks)
+        if cross_claim_map:
+            self._log(f"  🔗 Cross-Claim: {len(cross_claim_map)} gemeinsame Quellen")
+
         # ── Phase 4: Synthese ─────────────────────────────────────────────────
         self._step("synthesis", "\n📊 PHASE 4: Synthese")
         synthesis_input: dict[str, Any] = {
@@ -414,6 +536,8 @@ class Orchestrator:
             "fact_checks": fact_checks,
             "number_audits": number_audits,
             "rhetoric": rhetoric_result,
+            "cross_claim_evidence_map": cross_claim_map,
+            "consistency_warnings": consistency_warnings,
         }
         if image_analysis_result is not None:
             synthesis_input["image_analysis"] = _format_image_analysis(image_analysis_result)
@@ -478,10 +602,19 @@ class Orchestrator:
                 sources=[],
             )
 
+        # Topic Model aus Phase 1 extrahieren (async)
+        topic_model_async = getattr(extraction, "topic_model", None)
+        if topic_model_async:
+            self._log(f"  🎯 Topic: {topic_model_async.primary_topic} [{topic_model_async.domain}]")
+
         for claim in extraction.claims:
             self._log(f"  {claim.id} [{claim.type.value}] (prio={claim.priority_score:.2f}): {claim.text}")
 
         checkable = self._select_top_claims(extraction)
+
+        # Topic Model am EvidenceBuilder setzen (für topic-aware Retrieval)
+        if topic_model_async and hasattr(self.fact_checker, "_evidence_builder"):
+            self.fact_checker._evidence_builder.topic_model = topic_model_async
 
         # ── Phase 1.5: Commander (PRO/MAX) ────────────────────────────────────
         # Pre-Routing: route_confidence für Difficulty-Berechnung annotieren.
@@ -573,6 +706,13 @@ class Orchestrator:
                 number_audits.append(na)
             analysis_errors.extend(errs)
 
+        # ── Cross-Claim Consistency (nach Phase 2) ──────────────────────────
+        fact_checks, consistency_warnings = _apply_cross_claim_consistency(
+            fact_checks, checkable,
+        )
+        for w in consistency_warnings:
+            self._log(f"  ⚠ {w}")
+
         rhetoric_result, rhetoric_error = raw_results[n_claims]  # type: ignore[misc]
         if rhetoric_error:
             self._log(f"  ⚠ Rhetoric-Analyse fehlgeschlagen: {rhetoric_error}")
@@ -587,6 +727,11 @@ class Orchestrator:
             else:
                 image_analysis_result = img_res
 
+        # ── Cross-Claim Evidence Map ────────────────────────────────────────
+        cross_claim_map = _build_cross_claim_evidence_map(fact_checks)
+        if cross_claim_map:
+            self._log(f"  🔗 Cross-Claim: {len(cross_claim_map)} gemeinsame Quellen")
+
         # ── Phase 4: Synthese ─────────────────────────────────────────────────
         self._step("synthesis", "\n📊 PHASE 4: Synthese")
         synthesis_input: dict[str, Any] = {
@@ -594,6 +739,8 @@ class Orchestrator:
             "fact_checks": fact_checks,
             "number_audits": number_audits,
             "rhetoric": rhetoric_result,
+            "cross_claim_evidence_map": cross_claim_map,
+            "consistency_warnings": consistency_warnings,
         }
         if image_analysis_result is not None:
             synthesis_input["image_analysis"] = _format_image_analysis(image_analysis_result)

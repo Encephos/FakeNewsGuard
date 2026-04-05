@@ -32,7 +32,7 @@ from models.evidence_models import (
     SourceConsensus,
     SourceDirection,
 )
-from models.schemas import ClaimSearchProfile, ProcessedClaim
+from models.schemas import ArticleTopicModel, ClaimSearchProfile, ProcessedClaim
 from tools.data_loader import (
     commercial_domains,
     commercial_snippet_patterns,
@@ -354,11 +354,16 @@ def _is_offtopic_content(
     title: str,
     snippet: str,
     profile: ClaimSearchProfile,
+    topic_model: ArticleTopicModel | None = None,
 ) -> tuple[bool, float]:
     """Prüfe ob Titel/Snippet inhaltlich off-topic sind, gemessen am SearchProfile.
 
     Geht über URL-Muster hinaus: prüft ob Kernentitäten, Institution, Ort
     und Policy-Kontext im Ergebnis vorhanden sind.
+
+    Wenn ein ArticleTopicModel vorhanden ist, werden Topic-Entities als
+    zusätzliche Soft-Anker geprüft. Evidence die weder Claim- noch
+    Topic-Anker trifft erhält eine härtere Penalty.
 
     Returns:
         (is_offtopic, penalty) — penalty 0.0–0.8 für Ranking-Abwertung.
@@ -461,11 +466,30 @@ def _is_offtopic_content(
 
     # Weiche Abwertung: Weniger als die Hälfte der erwarteten Anker
     if total_anchors >= 3 and hits == 0:
+        # Topic-Rettung: Wenn keine Claim-Anker aber Topic-Anker treffen,
+        # reduziere Penalty (Quelle ist zumindest thematisch relevant)
+        if topic_model and topic_model.key_entities:
+            topic_hits = sum(
+                1 for e in topic_model.key_entities
+                if e.lower() in combined
+            )
+            if topic_hits >= 2:
+                return False, 0.35  # Thematisch relevant, aber Claim-unspezifisch
         return True, 0.5
 
     # Schwache Treffer → leichte Abwertung
     if total_anchors >= 2 and hits < total_anchors / 2:
         return False, 0.3
+
+    # Topic-Verschärfung: Claim-Anker treffen, aber KEINE Topic-Anker →
+    # die Quelle deckt den Claim formal ab, ist aber thematisch entfernt
+    if topic_model and topic_model.key_entities and hits >= 1:
+        topic_hits = sum(
+            1 for e in topic_model.key_entities
+            if e.lower() in combined
+        )
+        if topic_hits == 0 and len(topic_model.key_entities) >= 3:
+            return False, 0.25  # Leichte Abwertung: formal passend, thematisch entfernt
 
     return False, 0.0
 
@@ -853,6 +877,44 @@ def _cluster_by_perspective(
     return selected
 
 
+def _compute_topic_relevance(
+    title: str,
+    snippet: str,
+    topic_model: ArticleTopicModel | None,
+) -> float:
+    """Berechne Topic-Relevanz eines Evidence-Items bezüglich des Artikelthemas.
+
+    Prüft Keyword/Entity-Overlap zwischen Excerpt und dem ArticleTopicModel.
+
+    Returns:
+        Score 0.0–1.0. Default 1.0 wenn kein Topic Model vorhanden.
+    """
+    if not topic_model:
+        return 1.0
+
+    combined = f"{title} {snippet}".lower()
+    if not combined.strip():
+        return 0.0
+
+    # Sammle alle Topic-Signale (Entities + Keywords)
+    signals: list[str] = []
+    signals.extend(topic_model.key_entities)
+    signals.extend(topic_model.topic_keywords)
+    if topic_model.geographic_scope:
+        signals.extend(topic_model.geographic_scope.split(","))
+
+    signals = [s.strip() for s in signals if s.strip()]
+    if not signals:
+        return 1.0
+
+    # Zähle Treffer
+    hits = sum(1 for s in signals if s.lower() in combined)
+    ratio = hits / len(signals)
+
+    # Skaliere auf [0, 1] – ab 40% Treffer ist voll-relevant
+    return min(1.0, ratio / 0.4)
+
+
 def _rank_evidence_items(
     items: list[EvidenceItem],
     claim_text: str,
@@ -860,6 +922,7 @@ def _rank_evidence_items(
     profile: ClaimSearchProfile | None = None,
     is_current_state: bool = False,
     ce_scores: dict[str, float] | None = None,
+    topic_model: ArticleTopicModel | None = None,
 ) -> list[EvidenceItem]:
     """Ranke bestehende EvidenceItems neu – behalte alle Metadaten.
 
@@ -923,7 +986,7 @@ def _rank_evidence_items(
         content_penalty = 0.0
         if profile:
             content_offtopic, content_penalty = _is_offtopic_content(
-                title, snippet, profile
+                title, snippet, profile, topic_model=topic_model,
             )
             # Erhöhte Discard-Schwelle: 0.30 statt 0.25 – fängt mehr Randtreffer ab
             if content_offtopic and rel < 0.30 and not is_fc and not has_gfc_match:
@@ -956,9 +1019,12 @@ def _rank_evidence_items(
             anchor_weight = 0.22 if is_regulatory_profile else 0.15
             anchor_bonus = raw_anchor * anchor_weight
 
+        # ── Topic Relevance Score ────────────────────────────────
+        topic_rel = _compute_topic_relevance(title, snippet, topic_model)
+
         # ── Multi-Signal Ranking-Score (Gewichte aus data/scoring_weights.yaml) ──
         _rw = scoring_weights().get("ranking", {})
-        score = (
+        base_score = (
             (5 - tier) / 4 * _rw.get("tier", 0.25)
             + rel * _rw.get("relevance", 0.30)
             + anchor_bonus
@@ -966,6 +1032,8 @@ def _rank_evidence_items(
             + (_rw.get("gfc", 0.10) if has_gfc_match else 0)
             + (1.0 - offtopic_penalty) * _rw.get("offtopic", 0.05)
         )
+        # Topic-Relevanz als multiplikativer Faktor: 30% Einfluss
+        score = base_score * (0.7 + 0.3 * topic_rel)
 
         # Current-state Claims: Nachrichten-/Behördenquellen (Tier 1-3) boosten,
         # allgemeine Hintergrundseiten leicht abwerten – frische Primärquellen
@@ -984,9 +1052,9 @@ def _rank_evidence_items(
             elif freshness <= 0.3 and freshness != 0.5:
                 score -= 0.10  # älter als 1 Jahr: Abwertung
 
-        # ── Metadaten erhalten, nur relevance_score aktualisieren ──
+        # ── Metadaten erhalten, relevance_score + topic_relevance_score aktualisieren ──
         updated_item = item.model_copy(
-            update={"relevance_score": rel}
+            update={"relevance_score": rel, "topic_relevance_score": topic_rel}
         )
         ranked.append((score, updated_item))
 

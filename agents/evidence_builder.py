@@ -33,7 +33,7 @@ from models.evidence_models import (
     GoogleFactCheckMatch,
     SourceDirection,
 )
-from models.schemas import Claim, ClaimSearchProfile, ProcessedClaim
+from models.schemas import ArticleTopicModel, Claim, ClaimSearchProfile, ProcessedClaim
 from tools.factcheck_databases import FactCheckDatabaseClient, FactCheckDatabaseConfig
 from tools.llm import LLMClient
 from tools.scrape_ranker import RankedSource, rank_sources
@@ -117,6 +117,9 @@ class EvidenceBuilderAgent(BaseAgent):
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
+
+        # Topic Model (wird vom Orchestrator vor dem Fact-Check-Loop gesetzt)
+        self.topic_model: ArticleTopicModel | None = None
 
         # Search Cache (Valkey wenn verfügbar, sonst In-Memory)
         from tools.db.factory import create_search_cache, create_url_cache
@@ -576,7 +579,8 @@ class EvidenceBuilderAgent(BaseAgent):
         # ── Cross-Encoder Re-Ranking (Phase 2) ─────────────────────────────
         ce_scores: dict[str, float] = {}
         if reranker_available():
-            ce_ranked = rerank(claim.text, unique_results, top_k=30)
+            _topic_ctx = self.topic_model.primary_topic if self.topic_model else ""
+            ce_ranked = rerank(claim.text, unique_results, top_k=30, topic_context=_topic_ctx)
             ce_scores = {r.url: float(s) for r, s in ce_ranked}
             notes.append(f"Cross-Encoder: {len(ce_scores)} Ergebnisse bewertet")
 
@@ -646,7 +650,8 @@ class EvidenceBuilderAgent(BaseAgent):
                 if fallback_results:
                     unique_results = _dedup_results(all_results + fallback_results, retrieval_cfg.semantic_dedup_threshold)
                     if reranker_available():
-                        ce_ranked = rerank(claim.text, unique_results, top_k=30)
+                        _topic_ctx = self.topic_model.primary_topic if self.topic_model else ""
+                        ce_ranked = rerank(claim.text, unique_results, top_k=30, topic_context=_topic_ctx)
                         ce_scores = {r.url: float(s) for r, s in ce_ranked}
                     ranked, scraped = await self._rank_and_scrape(
                         unique_results, claim, profile=profile,
@@ -715,7 +720,8 @@ class EvidenceBuilderAgent(BaseAgent):
             unique_results = _dedup_results(all_results + fallback_results, retrieval_cfg.semantic_dedup_threshold)
             # Re-rank mit Cross-Encoder (inkl. neue Ergebnisse)
             if reranker_available():
-                ce_ranked = rerank(claim.text, unique_results, top_k=30)
+                _topic_ctx = self.topic_model.primary_topic if self.topic_model else ""
+                ce_ranked = rerank(claim.text, unique_results, top_k=30, topic_context=_topic_ctx)
                 ce_scores = {r.url: float(s) for r, s in ce_ranked}
             ranked, scraped = await self._rank_and_scrape(
                 unique_results, claim, profile=profile,
@@ -783,6 +789,10 @@ class EvidenceBuilderAgent(BaseAgent):
             2. Fallback: Profile-basierte Queries (3–4)
             3. LLM nur wenn Profil weniger als 3 Queries liefert
 
+        Topic-Anchoring: Wenn ein ArticleTopicModel vorhanden ist und der Claim
+        wenig Overlap mit den Topic-Entities hat, werden Topic-Keywords als
+        Kontext-Anker in die Queries injiziert.
+
         QueryExpansionEngine nutzt ClaimRouter für domain/jurisdiction-aware Expansion.
         """
         import asyncio as _asyncio
@@ -815,8 +825,7 @@ class EvidenceBuilderAgent(BaseAgent):
                             f"(domains: {[d.value for d in route_result.domains]}, "
                             f"jurisdiction: {route_result.jurisdiction})"
                         )
-                        # Return expanded queries (6–8 instead of 4)
-                        return expanded_queries
+                        return self._inject_topic_anchors(expanded_queries, claim)
             except Exception as e:
                 # Fallback zu Profile-Queries wenn Expansion fehlschlägt
                 self._log(f"QueryExpansionEngine Fehler, fallback zu Profile-Queries: {type(e).__name__}")
@@ -837,7 +846,56 @@ class EvidenceBuilderAgent(BaseAgent):
                     profile_queries.append(q)
                     seen.add(q)
 
-        return profile_queries[:4] if profile_queries else [claim.text]
+        queries = profile_queries[:4] if profile_queries else [claim.text]
+        return self._inject_topic_anchors(queries, claim)
+
+    def _inject_topic_anchors(
+        self, queries: list[str], claim: Claim,
+    ) -> list[str]:
+        """Injiziere Topic-Keywords in Queries bei geringem Topic-Overlap.
+
+        Wenn der Claim-Text wenig Overlap mit den Topic-Entities hat,
+        werden die wichtigsten Topic-Keywords an die Queries angehängt.
+        Das verhindert, dass Queries in thematisch fremde Ergebnisse driften.
+        """
+        tm = self.topic_model
+        if not tm or not tm.key_entities:
+            return queries
+
+        # Prüfe Overlap: Wie viele Topic-Entities sind bereits im Claim-Text?
+        claim_lower = claim.text.lower()
+        present = sum(
+            1 for e in tm.key_entities if e.lower() in claim_lower
+        )
+        overlap_ratio = present / len(tm.key_entities) if tm.key_entities else 1.0
+
+        # Genügend Overlap → keine Injektion nötig
+        if overlap_ratio >= 0.3:
+            return queries
+
+        # Wähle fehlende Topic-Entities als Anker (max 3)
+        missing = [
+            e for e in tm.key_entities
+            if e.lower() not in claim_lower
+        ][:3]
+
+        if not missing:
+            return queries
+
+        anchor = " ".join(missing)
+        self._log(f"Topic-Anchor injiziert: '{anchor}' (Overlap {overlap_ratio:.0%})")
+
+        # Hänge Anker an die ersten 2 Queries an (nicht an site:-Queries)
+        enriched: list[str] = []
+        anchored = 0
+        for q in queries:
+            if anchored < 2 and not q.strip().startswith("site:"):
+                enriched.append(f"{q} {anchor}")
+                anchored += 1
+            else:
+                enriched.append(q)
+
+        return enriched
 
     async def _rank_and_scrape(
         self,
@@ -1172,6 +1230,7 @@ class EvidenceBuilderAgent(BaseAgent):
             profile=profile,
             is_current_state=is_current_state,
             ce_scores=ce_scores,
+            topic_model=self.topic_model,
         )
 
         # Phase 6: Perspektiv-Clustering für Evidenz-Diversität

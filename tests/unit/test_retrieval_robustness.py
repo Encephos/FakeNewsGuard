@@ -92,7 +92,14 @@ def _make_agent():
     config = AppConfig()
     agent = EvidenceBuilderAgent.__new__(EvidenceBuilderAgent)
     agent.config = config
+    agent.topic_model = None
     agent._log = lambda msg: None
+    # Stub caches to avoid requiring Valkey/real backends
+    from unittest.mock import MagicMock
+    agent._search_cache = MagicMock()
+    agent._search_cache.get = MagicMock(return_value=None)
+    agent._url_cache = MagicMock()
+    agent._url_cache.get = MagicMock(return_value=None)
     return agent
 
 
