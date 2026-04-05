@@ -583,12 +583,24 @@ class ClaimDecomposer(_LLMStageMixin):
 
         return True
 
-    def decompose(self, claims: list[ProcessedClaim]) -> list[ProcessedClaim]:
+    def decompose(
+        self,
+        claims: list[ProcessedClaim],
+        topic_model: ArticleTopicModel | None = None,
+    ) -> list[ProcessedClaim]:
         if not claims:
             return claims
 
         claims_text = "\n".join(f"[{c.id}]: {c.text}" for c in claims)
         user_msg = f"## Claims zur Zerlegung\n\n{claims_text}"
+
+        # Topic-Kontext für den Decomposer: Kernentitäten als Anker
+        if topic_model:
+            entities = ", ".join(topic_model.key_entities[:5])
+            user_msg = (
+                f"## Artikelthema\n{topic_model.primary_topic}\n"
+                f"Kernentitäten: {entities}\n\n{user_msg}"
+            )
 
         raw = self._call_llm_json(_DECOMPOSER_PROMPT, user_msg)
 
@@ -1209,9 +1221,9 @@ class ClaimProcessingPipeline:
         except Exception as e:
             notes.append(f"Stufe 3: Disambiguierung fehlgeschlagen ({type(e).__name__}) – übersprungen")
 
-        # Stufe 4: Decomposition (LLM)
+        # Stufe 4: Decomposition (LLM) – mit Topic-Kontext falls verfügbar
         try:
-            claims = self._decomposer.decompose(claims)
+            claims = self._decomposer.decompose(claims, topic_model=topic_model)
             notes.append(f"Stufe 4: {len(claims)} Claims nach Zerlegung")
         except Exception as e:
             notes.append(f"Stufe 4: Zerlegung fehlgeschlagen ({type(e).__name__}) – übersprungen")

@@ -149,11 +149,19 @@ Atomare Claims dürfen die Aussagerichtung des Originals NIEMALS umkehren oder n
 "X ist Y" darf NICHT zu "X ist nicht Y" werden.
 BEHALTE die Aussagerichtung (positiv/negativ) des Originals BEI.
 
+## Artikelthema als Kontext-Anker
+Wenn ein Artikelthema angegeben ist, MUSS jeder atomare Sub-Claim
+mindestens eine Kernentität des Artikelthemas enthalten (Institution,
+Ort, Programm/Policy) oder den policy_context explizit benennen.
+Sub-Claims die keinen erkennbaren Bezug zum Artikelthema haben, sind
+VERWAIST und dürfen nicht erzeugt werden.
+
 ## Regeln
 1. Wenn ein Claim bereits atomar und vollständig ist: UNVERÄNDERT zurückgeben.
 2. Lieber einen längeren Claim als zwei kontextarme Mini-Claims.
 3. Kontext-Redundanz ist erlaubt und gewünscht (Institution/Ort wiederholen).
 4. Zahl ohne Kontext = sofort zurück zum Gesamt-Claim, kein Split.
+5. Jeder Sub-Claim MUSS zum Gesamtthema des Artikels passen (siehe oben).
 
 ## Output-Format (JSON)
 {
