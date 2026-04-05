@@ -92,6 +92,14 @@ const de = {
     correction: "Korrektur",
     missingContext: "Kontext fehlt",
     numberManipulation: "Zahlenmanipulation",
+    narrativePatterns: "Erkannte Narrative",
+    audienceManipulation: "Zielgruppen-Manipulation",
+    signals: "Signale",
+    targetAudience: "Zielgruppe",
+    emotionalTargeting: "Emotionales Targeting",
+    platformSignals: "Plattform-Signale",
+    vulnerabilityIndicators: "Vulnerabilität",
+    assessment: "Bewertung",
   },
 
   // ── Left Panel ────────────────────────────────────────────────

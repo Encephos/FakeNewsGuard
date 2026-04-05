@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { AnalysisResult, ClaimResult, CostSummary, FactRating, RhetoricTechnique } from "../lib/types";
+import { AnalysisResult, AudienceManipulation, ClaimResult, CostSummary, FactRating, NarrativePattern, RhetoricTechnique } from "../lib/types";
 
 const OVERALL_STYLE: Record<string, { color: string; label: string }> = {
   // Localized labels (legacy archive data)
@@ -146,6 +146,22 @@ export default function ResultDisplay({ result, archiveId, sourceUrl }: ResultDi
         </Card>
       )}
 
+      {/* Narrative Patterns */}
+      {result.narrative_patterns && result.narrative_patterns.length > 0 && (
+        <Card title="Erkannte Narrative">
+          <div className="space-y-3">
+            {result.narrative_patterns.map((np, i) => <NarrativeCard key={i} pattern={np} />)}
+          </div>
+        </Card>
+      )}
+
+      {/* Audience Manipulation */}
+      {result.audience_manipulation && (
+        <Card title="Zielgruppen-Manipulation">
+          <AudienceCard profile={result.audience_manipulation} />
+        </Card>
+      )}
+
       {/* Fairness */}
       {result.fairness.length > 0 && (
         <Card title="Was stimmt">
@@ -247,6 +263,67 @@ function RhetoricCard({ technique }: { technique: RhetoricTechnique }) {
           <p className="text-xs text-text-tertiary mt-1 italic">&ldquo;{technique.example}&rdquo;</p>
         )}
       </div>
+    </div>
+  );
+}
+
+function narrativeConfidenceStyle(confidence: number): { text: string; bg: string } {
+  if (confidence >= 75) return { text: "text-error", bg: "bg-error/10" };
+  if (confidence >= 50) return { text: "text-warning", bg: "bg-warning/10" };
+  return { text: "text-text-tertiary", bg: "bg-text-tertiary/10" };
+}
+
+function NarrativeCard({ pattern }: { pattern: NarrativePattern }) {
+  const s = narrativeConfidenceStyle(pattern.confidence);
+  return (
+    <div className="flex gap-3">
+      <div className="shrink-0 w-[58px] mt-0.5">
+        <span className={`glass-badge h-5 px-2 text-[10px] font-bold inline-flex items-center ${s.text} ${s.bg}`}>
+          {pattern.confidence}%
+        </span>
+      </div>
+      <div>
+        <p className="text-sm font-semibold text-text-primary mb-0.5">{pattern.label}</p>
+        <p className="text-sm text-text-secondary leading-relaxed">{pattern.explanation}</p>
+        {pattern.signals.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mt-1.5">
+            {pattern.signals.map((sig, i) => (
+              <span key={i} className="glass-badge px-2 py-0.5 text-[10px] text-text-tertiary">
+                {sig}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function AudienceCard({ profile }: { profile: AudienceManipulation }) {
+  const groups: { label: string; items: string[] }[] = [
+    { label: "Zielgruppe", items: profile.target_audience },
+    { label: "Emotionales Targeting", items: profile.emotional_targeting },
+    { label: "Plattform-Signale", items: profile.platform_signals },
+    { label: "Vulnerabilität", items: profile.vulnerability_indicators },
+  ].filter(g => g.items.length > 0);
+
+  return (
+    <div className="space-y-3">
+      {profile.assessment && (
+        <p className="text-sm text-text-secondary leading-relaxed">{profile.assessment}</p>
+      )}
+      {groups.map((group) => (
+        <div key={group.label}>
+          <p className="text-xs font-semibold text-text-tertiary mb-1.5">{group.label}</p>
+          <div className="flex flex-wrap gap-1.5">
+            {group.items.map((item, i) => (
+              <span key={i} className="glass-badge px-2.5 py-0.5 text-[10px] text-text-secondary">
+                {item}
+              </span>
+            ))}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

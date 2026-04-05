@@ -17,10 +17,12 @@ from telegram_formatting import (
     bold,
     code,
     escape_md,
+    format_audience_section,
     format_claim_detail,
     format_corrections_section,
     format_fairness_section,
     format_help_message,
+    format_narrative_section,
     format_rhetoric_section,
     format_sources_section,
     format_start_message,
@@ -381,6 +383,8 @@ async def _handle_section_callback(
         "src": lambda: format_sources_section(result.get("sources", [])),
         "corr": lambda: format_corrections_section(result.get("corrections", [])),
         "fair": lambda: format_fairness_section(result.get("fairness", [])),
+        "narr": lambda: format_narrative_section(result.get("narrative_patterns", [])),
+        "aud": lambda: format_audience_section(result.get("audience_manipulation")),
     }
 
     formatter = section_formatters.get(section)
