@@ -47,6 +47,8 @@ class AggregationSignals:
     high_quality_evidence: bool = False  # mind. ein Claim mit Primärquellen
     rhetoric_score: float = 0.0          # 0.0–1.0, gewichtete Rhetorik-Schwere
     n_high_rhetoric: int = 0             # Anzahl HIGH-Severity-Techniken
+    narrative_detected: bool = False      # Desinformations-Narrativ erkannt
+    n_narratives: int = 0                 # Anzahl erkannter Narrative
 
 
 class SynthesizerAgent(BaseAgent):
@@ -105,6 +107,23 @@ class SynthesizerAgent(BaseAgent):
                     f"- {tech.technique} ({tech.severity.value}): {tech.explanation}\n"
                     f"  Beispiel: \"{tech.example}\"\n"
                 )
+
+            if rhetoric.narrative_patterns:
+                parts.append("## Erkannte Desinformations-Narrative\n")
+                for np in rhetoric.narrative_patterns:
+                    parts.append(
+                        f"- {np.narrative_label} (Konfidenz: {np.confidence:.0%}): {np.explanation}\n"
+                        f"  Signale: {', '.join(np.matching_signals)}\n"
+                    )
+
+            if rhetoric.audience_manipulation:
+                am = rhetoric.audience_manipulation
+                parts.append("## Zielgruppen-Manipulation\n")
+                parts.append(f"{am.assessment}\n")
+                if am.emotional_targeting:
+                    parts.append(f"Emotionales Targeting: {', '.join(am.emotional_targeting)}\n")
+                if am.platform_signals:
+                    parts.append(f"Plattform-Signale: {', '.join(am.platform_signals)}\n")
 
         if image_analysis:
             parts.append("## Bildanalyse\n")
@@ -211,6 +230,8 @@ class SynthesizerAgent(BaseAgent):
             fairness_notes=raw.get("fairness_notes", []),
             sources=all_sources,
             image_analysis=image_analysis_result,
+            narrative_patterns=rhetoric.narrative_patterns if rhetoric else [],
+            audience_manipulation=rhetoric.audience_manipulation if rhetoric else None,
         )
 
     # ── Aggregationssignale ──────────────────────────────────────
@@ -260,6 +281,10 @@ class SynthesizerAgent(BaseAgent):
                 1 for tech in rhetoric.techniques
                 if tech.severity == Severity.HIGH
             )
+
+        if rhetoric and rhetoric.narrative_patterns:
+            signals.narrative_detected = True
+            signals.n_narratives = len(rhetoric.narrative_patterns)
 
         if image_analysis:
             manipulation_count = sum(
@@ -392,6 +417,7 @@ class SynthesizerAgent(BaseAgent):
             f"- Unbelegte Claims (UNVERIFIABLE): {signals.unverified_ratio:.0%}",
             f"- Ø Claim-Konfidenz: {signals.avg_claim_confidence:.0%}" if signals.avg_claim_confidence > 0 else "- Ø Claim-Konfidenz: nicht verfügbar",
             f"- Rhetorik-Manipulationsscore: {signals.rhetoric_score:.2f} / 1.00 ({signals.n_high_rhetoric} HIGH-Techniken)",
+            f"- Desinformations-Narrative erkannt: {signals.n_narratives}" if signals.narrative_detected else "- Desinformations-Narrative erkannt: Keine",
             f"- Primärquellen konsultiert: {'Ja' if signals.high_quality_evidence else 'Nein'}",
         ]
         return "\n".join(lines) + "\n"

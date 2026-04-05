@@ -6,7 +6,13 @@ from typing import Any
 
 from agents.base import BaseAgent
 from i18n import t
-from models.schemas import RhetoricAnalysisResult, RhetoricTechnique, Severity
+from models.schemas import (
+    AudienceManipulationProfile,
+    NarrativePattern,
+    RhetoricAnalysisResult,
+    RhetoricTechnique,
+    Severity,
+)
 
 SYSTEM_PROMPT = """\
 Du bist ein Rhetoric Analyzer.  Deine EINZIGE Aufgabe: Analysiere den Text
@@ -95,10 +101,41 @@ class RhetoricAnalyzerAgent(BaseAgent):
             except (KeyError, ValueError) as e:
                 self._log(f"{t('agents.rhetoric_analyzer.skip_invalid_technique')}: {e}")
 
+        narrative_patterns = []
+        for np in raw.get("narrative_patterns", []):
+            try:
+                narrative_patterns.append(
+                    NarrativePattern(
+                        narrative_id=np["narrative_id"],
+                        narrative_label=np.get("narrative_label", ""),
+                        confidence=float(np.get("confidence", 0.5)),
+                        matching_signals=np.get("matching_signals", []),
+                        explanation=np.get("explanation", ""),
+                    )
+                )
+            except (KeyError, ValueError, TypeError) as e:
+                self._log(f"{t('agents.rhetoric_analyzer.skip_invalid_technique')}: {e}")
+
+        audience_profile: AudienceManipulationProfile | None = None
+        raw_audience = raw.get("audience_manipulation")
+        if raw_audience and isinstance(raw_audience, dict):
+            try:
+                audience_profile = AudienceManipulationProfile(
+                    target_audience_signals=raw_audience.get("target_audience_signals", []),
+                    emotional_targeting=raw_audience.get("emotional_targeting", []),
+                    platform_signals=raw_audience.get("platform_signals", []),
+                    vulnerability_indicators=raw_audience.get("vulnerability_indicators", []),
+                    assessment=raw_audience.get("assessment", ""),
+                )
+            except (ValueError, TypeError) as e:
+                self._log(f"{t('agents.rhetoric_analyzer.skip_invalid_technique')}: {e}")
+
         result = RhetoricAnalysisResult(
             techniques=techniques,
             overall_framing=raw.get("overall_framing", ""),
+            narrative_patterns=narrative_patterns,
+            audience_manipulation=audience_profile,
         )
 
-        self._log(f"{len(result.techniques)} Techniken erkannt")
+        self._log(f"{len(result.techniques)} Techniken, {len(result.narrative_patterns)} Narrative erkannt")
         return result

@@ -284,6 +284,29 @@ auf manipulative Rhetorik und Framing-Techniken.
 
 10. **Zahlen-Framing**: Korrekte Zahlen in irreführendem Rahmen präsentieren
 
+## Narrative-Erkennung
+
+Prüfe ob der Text Muster bekannter Desinformations-Narrative bedient:
+
+- **Great Replacement / Umvolkung**: Bevölkerungsaustausch-Rhetorik
+- **COVID-Verschwörung**: Lab-Leak, Impfschäden-Übertreibung, Plandemie
+- **Wahlbetrug**: Delegitimierung demokratischer Prozesse
+- **Deep State / Geheime Eliten**: Verborgene Mächte steuern alles
+- **Klima-Leugnung**: Systematische Wissenschaftsleugnung
+- **Gender-/Woke-Panik**: Kulturkampf-Mobilisierung
+
+Erkenne Fingerabdrücke: wiederkehrende Frames, Entitätsmuster, Eskalationslogik.
+Nur melden wenn klar erkennbar – nicht jede Kritik ist ein Narrativ.
+
+## Zielgruppen-Manipulation
+
+Analysiere WER angesprochen wird und WIE:
+
+- **Zielgruppen-Signale**: Sprachregister, In-Group-Marker, kulturelle Referenzen
+- **Emotionales Targeting**: Welche Ängste/Hoffnungen werden adressiert
+- **Plattform-Optimierung**: Engagement-Bait, Clickbait, Algorithmus-Muster
+- **Vulnerabilitäts-Signale**: Welche demografischen Gruppen besonders angesprochen werden
+
 ## Wichtig
 
 - Nicht alles ist Manipulation.  Starke Sprache ist in politischen Debatten normal.
@@ -302,7 +325,23 @@ auf manipulative Rhetorik und Framing-Techniken.
       "severity": "MEDIUM"
     }
   ],
-  "overall_framing": "Gesamteinschätzung des Framings in 2-3 Sätzen"
+  "overall_framing": "Gesamteinschätzung des Framings in 2-3 Sätzen",
+  "narrative_patterns": [
+    {
+      "narrative_id": "great_replacement",
+      "narrative_label": "Great Replacement / Umvolkung",
+      "confidence": 0.8,
+      "matching_signals": ["Umvolkung", "Bevölkerungsaustausch"],
+      "explanation": "Wie das Narrativ im Text bedient wird"
+    }
+  ],
+  "audience_manipulation": {
+    "target_audience_signals": ["informelles Du", "patriotische Marker"],
+    "emotional_targeting": ["Angst vor Kontrollverlust", "Wut auf Eliten"],
+    "platform_signals": ["Clickbait-Überschrift"],
+    "vulnerability_indicators": ["ältere Zielgruppe"],
+    "assessment": "Zusammenfassung der Zielgruppen-Strategie in 1-2 Sätzen"
+  }
 }""",
             "analyze_prefix": "Analysiere folgenden Text auf manipulative Rhetorik:\n\n",
             "skip_invalid_technique": "Überspringe ungültige Technik",

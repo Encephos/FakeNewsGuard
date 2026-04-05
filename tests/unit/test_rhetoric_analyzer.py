@@ -25,8 +25,18 @@ def _valid_technique(technique: str = "Loaded Language", severity: str = "MEDIUM
     }
 
 
-def _llm_response(techniques: list[dict], overall_framing: str = "Neutrale Einschaetzung") -> dict:
-    return {"techniques": techniques, "overall_framing": overall_framing}
+def _llm_response(
+    techniques: list[dict],
+    overall_framing: str = "Neutrale Einschaetzung",
+    narrative_patterns: list[dict] | None = None,
+    audience_manipulation: dict | None = None,
+) -> dict:
+    result = {"techniques": techniques, "overall_framing": overall_framing}
+    if narrative_patterns is not None:
+        result["narrative_patterns"] = narrative_patterns
+    if audience_manipulation is not None:
+        result["audience_manipulation"] = audience_manipulation
+    return result
 
 
 # ── Basis-Ausführung ──────────────────────────────────────────────────────────
@@ -224,3 +234,97 @@ class TestRhetoricAnalyzerLLMRetry:
         agent = _make_agent(minimal_config, mock_llm_client, mock_search_client)
         with pytest.raises(ValueError):
             agent.execute("Text")
+
+
+# ── Narrative-Tracking & Audience-Manipulation ───────────────────────────────
+
+
+def _valid_narrative(
+    narrative_id: str = "great_replacement",
+    narrative_label: str = "Great Replacement",
+    confidence: float = 0.8,
+) -> dict:
+    return {
+        "narrative_id": narrative_id,
+        "narrative_label": narrative_label,
+        "confidence": confidence,
+        "matching_signals": ["Umvolkung", "Bevoelkerungsaustausch"],
+        "explanation": "Text bedient das Narrativ",
+    }
+
+
+def _valid_audience() -> dict:
+    return {
+        "target_audience_signals": ["informelles Du", "patriotische Marker"],
+        "emotional_targeting": ["Angst vor Kontrollverlust"],
+        "platform_signals": ["Clickbait-Ueberschrift"],
+        "vulnerability_indicators": ["aeltere Zielgruppe"],
+        "assessment": "Zielt auf konservatives aelteres Publikum",
+    }
+
+
+class TestRhetoricAnalyzerNarrativeTracking:
+    def test_returns_narrative_patterns_from_llm_output(self, minimal_config, mock_llm_client, mock_search_client):
+        mock_llm_client.complete_json.return_value = _llm_response(
+            [], narrative_patterns=[_valid_narrative()]
+        )
+        agent = _make_agent(minimal_config, mock_llm_client, mock_search_client)
+        result = agent.execute("Text")
+        assert len(result.narrative_patterns) == 1
+        assert result.narrative_patterns[0].narrative_id == "great_replacement"
+        assert result.narrative_patterns[0].confidence == 0.8
+
+    def test_multiple_narratives(self, minimal_config, mock_llm_client, mock_search_client):
+        mock_llm_client.complete_json.return_value = _llm_response(
+            [],
+            narrative_patterns=[
+                _valid_narrative("great_replacement"),
+                _valid_narrative("election_fraud", "Wahlbetrug", 0.6),
+            ],
+        )
+        agent = _make_agent(minimal_config, mock_llm_client, mock_search_client)
+        result = agent.execute("Text")
+        assert len(result.narrative_patterns) == 2
+
+    def test_empty_narrative_patterns_default(self, minimal_config, mock_llm_client, mock_search_client):
+        mock_llm_client.complete_json.return_value = _llm_response([])
+        agent = _make_agent(minimal_config, mock_llm_client, mock_search_client)
+        result = agent.execute("Text")
+        assert result.narrative_patterns == []
+
+    def test_invalid_narrative_pattern_is_skipped(self, minimal_config, mock_llm_client, mock_search_client):
+        bad_narrative = {"confidence": 0.5}  # missing narrative_id → KeyError
+        mock_llm_client.complete_json.return_value = _llm_response(
+            [], narrative_patterns=[bad_narrative, _valid_narrative()]
+        )
+        agent = _make_agent(minimal_config, mock_llm_client, mock_search_client)
+        result = agent.execute("Text")
+        assert len(result.narrative_patterns) == 1
+
+    def test_returns_audience_manipulation_from_llm_output(self, minimal_config, mock_llm_client, mock_search_client):
+        mock_llm_client.complete_json.return_value = _llm_response(
+            [], audience_manipulation=_valid_audience()
+        )
+        agent = _make_agent(minimal_config, mock_llm_client, mock_search_client)
+        result = agent.execute("Text")
+        assert result.audience_manipulation is not None
+        assert result.audience_manipulation.assessment == "Zielt auf konservatives aelteres Publikum"
+        assert "Angst vor Kontrollverlust" in result.audience_manipulation.emotional_targeting
+
+    def test_missing_audience_manipulation_defaults_to_none(self, minimal_config, mock_llm_client, mock_search_client):
+        mock_llm_client.complete_json.return_value = _llm_response([])
+        agent = _make_agent(minimal_config, mock_llm_client, mock_search_client)
+        result = agent.execute("Text")
+        assert result.audience_manipulation is None
+
+    def test_backwards_compatible_old_format_response(self, minimal_config, mock_llm_client, mock_search_client):
+        """Old-format LLM response (only techniques + overall_framing) still works."""
+        mock_llm_client.complete_json.return_value = {
+            "techniques": [_valid_technique()],
+            "overall_framing": "Neutrales Framing",
+        }
+        agent = _make_agent(minimal_config, mock_llm_client, mock_search_client)
+        result = agent.execute("Text")
+        assert len(result.techniques) == 1
+        assert result.narrative_patterns == []
+        assert result.audience_manipulation is None
