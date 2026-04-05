@@ -89,6 +89,75 @@ def _build_cross_claim_evidence_map(
     return {url: claims for url, claims in url_map.items() if len(claims) >= 2}
 
 
+def _apply_cross_claim_consistency(
+    fact_checks: list[FactCheckResult],
+    claims: list[Claim],
+) -> tuple[list[FactCheckResult], list[str]]:
+    """Prüfe Konsistenz zwischen abhängigen Claims und propagiere Confidence.
+
+    1. Wenn Claim A (Policy) = FALSE/UNVERIFIABLE, aber abhängiger Claim B
+       (Sanktion) = TRUE/MOSTLY_TRUE → logischer Widerspruch.
+    2. Confidence-Propagation: Abhängiger Claim erhält Confidence-Penalty
+       wenn der Parent-Claim schwach bewertet ist.
+
+    Returns:
+        (updated_fact_checks, consistency_warnings)
+    """
+    from models.schemas import ProcessedClaim, Rating
+
+    # Claims-Index aufbauen
+    claims_by_id = {c.id: c for c in claims}
+    fc_by_claim = {fc.claim_id: fc for fc in fact_checks}
+
+    warnings: list[str] = []
+    updates: dict[str, dict] = {}
+
+    negative_ratings = {"FALSE", "MOSTLY_FALSE", "UNVERIFIABLE"}
+    positive_ratings = {"TRUE", "MOSTLY_TRUE"}
+
+    for claim in claims:
+        if not isinstance(claim, ProcessedClaim) or not claim.depends_on:
+            continue
+
+        my_fc = fc_by_claim.get(claim.id)
+        if not my_fc:
+            continue
+
+        for parent_id in claim.depends_on:
+            parent_fc = fc_by_claim.get(parent_id)
+            if not parent_fc:
+                continue
+
+            my_rating = my_fc.rating.value if hasattr(my_fc.rating, 'value') else str(my_fc.rating)
+            parent_rating = parent_fc.rating.value if hasattr(parent_fc.rating, 'value') else str(parent_fc.rating)
+
+            # Widerspruch: Parent negativ, Child positiv
+            if parent_rating in negative_ratings and my_rating in positive_ratings:
+                warnings.append(
+                    f"Widerspruch: {claim.id} ({my_rating}) hängt von "
+                    f"{parent_id} ({parent_rating}) ab [{claim.dependency_type}]"
+                )
+
+            # Confidence-Propagation: Parent schwach → Child Penalty
+            if parent_rating in negative_ratings and my_fc.confidence > 0:
+                penalty = 0.20
+                new_conf = max(0.0, my_fc.confidence - penalty)
+                updates[claim.id] = {"confidence": new_conf}
+
+    if not updates and not warnings:
+        return fact_checks, warnings
+
+    # Aktualisierte FactCheckResults erstellen
+    result: list[FactCheckResult] = []
+    for fc in fact_checks:
+        if fc.claim_id in updates:
+            result.append(fc.model_copy(update=updates[fc.claim_id]))
+        else:
+            result.append(fc)
+
+    return result, warnings
+
+
 def _format_image_analysis(result: ImageAnalysisResult) -> str:
     """Konvertiert ImageAnalysisResult in lesbaren Text-Block fuer LLM-Kontext."""
     parts: list[str] = []
@@ -428,6 +497,13 @@ class Orchestrator:
                 elif na_result is not None:
                     number_audits.append(na_result)
 
+        # ── Cross-Claim Consistency (nach Phase 2) ──────────────────────────
+        fact_checks, consistency_warnings = _apply_cross_claim_consistency(
+            fact_checks, checkable,
+        )
+        for w in consistency_warnings:
+            self._log(f"  ⚠ {w}")
+
         # ── Phase 3: Rhetoric-Analyse ─────────────────────────────────────────
         self._step("rhetoric", "\n🎭 PHASE 3: Rhetoric-Analyse")
         rhetoric_result, rhetoric_error = self.rhetoric_analyzer.run_safe(text)
@@ -461,6 +537,7 @@ class Orchestrator:
             "number_audits": number_audits,
             "rhetoric": rhetoric_result,
             "cross_claim_evidence_map": cross_claim_map,
+            "consistency_warnings": consistency_warnings,
         }
         if image_analysis_result is not None:
             synthesis_input["image_analysis"] = _format_image_analysis(image_analysis_result)
@@ -629,6 +706,13 @@ class Orchestrator:
                 number_audits.append(na)
             analysis_errors.extend(errs)
 
+        # ── Cross-Claim Consistency (nach Phase 2) ──────────────────────────
+        fact_checks, consistency_warnings = _apply_cross_claim_consistency(
+            fact_checks, checkable,
+        )
+        for w in consistency_warnings:
+            self._log(f"  ⚠ {w}")
+
         rhetoric_result, rhetoric_error = raw_results[n_claims]  # type: ignore[misc]
         if rhetoric_error:
             self._log(f"  ⚠ Rhetoric-Analyse fehlgeschlagen: {rhetoric_error}")
@@ -656,6 +740,7 @@ class Orchestrator:
             "number_audits": number_audits,
             "rhetoric": rhetoric_result,
             "cross_claim_evidence_map": cross_claim_map,
+            "consistency_warnings": consistency_warnings,
         }
         if image_analysis_result is not None:
             synthesis_input["image_analysis"] = _format_image_analysis(image_analysis_result)

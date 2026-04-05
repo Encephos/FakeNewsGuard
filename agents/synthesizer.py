@@ -120,6 +120,19 @@ class SynthesizerAgent(BaseAgent):
                 )
                 parts.append(f"- {url}: {claim_refs}\n")
 
+        # Cross-Claim Consistency Warnings
+        consistency_warnings: list[str] = data.get("consistency_warnings", [])
+        if consistency_warnings:
+            parts.append("## Konsistenz-Warnungen (Widersprüche zwischen abhängigen Claims)\n")
+            for w in consistency_warnings:
+                parts.append(f"- ⚠ {w}\n")
+            parts.append(
+                "HINWEIS: Berücksichtige diese Widersprüche bei der Gesamtbewertung. "
+                "Wenn ein Basis-Claim (z.B. 'Regulation existiert') widerlegt ist, "
+                "sollten darauf aufbauende Claims (z.B. 'Strafe bei Verstoß') ebenfalls "
+                "kritisch bewertet werden.\n"
+            )
+
         # Aggregationssignale als strukturierte Entscheidungshilfe für das LLM
         parts.append(self._format_signals_section(signals))
 
