@@ -1066,6 +1066,123 @@ class ClaimPrioritizerAgent(BaseAgent):
         return updated
 
 
+# ── Dependency Detector ──────────────────────────────────────────────────────
+
+
+class DependencyDetector:
+    """Erkennt logische Abhängigkeiten zwischen Claims (regelbasiert, kein LLM).
+
+    Abhängigkeitstypen:
+        - policy_sanction: Sanktion-Claim → hängt von Policy-Claim ab
+        - regulation_enforcement: Enforcement-Claim → hängt von Regulation-Claim ab
+        - context_number: Zahlen-Claim → hängt von Kontext-Claim ab (gleicher Akteur)
+    """
+
+    @staticmethod
+    def detect(claims: list[ProcessedClaim]) -> list[ProcessedClaim]:
+        """Erkenne Abhängigkeiten zwischen Claims durch Frame-Vergleich.
+
+        Mutiert Claims nicht direkt, sondern gibt aktualisierte Kopien zurück.
+        """
+        if len(claims) < 2:
+            return claims
+
+        # Index: Claims mit Policy/Regulation-Frame
+        policy_claims: list[ProcessedClaim] = []
+        sanction_claims: list[ProcessedClaim] = []
+        enforcement_claims: list[ProcessedClaim] = []
+        number_claims: list[ProcessedClaim] = []
+
+        for c in claims:
+            if not c.frame:
+                continue
+            if c.frame.policy_context and not c.frame.sanction and not c.frame.enforcement:
+                policy_claims.append(c)
+            if c.frame.sanction:
+                sanction_claims.append(c)
+            if c.frame.enforcement:
+                enforcement_claims.append(c)
+            if c.type == ClaimType.STATISTICAL and c.frame.numbers:
+                number_claims.append(c)
+
+        updates: dict[str, dict[str, Any]] = {}
+
+        # Sanktion → Policy Dependency
+        for sc in sanction_claims:
+            for pc in policy_claims:
+                if _frames_share_context(sc.frame, pc.frame):
+                    updates.setdefault(sc.id, {"depends_on": [], "dependency_type": ""})
+                    updates[sc.id]["depends_on"].append(pc.id)
+                    updates[sc.id]["dependency_type"] = "policy_sanction"
+
+        # Enforcement → Regulation Dependency
+        for ec in enforcement_claims:
+            for pc in policy_claims:
+                if _frames_share_context(ec.frame, pc.frame):
+                    updates.setdefault(ec.id, {"depends_on": [], "dependency_type": ""})
+                    updates[ec.id]["depends_on"].append(pc.id)
+                    updates[ec.id]["dependency_type"] = "regulation_enforcement"
+
+        # Number → Context Dependency (gleicher Akteur/Institution)
+        for nc in number_claims:
+            for other in claims:
+                if other.id == nc.id or not other.frame:
+                    continue
+                if other.type != ClaimType.STATISTICAL and _frames_share_context(nc.frame, other.frame):
+                    updates.setdefault(nc.id, {"depends_on": [], "dependency_type": ""})
+                    if other.id not in updates[nc.id]["depends_on"]:
+                        updates[nc.id]["depends_on"].append(other.id)
+                    if not updates[nc.id]["dependency_type"]:
+                        updates[nc.id]["dependency_type"] = "context_number"
+
+        if not updates:
+            return claims
+
+        result: list[ProcessedClaim] = []
+        for c in claims:
+            if c.id in updates:
+                result.append(c.model_copy(update=updates[c.id]))
+            else:
+                result.append(c)
+
+        dep_count = sum(1 for c in result if c.depends_on)
+        _log(f"DependencyDetector: {dep_count} Claims mit Abhängigkeiten erkannt")
+        return result
+
+
+def _frames_share_context(a: ClaimFrame | None, b: ClaimFrame | None) -> bool:
+    """Prüfe ob zwei Frames denselben Kontext teilen (Institution, Location, Policy)."""
+    if not a or not b:
+        return False
+
+    # Institution-Match
+    inst_match = False
+    if a.institution and b.institution:
+        inst_match = (
+            a.institution.lower() in b.institution.lower()
+            or b.institution.lower() in a.institution.lower()
+        )
+
+    # Location-Match
+    loc_match = False
+    if a.location and b.location:
+        loc_match = (
+            a.location.lower() in b.location.lower()
+            or b.location.lower() in a.location.lower()
+        )
+
+    # Policy-Match
+    policy_match = False
+    if a.policy_context and b.policy_context:
+        policy_match = (
+            a.policy_context.lower() in b.policy_context.lower()
+            or b.policy_context.lower() in a.policy_context.lower()
+        )
+
+    # Mindestens 2 von 3 Kontextfeldern müssen übereinstimmen
+    return sum([inst_match, loc_match, policy_match]) >= 1 and (inst_match or loc_match)
+
+
 # ── Topic Extractor ──────────────────────────────────────────────────────────
 
 
@@ -1270,6 +1387,15 @@ class ClaimProcessingPipeline:
                 notes.append(f"Stufe 6: Priorisierung fehlgeschlagen – {error}")
         except Exception as e:
             notes.append(f"Stufe 6: Priorisierung fehlgeschlagen ({type(e).__name__})")
+
+        # Stufe 7: Dependency Detection (regelbasiert, kein LLM)
+        try:
+            claims = DependencyDetector.detect(claims)
+            dep_count = sum(1 for c in claims if c.depends_on)
+            if dep_count:
+                notes.append(f"Stufe 7: {dep_count} Claim-Abhängigkeiten erkannt")
+        except Exception as e:
+            notes.append(f"Stufe 7: Dependency-Detection fehlgeschlagen ({type(e).__name__}) – übersprungen")
 
         return ClaimProcessingResult(
             claims=claims,

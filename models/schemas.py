@@ -234,6 +234,19 @@ class ProcessedClaim(Claim):
         description="Confidence des ClaimRouters für diesen Claim [0.0–1.0]",
     )
 
+    # ── Claim Dependencies (DependencyDetector) ─────────────────
+    depends_on: list[str] = Field(
+        default_factory=list,
+        description=(
+            "IDs der Claims von denen dieser Claim logisch abhängt. "
+            "Z.B. ein Sanktions-Claim hängt von einem Policy-Claim ab."
+        ),
+    )
+    dependency_type: str = Field(
+        default="",
+        description="Art der Abhängigkeit: 'policy_sanction', 'regulation_enforcement', 'context_number', ''",
+    )
+
 
 class ArticleTopicModel(BaseModel):
     """Übergreifendes Themenmodell des analysierten Artikels.
