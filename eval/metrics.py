@@ -15,6 +15,7 @@ from eval.models import (
     CaseResult,
     EvalCase,
     Regression,
+    VerdictAccuracyReport,
     Violation,
 )
 from eval.snapshot import RetrievalSnapshot
@@ -354,6 +355,118 @@ def aggregate_by_category(
     for r in results:
         by_cat.setdefault(r.category.value, []).append(r)
     return {cat: aggregate_global(cat_results) for cat, cat_results in by_cat.items()}
+
+
+# ── Verdict Accuracy ────────────────────────────────────────────────────────
+
+# Ordinal scale for FactRating (distance-based comparison)
+_RATING_ORDINAL: dict[str, int] = {
+    "TRUE": 0,
+    "MOSTLY_TRUE": 1,
+    "MISLEADING": 2,
+    "MOSTLY_FALSE": 3,
+    "FALSE": 4,
+    "UNVERIFIABLE": -1,  # special: only exact match counts
+}
+
+
+def _verdict_distance(predicted: str, expected: str) -> int:
+    """Compute ordinal distance between two FactRating values.
+
+    UNVERIFIABLE is only exact-matchable — distance to any other rating is 99.
+    """
+    p = _RATING_ORDINAL.get(predicted.upper(), -99)
+    e = _RATING_ORDINAL.get(expected.upper(), -99)
+    if p == -99 or e == -99:
+        return 99  # unknown rating
+    if p == -1 or e == -1:
+        return 0 if p == e else 99
+    return abs(p - e)
+
+
+def _topic_relevance_avg(evidence_items: list[dict[str, Any]], k: int = 5) -> Optional[float]:
+    """Average topic_relevance_score of top-K evidence items."""
+    top_k = evidence_items[:k]
+    if not top_k:
+        return None
+    scores = [item.get("topic_relevance_score", 1.0) for item in top_k]
+    return sum(scores) / len(scores)
+
+
+def compute_verdict_metrics(
+    predicted: str,
+    expected: str,
+    evidence_items: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Compute verdict accuracy metrics for a single case.
+
+    Returns dict with verdict_accuracy, verdict_within_one_step,
+    verdict_distance, topic_relevance_avg.
+    """
+    dist = _verdict_distance(predicted, expected)
+    return {
+        "verdict_accuracy": 1.0 if dist == 0 else 0.0,
+        "verdict_within_one_step": dist <= 1,
+        "verdict_distance": dist,
+        "topic_relevance_avg": _topic_relevance_avg(evidence_items),
+    }
+
+
+def compute_verdict_accuracy_report(
+    results: list[CaseResult],
+) -> VerdictAccuracyReport:
+    """Aggregate verdict accuracy across all evaluated cases.
+
+    Only includes cases where both predicted and expected verdicts exist
+    (i.e. CaseMetrics.verdict_accuracy is not None).
+    """
+    cases_with_verdict = [
+        r for r in results if r.metrics.verdict_accuracy is not None
+    ]
+    total = len(results)
+    n = len(cases_with_verdict)
+
+    if n == 0:
+        return VerdictAccuracyReport(total_cases=total)
+
+    exact = sum(1 for r in cases_with_verdict if r.metrics.verdict_accuracy == 1.0)
+    within_one = sum(1 for r in cases_with_verdict if r.metrics.verdict_within_one_step)
+    distances = [r.metrics.verdict_distance for r in cases_with_verdict if r.metrics.verdict_distance is not None]
+    topic_rels = [r.metrics.topic_relevance_avg for r in cases_with_verdict if r.metrics.topic_relevance_avg is not None]
+    offtopic_rates = [r.metrics.offtopic_rate for r in cases_with_verdict]
+
+    # Build confusion matrix from case results
+    # We need predicted/expected stored somewhere — use violations or pass separately
+    # For now, confusion matrix is built externally via build_confusion_matrix()
+
+    return VerdictAccuracyReport(
+        total_cases=total,
+        cases_with_expected_verdict=n,
+        exact_match_count=exact,
+        exact_match_rate=exact / n,
+        within_one_step_count=within_one,
+        within_one_step_rate=within_one / n,
+        avg_verdict_distance=sum(distances) / len(distances) if distances else 0.0,
+        avg_topic_relevance=sum(topic_rels) / len(topic_rels) if topic_rels else None,
+        avg_offtopic_rate=sum(offtopic_rates) / len(offtopic_rates) if offtopic_rates else 0.0,
+    )
+
+
+def build_confusion_matrix(
+    pairs: list[tuple[str, str]],
+) -> dict[str, dict[str, int]]:
+    """Build a confusion matrix from (predicted, expected) rating pairs.
+
+    Returns nested dict: matrix[expected][predicted] = count.
+    """
+    ratings = ["TRUE", "MOSTLY_TRUE", "MISLEADING", "MOSTLY_FALSE", "FALSE", "UNVERIFIABLE"]
+    matrix: dict[str, dict[str, int]] = {r: {c: 0 for c in ratings} for r in ratings}
+    for predicted, expected in pairs:
+        p = predicted.upper()
+        e = expected.upper()
+        if e in matrix and p in matrix[e]:
+            matrix[e][p] += 1
+    return matrix
 
 
 def detect_regressions(

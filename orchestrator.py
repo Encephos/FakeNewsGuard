@@ -103,7 +103,7 @@ def _apply_cross_claim_consistency(
     Returns:
         (updated_fact_checks, consistency_warnings)
     """
-    from models.schemas import ProcessedClaim, Rating
+    from models.schemas import ProcessedClaim
 
     # Claims-Index aufbauen
     claims_by_id = {c.id: c for c in claims}

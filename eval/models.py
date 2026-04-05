@@ -87,6 +87,7 @@ class EvalCase(BaseModel):
 class CaseMetrics(BaseModel):
     """Computed retrieval metrics for a single case."""
 
+    # Retrieval metrics
     official_source_recall_at_k: float = 0.0
     preferred_domain_hit_rate: float = 0.0
     low_trust_rate: float = 0.0
@@ -100,7 +101,12 @@ class CaseMetrics(BaseModel):
     query_duplication_rate: float = 0.0
     source_diversity: float = 0.0
     cache_hit_rate: Optional[float] = None
+
+    # Verdict accuracy metrics
     verdict_accuracy: Optional[float] = None
+    verdict_within_one_step: Optional[bool] = None
+    verdict_distance: Optional[int] = None
+    topic_relevance_avg: Optional[float] = None
 
 
 class Violation(BaseModel):
@@ -133,6 +139,21 @@ class Regression(BaseModel):
     delta: float
 
 
+class VerdictAccuracyReport(BaseModel):
+    """Aggregated verdict accuracy metrics across all cases."""
+
+    total_cases: int = 0
+    cases_with_expected_verdict: int = 0
+    exact_match_count: int = 0
+    exact_match_rate: float = 0.0
+    within_one_step_count: int = 0
+    within_one_step_rate: float = 0.0
+    avg_verdict_distance: float = 0.0
+    avg_topic_relevance: Optional[float] = None
+    avg_offtopic_rate: float = 0.0
+    confusion_matrix: dict[str, dict[str, int]] = Field(default_factory=dict)
+
+
 class MetricsReport(BaseModel):
     """Aggregated evaluation report."""
 
@@ -145,3 +166,4 @@ class MetricsReport(BaseModel):
     per_category: dict[str, dict[str, float]] = Field(default_factory=dict)
     worst_cases: list[CaseResult] = Field(default_factory=list)
     regressions: list[Regression] = Field(default_factory=list)
+    verdict_accuracy: Optional[VerdictAccuracyReport] = None
