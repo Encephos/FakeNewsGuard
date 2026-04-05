@@ -57,6 +57,38 @@ class InputValidationError(ValueError):
     pass
 
 
+def _build_cross_claim_evidence_map(
+    fact_checks: list[FactCheckResult],
+) -> dict[str, list[dict[str, str]]]:
+    """Baue eine Map: URL → list[{claim_id, direction}].
+
+    Identifiziert Quellen die für mehrere Claims relevant sind.
+    Wenn eine Tier-1-Quelle 3 von 5 Claims widerlegt, ist das ein
+    stärkeres Signal als jeder Einzelverdikt.
+
+    Returns:
+        Dict mit URLs als Keys. Nur URLs die bei >=2 Claims auftauchen.
+    """
+    url_map: dict[str, list[dict[str, str]]] = {}
+
+    for fc in fact_checks:
+        if not fc.evidence_pack:
+            continue
+        for item in fc.evidence_pack.web_results:
+            url = item.source.url
+            if not url:
+                continue
+            entry = {
+                "claim_id": fc.claim_id,
+                "direction": item.source_direction.value if item.source_direction else "neutral",
+                "tier": str(item.source.domain_tier),
+            }
+            url_map.setdefault(url, []).append(entry)
+
+    # Nur URLs behalten die bei mindestens 2 Claims auftauchen
+    return {url: claims for url, claims in url_map.items() if len(claims) >= 2}
+
+
 def _format_image_analysis(result: ImageAnalysisResult) -> str:
     """Konvertiert ImageAnalysisResult in lesbaren Text-Block fuer LLM-Kontext."""
     parts: list[str] = []
@@ -416,6 +448,11 @@ class Orchestrator:
             else:
                 image_analysis_result = img_res
 
+        # ── Cross-Claim Evidence Map ────────────────────────────────────────
+        cross_claim_map = _build_cross_claim_evidence_map(fact_checks)
+        if cross_claim_map:
+            self._log(f"  🔗 Cross-Claim: {len(cross_claim_map)} gemeinsame Quellen")
+
         # ── Phase 4: Synthese ─────────────────────────────────────────────────
         self._step("synthesis", "\n📊 PHASE 4: Synthese")
         synthesis_input: dict[str, Any] = {
@@ -423,6 +460,7 @@ class Orchestrator:
             "fact_checks": fact_checks,
             "number_audits": number_audits,
             "rhetoric": rhetoric_result,
+            "cross_claim_evidence_map": cross_claim_map,
         }
         if image_analysis_result is not None:
             synthesis_input["image_analysis"] = _format_image_analysis(image_analysis_result)
@@ -605,6 +643,11 @@ class Orchestrator:
             else:
                 image_analysis_result = img_res
 
+        # ── Cross-Claim Evidence Map ────────────────────────────────────────
+        cross_claim_map = _build_cross_claim_evidence_map(fact_checks)
+        if cross_claim_map:
+            self._log(f"  🔗 Cross-Claim: {len(cross_claim_map)} gemeinsame Quellen")
+
         # ── Phase 4: Synthese ─────────────────────────────────────────────────
         self._step("synthesis", "\n📊 PHASE 4: Synthese")
         synthesis_input: dict[str, Any] = {
@@ -612,6 +655,7 @@ class Orchestrator:
             "fact_checks": fact_checks,
             "number_audits": number_audits,
             "rhetoric": rhetoric_result,
+            "cross_claim_evidence_map": cross_claim_map,
         }
         if image_analysis_result is not None:
             synthesis_input["image_analysis"] = _format_image_analysis(image_analysis_result)

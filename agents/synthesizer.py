@@ -110,6 +110,16 @@ class SynthesizerAgent(BaseAgent):
             parts.append("## Bildanalyse\n")
             parts.append(image_analysis + "\n")
 
+        # Cross-Claim Evidence Map: Quellen die mehrere Claims betreffen
+        cross_claim_map: dict = data.get("cross_claim_evidence_map", {})
+        if cross_claim_map:
+            parts.append("## Cross-Claim Evidence (Quellen die mehrere Claims betreffen)\n")
+            for url, entries in list(cross_claim_map.items())[:10]:
+                claim_refs = ", ".join(
+                    f"{e['claim_id']}={e['direction']}" for e in entries
+                )
+                parts.append(f"- {url}: {claim_refs}\n")
+
         # Aggregationssignale als strukturierte Entscheidungshilfe für das LLM
         parts.append(self._format_signals_section(signals))
 
