@@ -58,6 +58,14 @@ def build_result_keyboard(result: dict[str, Any], job_short: str) -> dict[str, A
     if section_row2:
         rows.append(section_row2)
 
+    section_row3: list[dict[str, str]] = []
+    if result.get("narrative_patterns"):
+        section_row3.append({"text": "\U0001F52E Narrative", "callback_data": f"s:{job_short}:narr"})
+    if result.get("audience_manipulation"):
+        section_row3.append({"text": "\U0001F3AF Zielgruppe", "callback_data": f"s:{job_short}:aud"})
+    if section_row3:
+        rows.append(section_row3)
+
     # New analysis button
     rows.append([{"text": "\U0001F504 Neue Analyse", "callback_data": "new"}])
 

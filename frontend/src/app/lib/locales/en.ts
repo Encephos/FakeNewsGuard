@@ -100,6 +100,14 @@ const en = {
     correction: "Correction",
     missingContext: "Missing Context",
     numberManipulation: "Number Manipulation",
+    narrativePatterns: "Detected Narratives",
+    audienceManipulation: "Audience Manipulation",
+    signals: "Signals",
+    targetAudience: "Target Audience",
+    emotionalTargeting: "Emotional Targeting",
+    platformSignals: "Platform Signals",
+    vulnerabilityIndicators: "Vulnerability",
+    assessment: "Assessment",
   },
 
   // ── Left Panel ────────────────────────────────────────────────

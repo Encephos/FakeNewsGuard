@@ -62,6 +62,22 @@ export interface RhetoricTechnique {
   example: string;
 }
 
+export interface NarrativePattern {
+  id: string;
+  label: string;
+  confidence: number;
+  signals: string[];
+  explanation: string;
+}
+
+export interface AudienceManipulation {
+  target_audience: string[];
+  emotional_targeting: string[];
+  platform_signals: string[];
+  vulnerability_indicators: string[];
+  assessment: string;
+}
+
 export interface CostSummary {
   total_input_tokens: number;
   total_output_tokens: number;
@@ -86,6 +102,8 @@ export interface AnalysisResult {
   fairness: string[];
   sources: string[];
   cost_summary?: CostSummary | null;
+  narrative_patterns?: NarrativePattern[];
+  audience_manipulation?: AudienceManipulation | null;
 }
 
 export interface ExtractedContent {

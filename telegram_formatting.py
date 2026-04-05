@@ -175,6 +175,20 @@ def format_result(result: dict[str, Any]) -> str:
                 parts.append(f"    \u00AB{escape_md(tech['example'])}\u00BB")
             parts.append("")
 
+    # ── Narrative Patterns ──
+    narratives = result.get("narrative_patterns", [])
+    if narratives:
+        parts.append(divider())
+        parts.append(format_narrative_section(narratives))
+
+    # ── Audience Manipulation ──
+    audience = result.get("audience_manipulation")
+    if audience:
+        parts.append("")
+        parts.append(divider())
+        parts.append(format_audience_section(audience))
+        parts.append("")
+
     # ── Corrections ──
     corrections = result.get("corrections", [])
     if corrections:
@@ -207,6 +221,13 @@ def format_result(result: dict[str, Any]) -> str:
                 parts.append(f"    \u2023 {link(domain, src)}")
             else:
                 parts.append(f"    \u2023 {escape_md(src)}")
+
+    # ── CO2 / Impact ──
+    cost = result.get("cost_summary")
+    if cost:
+        parts.append("")
+        parts.append(divider())
+        parts.append(format_co2_section(cost))
 
     # Footer
     parts.append("")
@@ -345,6 +366,84 @@ def format_rhetoric_section(rhetoric: list[dict[str, Any]]) -> str:
         if tech.get("example"):
             parts.append(f"    \u00AB{escape_md(tech['example'])}\u00BB")
         parts.append("")
+    return "\n".join(parts)
+
+
+def confidence_emoji(confidence: int) -> str:
+    """Map narrative confidence to emoji."""
+    if confidence >= 75:
+        return "\U0001F534"  # 🔴
+    if confidence >= 50:
+        return "\U0001F7E1"  # 🟡
+    return "\U0001F7E2"      # 🟢
+
+
+def format_narrative_section(narratives: list[dict[str, Any]]) -> str:
+    """Full narrative patterns section."""
+    if not narratives:
+        return ""
+    parts: list[str] = []
+    parts.append(f"\U0001F52E {bold('Erkannte Narrative')}  _{escape_md(f'({len(narratives)})')}_")
+    parts.append("")
+    for narr in narratives:
+        conf = narr.get("confidence", 0)
+        emoji = confidence_emoji(conf)
+        label = narr.get("label", narr.get("id", ""))
+        parts.append(f"{emoji} {bold(label)}  _{escape_md(f'({conf}%)')}_")
+        explanation = narr.get("explanation", "")
+        if explanation:
+            parts.append(f"    {escape_md(explanation)}")
+        signals = narr.get("signals", [])
+        if signals:
+            parts.append(f"    {italic('Signale:')} {escape_md(', '.join(signals))}")
+        parts.append("")
+    return "\n".join(parts)
+
+
+def format_audience_section(audience: dict[str, Any] | None) -> str:
+    """Full audience manipulation section."""
+    if not audience:
+        return ""
+    parts: list[str] = []
+    parts.append(f"\U0001F3AF {bold('Zielgruppen-Manipulation')}")
+    parts.append("")
+    assessment = audience.get("assessment", "")
+    if assessment:
+        parts.append(escape_md(assessment))
+        parts.append("")
+    groups = [
+        ("\U0001F3AD", "Zielgruppe", audience.get("target_audience", [])),
+        ("\U0001F630", "Emotionales Targeting", audience.get("emotional_targeting", [])),
+        ("\U0001F4F1", "Plattform", audience.get("platform_signals", [])),
+        ("\u26A0\uFE0F", "Vulnerabilität", audience.get("vulnerability_indicators", [])),
+    ]
+    for icon, label, items in groups:
+        if items:
+            parts.append(f"  {icon} {italic(label + ':')} {escape_md(', '.join(items))}")
+    return "\n".join(parts)
+
+
+def format_co2_section(cost: dict[str, Any]) -> str:
+    """Compact CO2/impact section for Telegram."""
+    parts: list[str] = []
+    parts.append(f"\U0001F331 {bold('Analyse-Fussabdruck')}")
+    parts.append("")
+
+    co2 = cost.get("estimated_co2_grams", 0)
+    tokens = cost.get("total_tokens", 0)
+    calls = cost.get("call_count", 0)
+
+    co2_str = f"{co2:.2f} g" if co2 >= 1 else f"{co2 * 1000:.1f} mg"
+    tok_str = f"{tokens / 1000:.1f}k" if tokens >= 1000 else str(tokens)
+
+    parts.append(f"  {escape_md(f'CO\u2082: {co2_str} \u00B7 {tok_str} Tokens \u00B7 {calls} LLM-Aufrufe')}")
+
+    search_count = cost.get("search_query_count", 0)
+    search_co2 = cost.get("search_co2_grams", 0)
+    if search_count:
+        s_co2 = f"{search_co2:.1f} g" if search_co2 >= 1 else f"{search_co2 * 1000:.0f} mg"
+        parts.append(f"  {escape_md(f'Websuchen: {search_count} (\u2248 {s_co2} CO\u2082)')}")
+
     return "\n".join(parts)
 
 
