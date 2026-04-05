@@ -35,6 +35,7 @@ from config import AppConfig, ClaimQualitySignalConfig
 from i18n import t
 from models.schemas import (
     AmbiguityLevel,
+    ArticleTopicModel,
     Claim,
     ClaimFrame,
     ClaimProcessingResult,
@@ -49,6 +50,7 @@ from agents.prompts.claim_prompts import (
     _DISAMBIGUATOR_PROMPT,
     _FRAME_EXTRACTOR_PROMPT,
     _PRIORITIZER_PROMPT,
+    _TOPIC_EXTRACTOR_PROMPT,
 )
 from tools.llm import LLMClient
 from tools.web_search import WebSearchClient
@@ -1052,6 +1054,63 @@ class ClaimPrioritizerAgent(BaseAgent):
         return updated
 
 
+# ── Topic Extractor ──────────────────────────────────────────────────────────
+
+
+class TopicExtractor:
+    """Extrahiert ein ArticleTopicModel aus dem Volltext.
+
+    Wird einmalig in Phase 1 ausgeführt (nach Claim-Selektion, vor Decomposition).
+    Das Ergebnis fließt in alle nachfolgenden Pipeline-Stufen ein.
+    """
+
+    _VALID_DOMAINS = frozenset({
+        "REGULATORY", "SCIENTIFIC", "POLITICAL", "ECONOMIC",
+        "SOCIAL", "HEALTH", "GENERAL",
+    })
+
+    def __init__(self, llm: LLMClient) -> None:
+        self._llm = llm
+
+    def extract(self, text: str) -> ArticleTopicModel | None:
+        """Extrahiere Topic Model aus Artikeltext.
+
+        Returns:
+            ArticleTopicModel oder None bei Fehler.
+        """
+        user_msg = f"## Artikeltext\n\n{text[:4000]}"
+        try:
+            raw = self._llm.complete_json(
+                system=_TOPIC_EXTRACTOR_PROMPT,
+                user=user_msg,
+            )
+        except Exception as e:
+            _log(f"TopicExtractor LLM-Fehler: {type(e).__name__}: {e}")
+            return None
+
+        if not isinstance(raw, dict):
+            _log("TopicExtractor: LLM-Antwort ist kein dict")
+            return None
+
+        domain = raw.get("domain", "GENERAL")
+        if domain not in self._VALID_DOMAINS:
+            domain = "GENERAL"
+
+        try:
+            return ArticleTopicModel(
+                primary_topic=raw.get("primary_topic", ""),
+                key_entities=raw.get("key_entities", []),
+                topic_keywords=raw.get("topic_keywords", []),
+                domain=domain,
+                geographic_scope=raw.get("geographic_scope", ""),
+                temporal_scope=raw.get("temporal_scope", ""),
+                narrative_arc=raw.get("narrative_arc", ""),
+            )
+        except Exception as e:
+            _log(f"TopicExtractor: Modell-Validierung fehlgeschlagen: {e}")
+            return None
+
+
 # ── ClaimProcessingPipeline ────────────────────────────────────────────────────
 
 class ClaimProcessingPipeline:
@@ -1081,6 +1140,7 @@ class ClaimProcessingPipeline:
         _llm_small = llm_small or llm
         self._splitter = SentenceSplitter()
         self._selector = ClaimSelector(_llm_small)
+        self._topic_extractor = TopicExtractor(_llm_small)
         self._frame_extractor = ClaimFrameExtractor(_llm_small)  # Stage 2.5
         self._disambiguator = Disambiguator(_llm_small)
         self._decomposer = ClaimDecomposer(_llm_small)
@@ -1119,6 +1179,20 @@ class ClaimProcessingPipeline:
                 processing_notes=notes,
                 total_segments=len(segments),
             )
+
+        # Topic Extraction (parallel zu den Claims, aber aus Volltext)
+        topic_model: ArticleTopicModel | None = None
+        try:
+            topic_model = self._topic_extractor.extract(text)
+            if topic_model:
+                notes.append(
+                    f"TopicExtractor: '{topic_model.primary_topic}' "
+                    f"({topic_model.domain}, {len(topic_model.key_entities)} Entitäten)"
+                )
+            else:
+                notes.append("TopicExtractor: Kein Topic-Modell extrahiert – übersprungen")
+        except Exception as e:
+            notes.append(f"TopicExtractor: Fehlgeschlagen ({type(e).__name__}) – übersprungen")
 
         # Stufe 2.5: Frame Extraction (LLM) – baut ClaimFrame + SearchProfile
         try:
@@ -1190,6 +1264,7 @@ class ClaimProcessingPipeline:
             implicit_claims=implicit_claims,
             processing_notes=notes,
             total_segments=len(segments),
+            topic_model=topic_model,
         )
 
 

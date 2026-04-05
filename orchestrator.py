@@ -312,11 +312,20 @@ class Orchestrator:
                 sources=[],
             )
 
+        # Topic Model aus Phase 1 extrahieren
+        topic_model = getattr(extraction, "topic_model", None)
+        if topic_model:
+            self._log(f"  🎯 Topic: {topic_model.primary_topic} [{topic_model.domain}]")
+
         for claim in extraction.claims:
             self._log(f"  {claim.id} [{claim.type.value}] (prio={claim.priority_score:.2f}): {claim.text}")
 
         # ── Top-N Auswahl ────────────────────────────────────────────────────
         checkable = self._select_top_claims(extraction)
+
+        # Topic Model am EvidenceBuilder setzen (für topic-aware Retrieval)
+        if topic_model and hasattr(self.fact_checker, "_evidence_builder"):
+            self.fact_checker._evidence_builder.topic_model = topic_model
 
         # ── Phase 1.5: Commander (PRO/MAX) ────────────────────────────────────
         # Pre-Routing: route_confidence für Difficulty-Berechnung annotieren.
@@ -478,10 +487,19 @@ class Orchestrator:
                 sources=[],
             )
 
+        # Topic Model aus Phase 1 extrahieren (async)
+        topic_model_async = getattr(extraction, "topic_model", None)
+        if topic_model_async:
+            self._log(f"  🎯 Topic: {topic_model_async.primary_topic} [{topic_model_async.domain}]")
+
         for claim in extraction.claims:
             self._log(f"  {claim.id} [{claim.type.value}] (prio={claim.priority_score:.2f}): {claim.text}")
 
         checkable = self._select_top_claims(extraction)
+
+        # Topic Model am EvidenceBuilder setzen (für topic-aware Retrieval)
+        if topic_model_async and hasattr(self.fact_checker, "_evidence_builder"):
+            self.fact_checker._evidence_builder.topic_model = topic_model_async
 
         # ── Phase 1.5: Commander (PRO/MAX) ────────────────────────────────────
         # Pre-Routing: route_confidence für Difficulty-Berechnung annotieren.

@@ -235,6 +235,43 @@ class ProcessedClaim(Claim):
     )
 
 
+class ArticleTopicModel(BaseModel):
+    """Übergreifendes Themenmodell des analysierten Artikels.
+
+    Wird einmalig in Phase 1 aus dem Volltext extrahiert und an alle
+    nachfolgenden Pipeline-Stufen durchgereicht. Ermöglicht topic-aware
+    Query-Generierung, Evidence-Ranking und Off-Topic-Filterung.
+    """
+
+    primary_topic: str = Field(
+        description="Kernthema in einem Satz (z.B. 'Kommunale Verkehrsregulierung in Hannover')",
+    )
+    key_entities: list[str] = Field(
+        default_factory=list,
+        description="Zentrale Entitäten: Personen, Institutionen, Orte, Konzepte",
+    )
+    topic_keywords: list[str] = Field(
+        default_factory=list,
+        description="Thematische Schlüsselwörter für Suche und Filterung",
+    )
+    domain: str = Field(
+        default="GENERAL",
+        description="Themendomäne: REGULATORY, SCIENTIFIC, POLITICAL, ECONOMIC, SOCIAL, HEALTH, GENERAL",
+    )
+    geographic_scope: str = Field(
+        default="",
+        description="Geografischer Bezug (z.B. 'Hannover, Niedersachsen')",
+    )
+    temporal_scope: str = Field(
+        default="",
+        description="Zeitlicher Bezug (z.B. '2024-2025' oder 'aktuell')",
+    )
+    narrative_arc: str = Field(
+        default="",
+        description="2-Satz Zusammenfassung der These/Erzählung des Artikels",
+    )
+
+
 class ClaimProcessingResult(BaseModel):
     """Ergebnis der mehrstufigen Claim-Processing-Pipeline.
 
@@ -255,6 +292,10 @@ class ClaimProcessingResult(BaseModel):
     total_segments: int = Field(
         default=0,
         description="Anzahl Sätze/Segmente im Originaltext",
+    )
+    topic_model: Optional[ArticleTopicModel] = Field(
+        default=None,
+        description="Übergreifendes Themenmodell des analysierten Artikels",
     )
 
     def to_extraction_result(self) -> ClaimExtractionResult:

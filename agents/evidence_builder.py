@@ -33,7 +33,7 @@ from models.evidence_models import (
     GoogleFactCheckMatch,
     SourceDirection,
 )
-from models.schemas import Claim, ClaimSearchProfile, ProcessedClaim
+from models.schemas import ArticleTopicModel, Claim, ClaimSearchProfile, ProcessedClaim
 from tools.factcheck_databases import FactCheckDatabaseClient, FactCheckDatabaseConfig
 from tools.llm import LLMClient
 from tools.scrape_ranker import RankedSource, rank_sources
@@ -117,6 +117,9 @@ class EvidenceBuilderAgent(BaseAgent):
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
+
+        # Topic Model (wird vom Orchestrator vor dem Fact-Check-Loop gesetzt)
+        self.topic_model: ArticleTopicModel | None = None
 
         # Search Cache (Valkey wenn verfügbar, sonst In-Memory)
         from tools.db.factory import create_search_cache, create_url_cache
