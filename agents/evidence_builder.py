@@ -1227,6 +1227,7 @@ class EvidenceBuilderAgent(BaseAgent):
             profile=profile,
             is_current_state=is_current_state,
             ce_scores=ce_scores,
+            topic_model=self.topic_model,
         )
 
         # Phase 6: Perspektiv-Clustering für Evidenz-Diversität

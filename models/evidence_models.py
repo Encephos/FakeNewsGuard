@@ -153,6 +153,16 @@ class EvidenceItem(BaseModel):
             "sanction/number_in_context."
         ),
     )
+    topic_relevance_score: float = Field(
+        default=1.0,
+        ge=0.0,
+        le=1.0,
+        description=(
+            "Wie relevant ist die Quelle für das übergreifende Artikelthema? "
+            "1.0=vollständig themenbezogen, 0.0=kein Bezug zum Artikelthema. "
+            "Berechnet aus Entity/Keyword-Overlap mit dem ArticleTopicModel."
+        ),
+    )
 
 
 class ContradictionType(str, Enum):
