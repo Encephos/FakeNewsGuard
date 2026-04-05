@@ -1066,6 +1066,46 @@ class ClaimPrioritizerAgent(BaseAgent):
         return updated
 
 
+# ── Topical Centrality ───────────────────────────────────────────────────────
+
+
+def _compute_topical_centrality(
+    claims: list[ProcessedClaim],
+    topic_model: ArticleTopicModel,
+) -> list[ProcessedClaim]:
+    """Berechne Topical Centrality für jeden Claim.
+
+    Misst Entity-Overlap zwischen Claim-Text/Frame und dem ArticleTopicModel.
+    Claims die zentral für das Artikelthema sind, erhalten höhere Werte.
+    """
+    signals = [e.lower() for e in topic_model.key_entities if e]
+    keywords = [k.lower() for k in topic_model.topic_keywords if k]
+    all_signals = signals + keywords
+
+    if not all_signals:
+        return claims
+
+    result: list[ProcessedClaim] = []
+    for c in claims:
+        text_lower = c.text.lower()
+        # Frame-Felder ebenfalls prüfen
+        frame_text = ""
+        if c.frame:
+            parts = [
+                c.frame.institution, c.frame.location,
+                c.frame.policy_context, c.frame.subject, c.frame.object,
+            ]
+            frame_text = " ".join(p.lower() for p in parts if p)
+
+        combined = f"{text_lower} {frame_text}"
+        hits = sum(1 for s in all_signals if s in combined)
+        # Skaliere: ab 30% Treffer ist zentral (1.0)
+        centrality = min(1.0, (hits / len(all_signals)) / 0.3)
+        result.append(c.model_copy(update={"topical_centrality": centrality}))
+
+    return result
+
+
 # ── Dependency Detector ──────────────────────────────────────────────────────
 
 
@@ -1376,6 +1416,11 @@ class ClaimProcessingPipeline:
                 ]
         except Exception as e:
             notes.append(f"Stufe 5: Kanonisierung fehlgeschlagen ({type(e).__name__})")
+
+        # Stufe 5.5: Topical Centrality (regelbasiert, kein LLM)
+        if topic_model and topic_model.key_entities:
+            claims = _compute_topical_centrality(claims, topic_model)
+            notes.append("Stufe 5.5: Topical Centrality berechnet")
 
         # Stufe 6: Prioritization (LLM-Agent)
         try:

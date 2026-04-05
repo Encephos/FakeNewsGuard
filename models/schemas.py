@@ -234,6 +234,18 @@ class ProcessedClaim(Claim):
         description="Confidence des ClaimRouters für diesen Claim [0.0–1.0]",
     )
 
+    # ── Topical Centrality ─────────────────────────────────────
+    topical_centrality: float = Field(
+        default=0.5,
+        ge=0.0,
+        le=1.0,
+        description=(
+            "Wie zentral ist der Claim für das Artikelthema? "
+            "1.0=Kern des Artikels, 0.0=peripherer Nebensatz. "
+            "Berechnet aus Entity-Overlap mit dem ArticleTopicModel."
+        ),
+    )
+
     # ── Claim Dependencies (DependencyDetector) ─────────────────
     depends_on: list[str] = Field(
         default_factory=list,
