@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import json
 import random
+import secrets
 import string
 import time
 import uuid
@@ -109,6 +110,19 @@ class PgUserDB:
                     user_id     TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
                     created_at  DOUBLE PRECISION NOT NULL,
                     expires_at  DOUBLE PRECISION NOT NULL
+                )
+            """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS registration_codes (
+                    id          TEXT PRIMARY KEY,
+                    code        TEXT UNIQUE NOT NULL,
+                    created_by  TEXT NOT NULL REFERENCES users(id),
+                    label       TEXT NOT NULL DEFAULT '',
+                    max_uses    INTEGER NOT NULL DEFAULT 1,
+                    used_count  INTEGER NOT NULL DEFAULT 0,
+                    is_active   INTEGER NOT NULL DEFAULT 1,
+                    created_at  DOUBLE PRECISION NOT NULL,
+                    expires_at  DOUBLE PRECISION
                 )
             """)
 
@@ -387,6 +401,79 @@ class PgUserDB:
             rows = cur.fetchall()
             cols = [d[0] for d in cur.description]
         return {"period_days": days, "by_tier": [dict(zip(cols, r)) for r in rows]}
+
+    # ── Registration / invite codes ──────────────────────────────────────────
+
+    def create_registration_code(
+        self,
+        admin_user_id: str,
+        label: str = "",
+        max_uses: int = 1,
+        expires_days: int | None = None,
+    ) -> dict[str, Any]:
+        """Generate a unique invite code (FNG-XXXXXXXX). Returns the code record."""
+        code_id = str(uuid.uuid4())
+        raw = secrets.token_hex(4).upper()
+        code = f"FNG-{raw}"
+        now = time.time()
+        expires_at = (now + expires_days * 86400) if expires_days else None
+
+        with self._conn() as conn:
+            conn.execute(
+                """
+                INSERT INTO registration_codes
+                    (id, code, created_by, label, max_uses, used_count, is_active, created_at, expires_at)
+                VALUES (%s, %s, %s, %s, %s, 0, 1, %s, %s)
+                """,
+                (code_id, code, admin_user_id, label, max_uses, now, expires_at),
+            )
+        return {
+            "id": code_id,
+            "code": code,
+            "created_by": admin_user_id,
+            "label": label,
+            "max_uses": max_uses,
+            "used_count": 0,
+            "is_active": 1,
+            "created_at": now,
+            "expires_at": expires_at,
+        }
+
+    def validate_and_consume_registration_code(self, code: str) -> bool:
+        """Atomically validate and consume an invite code."""
+        now = time.time()
+        with self._conn() as conn:
+            cur = conn.execute(
+                """
+                UPDATE registration_codes
+                SET used_count = used_count + 1
+                WHERE code = %s
+                  AND is_active = 1
+                  AND used_count < max_uses
+                  AND (expires_at IS NULL OR expires_at > %s)
+                """,
+                (code, now),
+            )
+            return cur.rowcount > 0
+
+    def list_registration_codes(self) -> list[dict[str, Any]]:
+        """Return all registration codes ordered by creation date (newest first)."""
+        with self._conn() as conn:
+            cur = conn.execute(
+                "SELECT * FROM registration_codes ORDER BY created_at DESC"
+            )
+            rows = cur.fetchall()
+            cols = [d[0] for d in cur.description]
+        return [dict(zip(cols, r)) for r in rows]
+
+    def revoke_registration_code(self, code_id: str) -> bool:
+        """Deactivate a registration code. Returns True if found and updated."""
+        with self._conn() as conn:
+            cur = conn.execute(
+                "UPDATE registration_codes SET is_active = 0 WHERE id = %s",
+                (code_id,),
+            )
+            return cur.rowcount > 0
 
     def migrate_from_json(self, json_path: str) -> int:
         """Import aus altem users.json – identisch mit SQLite-Version."""
@@ -714,6 +801,93 @@ class PgAnalysisArchive:
             "max_entries": self._archive_cfg.max_entries,
         }
 
+    def analytics_data(self, days: int = 30) -> dict[str, Any]:
+        """Aggregated analytics for the admin dashboard."""
+        KNOWN_RATINGS = ["TRUE", "MOSTLY_TRUE", "MISLEADING", "MOSTLY_FALSE", "FALSE", "UNVERIFIABLE"]
+        empty_histogram = [{"bucket": f"{i/10:.1f}-{(i+1)/10:.1f}", "count": 0} for i in range(10)]
+
+        if not self._archive_cfg.enabled:
+            return {
+                "verdict_distribution": {k: 0 for k in KNOWN_RATINGS},
+                "confidence_histogram": empty_histogram,
+                "top_domains": [],
+                "analyses_per_day": [],
+                "period_days": days,
+            }
+
+        import time
+        from datetime import date, timedelta
+        from urllib.parse import urlparse
+
+        cutoff = time.time() - days * 86400
+
+        with self._conn() as conn:
+            # 1. Verdict distribution
+            verdict_distribution: dict[str, int] = {k: 0 for k in KNOWN_RATINGS}
+            cur = conn.execute(
+                "SELECT overall_rating, COUNT(*) AS cnt FROM analysis_archive "
+                "WHERE created_at > %s GROUP BY overall_rating",
+                (cutoff,),
+            )
+            for row in cur.fetchall():
+                if row[0] in verdict_distribution:
+                    verdict_distribution[row[0]] = row[1]
+
+            # 2. Confidence histogram
+            buckets = [0] * 10
+            cur = conn.execute(
+                "SELECT confidence FROM analysis_archive WHERE created_at > %s",
+                (cutoff,),
+            )
+            for row in cur.fetchall():
+                idx = min(row[0] // 10, 9)
+                buckets[idx] += 1
+            confidence_histogram = [
+                {"bucket": f"{i/10:.1f}-{(i+1)/10:.1f}", "count": buckets[i]}
+                for i in range(10)
+            ]
+
+            # 3. Top domains (extract in Python from source_url)
+            cur = conn.execute(
+                "SELECT source_url FROM analysis_archive "
+                "WHERE created_at > %s AND source_url IS NOT NULL",
+                (cutoff,),
+            )
+            domain_counts: dict[str, int] = {}
+            for row in cur.fetchall():
+                netloc = urlparse(row[0]).netloc
+                domain = netloc[4:] if netloc.startswith("www.") else netloc
+                if domain:
+                    domain_counts[domain] = domain_counts.get(domain, 0) + 1
+            top_domains = [
+                {"domain": d, "count": c, "avg_tier": 0}
+                for d, c in sorted(domain_counts.items(), key=lambda x: -x[1])[:15]
+            ]
+
+            # 4. Analyses per day
+            cur = conn.execute(
+                "SELECT TO_CHAR(TO_TIMESTAMP(created_at), 'YYYY-MM-DD') AS day, COUNT(*) AS cnt "
+                "FROM analysis_archive WHERE created_at > %s GROUP BY day ORDER BY day",
+                (cutoff,),
+            )
+            day_map: dict[str, int] = {row[0]: row[1] for row in cur.fetchall()}
+
+        start_date = date.fromtimestamp(cutoff)
+        end_date = date.today()
+        analyses_per_day: list[dict[str, Any]] = []
+        current = start_date
+        while current <= end_date:
+            analyses_per_day.append({"date": current.isoformat(), "count": day_map.get(current.isoformat(), 0)})
+            current += timedelta(days=1)
+
+        return {
+            "verdict_distribution": verdict_distribution,
+            "confidence_histogram": confidence_histogram,
+            "top_domains": top_domains,
+            "analyses_per_day": analyses_per_day,
+            "period_days": days,
+        }
+
     def _enforce_max_entries(self) -> None:
         with self._conn() as conn:
             count = conn.execute(
@@ -781,7 +955,11 @@ class PgAnalysisArchive:
                 "UPDATE archive_shares SET view_count = view_count + 1 WHERE token = %s",
                 (token,),
             )
-        return d
+            cur = conn.execute(
+                "SELECT * FROM archive_shares WHERE token = %s", (token,)
+            )
+            updated = cur.fetchone()
+        return dict(zip([c[0] for c in cur.description], updated)) if updated else d
 
     def delete_share(self, token: str, user_id: str) -> bool:
         with self._conn() as conn:
