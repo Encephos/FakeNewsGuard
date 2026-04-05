@@ -579,7 +579,8 @@ class EvidenceBuilderAgent(BaseAgent):
         # ── Cross-Encoder Re-Ranking (Phase 2) ─────────────────────────────
         ce_scores: dict[str, float] = {}
         if reranker_available():
-            ce_ranked = rerank(claim.text, unique_results, top_k=30)
+            _topic_ctx = self.topic_model.primary_topic if self.topic_model else ""
+            ce_ranked = rerank(claim.text, unique_results, top_k=30, topic_context=_topic_ctx)
             ce_scores = {r.url: float(s) for r, s in ce_ranked}
             notes.append(f"Cross-Encoder: {len(ce_scores)} Ergebnisse bewertet")
 
@@ -649,7 +650,8 @@ class EvidenceBuilderAgent(BaseAgent):
                 if fallback_results:
                     unique_results = _dedup_results(all_results + fallback_results, retrieval_cfg.semantic_dedup_threshold)
                     if reranker_available():
-                        ce_ranked = rerank(claim.text, unique_results, top_k=30)
+                        _topic_ctx = self.topic_model.primary_topic if self.topic_model else ""
+                        ce_ranked = rerank(claim.text, unique_results, top_k=30, topic_context=_topic_ctx)
                         ce_scores = {r.url: float(s) for r, s in ce_ranked}
                     ranked, scraped = await self._rank_and_scrape(
                         unique_results, claim, profile=profile,
@@ -718,7 +720,8 @@ class EvidenceBuilderAgent(BaseAgent):
             unique_results = _dedup_results(all_results + fallback_results, retrieval_cfg.semantic_dedup_threshold)
             # Re-rank mit Cross-Encoder (inkl. neue Ergebnisse)
             if reranker_available():
-                ce_ranked = rerank(claim.text, unique_results, top_k=30)
+                _topic_ctx = self.topic_model.primary_topic if self.topic_model else ""
+                ce_ranked = rerank(claim.text, unique_results, top_k=30, topic_context=_topic_ctx)
                 ce_scores = {r.url: float(s) for r, s in ce_ranked}
             ranked, scraped = await self._rank_and_scrape(
                 unique_results, claim, profile=profile,

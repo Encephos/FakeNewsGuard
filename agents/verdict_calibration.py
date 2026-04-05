@@ -496,6 +496,23 @@ def _calibrate_confidence(
                 )
                 confidence = min(confidence, _ceil_ot)
 
+    # Ceiling: Topic-Disconnected Evidence
+    # Wenn die Top-5 Evidence-Items durchschnittlich geringe topic_relevance haben,
+    # ist die Evidenz thematisch vom Artikel entfernt → Confidence beschränken.
+    if pack.web_results:
+        top5 = pack.web_results[:5]
+        avg_topic_rel = sum(
+            getattr(r, "topic_relevance_score", 1.0) for r in top5
+        ) / len(top5)
+        if avg_topic_rel < 0.25:
+            _ceil_topic = 0.45
+            if confidence > _ceil_topic:
+                reasons.append(
+                    f"Topic-disconnected Evidence (avg topic_rel={avg_topic_rel:.2f}) "
+                    f"→ Ceiling {_ceil_topic}"
+                )
+                confidence = min(confidence, _ceil_topic)
+
     # Ceiling: schlechte Claim-Qualität
     if claim_quality_score < 0.50:
         _ceil = vcal.ceiling_poor_claim_quality
