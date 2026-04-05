@@ -250,6 +250,23 @@ def transform_result(result: Any, claims_map: dict[str, Any]) -> dict:
         "fairness": result.fairness_notes or [],
         "sources": result.sources or [],
         "cost_summary": result.cost_summary.model_dump() if result.cost_summary else None,
+        "narrative_patterns": [
+            {
+                "id": np.narrative_id,
+                "label": np.narrative_label,
+                "confidence": round(np.confidence * 100),
+                "signals": np.matching_signals,
+                "explanation": np.explanation,
+            }
+            for np in result.narrative_patterns
+        ] if result.narrative_patterns else [],
+        "audience_manipulation": {
+            "target_audience": result.audience_manipulation.target_audience_signals,
+            "emotional_targeting": result.audience_manipulation.emotional_targeting,
+            "platform_signals": result.audience_manipulation.platform_signals,
+            "vulnerability_indicators": result.audience_manipulation.vulnerability_indicators,
+            "assessment": result.audience_manipulation.assessment,
+        } if result.audience_manipulation else None,
     }
 
 

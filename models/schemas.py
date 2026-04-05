@@ -496,9 +496,31 @@ class RhetoricTechnique(BaseModel):
     severity: Severity
 
 
+class NarrativePattern(BaseModel):
+    """Erkanntes Desinformations-Narrativ."""
+
+    narrative_id: str = Field(description="Kurzkennung, z.B. 'great_replacement'")
+    narrative_label: str = Field(description="Lesbare Bezeichnung des Narrativs")
+    confidence: float = Field(ge=0.0, le=1.0)
+    matching_signals: list[str] = Field(default_factory=list, description="Textsignale die gematcht haben")
+    explanation: str = Field(default="", description="Wie das Narrativ im Text bedient wird")
+
+
+class AudienceManipulationProfile(BaseModel):
+    """Zielgruppen-Targeting und Manipulationssignale."""
+
+    target_audience_signals: list[str] = Field(default_factory=list, description="Sprachregister, In-Group-Marker, kulturelle Referenzen")
+    emotional_targeting: list[str] = Field(default_factory=list, description="Adressierte Ängste/Hoffnungen/Emotionen")
+    platform_signals: list[str] = Field(default_factory=list, description="Engagement-Bait, Algorithmus-Muster")
+    vulnerability_indicators: list[str] = Field(default_factory=list, description="Demografische Vulnerabilitäts-Signale")
+    assessment: str = Field(default="", description="1-2 Sätze Zusammenfassung der Zielgruppen-Strategie")
+
+
 class RhetoricAnalysisResult(BaseModel):
     techniques: list[RhetoricTechnique] = Field(default_factory=list)
     overall_framing: str = Field(default="", description="Gesamteinschätzung des Framings")
+    narrative_patterns: list[NarrativePattern] = Field(default_factory=list)
+    audience_manipulation: AudienceManipulationProfile | None = Field(default=None)
 
 
 # ── Synthesizer ──────────────────────────────────────────────────
@@ -542,6 +564,8 @@ class SynthesisResult(BaseModel):
         default=None,
         description="Ergebnisse der Bildanalyse, falls Bilder übergeben wurden",
     )
+    narrative_patterns: list[NarrativePattern] = Field(default_factory=list)
+    audience_manipulation: AudienceManipulationProfile | None = Field(default=None)
 
 
 # ── JSON-Schemata für Structured Output ──────────────────────────

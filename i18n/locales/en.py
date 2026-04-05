@@ -284,6 +284,29 @@ for manipulative rhetoric and framing techniques.
 
 10. **Number Framing**: Presenting correct numbers in a misleading framework
 
+## Narrative Detection
+
+Check whether the text serves patterns of known disinformation narratives:
+
+- **Great Replacement**: Population replacement rhetoric
+- **COVID Conspiracy**: Lab-leak, vaccine injury exaggeration, plandemic
+- **Election Fraud**: Delegitimization of democratic processes
+- **Deep State / Secret Elites**: Hidden powers control everything
+- **Climate Denial**: Systematic denial of scientific consensus
+- **Gender/Woke Panic**: Culture war mobilization
+
+Detect fingerprints: recurring frames, entity patterns, escalation logic.
+Only report when clearly recognizable – not every criticism is a narrative.
+
+## Audience Manipulation
+
+Analyze WHO is being addressed and HOW:
+
+- **Target Audience Signals**: Language register, in-group markers, cultural references
+- **Emotional Targeting**: Which fears/hopes are addressed
+- **Platform Optimization**: Engagement bait, clickbait, algorithm patterns
+- **Vulnerability Signals**: Which demographic groups are particularly targeted
+
 ## Important
 
 - Not everything is manipulation. Strong language is normal in political debates.
@@ -302,7 +325,23 @@ for manipulative rhetoric and framing techniques.
       "severity": "MEDIUM"
     }
   ],
-  "overall_framing": "Overall assessment of the framing in 2-3 sentences"
+  "overall_framing": "Overall assessment of the framing in 2-3 sentences",
+  "narrative_patterns": [
+    {
+      "narrative_id": "great_replacement",
+      "narrative_label": "Great Replacement",
+      "confidence": 0.8,
+      "matching_signals": ["replacement", "population exchange"],
+      "explanation": "How the narrative manifests in this text"
+    }
+  ],
+  "audience_manipulation": {
+    "target_audience_signals": ["informal register", "patriotic markers"],
+    "emotional_targeting": ["fear of loss of control", "anger at elites"],
+    "platform_signals": ["clickbait headline"],
+    "vulnerability_indicators": ["older audience"],
+    "assessment": "Summary of the audience targeting strategy in 1-2 sentences"
+  }
 }""",
             "analyze_prefix": "Analyze the following text for manipulative rhetoric:\n\n",
             "skip_invalid_technique": "Skipping invalid technique",
