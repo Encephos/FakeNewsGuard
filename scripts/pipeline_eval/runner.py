@@ -6,6 +6,7 @@ import asyncio
 import logging
 import time
 from concurrent.futures import ThreadPoolExecutor
+from contextvars import copy_context
 from dataclasses import replace
 from typing import Any
 
@@ -370,11 +371,14 @@ def evaluate_case(
             }
         return _step7, _rhetoric_result
 
-    # Run verdict, number_audit, and rhetoric all in parallel
+    # Run verdict, number_audit, and rhetoric all in parallel.
+    # copy_context() propagates ContextVars (cost_tracker accumulator)
+    # into worker threads so token counting works correctly.
+    ctx = copy_context()
     with ThreadPoolExecutor(max_workers=3) as pool:
-        fut_verdict = pool.submit(_run_verdict)
-        fut_na = pool.submit(_run_number_audit)
-        fut_rhetoric = pool.submit(_run_rhetoric)
+        fut_verdict = pool.submit(ctx.run, _run_verdict)
+        fut_na = pool.submit(ctx.run, _run_number_audit)
+        fut_rhetoric = pool.submit(ctx.run, _run_rhetoric)
         step5, fact_check_result = fut_verdict.result()
         step6, number_audit_result = fut_na.result()
         step7, rhetoric_result = fut_rhetoric.result()

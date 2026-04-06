@@ -208,6 +208,11 @@ def _calibrate_rating(
             for i in pack.web_results[:5]
         )
     )
+    # AGREEING consensus + LLM rates MOSTLY_FALSE = implicit refutation signal.
+    # Sources confirm the topic exists, but the LLM detected detail-level
+    # contradictions (wrong date, wrong penalty, etc.). Don't override that.
+    if not has_any_refutation_signal and consensus == SourceConsensus.AGREEING:
+        has_any_refutation_signal = True
 
     # ── Konsens-Rating-Widerspruch: AGREEING + FALSE/MOSTLY_FALSE ───────────
     # Wenn die Quellen den Claim überwiegend STÜTZEN (AGREEING) aber das LLM
