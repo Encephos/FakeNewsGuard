@@ -197,13 +197,16 @@ class QueryExpansionEngine:
         # Strategie 4: Offizielle Quellen (site:-Hints)
         variants.extend(self._strategy_official_source(merged, route_result, search_profile))
 
-        # Strategie 5: Fact-Check (Debunking)
+        # Strategie 5: Domänenspezifische Templates (REGULATORY, STATISTICAL)
+        variants.extend(self._strategy_domain_templates(merged, route_result, claim))
+
+        # Strategie 6: Fact-Check (Debunking)
         variants.extend(self._strategy_factcheck(merged))
 
-        # Strategie 6: Negation/Debunk (Falschmeldung, Hoax)
+        # Strategie 7: Negation/Debunk (Falschmeldung, Hoax)
         variants.extend(self._strategy_negation_search(merged))
 
-        # Strategie 7: Dekomposition (mehrdimensionale Claims)
+        # Strategie 8: Dekomposition (mehrdimensionale Claims)
         variants.extend(self._strategy_decomposition(claim.text, merged))
 
         # Deduplizieren und nach Priorität sortieren
@@ -419,7 +422,92 @@ class QueryExpansionEngine:
 
         return variants[:MAX_PER_FAMILY]
 
-    # ── Strategie 5: Fact-Check ────────────────────────────────────────────────
+    # ── Strategie 5: Domänenspezifische Templates ─────────────────────────────
+
+    def _strategy_domain_templates(
+        self,
+        merged: dict[str, list[str]],
+        route_result: RouteResult,
+        claim: ProcessedClaim,
+    ) -> list[QueryVariant]:
+        """Domänenspezifische Query-Templates für REGULATORY und STATISTICAL Claims.
+
+        Generiert gezielte Queries mit domänenspezifischen Schlüsselwörtern,
+        die generische Strategien nicht abdecken.
+        """
+        variants: list[QueryVariant] = []
+        domains = [d.value if hasattr(d, "value") else str(d) for d in (route_result.domains or [])]
+        nouns = merged["key_nouns"]
+        misc = merged["misc"]
+        topic_terms = (nouns[:2] or misc[:2])
+        topic = " ".join(topic_terms) if topic_terms else ""
+
+        if not topic:
+            return []
+
+        jurisdiction = route_result.jurisdiction or "global"
+
+        # ── REGULATORY: Verordnungen, Richtlinien, Strafen ──
+        if "regulatory" in domains or "legal" in domains:
+            templates = []
+            if jurisdiction == "eu":
+                templates = [
+                    f"EU directive {topic} regulation",
+                    f"EU Verordnung {topic} Richtlinie",
+                ]
+            elif jurisdiction == "de":
+                templates = [
+                    f"Gesetz {topic} Verordnung Deutschland",
+                    f"{topic} Regelung Bußgeld Strafe",
+                ]
+            else:
+                templates = [
+                    f"regulation {topic} enforcement",
+                ]
+
+            for t_text in templates[:MAX_PER_FAMILY]:
+                q = _trim_query(t_text.split(), max_terms=5)
+                if q:
+                    variants.append(QueryVariant(
+                        text=q,
+                        family="domain_template",
+                        priority=0.93,
+                        category_hint="general",
+                        anchors={"domain_template"},
+                    ))
+
+        # ── STATISTICAL: Daten, Statistiken, offizielle Zahlen ──
+        if "statistical" in domains or "economic" in domains:
+            templates = []
+            if jurisdiction == "de":
+                templates = [
+                    f"{topic} Statistik Deutschland Daten",
+                    f"{topic} Destatis Zahlen",
+                ]
+            elif jurisdiction == "global":
+                templates = [
+                    f"{topic} statistics data {merged.get('dates', [''])[0]}".strip(),
+                    f"{topic} official figures report",
+                ]
+            else:
+                templates = [
+                    f"{topic} statistics {jurisdiction} data",
+                ]
+
+            for t_text in templates[:MAX_PER_FAMILY]:
+                q = _trim_query(t_text.split(), max_terms=5)
+                if q:
+                    variants.append(QueryVariant(
+                        text=q,
+                        family="domain_template",
+                        priority=0.91,
+                        category_hint="general",
+                        anchors={"domain_template"},
+                    ))
+
+        return variants[:MAX_PER_FAMILY]
+
+    # ── Strategie 6: Fact-Check ────────────────────────────────────────────────
 
     def _strategy_factcheck(
         self,

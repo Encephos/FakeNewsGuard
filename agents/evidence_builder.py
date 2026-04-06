@@ -737,17 +737,25 @@ class EvidenceBuilderAgent(BaseAgent):
             )
             notes.append(f"Iterative Runde {iterative_round}: {len(evidence_items)} Items, Qualität={quality.overall_quality:.2f}")
 
-        # ── Filter: Entferne sehr schwache Evidence Items (Relevanz < 0.25) ────
+        # ── Filter: Entferne schwache Evidence Items (adaptiver Threshold) ────
         # Niedrig-relevante Items verschlechtern Verdict-Confidence und erzeugen
         # Rauschen im LLM-Prompt. Mindestens 3 Items behalten.
-        _MIN_RELEVANCE = 0.25
+        # Adaptiv: Threshold = max(0.15, median_relevance * 0.5)
+        # Bei schwacher Evidenz (median ~0.35) senkt sich der Threshold auf 0.175,
+        # bei guter Evidenz (median ~0.60) steigt er auf 0.30.
         _MIN_KEEP = 3
         if len(evidence_items) > _MIN_KEEP:
-            filtered = [i for i in evidence_items if i.relevance_score >= _MIN_RELEVANCE]
+            scores_sorted = sorted(i.relevance_score for i in evidence_items)
+            median_rel = scores_sorted[len(scores_sorted) // 2]
+            _threshold = max(0.15, median_rel * 0.5)
+            filtered = [i for i in evidence_items if i.relevance_score >= _threshold]
             if len(filtered) >= _MIN_KEEP:
                 removed = len(evidence_items) - len(filtered)
                 if removed > 0:
-                    notes.append(f"Relevanz-Filter: {removed} Items mit score < {_MIN_RELEVANCE} entfernt")
+                    notes.append(
+                        f"Relevanz-Filter: {removed} Items mit score < {_threshold:.2f} "
+                        f"entfernt (median={median_rel:.2f})"
+                    )
                 evidence_items = filtered
 
         selected_sources = [item.source for item in evidence_items[:5]]
