@@ -1,0 +1,691 @@
+{
+  "timestamp": "2026-04-06T16:40:36.862553+00:00",
+  "tier": "pro",
+  "total_latency_s": 654.48,
+  "total_tokens": 86333,
+  "case_count": 5,
+  "cases": [
+    {
+      "case_id": "eval-1",
+      "category": "faktisch",
+      "total_latency_s": 101.32,
+      "total_tokens": 13571,
+      "total_llm_calls": 8,
+      "error_count": 0,
+      "steps": [
+        {
+          "name": "claim_processing",
+          "latency_s": 16.749,
+          "tokens": 4134,
+          "llm_calls": 4,
+          "search_count": 0,
+          "output": {
+            "claim_count": 1,
+            "types": [
+              "FACTUAL"
+            ],
+            "priority_scores": [
+              0.75
+            ]
+          }
+        },
+        {
+          "name": "claim_routing",
+          "latency_s": 0.003,
+          "tokens": 0,
+          "llm_calls": 0,
+          "search_count": 0,
+          "output": {
+            "confidence": 0.8,
+            "domains": [
+              "biographical",
+              "legal"
+            ],
+            "jurisdiction": "de",
+            "source_count": 5,
+            "rationale": "Domänen: biographical, legal | Jurisdiktion: de | Quellen: EUR-Lex, USPTO PatentsView, Companies House (+2) | Konfidenz:"
+          }
+        },
+        {
+          "name": "evidence_building",
+          "latency_s": 64.882,
+          "tokens": 0,
+          "llm_calls": 0,
+          "search_count": 0,
+          "output": {
+            "web_results": 6,
+            "fact_check_results": 0,
+            "consensus": "agreeing",
+            "avg_relevance": 0.594,
+            "source_tiers": {
+              "2": 2,
+              "5": 4
+            }
+          }
+        },
+        {
+          "name": "cove",
+          "latency_s": 0.0,
+          "tokens": 0,
+          "llm_calls": 0,
+          "search_count": 0,
+          "skipped": true
+        },
+        {
+          "name": "verdict",
+          "latency_s": 6.16,
+          "tokens": 6376,
+          "llm_calls": 2,
+          "search_count": 0,
+          "output": {
+            "rating": "TRUE",
+            "confidence": 0.7,
+            "sources_count": 5,
+            "evidence_excerpt": "Mehrere Quellen bestätigen, dass Friedrich Merz seit Mai 2025 Bundeskanzler von Deutschland ist. Insbesondere die Britannica-Enzyklopädie (Quelle 5) gibt an, dass Merz nach dem Wahlsieg der CDU im Feb"
+          }
+        },
+        {
+          "name": "number_audit",
+          "latency_s": 0.0,
+          "tokens": 0,
+          "llm_calls": 0,
+          "search_count": 0,
+          "skipped": true
+        },
+        {
+          "name": "rhetoric",
+          "latency_s": 4.846,
+          "tokens": 1223,
+          "llm_calls": 1,
+          "search_count": 0,
+          "output": {
+            "technique_count": 0,
+            "techniques": [],
+            "severities": [],
+            "narrative_count": 0,
+            "overall_framing_excerpt": "Der Text ist eine reine Feststellung einer fiktiven Tatsache und enthält keine erkennbare Framing- oder Manipulationstechnik. Es handelt sich um eine neutrale Aussage ohne Wertung oder implizite Botsc"
+          }
+        },
+        {
+          "name": "synthesis",
+          "latency_s": 8.678,
+          "tokens": 1838,
+          "llm_calls": 1,
+          "search_count": 0,
+          "output": {
+            "overall_rating": "RELIABLE",
+            "confidence": 0.87,
+            "key_corrections_count": 0,
+            "manipulation_techniques_count": 0,
+            "summary_excerpt": "Der Text stellt fest, dass Friedrich Merz seit Mai 2025 Bundeskanzler von Deutschland ist. Diese Aussage wird durch mehrere Quellen bestätigt, darunter die Britannica-Enzyklopädie und Berichte über se"
+          }
+        }
+      ]
+    },
+    {
+      "case_id": "eval-2",
+      "category": "statistisch",
+      "total_latency_s": 123.04,
+      "total_tokens": 20639,
+      "total_llm_calls": 8,
+      "error_count": 0,
+      "steps": [
+        {
+          "name": "claim_processing",
+          "latency_s": 27.041,
+          "tokens": 4517,
+          "llm_calls": 4,
+          "search_count": 0,
+          "output": {
+            "claim_count": 2,
+            "types": [
+              "STATISTICAL",
+              "STATISTICAL"
+            ],
+            "priority_scores": [
+              0.5,
+              0.65
+            ]
+          }
+        },
+        {
+          "name": "claim_routing",
+          "latency_s": 0.003,
+          "tokens": 0,
+          "llm_calls": 0,
+          "search_count": 0,
+          "output": {
+            "confidence": 0.35,
+            "domains": [
+              "statistical",
+              "legal",
+              "economic"
+            ],
+            "jurisdiction": "de",
+            "source_count": 6,
+            "rationale": "Domänen: statistical, legal, economic | Jurisdiktion: de | Quellen: Eurostat, EUR-Lex, USPTO PatentsView (+3) | Konfiden"
+          }
+        },
+        {
+          "name": "evidence_building",
+          "latency_s": 56.016,
+          "tokens": 0,
+          "llm_calls": 0,
+          "search_count": 0,
+          "output": {
+            "web_results": 8,
+            "fact_check_results": 0,
+            "consensus": "agreeing",
+            "avg_relevance": 0.712,
+            "source_tiers": {
+              "1": 1,
+              "5": 4,
+              "2": 3
+            }
+          }
+        },
+        {
+          "name": "cove",
+          "latency_s": 0.0,
+          "tokens": 0,
+          "llm_calls": 0,
+          "search_count": 0,
+          "skipped": true
+        },
+        {
+          "name": "verdict",
+          "latency_s": 14.056,
+          "tokens": 5865,
+          "llm_calls": 1,
+          "search_count": 0,
+          "output": {
+            "rating": "MISLEADING",
+            "confidence": 0.4,
+            "sources_count": 5,
+            "evidence_excerpt": "Die Behauptung, die Kriminalitätsrate in Deutschland sei seit 2015 um 50 Prozent gestiegen, ist irreführend. Die verfügbaren Quellen zeigen ein komplexeres Bild. Während einige Quellen einen Anstieg d"
+          }
+        },
+        {
+          "name": "number_audit",
+          "latency_s": 0.001,
+          "tokens": 0,
+          "llm_calls": 0,
+          "search_count": 0,
+          "output": {
+            "rating": "N/A",
+            "manipulation_type": "ABSOLUTE_VS_RELATIVE"
+          }
+        },
+        {
+          "name": "rhetoric",
+          "latency_s": 17.689,
+          "tokens": 7410,
+          "llm_calls": 2,
+          "search_count": 0,
+          "output": {
+            "technique_count": 2,
+            "techniques": [
+              "Implizite Kausalität",
+              "Cherry-Picking"
+            ],
+            "severities": [
+              "MEDIUM",
+              "MEDIUM"
+            ],
+            "narrative_count": 0,
+            "overall_framing_excerpt": "Der Text präsentiert eine selektive Darstellung der Kriminalitätsentwicklung in Deutschland, die den Eindruck erwecken soll, dass die Kriminalität seit 2015 stark angestiegen ist. Die Aussage implizie"
+          }
+        },
+        {
+          "name": "synthesis",
+          "latency_s": 8.234,
+          "tokens": 2847,
+          "llm_calls": 1,
+          "search_count": 0,
+          "output": {
+            "overall_rating": "MISLEADING",
+            "confidence": 0.69,
+            "key_corrections_count": 2,
+            "manipulation_techniques_count": 2,
+            "summary_excerpt": "Die Behauptung, die Kriminalitätsrate in Deutschland sei seit 2015 um 50 Prozent gestiegen, ist nicht durch vorliegende Daten belegt. Die Kriminalitätsentwicklung ist komplexer und variiert je nach De"
+          }
+        }
+      ]
+    },
+    {
+      "case_id": "eval-3",
+      "category": "regulatorisch",
+      "total_latency_s": 205.87,
+      "total_tokens": 19560,
+      "total_llm_calls": 7,
+      "error_count": 0,
+      "steps": [
+        {
+          "name": "claim_processing",
+          "latency_s": 28.714,
+          "tokens": 3313,
+          "llm_calls": 3,
+          "search_count": 0,
+          "output": {
+            "claim_count": 1,
+            "types": [
+              "FACTUAL"
+            ],
+            "priority_scores": [
+              0.75
+            ]
+          }
+        },
+        {
+          "name": "claim_routing",
+          "latency_s": 0.002,
+          "tokens": 0,
+          "llm_calls": 0,
+          "search_count": 0,
+          "output": {
+            "confidence": 0.95,
+            "domains": [
+              "regulatory",
+              "legal"
+            ],
+            "jurisdiction": "eu",
+            "source_count": 6,
+            "rationale": "Domänen: regulatory, legal | Jurisdiktion: eu | Quellen: EUR-Lex, Eurostat, openFDA (+3) | Konfidenz: 95%"
+          }
+        },
+        {
+          "name": "evidence_building",
+          "latency_s": 132.293,
+          "tokens": 0,
+          "llm_calls": 0,
+          "search_count": 0,
+          "output": {
+            "web_results": 8,
+            "fact_check_results": 0,
+            "consensus": "agreeing",
+            "avg_relevance": 0.573,
+            "source_tiers": {
+              "2": 4,
+              "3": 1,
+              "5": 3
+            }
+          }
+        },
+        {
+          "name": "cove",
+          "latency_s": 0.0,
+          "tokens": 0,
+          "llm_calls": 0,
+          "search_count": 0,
+          "skipped": true
+        },
+        {
+          "name": "verdict",
+          "latency_s": 10.02,
+          "tokens": 6191,
+          "llm_calls": 1,
+          "search_count": 0,
+          "output": {
+            "rating": "MISLEADING",
+            "confidence": 0.4,
+            "sources_count": 6,
+            "evidence_excerpt": "Die EU hat bereits 2021 ein Verbot für bestimmte Einwegplastikprodukte wie Besteck und Strohhalme beschlossen (Quelle 3, 4, 7). Die Behauptung, dass dieses Verbot erst ab 2025 gilt, ist somit falsch. "
+          }
+        },
+        {
+          "name": "number_audit",
+          "latency_s": 0.0,
+          "tokens": 0,
+          "llm_calls": 0,
+          "search_count": 0,
+          "skipped": true
+        },
+        {
+          "name": "rhetoric",
+          "latency_s": 17.688,
+          "tokens": 7678,
+          "llm_calls": 2,
+          "search_count": 0,
+          "output": {
+            "technique_count": 0,
+            "techniques": [],
+            "severities": [],
+            "narrative_count": 0,
+            "overall_framing_excerpt": "Der Text präsentiert das EU-Verbot von Einwegplastik-Besteck in einem negativen Licht, indem er den Fokus auf die potenziellen Strafen legt und die Notwendigkeit des Verbots nicht erklärt. Dies erzeug"
+          }
+        },
+        {
+          "name": "synthesis",
+          "latency_s": 17.148,
+          "tokens": 2378,
+          "llm_calls": 1,
+          "search_count": 0,
+          "output": {
+            "overall_rating": "MISLEADING",
+            "confidence": 0.66,
+            "key_corrections_count": 2,
+            "manipulation_techniques_count": 0,
+            "summary_excerpt": "Der Text behauptet, die EU habe ab 2025 ein vollständiges Verbot von Einwegplastik-Besteck mit hohen Strafen beschlossen. Dies ist irreführend, da das Verbot bereits 2021 in Kraft getreten ist. Die Hö"
+          }
+        }
+      ]
+    },
+    {
+      "case_id": "eval-4",
+      "category": "rhetorik",
+      "total_latency_s": 128.54,
+      "total_tokens": 18554,
+      "total_llm_calls": 6,
+      "error_count": 0,
+      "steps": [
+        {
+          "name": "claim_processing",
+          "latency_s": 39.401,
+          "tokens": 2191,
+          "llm_calls": 2,
+          "search_count": 0,
+          "output": {
+            "claim_count": 2,
+            "types": [
+              "FACTUAL",
+              "FACTUAL"
+            ],
+            "priority_scores": [
+              0.75,
+              0.65
+            ]
+          }
+        },
+        {
+          "name": "claim_routing",
+          "latency_s": 0.001,
+          "tokens": 0,
+          "llm_calls": 0,
+          "search_count": 0,
+          "output": {
+            "confidence": 0.1,
+            "domains": [],
+            "jurisdiction": "eu",
+            "source_count": 3,
+            "rationale": "Keine Domäne erkannt → allgemeine Tier-1-Quellen (Konfidenz: 10%)"
+          }
+        },
+        {
+          "name": "evidence_building",
+          "latency_s": 30.497,
+          "tokens": 0,
+          "llm_calls": 0,
+          "search_count": 0,
+          "output": {
+            "web_results": 8,
+            "fact_check_results": 0,
+            "consensus": "agreeing",
+            "avg_relevance": 0.358,
+            "source_tiers": {
+              "4": 2,
+              "1": 2,
+              "5": 3,
+              "3": 1
+            }
+          }
+        },
+        {
+          "name": "cove",
+          "latency_s": 0.0,
+          "tokens": 0,
+          "llm_calls": 0,
+          "search_count": 0,
+          "skipped": true
+        },
+        {
+          "name": "verdict",
+          "latency_s": 16.759,
+          "tokens": 5891,
+          "llm_calls": 1,
+          "search_count": 0,
+          "output": {
+            "rating": "MISLEADING",
+            "confidence": 0.4,
+            "sources_count": 6,
+            "evidence_excerpt": "Die Behauptung, die Asylflut koste den deutschen Steuerzahler Milliarden, ist technisch nicht falsch, da die Asylkosten tatsächlich Milliarden betragen (Quelle 2, Quelle 5). Allerdings wird der Kontex"
+          }
+        },
+        {
+          "name": "number_audit",
+          "latency_s": 0.0,
+          "tokens": 0,
+          "llm_calls": 0,
+          "search_count": 0,
+          "skipped": true
+        },
+        {
+          "name": "rhetoric",
+          "latency_s": 29.754,
+          "tokens": 7763,
+          "llm_calls": 2,
+          "search_count": 0,
+          "output": {
+            "technique_count": 5,
+            "techniques": [
+              "Loaded Language",
+              "Loaded Language",
+              "Loaded Language",
+              "False Equivalence",
+              "Appeal to Fear"
+            ],
+            "severities": [
+              "MEDIUM",
+              "MEDIUM",
+              "MEDIUM",
+              "MEDIUM",
+              "MEDIUM"
+            ],
+            "narrative_count": 1,
+            "overall_framing_excerpt": "Der Text bedient eine stark negative und alarmistische Darstellung von Migration, indem er emotionale Sprache verwendet und einen kausalen Zusammenhang zwischen Asylkosten und dem Wohlergehen deutsche"
+          }
+        },
+        {
+          "name": "synthesis",
+          "latency_s": 12.13,
+          "tokens": 2709,
+          "llm_calls": 1,
+          "search_count": 0,
+          "output": {
+            "overall_rating": "MISLEADING",
+            "confidence": 0.69,
+            "key_corrections_count": 2,
+            "manipulation_techniques_count": 5,
+            "summary_excerpt": "Der Text behauptet, die Asylpolitik verursache hohe Kosten für deutsche Steuerzahler und führe zu Leid bei Rentnern, während sie das Land zerstöre. Die Aussage über die Kosten ist zwar nicht grundsätz"
+          }
+        }
+      ]
+    },
+    {
+      "case_id": "eval-5",
+      "category": "multilingual",
+      "total_latency_s": 95.72,
+      "total_tokens": 14009,
+      "total_llm_calls": 8,
+      "error_count": 0,
+      "steps": [
+        {
+          "name": "claim_processing",
+          "latency_s": 18.93,
+          "tokens": 4265,
+          "llm_calls": 4,
+          "search_count": 0,
+          "output": {
+            "claim_count": 1,
+            "types": [
+              "STATISTICAL"
+            ],
+            "priority_scores": [
+              0.75
+            ]
+          }
+        },
+        {
+          "name": "claim_routing",
+          "latency_s": 0.001,
+          "tokens": 0,
+          "llm_calls": 0,
+          "search_count": 0,
+          "output": {
+            "confidence": 0.35,
+            "domains": [
+              "statistical",
+              "economic"
+            ],
+            "jurisdiction": "global",
+            "source_count": 3,
+            "rationale": "Domänen: statistical, economic | Jurisdiktion: global | Quellen: Eurostat, World Bank Open Data, Crossref | Konfidenz: 3"
+          }
+        },
+        {
+          "name": "evidence_building",
+          "latency_s": 51.729,
+          "tokens": 0,
+          "llm_calls": 0,
+          "search_count": 0,
+          "output": {
+            "web_results": 8,
+            "fact_check_results": 0,
+            "consensus": "agreeing",
+            "avg_relevance": 0.24,
+            "source_tiers": {
+              "4": 2,
+              "2": 1,
+              "3": 2,
+              "5": 2,
+              "1": 1
+            }
+          }
+        },
+        {
+          "name": "cove",
+          "latency_s": 0.0,
+          "tokens": 0,
+          "llm_calls": 0,
+          "search_count": 0,
+          "skipped": true
+        },
+        {
+          "name": "verdict",
+          "latency_s": 10.313,
+          "tokens": 6205,
+          "llm_calls": 2,
+          "search_count": 0,
+          "output": {
+            "rating": "MOSTLY_TRUE",
+            "confidence": 0.72,
+            "sources_count": 6,
+            "evidence_excerpt": "Die Behauptung, dass die globalen CO2-Emissionen im Jahr 2023 einen Rekordwert erreicht haben, wird durch mehrere Quellen gestützt. Die IEA (International Energy Agency) wird als Quelle genannt, und Q"
+          }
+        },
+        {
+          "name": "number_audit",
+          "latency_s": 0.001,
+          "tokens": 0,
+          "llm_calls": 0,
+          "search_count": 0,
+          "output": {
+            "rating": "N/A",
+            "manipulation_type": "NONE"
+          }
+        },
+        {
+          "name": "rhetoric",
+          "latency_s": 4.584,
+          "tokens": 1238,
+          "llm_calls": 1,
+          "search_count": 0,
+          "output": {
+            "technique_count": 0,
+            "techniques": [],
+            "severities": [],
+            "narrative_count": 0,
+            "overall_framing_excerpt": "The text presents a factual statement about global CO2 emissions. It is a neutral framing, simply reporting data from a reputable source (IEA). There is no apparent attempt to manipulate or distort th"
+          }
+        },
+        {
+          "name": "synthesis",
+          "latency_s": 10.159,
+          "tokens": 2301,
+          "llm_calls": 1,
+          "search_count": 0,
+          "output": {
+            "overall_rating": "RELIABLE",
+            "confidence": 0.818,
+            "key_corrections_count": 1,
+            "manipulation_techniques_count": 0,
+            "summary_excerpt": "Der Text gibt korrekt an, dass die globalen CO2-Emissionen im Jahr 2023 einen Rekordwert von 37,4 Milliarden Tonnen erreicht haben, basierend auf Daten der Internationalen Energieagentur (IEA). Dies s"
+          }
+        }
+      ]
+    }
+  ],
+  "analysis": {
+    "bottlenecks": [
+      {
+        "step": "evidence_building",
+        "avg_latency_s": 67.08,
+        "pct_of_total": 51.2,
+        "avg_tokens": 0,
+        "avg_llm_calls": 0.0,
+        "error_rate": 0.0
+      },
+      {
+        "step": "claim_processing",
+        "avg_latency_s": 26.17,
+        "pct_of_total": 20.0,
+        "avg_tokens": 3684,
+        "avg_llm_calls": 3.4,
+        "error_rate": 0.0
+      },
+      {
+        "step": "rhetoric",
+        "avg_latency_s": 14.91,
+        "pct_of_total": 11.4,
+        "avg_tokens": 5062,
+        "avg_llm_calls": 1.6,
+        "error_rate": 0.0
+      },
+      {
+        "step": "verdict",
+        "avg_latency_s": 11.46,
+        "pct_of_total": 8.8,
+        "avg_tokens": 6106,
+        "avg_llm_calls": 1.4,
+        "error_rate": 0.0
+      },
+      {
+        "step": "synthesis",
+        "avg_latency_s": 11.27,
+        "pct_of_total": 8.6,
+        "avg_tokens": 2415,
+        "avg_llm_calls": 1.0,
+        "error_rate": 0.0
+      },
+      {
+        "step": "claim_routing",
+        "avg_latency_s": 0.0,
+        "pct_of_total": 0.0,
+        "avg_tokens": 0,
+        "avg_llm_calls": 0.0,
+        "error_rate": 0.0
+      },
+      {
+        "step": "number_audit",
+        "avg_latency_s": 0.0,
+        "pct_of_total": 0.0,
+        "avg_tokens": 0,
+        "avg_llm_calls": 0.0,
+        "error_rate": 0.0
+      }
+    ],
+    "recommendations": [
+      "evidence_building: 51% der Gesamtlatenz (avg 67.1s) -> primaerer Bottleneck",
+      "Evidence avg Relevanz 0.50 -> Query-Tuning noetig"
+    ]
+  }
+}

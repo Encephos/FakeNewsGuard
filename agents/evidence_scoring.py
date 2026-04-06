@@ -45,7 +45,7 @@ from tools.data_loader import (
     scoring_weights,
     stopwords as load_stopwords,
 )
-from tools.ner_extractor import entity_overlap_score
+from tools.ner_extractor import _check_synonym_match, _get_nlp, entity_overlap_score
 from tools.web_search import SearchResult
 
 if TYPE_CHECKING:
@@ -406,31 +406,15 @@ def _is_offtopic_content(
     if total_anchors == 0:
         return False, 0.0  # Kein Profil → keine strukturierte Prüfung
 
-    # Wie viele Anker treffen zu?
-    # Institution: Wort-für-Wort-Match (nicht Phrase) – "Stadtrat Hannover" matcht auch wenn
-    # "Stadtrat" und "Hannover" getrennt im Text stehen
-    def _inst_match(inst_list: list[str]) -> bool:
-        for inst in inst_list:
-            if not inst:
-                continue
-            words = [w for w in inst.lower().split() if len(w) > 3]
-            if words and sum(1 for w in words if w in combined) >= max(1, len(words) // 2):
-                return True
-        return False
-
-    inst_hit = has_inst_anchor and _inst_match(profile.institutions)
-    loc_hit = has_loc_anchor and any(
-        loc.lower() in combined for loc in profile.locations if loc
-    )
-    policy_hit = has_policy_anchor and any(
-        term.lower() in combined for term in profile.policy_terms if term
-    )
+    # Wie viele Anker treffen zu? Dynamisches Matching via _term_matches_batch.
+    raw_text = f"{title} {snippet}"  # nicht-lowercased fuer spaCy
+    inst_hit = has_inst_anchor and _term_matches_batch(profile.institutions, raw_text)
+    loc_hit = has_loc_anchor and _term_matches_batch(profile.locations, raw_text)
+    policy_hit = has_policy_anchor and _term_matches_batch(profile.policy_terms, raw_text)
     number_hit = has_number_anchor and any(
         num in combined for num in profile.number_terms if num
     )
-    sanction_hit = has_sanction_anchor and any(
-        term.lower() in combined for term in profile.sanction_terms if term
-    )
+    sanction_hit = has_sanction_anchor and _term_matches_batch(profile.sanction_terms, raw_text)
 
     hits = sum([inst_hit, loc_hit, policy_hit, number_hit, sanction_hit])
 
@@ -472,10 +456,10 @@ def _is_offtopic_content(
     is_fully_regulatory = has_sanction_anchor and has_policy_anchor and has_inst_anchor
     if is_fully_regulatory:
         key_hits = sum([inst_hit, loc_hit, policy_hit])
-        if key_hits < 2:
-            # Weniger als 2 Kernanker → für konkrete Regelungsclaims nicht brauchbar
-            penalty = 0.80 if key_hits == 0 else 0.70
-            return True, penalty
+        if key_hits == 0:
+            # Kein einziger Kernanker → für konkrete Regelungsclaims nicht brauchbar
+            return True, 0.65
+        # 1 Kern-Anchor reicht als Signal (dynamisches Matching findet mehr)
 
     if is_regulatory:
         # Für Regelungsclaims: ohne Institution ODER Ort → stärkere Abwertung
@@ -528,6 +512,65 @@ def _is_offtopic_content(
     return False, 0.0
 
 
+def _term_matches_batch(anchors: list[str], text: str) -> bool:
+    """Dynamisches Anchor-Matching: pruefe ob MINDESTENS ein Anchor im Text matcht.
+
+    Kaskadiert 4 Signale (bricht beim ersten Match ab):
+    1. Exakter Substring
+    2. Bidirektionaler Substring fuer deutsche Komposita
+    3. Lemma-Match (spaCy)
+    4. Word-Vector Similarity (spaCy, threshold 0.75)
+    """
+    if not anchors:
+        return False
+    text_lower = text.lower()
+    text_words = text_lower.split()
+
+    # Pass 1: Substring + Komposita (kein spaCy noetig)
+    for a in anchors:
+        if not a:
+            continue
+        a_lower = a.lower()
+        # 1. Exakter Substring
+        if a_lower in text_lower:
+            return True
+        # 2. Komposita: "Einwegplastik" in "Einwegplastikbesteck" oder umgekehrt
+        if len(a_lower) >= 5:
+            for w in text_words:
+                if len(w) >= 5 and (a_lower in w or w in a_lower):
+                    return True
+
+    # Pass 2: Lemma + Vector (spaCy einmal fuer text tokenisieren)
+    nlp = _get_nlp()
+    if not nlp:
+        return False
+
+    text_doc = nlp(text)
+    text_lemmas = {t.lemma_.lower() for t in text_doc
+                   if not t.is_stop and len(t.text) > 3}
+    text_tokens = [t for t in text_doc
+                   if not t.is_stop and t.has_vector and len(t.text) > 3]
+
+    for a in anchors:
+        if not a:
+            continue
+        anchor_doc = nlp(a)
+        # 3. Lemma-Match
+        anchor_lemmas = {t.lemma_.lower() for t in anchor_doc
+                         if not t.is_stop and len(t.text) > 3}
+        if anchor_lemmas and anchor_lemmas & text_lemmas:
+            return True
+        # 4. Vector-Similarity (0.75 threshold)
+        anchor_tokens = [t for t in anchor_doc
+                         if not t.is_stop and t.has_vector and len(t.text) > 3]
+        for at in anchor_tokens:
+            for tt in text_tokens:
+                if at.lower_ != tt.lower_ and at.similarity(tt) >= 0.75:
+                    return True
+
+    return False
+
+
 def _profile_anchor_score(
     result_text: str,
     profile: ClaimSearchProfile,
@@ -540,21 +583,21 @@ def _profile_anchor_score(
     combined = result_text.lower()
 
     scored_groups: list[tuple[bool, float]] = [
-        # (treffer?, gewicht)
-        (bool(profile.institutions) and any(
-            i.lower() in combined for i in profile.institutions if i
+        # (treffer?, gewicht) — dynamisches Matching via _term_matches_batch
+        (bool(profile.institutions) and _term_matches_batch(
+            profile.institutions, result_text
         ), 0.30),
-        (bool(profile.locations) and any(
-            l.lower() in combined for l in profile.locations if l
+        (bool(profile.locations) and _term_matches_batch(
+            profile.locations, result_text
         ), 0.25),
-        (bool(profile.policy_terms) and any(
-            t.lower() in combined for t in profile.policy_terms if t
+        (bool(profile.policy_terms) and _term_matches_batch(
+            profile.policy_terms, result_text
         ), 0.20),
         (bool(profile.number_terms) and any(
             n in combined for n in profile.number_terms if n
         ), 0.15),
-        (bool(profile.sanction_terms) and any(
-            s.lower() in combined for s in profile.sanction_terms if s
+        (bool(profile.sanction_terms) and _term_matches_batch(
+            profile.sanction_terms, result_text
         ), 0.10),
     ]
 
@@ -577,15 +620,15 @@ def _count_anchor_hits(result_text: str, profile: ClaimSearchProfile) -> int:
     """Zähle wie viele Anchor-Gruppen im Ergebnis tatsächlich matchen."""
     combined = result_text.lower()
     hits = 0
-    if profile.institutions and any(i.lower() in combined for i in profile.institutions if i):
+    if profile.institutions and _term_matches_batch(profile.institutions, result_text):
         hits += 1
-    if profile.locations and any(loc.lower() in combined for loc in profile.locations if loc):
+    if profile.locations and _term_matches_batch(profile.locations, result_text):
         hits += 1
-    if profile.policy_terms and any(t.lower() in combined for t in profile.policy_terms if t):
+    if profile.policy_terms and _term_matches_batch(profile.policy_terms, result_text):
         hits += 1
     if profile.number_terms and any(n in combined for n in profile.number_terms if n):
         hits += 1
-    if profile.sanction_terms and any(s.lower() in combined for s in profile.sanction_terms if s):
+    if profile.sanction_terms and _term_matches_batch(profile.sanction_terms, result_text):
         hits += 1
     return hits
 
@@ -713,9 +756,9 @@ def _relevance_score(
         )
         total_anchors = _count_active_anchors(profile)
         if total_anchors >= 3:
-            anchor_hits = _count_anchor_hits(combined, profile)
-            if anchor_hits <= 1 and entity_score < 0.20 and ce_score < 0.40:
-                score *= 0.4
+            anchor_hits = _count_anchor_hits(result_text, profile)
+            if anchor_hits == 0 and entity_score < 0.15 and ce_score < 0.40:
+                score *= 0.55
     elif ce_score is not None:
         # Cross-Encoder ohne Profil
         _np = _sw.get("no_profile_ce", _sw.get("no_profile", {}))
@@ -737,9 +780,9 @@ def _relevance_score(
         )
         total_anchors = _count_active_anchors(profile)
         if total_anchors >= 3:
-            anchor_hits = _count_anchor_hits(combined, profile)
-            if anchor_hits <= 1 and entity_score < 0.20:
-                score *= 0.4
+            anchor_hits = _count_anchor_hits(result_text, profile)
+            if anchor_hits == 0 and entity_score < 0.15:
+                score *= 0.55
     else:
         # Kein Cross-Encoder, kein Profil
         _np = _sw.get("no_profile", {})

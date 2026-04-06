@@ -242,7 +242,7 @@ class EvidenceRetrievalConfig:
     tavily_expand_on_low_quality: bool = True     # Optional plugin
     tavily_request_budget: int = 10               # Optional plugin
     # ── Schwellenwerte ────────────────────────────────────────────────────────
-    weak_evidence_threshold: float = 0.25
+    weak_evidence_threshold: float = 0.40
     low_trust_confidence_penalty: float = 0.20
     pre_scrape_offtopic_penalty: float = 0.70
     semantic_dedup_threshold: float = 0.65

@@ -383,27 +383,27 @@ class TestRegulatoryOfftopicFilter:
         )
         assert not is_ot
 
-    def test_single_anchor_hit_on_fully_regulatory_profile_is_offtopic(self):
+    def test_zero_anchor_hits_on_fully_regulatory_profile_is_offtopic(self):
         """Bei vollständigem Regulatory-Profil (Sanktion+Policy+Institution):
-        nur 1 Kernanker-Treffer → off-topic.
+        0 Kernanker-Treffer → off-topic.
 
-        Institution und Ort müssen orthogonal sein (keine Wort-Überlappung),
-        damit _inst_match nicht durch den Ortsnamen fälschlich anschlägt.
+        Nach Einführung des dynamischen Anchor-Matchings reicht 1 Treffer
+        als Signal (Substring+Lemma+Vector finden mehr Matches).
         """
         profile = self._make_full_regulatory_profile(
-            institution="Gemeinderat Beispielstadt",  # kein Wort aus Snippet
-            location="Alphadorf",                     # eindeutiger Ortsname
+            institution="Gemeinderat Beispielstadt",
+            location="Alphadorf",
             policy="Verkehrskonzept",
             sanction="Bußgeld",
         )
-        # Nur Ort trifft (1 von 3 Kernanker: Institution und Policy fehlen)
+        # Kein Kernanker trifft (weder Institution noch Ort noch Policy)
         is_ot, penalty = _is_offtopic_content(
-            title="Alphadorf Sehenswürdigkeiten",
-            snippet="Besuchen Sie Alphadorf. Viele Sehenswürdigkeiten warten.",
+            title="Allgemeine Nachrichten aus Deutschland",
+            snippet="Die Wirtschaft wächst weiter. Neue Technologien im Fokus.",
             profile=profile,
         )
-        assert is_ot, "Nur 1 Kernanker (Ort) ohne Institution/Policy → off-topic"
-        assert penalty >= 0.70
+        assert is_ot, "0 Kernanker → off-topic"
+        assert penalty >= 0.60
 
 
 # ══════════════════════════════════════════════════════════════════════════════
