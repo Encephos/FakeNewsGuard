@@ -660,7 +660,7 @@ class EvidenceBuilderAgent(BaseAgent):
                     notes.append(f"CRAG Nachabfrage: {len(fallback_results)} neue Ergebnisse")
 
         # ── 8. EvidenceItems aus gescrapten Quellen bauen ─────────────────────
-        evidence_items = self._build_evidence_items(ranked, scraped, claim.text, gfc_matches, profile, is_current_state=is_current_state, ce_scores=ce_scores)
+        evidence_items = self._build_evidence_items(ranked, scraped, claim.text, gfc_matches, profile, is_current_state=is_current_state, ce_scores=ce_scores, claim=claim)
         notes.append(f"Evidence Items: {len(evidence_items)} (mit Scraping)")
 
         # ── 9. Qualität, Widersprüche, Pack zusammenstellen ───────────────────
@@ -727,7 +727,7 @@ class EvidenceBuilderAgent(BaseAgent):
                 unique_results, claim, profile=profile,
                 scrape_top_n_override=scrape_top_n_override,
             )
-            evidence_items = self._build_evidence_items(ranked, scraped, claim.text, gfc_matches, profile, is_current_state=is_current_state, ce_scores=ce_scores)
+            evidence_items = self._build_evidence_items(ranked, scraped, claim.text, gfc_matches, profile, is_current_state=is_current_state, ce_scores=ce_scores, claim=claim)
             quality = _compute_quality_signals(
                 evidence_items, gfc_matches,
                 low_trust_penalty_factor=retrieval_cfg.low_trust_confidence_penalty,
@@ -857,6 +857,11 @@ class EvidenceBuilderAgent(BaseAgent):
         Wenn der Claim-Text wenig Overlap mit den Topic-Entities hat,
         werden die wichtigsten Topic-Keywords an die Queries angehängt.
         Das verhindert, dass Queries in thematisch fremde Ergebnisse driften.
+
+        Zusätzlich: Wenn der Claim-Frame kein location/time_reference hat,
+        wird geographic_scope/temporal_scope aus dem ArticleTopicModel als
+        Fallback in 1-2 Queries injiziert, um geographisches/zeitliches
+        Abdriften zu verhindern.
         """
         tm = self.topic_model
         if not tm or not tm.key_entities:
@@ -869,8 +874,25 @@ class EvidenceBuilderAgent(BaseAgent):
         )
         overlap_ratio = present / len(tm.key_entities) if tm.key_entities else 1.0
 
-        # Genügend Overlap → keine Injektion nötig
-        if overlap_ratio >= 0.3:
+        # ── Geographic/Temporal Fallback ─────────────────────────────
+        # Wenn der Claim selbst keinen Ort/Zeitbezug hat, aber der Artikel
+        # einen klaren Scope hat, diesen als Kontext-Anker hinzufügen.
+        geo_fallback = ""
+        temporal_fallback = ""
+        if isinstance(claim, ProcessedClaim) and claim.frame:
+            frame = claim.frame
+            if not frame.location and tm.geographic_scope:
+                # Nur den ersten Ort (vor Komma) als Anker nutzen
+                geo_fallback = tm.geographic_scope.split(",")[0].strip()
+            if not frame.time_reference and tm.temporal_scope:
+                temporal_fallback = tm.temporal_scope.strip()
+        elif tm.geographic_scope:
+            geo_fallback = tm.geographic_scope.split(",")[0].strip()
+
+        context_anchor = " ".join(filter(None, [geo_fallback, temporal_fallback]))
+
+        # Genügend Overlap und kein Kontext-Fallback → keine Injektion nötig
+        if overlap_ratio >= 0.3 and not context_anchor:
             return queries
 
         # Wähle fehlende Topic-Entities als Anker (max 3)
@@ -879,10 +901,16 @@ class EvidenceBuilderAgent(BaseAgent):
             if e.lower() not in claim_lower
         ][:3]
 
-        if not missing:
+        anchor_parts = []
+        if missing:
+            anchor_parts.append(" ".join(missing))
+        if context_anchor:
+            anchor_parts.append(context_anchor)
+        anchor = " ".join(anchor_parts)
+
+        if not anchor.strip():
             return queries
 
-        anchor = " ".join(missing)
         self._log(f"Topic-Anchor injiziert: '{anchor}' (Overlap {overlap_ratio:.0%})")
 
         # Hänge Anker an die ersten 2 Queries an (nicht an site:-Queries)
@@ -1132,6 +1160,7 @@ class EvidenceBuilderAgent(BaseAgent):
         profile: ClaimSearchProfile | None = None,
         is_current_state: bool = False,
         ce_scores: dict[str, float] | None = None,
+        claim: Claim | None = None,
     ) -> list[EvidenceItem]:
         """Baue EvidenceItems aus gescrapten Quellen.
 
@@ -1223,6 +1252,8 @@ class EvidenceBuilderAgent(BaseAgent):
 
         # Nach Ranking-Score sortieren (Tier + Relevanz + Profil-Anker + Off-topic)
         # Direktes Ranking auf EvidenceItems – Metadaten bleiben erhalten
+        # topical_centrality: Wie zentral ist der Claim für den Artikel?
+        _tc = getattr(claim, "topical_centrality", -1.0) if claim else -1.0
         items = _rank_evidence_items(
             items,
             claim_text,
@@ -1231,6 +1262,7 @@ class EvidenceBuilderAgent(BaseAgent):
             is_current_state=is_current_state,
             ce_scores=ce_scores,
             topic_model=self.topic_model,
+            topical_centrality=_tc if isinstance(_tc, (int, float)) else -1.0,
         )
 
         # Phase 6: Perspektiv-Clustering für Evidenz-Diversität
