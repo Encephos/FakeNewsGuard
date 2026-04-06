@@ -1190,11 +1190,11 @@ class TestSourceDirectionClassification:
         assert result == SourceDirection.SUPPORTS
 
     def test_contextual_low_relevance_is_neutral(self):
-        """CONTEXTUAL + Relevanz < 0.40 → NEUTRAL, auch mit Bestätigungsmuster."""
+        """CONTEXTUAL + Relevanz < 0.30 → NEUTRAL, auch mit Bestätigungsmuster."""
         from models.evidence_models import EvidenceType, SourceDirection
         result = self._call(
             excerpt="wurde bestätigt",
-            relevance=0.35,
+            relevance=0.25,
             ev_type=EvidenceType.CONTEXTUAL,
         )
         assert result == SourceDirection.NEUTRAL

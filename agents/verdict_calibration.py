@@ -10,7 +10,7 @@ import re
 from dataclasses import dataclass
 
 from config.processing import VerdictCalibrationConfig
-from models.evidence_models import EvidencePack, EvidenceType, SourceConsensus
+from models.evidence_models import EvidencePack, EvidenceType, SourceConsensus, SourceDirection
 from models.schemas import FactRating
 from models.verdict_models import CoVeTrace
 
@@ -729,9 +729,17 @@ def _calibrate_confidence(
     # Floor: AGREEING-Konsens + positives Rating → Mindest-Confidence
     if rating and quality and quality.source_consensus.value == "agreeing":
         if rating in (FactRating.TRUE, FactRating.MOSTLY_TRUE):
-            floor = 0.60
+            # Stärkerer Floor wenn viele Quellen übereinstimmen
+            _n_supporting = sum(
+                1 for i in pack.web_results[:8]
+                if i.source_direction == SourceDirection.SUPPORTS
+            )
+            floor = 0.70 if _n_supporting >= 4 else 0.60
             if confidence < floor:
-                reasons.append(f"AGREEING-Konsens + {rating.value} → Floor {floor}")
+                reasons.append(
+                    f"AGREEING-Konsens + {rating.value} "
+                    f"({_n_supporting} supporting) → Floor {floor}"
+                )
                 confidence = max(confidence, floor)
 
     # Floor: Primärquelle + AGREEING-Konsens

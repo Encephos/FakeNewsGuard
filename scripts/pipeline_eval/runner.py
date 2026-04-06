@@ -239,7 +239,11 @@ def evaluate_case(
             step3.output_summary = {
                 "web_results": len(evidence_pack.web_results),
                 "fact_check_results": len(getattr(evidence_pack, "fact_check_results", []) or []),
-                "consensus": getattr(evidence_pack, "consensus", "unknown"),
+                "consensus": (
+                    evidence_pack.evidence_quality.source_consensus.value
+                    if evidence_pack.evidence_quality
+                    else "unknown"
+                ),
                 "avg_relevance": round(
                     sum(i.relevance_score for i in evidence_pack.web_results)
                     / max(len(evidence_pack.web_results), 1),
