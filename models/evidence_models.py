@@ -429,6 +429,24 @@ class EvidencePack(BaseModel):
                     f"  URL: {fc.url}\n"
                 )
 
+        # Quellen-Konsens als prominentes Signal
+        if self.evidence_quality and self.web_results:
+            q = self.evidence_quality
+            n_supports = sum(
+                1 for i in self.web_results[:8]
+                if i.source_direction == SourceDirection.SUPPORTS
+            )
+            n_refutes = sum(
+                1 for i in self.web_results[:8]
+                if i.source_direction == SourceDirection.REFUTES
+            )
+            n_total = min(len(self.web_results), 8)
+            parts.append(
+                f"\n## Quellen-Konsens: {q.source_consensus.value.upper()}\n"
+                f"  {n_supports}/{n_total} Quellen stützen den Claim, "
+                f"{n_refutes}/{n_total} widerlegen ihn.\n"
+            )
+
         # Ausgewählte Quellen mit Auszügen
         if self.web_results:
             parts.append("\n## Evidenz-Quellen\n")

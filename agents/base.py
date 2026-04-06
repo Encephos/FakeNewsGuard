@@ -134,11 +134,13 @@ class BaseAgent(ABC):
         schema: dict,
         tool_name: str = "output",
         tool_description: str = "Strukturierter Output",
+        temperature: float | None = None,
     ) -> dict:
         """LLM-Call mit nativem Structured Output.  Fällt auf JSON-Mode zurück."""
         return self.llm.complete_structured(
             system_prompt, user_message, schema, tool_name, tool_description,
             agent_name=self.name,
+            temperature=temperature,
         )
 
     def _llm_text(self, system_prompt: str, user_message: str) -> str:

@@ -351,6 +351,7 @@ class LLMClient:
         tool_name: str = "output",
         tool_description: str = "Strukturierter Output",
         agent_name: str = "unknown",
+        temperature: float | None = None,
     ) -> dict:
         """LLM-Call mit nativem Structured Output (Anthropic tool_use / OpenAI json_schema).
 
@@ -372,13 +373,16 @@ class LLMClient:
             span.set_attribute("llm.agent", agent_name)
             start = time.monotonic()
             try:
+                _temp = temperature if temperature is not None else self.config.temperature
                 if self.config.provider == "anthropic":
                     return self._complete_structured_anthropic(
-                        system_prompt, user_message, schema, tool_name, tool_description, agent_name
+                        system_prompt, user_message, schema, tool_name, tool_description, agent_name,
+                        temperature=_temp,
                     )
                 elif self.config.provider in ("openai", "openrouter"):
                     return self._complete_structured_openai(
-                        system_prompt, user_message, schema, tool_name, tool_description, agent_name
+                        system_prompt, user_message, schema, tool_name, tool_description, agent_name,
+                        temperature=_temp,
                     )
             except Exception:
                 pass  # Fallback auf JSON-Mode
@@ -397,12 +401,13 @@ class LLMClient:
         tool_name: str,
         tool_description: str,
         agent_name: str = "unknown",
+        temperature: float | None = None,
     ) -> dict:
         def _call():
             response = self._client.messages.create(
                 model=self.config.model,
                 max_tokens=self.config.max_tokens,
-                temperature=self.config.temperature,
+                temperature=temperature if temperature is not None else self.config.temperature,
                 system=system_prompt,
                 tools=[
                     {
@@ -444,6 +449,7 @@ class LLMClient:
         tool_name: str,
         tool_description: str,
         agent_name: str = "unknown",
+        temperature: float | None = None,
     ) -> dict:
         import json as _json
 
@@ -460,7 +466,7 @@ class LLMClient:
             response = self._client.chat.completions.create(
                 model=self.config.model,
                 max_tokens=self.config.max_tokens,
-                temperature=self.config.temperature,
+                temperature=temperature if temperature is not None else self.config.temperature,
                 messages=messages,
                 response_format={
                     "type": "json_schema",

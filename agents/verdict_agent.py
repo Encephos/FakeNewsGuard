@@ -291,6 +291,7 @@ class VerdictAgent(BaseAgent):
             FACT_CHECK_SCHEMA,
             tool_name="verdict",
             tool_description="Fact-Check Urteil",
+            temperature=0.0,
         )
 
         try:
