@@ -471,12 +471,12 @@ class TestRetrievalEntkopplung:
         cfg = SearchConfig()
         assert cfg.max_results == 15
 
-    def test_searxng_concurrent_lowered(self):
-        """SearXNG max_concurrent_searches ist auf 3 gesenkt (Anti-Bot-Protection)."""
+    def test_searxng_concurrent(self):
+        """SearXNG max_concurrent_searches ist auf 5 gesetzt (optimierte Latenz)."""
         from config import SearchConfig
 
         cfg = SearchConfig()
-        assert cfg.max_concurrent_searches == 3
+        assert cfg.max_concurrent_searches == 5
 
     def test_langsearch_queries_increased(self):
         """LangSearch Query-Counts sind erhöht (simple=3, complex=5)."""
@@ -543,9 +543,9 @@ class TestSearXNGClientArchitecture:
         assert SearXNGConfig().max_results == 15
 
     def test_searxng_config_concurrent(self):
-        """SearXNGConfig.max_concurrent_searches ist 3 (Anti-Bot-Protection)."""
+        """SearXNGConfig.max_concurrent_searches ist 5 (optimierte Latenz)."""
         from config import SearXNGConfig
-        assert SearXNGConfig().max_concurrent_searches == 3
+        assert SearXNGConfig().max_concurrent_searches == 5
 
     def test_langsearch_gets_more_queries_than_tavily(self):
         """LangSearch-Query-Count übersteigt immer Tavily-Budget."""

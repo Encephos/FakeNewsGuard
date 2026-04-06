@@ -44,10 +44,12 @@ from models.schemas import (
     ProcessedClaim,
 )
 from agents.prompts.claim_prompts import (
+    _CANONICALIZE_AND_PRIORITIZE_PROMPT,
     _CANONICALIZER_PROMPT,
     _CLAIM_SELECTOR_PROMPT,
     _DECOMPOSER_PROMPT,
     _DISAMBIGUATOR_PROMPT,
+    _FRAME_AND_DISAMBIGUATE_PROMPT,
     _FRAME_EXTRACTOR_PROMPT,
     _PRIORITIZER_PROMPT,
     _TOPIC_EXTRACTOR_PROMPT,
@@ -484,6 +486,83 @@ def _derive_subclaim_frame(
     )
     profile = _build_search_profile(focused)
     return focused, profile
+
+
+class ClaimFrameAndDisambiguator(_LLMStageMixin):
+    """Stufe 2.5+3 kombiniert: Frame-Extraktion + Disambiguierung in 1 LLM-Call.
+
+    Spart einen LLM-Call gegenueber separater Ausfuehrung.
+    Baut ClaimFrame, SearchProfile UND setzt Ambiguity-Felder.
+    """
+
+    def extract_and_disambiguate(
+        self, claims: list[ProcessedClaim], original_text: str = ""
+    ) -> list[ProcessedClaim]:
+        if not claims:
+            return claims
+
+        claims_text = "\n".join(
+            f"[{c.id}]: {c.text} (Kontext: {c.context})" for c in claims
+        )
+        context_section = ""
+        if original_text:
+            context_section = f"## Originaltext (Kontext)\n\n{original_text[:800]}\n\n"
+        user_msg = f"{context_section}## Claims zur Frame-Extraktion und Disambiguierung\n\n{claims_text}"
+
+        raw = self._call_llm_json(_FRAME_AND_DISAMBIGUATE_PROMPT, user_msg)
+        results_by_id: dict[str, dict] = {
+            r["id"]: r for r in raw.get("claims", []) if "id" in r
+        }
+
+        updated: list[ProcessedClaim] = []
+        for claim in claims:
+            fd = results_by_id.get(claim.id, {})
+            if not fd:
+                updated.append(claim)
+                continue
+
+            # Frame fields
+            frame = ClaimFrame(
+                raw_text=claim.text,
+                subject=fd.get("subject", ""),
+                predicate=fd.get("predicate", ""),
+                object=fd.get("object", ""),
+                institution=fd.get("institution", ""),
+                location=fd.get("location", ""),
+                time_reference=fd.get("time_reference", ""),
+                numbers=[str(n) for n in fd.get("numbers", [])],
+                sanction=fd.get("sanction", ""),
+                enforcement=fd.get("enforcement", ""),
+                policy_context=fd.get("policy_context", ""),
+                claim_type=claim.type.value,
+                canonical_text=fd.get("canonical_text", claim.text),
+            )
+            profile = _build_search_profile(frame)
+
+            # Disambiguity fields
+            try:
+                level = AmbiguityLevel(fd.get("ambiguity_level", "NONE"))
+            except ValueError:
+                level = AmbiguityLevel.NONE
+
+            resolved = fd.get("resolved_text", "")
+            new_text = claim.text
+            if resolved and level != AmbiguityLevel.NONE:
+                resolved = _guard_negation(resolved, claim.text, {0: claim.text})
+                new_text = resolved
+
+            updated.append(
+                claim.model_copy(update={
+                    "text": new_text,
+                    "frame": frame,
+                    "search_profile": profile,
+                    "ambiguity_level": level,
+                    "ambiguity_reason": fd.get("ambiguity_reason", ""),
+                    "requires_more_context": fd.get("requires_more_context", False),
+                })
+            )
+
+        return updated
 
 
 class ClaimFrameExtractor(_LLMStageMixin):
@@ -1066,6 +1145,64 @@ class ClaimPrioritizerAgent(BaseAgent):
         return updated
 
 
+# ── Stufe 5+6 kombiniert: ClaimFinalizerAgent ─────────────────────────────────
+
+class ClaimFinalizerAgent(BaseAgent):
+    """Kombinierter Agent: Kanonisierung + Priorisierung in einem LLM-Call.
+
+    Ersetzt ClaimCanonicalizerAgent + ClaimPrioritizerAgent um einen
+    LLM-Call einzusparen (6 → 5 Calls in der Pipeline).
+    """
+
+    name = "Claim Finalizer"
+    emoji = "🏁"
+
+    def execute(
+        self, input_data: Any, context: str = ""
+    ) -> list[ProcessedClaim]:
+        claims: list[ProcessedClaim] = input_data
+
+        if not claims:
+            return claims
+
+        claims_text = "\n".join(
+            f"[{c.id}] [{c.type.value}]: {c.text}" for c in claims
+        )
+        user_msg = f"## Claims zur Kanonisierung und Priorisierung\n\n{claims_text}"
+
+        raw = self._llm_json(_CANONICALIZE_AND_PRIORITIZE_PROMPT, user_msg)
+
+        results_by_id = {r["id"]: r for r in raw.get("claims", []) if "id" in r}
+
+        updated: list[ProcessedClaim] = []
+        for claim in claims:
+            r = results_by_id.get(claim.id, {})
+            canonical = r.get("canonical_text", claim.text)
+            if not canonical:
+                canonical = claim.text
+
+            updated.append(
+                claim.model_copy(update={
+                    # Canonicalization fields
+                    "canonical_text": canonical,
+                    "canonical_hash": _canonical_hash(canonical),
+                    "normalized_entities": r.get("normalized_entities", []),
+                    "normalized_dates": r.get("normalized_dates", []),
+                    "normalized_numbers": r.get("normalized_numbers", []),
+                    # Prioritization fields
+                    "priority_score": float(r.get("priority_score", 0.5)),
+                    "harm_score": float(r.get("harm_score", 0.0)),
+                    "checkworthiness_score": float(r.get("checkworthiness_score", 0.5)),
+                    "priority_reason": r.get("priority_reason", ""),
+                    "recommended_processing_order": int(r.get("recommended_processing_order", 0)),
+                })
+            )
+
+        updated.sort(key=lambda c: c.recommended_processing_order)
+        self._log(f"{len(updated)} Claims kanonisiert und priorisiert")
+        return updated
+
+
 # ── Topical Centrality ───────────────────────────────────────────────────────
 
 
@@ -1288,11 +1425,11 @@ class ClaimProcessingPipeline:
     Ablauf:
         1.   SentenceSplitter – Text → Segmente
         2.   ClaimSelector    – Segmente → prüfbare Claims (LLM)
+        2.5  ClaimFrameExtractor – Semantische Frames (LLM)
         3.   Disambiguator    – Mehrdeutigkeiten markieren (LLM)
         4.   ClaimDecomposer  – Zusammengesetzte Claims zerlegen (LLM)
         4.5  ClaimValidator   – Meta-/Recherche-Claims filtern (regelbasiert)
-        5.   ClaimCanonicalizerAgent – Kanonisierung + Hash
-        6.   ClaimPrioritizerAgent   – Priorisierung + Sortierung
+        5+6. ClaimFinalizerAgent – Kanonisierung + Priorisierung (1 LLM-Call)
 
     Jede Stufe ist gracefully degradierbar – bei Fehler wird das
     bisherige Ergebnis weitergegeben.
@@ -1310,12 +1447,10 @@ class ClaimProcessingPipeline:
         self._splitter = SentenceSplitter()
         self._selector = ClaimSelector(_llm_small)
         self._topic_extractor = TopicExtractor(_llm_small)
-        self._frame_extractor = ClaimFrameExtractor(_llm_small)  # Stage 2.5
-        self._disambiguator = Disambiguator(_llm_small)
+        self._frame_disambiguator = ClaimFrameAndDisambiguator(_llm_small)  # Stage 2.5+3
         self._decomposer = ClaimDecomposer(_llm_small)
         self._validator = ClaimValidator(config.claim_processing.quality_signals)
-        self._canonicalizer = ClaimCanonicalizerAgent(config, _llm_small, search)
-        self._prioritizer = ClaimPrioritizerAgent(config, llm, search)
+        self._finalizer = ClaimFinalizerAgent(config, llm, search)
 
     def process(
         self,
@@ -1363,20 +1498,17 @@ class ClaimProcessingPipeline:
         except Exception as e:
             notes.append(f"TopicExtractor: Fehlgeschlagen ({type(e).__name__}) – übersprungen")
 
-        # Stufe 2.5: Frame Extraction (LLM) – baut ClaimFrame + SearchProfile
+        # Stufe 2.5+3: Frame-Extraktion + Disambiguierung (1 LLM-Call)
         try:
-            claims = self._frame_extractor.extract(claims, text)
+            claims = self._frame_disambiguator.extract_and_disambiguate(claims, text)
             frames_built = sum(1 for c in claims if c.frame is not None)
-            notes.append(f"Stufe 2.5: {frames_built}/{len(claims)} ClaimFrames extrahiert")
+            notes.append(
+                f"Stufe 2.5+3: {frames_built}/{len(claims)} ClaimFrames extrahiert + disambiguiert"
+            )
         except Exception as e:
-            notes.append(f"Stufe 2.5: Frame-Extraktion fehlgeschlagen ({type(e).__name__}) – übersprungen")
-
-        # Stufe 3: Disambiguation (LLM)
-        try:
-            claims = self._disambiguator.disambiguate(claims, text)
-            notes.append("Stufe 3: Disambiguierung abgeschlossen")
-        except Exception as e:
-            notes.append(f"Stufe 3: Disambiguierung fehlgeschlagen ({type(e).__name__}) – übersprungen")
+            notes.append(
+                f"Stufe 2.5+3: Frame+Disambiguierung fehlgeschlagen ({type(e).__name__}) – übersprungen"
+            )
 
         # Stufe 4: Decomposition (LLM) – mit Topic-Kontext falls verfügbar
         try:
@@ -1398,14 +1530,14 @@ class ClaimProcessingPipeline:
         except Exception as e:
             notes.append(f"Stufe 4.5: Validierung fehlgeschlagen ({type(e).__name__}) – übersprungen")
 
-        # Stufe 5: Canonicalization (LLM-Agent)
+        # Stufe 5+6: Canonicalization + Prioritization (1 LLM-Call)
         try:
-            result, error = self._canonicalizer.run_safe(claims)
+            result, error = self._finalizer.run_safe(claims)
             if result is not None:
                 claims = result
-                notes.append("Stufe 5: Kanonisierung abgeschlossen")
+                notes.append("Stufe 5+6: Kanonisierung + Priorisierung abgeschlossen")
             else:
-                notes.append(f"Stufe 5: Kanonisierung fehlgeschlagen – {error}")
+                notes.append(f"Stufe 5+6: Finalisierung fehlgeschlagen – {error}")
                 # Fallback: Hashes ohne LLM-Kanonisierung
                 claims = [
                     c.model_copy(update={
@@ -1415,23 +1547,12 @@ class ClaimProcessingPipeline:
                     for c in claims
                 ]
         except Exception as e:
-            notes.append(f"Stufe 5: Kanonisierung fehlgeschlagen ({type(e).__name__})")
+            notes.append(f"Stufe 5+6: Finalisierung fehlgeschlagen ({type(e).__name__})")
 
         # Stufe 5.5: Topical Centrality (regelbasiert, kein LLM)
         if topic_model and topic_model.key_entities:
             claims = _compute_topical_centrality(claims, topic_model)
             notes.append("Stufe 5.5: Topical Centrality berechnet")
-
-        # Stufe 6: Prioritization (LLM-Agent)
-        try:
-            result, error = self._prioritizer.run_safe(claims)
-            if result is not None:
-                claims = result
-                notes.append("Stufe 6: Priorisierung abgeschlossen")
-            else:
-                notes.append(f"Stufe 6: Priorisierung fehlgeschlagen – {error}")
-        except Exception as e:
-            notes.append(f"Stufe 6: Priorisierung fehlgeschlagen ({type(e).__name__})")
 
         # Stufe 7: Dependency Detection (regelbasiert, kein LLM)
         try:
