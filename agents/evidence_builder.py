@@ -737,6 +737,19 @@ class EvidenceBuilderAgent(BaseAgent):
             )
             notes.append(f"Iterative Runde {iterative_round}: {len(evidence_items)} Items, Qualität={quality.overall_quality:.2f}")
 
+        # ── Filter: Entferne sehr schwache Evidence Items (Relevanz < 0.25) ────
+        # Niedrig-relevante Items verschlechtern Verdict-Confidence und erzeugen
+        # Rauschen im LLM-Prompt. Mindestens 3 Items behalten.
+        _MIN_RELEVANCE = 0.25
+        _MIN_KEEP = 3
+        if len(evidence_items) > _MIN_KEEP:
+            filtered = [i for i in evidence_items if i.relevance_score >= _MIN_RELEVANCE]
+            if len(filtered) >= _MIN_KEEP:
+                removed = len(evidence_items) - len(filtered)
+                if removed > 0:
+                    notes.append(f"Relevanz-Filter: {removed} Items mit score < {_MIN_RELEVANCE} entfernt")
+                evidence_items = filtered
+
         selected_sources = [item.source for item in evidence_items[:5]]
 
         canonical_text = ""

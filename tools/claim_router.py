@@ -217,6 +217,13 @@ _DOMAIN_KEYWORDS: dict[ClaimDomain, frozenset[str]] = {
         "born", "died", "date of birth", "date of death",
         "präsident", "kanzler", "minister", "amtsträger", "amtszeit",
         "president", "chancellor", "minister", "office holder",
+        "bundeskanzler", "bundespräsident", "bundesminister",
+        "ministerpräsident", "premierminister", "prime minister",
+        "staatsoberhaupt", "head of state", "regierungschef",
+        "abgeordneter", "senator", "gouverneur", "governor",
+        "bürgermeister", "mayor", "oberbürgermeister",
+        "gewählt", "elected", "ernannt", "appointed", "vereidigt", "sworn in",
+        "amtsantritt", "amtsübernahme", "inauguration",
         "gründer", "founder", "ceo", "vorsitzender", "chairman",
         "ehepartner", "spouse", "staatsbürgerschaft", "citizenship",
         "biografie", "lebenslauf", "biography",
@@ -491,6 +498,16 @@ class ClaimRouter:
                 add(ClaimDomain.LEGAL, 0.2)
             elif f.policy_context:
                 add(ClaimDomain.LEGAL, 0.25)
+
+            # Frame-Subject/Predicate-basierte Signale für politische Ämter
+            _subj_pred = ((f.subject or "") + " " + (f.predicate or "")).lower()
+            _POLITICAL_OFFICE = [
+                "kanzler", "bundeskanzler", "präsident", "bundespräsident",
+                "minister", "chancellor", "president", "prime minister",
+                "premier", "governor", "senator", "mayor", "bürgermeister",
+            ]
+            if any(w in _subj_pred for w in _POLITICAL_OFFICE):
+                add(ClaimDomain.BIOGRAPHICAL, 0.50)
 
             inst_lower = (f.institution or "").lower()
             if inst_lower:

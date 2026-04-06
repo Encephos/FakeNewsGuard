@@ -130,6 +130,23 @@ class RhetoricAnalyzerAgent(BaseAgent):
             except (ValueError, TypeError) as e:
                 self._log(f"{t('agents.rhetoric_analyzer.skip_invalid_technique')}: {e}")
 
+        # ── False-Positive Guard ─────────────────────────────────────────────
+        # Wenn mehrere Techniken erkannt werden, aber ALLE nur LOW-Severity
+        # haben und keine Narrative vorliegen, handelt es sich wahrscheinlich
+        # um sachlichen Text mit leichten sprachlichen Auffälligkeiten (z.B.
+        # regulatorische Texte die Strafen erwähnen). Solche LOW-only
+        # Detektionen erzeugen in der Synthese falsche "manipulation_techniques".
+        has_medium_or_high = any(
+            t.severity in (Severity.MEDIUM, Severity.HIGH)
+            for t in techniques
+        )
+        if len(techniques) >= 2 and not has_medium_or_high and not narrative_patterns:
+            self._log(
+                f"False-Positive Guard: {len(techniques)} LOW-only "
+                f"Techniken ohne Narrative entfernt"
+            )
+            techniques = []
+
         result = RhetoricAnalysisResult(
             techniques=techniques,
             overall_framing=raw.get("overall_framing", ""),

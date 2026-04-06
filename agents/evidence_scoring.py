@@ -1299,7 +1299,7 @@ def _classify_source_direction(
 
     # 4. Richtung nur für DIRECT oder relevantes CONTEXTUAL vergeben
     # CONTEXTUAL mit niedriger Relevanz → NEUTRAL (verhindert "Support Leakage")
-    if evidence_type != EvidenceType.DIRECT and relevance_score < 0.40:
+    if evidence_type != EvidenceType.DIRECT and relevance_score < 0.30:
         return SourceDirection.NEUTRAL
 
     if refute_count > support_count and refute_count >= 1:
