@@ -405,6 +405,7 @@ def _calibrate_confidence(
     stale_freshness_threshold: float = 0.40,
     vcal: VerdictCalibrationConfig | None = None,
     rating: "FactRating | None" = None,
+    topical_centrality: float = -1.0,
 ) -> tuple[float, list[str]]:
     """Regelbasierter Confidence-Postprocessor.
 
@@ -512,6 +513,21 @@ def _calibrate_confidence(
                     f"→ Ceiling {_ceil_topic}"
                 )
                 confidence = min(confidence, _ceil_topic)
+
+    # Ceiling: peripherer Claim mit nur kontextueller Evidenz
+    # Claims die tangential zum Artikelthema sind und nur KONTEXT-Evidenz haben,
+    # verdienen niedrigere Confidence.
+    if topical_centrality >= 0 and topical_centrality < 0.3:
+        _contextual_rate_tc = quality.contextual_only_rate if quality else 0.0
+        _direct_count_tc = quality.direct_evidence_count if quality else 0
+        if _contextual_rate_tc > 0.5 and _direct_count_tc == 0:
+            _ceil_peripheral = 0.55
+            if confidence > _ceil_peripheral:
+                reasons.append(
+                    f"Peripherer Claim (centrality={topical_centrality:.2f}) mit nur "
+                    f"Kontext-Evidenz → Ceiling {_ceil_peripheral}"
+                )
+                confidence = min(confidence, _ceil_peripheral)
 
     # Ceiling: schlechte Claim-Qualität
     if claim_quality_score < 0.50:

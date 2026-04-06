@@ -357,6 +357,8 @@ class VerdictAgent(BaseAgent):
             else _VFT.get("general_threshold", 0.40)
         )
 
+        # topical_centrality: Wie zentral ist der Claim für den Artikel?
+        _tc = getattr(claim, "topical_centrality", -1.0) if isinstance(claim, _PC) else -1.0
         calibrated_confidence, calibration_reasons = _calibrate_confidence(
             raw_confidence, pack, cove_trace,
             claim_quality_score=claim_quality,
@@ -364,6 +366,7 @@ class VerdictAgent(BaseAgent):
             is_current_state_claim=is_current_state,
             stale_freshness_threshold=stale_threshold,
             rating=rating,
+            topical_centrality=_tc if isinstance(_tc, (int, float)) else -1.0,
         )
 
         # Unsicherheitssignale aus Rating- + Confidence-Kalibrierung sammeln

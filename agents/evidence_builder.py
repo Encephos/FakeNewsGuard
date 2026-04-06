@@ -579,7 +579,7 @@ class EvidenceBuilderAgent(BaseAgent):
         # ── Cross-Encoder Re-Ranking (Phase 2) ─────────────────────────────
         ce_scores: dict[str, float] = {}
         if reranker_available():
-            _topic_ctx = self.topic_model.primary_topic if self.topic_model else ""
+            _topic_ctx = self._rich_topic_context()
             ce_ranked = rerank(claim.text, unique_results, top_k=30, topic_context=_topic_ctx)
             ce_scores = {r.url: float(s) for r, s in ce_ranked}
             notes.append(f"Cross-Encoder: {len(ce_scores)} Ergebnisse bewertet")
@@ -650,7 +650,7 @@ class EvidenceBuilderAgent(BaseAgent):
                 if fallback_results:
                     unique_results = _dedup_results(all_results + fallback_results, retrieval_cfg.semantic_dedup_threshold)
                     if reranker_available():
-                        _topic_ctx = self.topic_model.primary_topic if self.topic_model else ""
+                        _topic_ctx = self._rich_topic_context()
                         ce_ranked = rerank(claim.text, unique_results, top_k=30, topic_context=_topic_ctx)
                         ce_scores = {r.url: float(s) for r, s in ce_ranked}
                     ranked, scraped = await self._rank_and_scrape(
@@ -720,7 +720,7 @@ class EvidenceBuilderAgent(BaseAgent):
             unique_results = _dedup_results(all_results + fallback_results, retrieval_cfg.semantic_dedup_threshold)
             # Re-rank mit Cross-Encoder (inkl. neue Ergebnisse)
             if reranker_available():
-                _topic_ctx = self.topic_model.primary_topic if self.topic_model else ""
+                _topic_ctx = self._rich_topic_context()
                 ce_ranked = rerank(claim.text, unique_results, top_k=30, topic_context=_topic_ctx)
                 ce_scores = {r.url: float(s) for r, s in ce_ranked}
             ranked, scraped = await self._rank_and_scrape(
@@ -849,6 +849,25 @@ class EvidenceBuilderAgent(BaseAgent):
         queries = profile_queries[:4] if profile_queries else [claim.text]
         return self._inject_topic_anchors(queries, claim)
 
+    def _rich_topic_context(self) -> str:
+        """Baue einen reicheren Topic-Kontext-String für den Cross-Encoder Reranker.
+
+        Kombiniert primary_topic, geographic_scope und narrative_arc statt
+        nur primary_topic, damit der Cross-Encoder besser zwischen thematisch
+        ähnlichen aber kontextuell verschiedenen Ergebnissen unterscheiden kann.
+        """
+        tm = self.topic_model
+        if not tm:
+            return ""
+        parts = [tm.primary_topic]
+        if tm.geographic_scope:
+            parts.append(tm.geographic_scope.split(",")[0].strip())
+        if tm.narrative_arc:
+            # Nur die erste Hälfte der narrative_arc (max ~40 Wörter)
+            arc_words = tm.narrative_arc.split()
+            parts.append(" ".join(arc_words[:40]))
+        return " | ".join(filter(None, parts))
+
     def _inject_topic_anchors(
         self, queries: list[str], claim: Claim,
     ) -> list[str]:
@@ -890,6 +909,15 @@ class EvidenceBuilderAgent(BaseAgent):
             geo_fallback = tm.geographic_scope.split(",")[0].strip()
 
         context_anchor = " ".join(filter(None, [geo_fallback, temporal_fallback]))
+
+        # Periphere Claims (topical_centrality < 0.3): geographic_scope als
+        # Pflicht-Constraint, auch wenn Overlap ausreicht. Verhindert, dass
+        # periphere Sub-Claims in komplett andere Kontexte driften.
+        _tc = getattr(claim, "topical_centrality", 1.0) if isinstance(claim, ProcessedClaim) else 1.0
+        is_peripheral = isinstance(_tc, (int, float)) and _tc < 0.3
+        if is_peripheral and tm.geographic_scope and not geo_fallback:
+            geo_fallback = tm.geographic_scope.split(",")[0].strip()
+            context_anchor = " ".join(filter(None, [geo_fallback, temporal_fallback]))
 
         # Genügend Overlap und kein Kontext-Fallback → keine Injektion nötig
         if overlap_ratio >= 0.3 and not context_anchor:
