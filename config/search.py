@@ -23,9 +23,9 @@ class SearchConfig:
     base_url: str = ""  # Für SearXNG: URL der Instanz (z.B. http://localhost:8888)
     engines: str = ""   # SearXNG: kommaseparierte Engine-Liste (z.B. "google,duckduckgo,bing")
     max_results: int = 15              # SearXNG ist self-hosted → großzügig
-    max_concurrent_searches: int = 3  # Gleichzeitige Anfragen – zu hoch → Engine-Suspendierung
+    max_concurrent_searches: int = 5  # Gleichzeitige Anfragen (erhöht von 3 für bessere Latenz)
     scrape_top_n: int = 10          # Maximale Anzahl zu scrapender Quellen pro Claim
-    scrape_timeout: float = 10.0    # HTTP-Timeout pro Scrape-Request in Sekunden
+    scrape_timeout: float = 7.0     # HTTP-Timeout pro Scrape-Request in Sekunden (reduziert von 10)
 
     def __post_init__(self) -> None:
         if self.provider == "searxng":
@@ -74,10 +74,10 @@ class SearXNGConfig:
     language: str = "de"
     time_range: str | None = None
     max_results: int = 15
-    max_concurrent_searches: int = 3
+    max_concurrent_searches: int = 5
     scrape_top_n: int = 10
-    scrape_timeout: float = 10.0
-    inter_query_delay: float = 1.5
+    scrape_timeout: float = 7.0
+    inter_query_delay: float = 1.0
     engine_rotation_enabled: bool = True
     engines_per_query: int = 3
 
