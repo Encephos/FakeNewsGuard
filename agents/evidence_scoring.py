@@ -95,6 +95,7 @@ _REFUTATION_PATTERNS: list[re.Pattern[str]] = [
 # Bestätigungsmuster (generisch, kein Claim-Bezug)
 _CONFIRMATION_PATTERNS: list[re.Pattern[str]] = [
     re.compile(p) for p in [
+        # Explizite Bestätigung
         r"\bbestätigt\b",
         r"\bbelegt\b",
         r"\bnachgewiesen\b",
@@ -109,6 +110,28 @@ _CONFIRMATION_PATTERNS: list[re.Pattern[str]] = [
         r"\b(?:has been|have been)\s+confirmed\b",
         r"\bconfirmed\b",
         r"\bverified\b",
+        # Implizite Bestätigung: Amts-/Rollen-Attribution
+        r"\bist\s+seit\b",
+        r"\bamtiert(?:\s+als)?\b",
+        r"\bfungiert\s+als\b",
+        r"\bregiert\s+seit\b",
+        r"\bim\s+amt\b",
+        r"\bwurde\s+(?:gewählt|ernannt|vereidigt)\b",
+        r"\bhat\s+(?:das\s+amt|die\s+regierung)\s+übernommen\b",
+        # Implizite Bestätigung: Faktische Berichterstattung
+        r"\blaut\s+(?:angaben|statistik|bericht|daten)\b",
+        r"\bnach\s+angaben\b",
+        r"\boffiziell(?:en?)?\b",
+        r"\baccording\s+to\b",
+        r"\bofficially\b",
+        r"\bserves?\s+as\b",
+        r"\btook\s+office\b",
+        r"\bassumed\s+office\b",
+        r"\bwas\s+(?:elected|appointed|sworn\s+in)\b",
+        r"\bhas\s+(?:been|served)\s+(?:as|since)\b",
+        r"\bin\s+office\s+since\b",
+        r"\brecord(?:ed)?\s+(?:high|level|amount)\b",
+        r"\breached\s+(?:a\s+)?(?:record|new)\b",
     ]
 ]
 
@@ -1379,7 +1402,21 @@ def _compute_quality_signals(
     total_signal = weighted_support + weighted_refute
 
     if total_signal == 0:
-        consensus = SourceConsensus.INSUFFICIENT
+        # Thematic agreement floor: wenn genuegend relevante Quellen vorhanden
+        # sind, aber keine expliziten SUPPORTS/REFUTES-Muster erkannt wurden,
+        # werte die thematische Praesenz als implizite Bestaetigung.
+        # Typisch fuer current-state-Claims ("X ist Kanzler") wo Quellen den
+        # Sachverhalt als Fakt behandeln ohne ihn explizit zu "bestaetigen".
+        _relevant_for_consensus = [
+            i for i in items
+            if i.relevance_score >= 0.35
+            and i.evidence_type != EvidenceType.WEAK
+            and not _is_low_trust_site(i.source.url, i.source.title, "")
+        ]
+        if len(_relevant_for_consensus) >= 5:
+            consensus = SourceConsensus.AGREEING
+        else:
+            consensus = SourceConsensus.INSUFFICIENT
     elif weighted_refute == 0:
         consensus = SourceConsensus.AGREEING
     elif weighted_support == 0:
