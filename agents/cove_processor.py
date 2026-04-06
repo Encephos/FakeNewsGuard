@@ -21,8 +21,10 @@ Architekturentscheidung:
 
 from __future__ import annotations
 
+import asyncio
 import json
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 from config import CoVeConfig
@@ -252,9 +254,8 @@ class CoVeProcessor:
         baseline: BaselineAssessment,
     ) -> list[VerificationAnswer]:
         evidence_summary = pack.format_for_verdict()
-        answers: list[VerificationAnswer] = []
 
-        for q in questions:
+        def _answer_single(q: VerificationQuestion) -> VerificationAnswer:
             user_msg = (
                 f"## Zu beantwortende Frage ({q.question_id})\n\n"
                 f"{q.text}\n\n"
@@ -263,7 +264,7 @@ class CoVeProcessor:
                 f"## Evidenz\n\n{evidence_summary}"
             )
             raw = self._llm_json(_ANSWER_PROMPT, user_msg, llm=self.llm_small)
-            answers.append(VerificationAnswer(
+            return VerificationAnswer(
                 question_id=q.question_id,
                 answer=raw.get("answer", ""),
                 confidence=float(raw.get("confidence", 0.5)),
@@ -271,7 +272,11 @@ class CoVeProcessor:
                 supporting_excerpt=raw.get("supporting_excerpt", "")[:400],
                 contradicts_baseline=bool(raw.get("contradicts_baseline", False)),
                 answer_found_in_evidence=bool(raw.get("answer_found_in_evidence", True)),
-            ))
+            )
+
+        # Answer all questions in parallel via thread pool
+        with ThreadPoolExecutor(max_workers=len(questions)) as pool:
+            answers = list(pool.map(_answer_single, questions))
 
         return answers
 
