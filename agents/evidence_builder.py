@@ -1289,7 +1289,7 @@ class EvidenceBuilderAgent(BaseAgent):
 
             item = EvidenceItem(
                 source=source,
-                excerpt=excerpt,
+                excerpt=excerpt[:800],
                 relevance_score=rel_score,
                 extraction_confidence=extraction_conf,
                 supports_claim=supports_claim_derived,
