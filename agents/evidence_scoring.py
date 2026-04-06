@@ -482,14 +482,25 @@ def _is_offtopic_content(
         return False, 0.3
 
     # Topic-Verschärfung: Claim-Anker treffen, aber KEINE Topic-Anker →
-    # die Quelle deckt den Claim formal ab, ist aber thematisch entfernt
+    # die Quelle deckt den Claim formal ab, ist aber thematisch entfernt.
+    # Zusätzlich: narrative_arc-Wörter als zweites Signal prüfen.
     if topic_model and topic_model.key_entities and hits >= 1:
         topic_hits = sum(
             1 for e in topic_model.key_entities
             if e.lower() in combined
         )
-        if topic_hits == 0 and len(topic_model.key_entities) >= 3:
-            return False, 0.25  # Leichte Abwertung: formal passend, thematisch entfernt
+        # Narrative-Arc als zweites Signal: enthält die Quelle
+        # Kernbegriffe der Artikelthese?
+        narrative_hit = False
+        if topic_model.narrative_arc:
+            arc_words = [
+                w for w in re.findall(r'\b\w+\b', topic_model.narrative_arc.lower())
+                if len(w) >= 5
+            ]
+            narrative_hit = sum(1 for w in arc_words if w in combined) >= 2
+
+        if topic_hits == 0 and not narrative_hit and len(topic_model.key_entities) >= 3:
+            return False, 0.30  # Moderate Abwertung: formal passend, thematisch entfernt
 
     return False, 0.0
 
@@ -885,6 +896,8 @@ def _compute_topic_relevance(
     """Berechne Topic-Relevanz eines Evidence-Items bezüglich des Artikelthemas.
 
     Prüft Keyword/Entity-Overlap zwischen Excerpt und dem ArticleTopicModel.
+    Bezieht auch die narrative_arc (Artikelthese) ein – Wörter daraus werden
+    mit halbem Gewicht gegenüber key_entities/topic_keywords gezählt.
 
     Returns:
         Score 0.0–1.0. Default 1.0 wenn kein Topic Model vorhanden.
@@ -896,20 +909,48 @@ def _compute_topic_relevance(
     if not combined.strip():
         return 0.0
 
-    # Sammle alle Topic-Signale (Entities + Keywords)
-    signals: list[str] = []
-    signals.extend(topic_model.key_entities)
-    signals.extend(topic_model.topic_keywords)
+    # ── Primäre Signale (volles Gewicht) ─────────────────────────
+    primary_signals: list[str] = []
+    primary_signals.extend(topic_model.key_entities)
+    primary_signals.extend(topic_model.topic_keywords)
     if topic_model.geographic_scope:
-        signals.extend(topic_model.geographic_scope.split(","))
+        primary_signals.extend(topic_model.geographic_scope.split(","))
 
-    signals = [s.strip() for s in signals if s.strip()]
-    if not signals:
+    primary_signals = [s.strip() for s in primary_signals if s.strip()]
+
+    # ── Narrative-Arc-Signale (halbes Gewicht) ───────────────────
+    # Tokenisiere die Artikelthese und entferne Stopwords/kurze Wörter
+    _NARRATIVE_STOPWORDS = _RELEVANCE_STOPWORDS | {
+        "der", "die", "das", "ein", "eine", "und", "oder", "ist", "sind",
+        "wird", "werden", "hat", "haben", "dass", "auch", "sich", "mit",
+        "von", "für", "auf", "als", "aus", "bei", "nach", "über", "zum",
+        "zur", "den", "dem", "des", "einer", "einem", "eines", "nicht",
+        "the", "and", "for", "that", "this", "with", "from", "are", "was",
+    }
+    narrative_tokens: list[str] = []
+    if topic_model.narrative_arc:
+        for word in re.findall(r'\b\w+\b', topic_model.narrative_arc.lower()):
+            if len(word) >= 4 and word not in _NARRATIVE_STOPWORDS:
+                narrative_tokens.append(word)
+        # Dedupliziere gegen primäre Signale
+        primary_lower = {s.lower() for s in primary_signals}
+        narrative_tokens = [t for t in narrative_tokens if t not in primary_lower]
+
+    if not primary_signals and not narrative_tokens:
         return 1.0
 
-    # Zähle Treffer
-    hits = sum(1 for s in signals if s.lower() in combined)
-    ratio = hits / len(signals)
+    # ── Gewichtete Treffer zählen ────────────────────────────────
+    primary_hits = sum(1 for s in primary_signals if s.lower() in combined)
+    narrative_hits = sum(1 for t in narrative_tokens if t in combined)
+
+    # Narrative-Hits zählen mit 0.5x Gewicht
+    total_weight = len(primary_signals) + len(narrative_tokens) * 0.5
+    weighted_hits = primary_hits + narrative_hits * 0.5
+
+    if total_weight == 0:
+        return 1.0
+
+    ratio = weighted_hits / total_weight
 
     # Skaliere auf [0, 1] – ab 40% Treffer ist voll-relevant
     return min(1.0, ratio / 0.4)
@@ -923,6 +964,7 @@ def _rank_evidence_items(
     is_current_state: bool = False,
     ce_scores: dict[str, float] | None = None,
     topic_model: ArticleTopicModel | None = None,
+    topical_centrality: float = -1.0,
 ) -> list[EvidenceItem]:
     """Ranke bestehende EvidenceItems neu – behalte alle Metadaten.
 
@@ -1032,8 +1074,14 @@ def _rank_evidence_items(
             + (_rw.get("gfc", 0.10) if has_gfc_match else 0)
             + (1.0 - offtopic_penalty) * _rw.get("offtopic", 0.05)
         )
-        # Topic-Relevanz als multiplikativer Faktor: 30% Einfluss
-        score = base_score * (0.7 + 0.3 * topic_rel)
+        # Topic-Relevanz als multiplikativer Faktor.
+        # Für zentrale Claims (topical_centrality >= 0.5): 50% Einfluss,
+        # damit Off-Topic-Evidenz stärker abgewertet wird.
+        # Für periphere/unbekannte Claims: 30% Einfluss (konservativ).
+        if topical_centrality >= 0.5:
+            score = base_score * (0.5 + 0.5 * topic_rel)
+        else:
+            score = base_score * (0.7 + 0.3 * topic_rel)
 
         # Current-state Claims: Nachrichten-/Behördenquellen (Tier 1-3) boosten,
         # allgemeine Hintergrundseiten leicht abwerten – frische Primärquellen

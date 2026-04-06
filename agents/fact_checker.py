@@ -133,8 +133,10 @@ class FactCheckerAgent(BaseAgent):
                 self._log(f"CoVe fehlgeschlagen: {type(e).__name__}: {e}")
 
         # ── 3. VerdictAgent ───────────────────────────────────────────────────
+        # topic_model vom EvidenceBuilder durchreichen (für kontextbewusste Urteilsfindung)
+        _tm = getattr(self._evidence_builder, "topic_model", None)
         result, verdict_error = self._verdict_agent.run_safe(
-            {"claim": claim, "evidence_pack": pack, "cove_trace": cove_trace},
+            {"claim": claim, "evidence_pack": pack, "cove_trace": cove_trace, "topic_model": _tm},
             context=context,
         )
         if verdict_error or result is None:
@@ -181,12 +183,13 @@ class FactCheckerAgent(BaseAgent):
                 self._log(f"CoVe fehlgeschlagen: {type(e).__name__}: {e}")
 
         # ── 3. VerdictAgent im Thread-Pool ────────────────────────────────────
+        _tm = getattr(self._evidence_builder, "topic_model", None)
         try:
             loop = asyncio.get_event_loop()
             result = await loop.run_in_executor(
                 None,
                 self._verdict_agent.execute,
-                {"claim": claim, "evidence_pack": pack, "cove_trace": cove_trace},
+                {"claim": claim, "evidence_pack": pack, "cove_trace": cove_trace, "topic_model": _tm},
                 context,
             )
         except Exception as e:

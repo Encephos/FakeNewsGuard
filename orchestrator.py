@@ -89,6 +89,44 @@ def _build_cross_claim_evidence_map(
     return {url: claims for url, claims in url_map.items() if len(claims) >= 2}
 
 
+def _check_topic_coherence(
+    fact_checks: list[FactCheckResult],
+    threshold: float = 0.3,
+) -> list[str]:
+    """Prüfe ob die Evidenz für jeden Claim thematisch zum Artikel passt.
+
+    Berechnet die durchschnittliche topic_relevance_score der Top-5
+    Evidenzen pro Claim. Unter dem Schwellwert → Warnung.
+
+    Returns:
+        Liste von Warnungen für Claims mit schwacher Topic-Kohärenz.
+    """
+    warnings: list[str] = []
+    for fc in fact_checks:
+        if not fc.evidence_pack or not fc.evidence_pack.web_results:
+            continue
+        # Top-5 nach relevance_score
+        top_items = sorted(
+            fc.evidence_pack.web_results,
+            key=lambda x: x.relevance_score,
+            reverse=True,
+        )[:5]
+        scores = [
+            item.topic_relevance_score
+            for item in top_items
+            if item.topic_relevance_score is not None and item.topic_relevance_score >= 0
+        ]
+        if not scores:
+            continue
+        avg_topic_rel = sum(scores) / len(scores)
+        if avg_topic_rel < threshold:
+            warnings.append(
+                f"Claim {fc.claim_id}: Evidenz möglicherweise off-topic "
+                f"(Ø Topic-Relevanz: {avg_topic_rel:.2f} < {threshold})"
+            )
+    return warnings
+
+
 def _apply_cross_claim_consistency(
     fact_checks: list[FactCheckResult],
     claims: list[Claim],
@@ -504,6 +542,12 @@ class Orchestrator:
         for w in consistency_warnings:
             self._log(f"  ⚠ {w}")
 
+        # ── Topic-Kohärenz-Check (nach Phase 2) ─────────────────────────────
+        topic_coherence_warnings = _check_topic_coherence(fact_checks)
+        for w in topic_coherence_warnings:
+            self._log(f"  ⚠ {w}")
+        consistency_warnings.extend(topic_coherence_warnings)
+
         # ── Phase 3: Rhetoric-Analyse ─────────────────────────────────────────
         self._step("rhetoric", "\n🎭 PHASE 3: Rhetoric-Analyse")
         rhetoric_result, rhetoric_error = self.rhetoric_analyzer.run_safe(text)
@@ -712,6 +756,12 @@ class Orchestrator:
         )
         for w in consistency_warnings:
             self._log(f"  ⚠ {w}")
+
+        # ── Topic-Kohärenz-Check (nach Phase 2) ─────────────────────────────
+        topic_coherence_warnings = _check_topic_coherence(fact_checks)
+        for w in topic_coherence_warnings:
+            self._log(f"  ⚠ {w}")
+        consistency_warnings.extend(topic_coherence_warnings)
 
         rhetoric_result, rhetoric_error = raw_results[n_claims]  # type: ignore[misc]
         if rhetoric_error:

@@ -264,6 +264,7 @@ class VerdictAgent(BaseAgent):
         pack: EvidencePack = data["evidence_pack"]
         cove_trace: CoVeTrace | None = data.get("cove_trace")
         number_audit: NumberAuditResult | None = data.get("number_audit")
+        topic_model = data.get("topic_model")
 
         # ── Satire-Erkennung (vor LLM-Call) ──────────────────────────────────
         if self._check_satire(claim, pack):
@@ -278,7 +279,7 @@ class VerdictAgent(BaseAgent):
             )
 
         # Prompt aufbauen (nur strukturierte Daten, kein roher Web-Inhalt)
-        user_msg = self._build_verdict_prompt(claim, pack, cove_trace, number_audit, original_context=context)
+        user_msg = self._build_verdict_prompt(claim, pack, cove_trace, number_audit, original_context=context, topic_model=topic_model)
 
         import logging
         _verdict_logger = logging.getLogger("fakenewsguard.verdict")
@@ -356,6 +357,8 @@ class VerdictAgent(BaseAgent):
             else _VFT.get("general_threshold", 0.40)
         )
 
+        # topical_centrality: Wie zentral ist der Claim für den Artikel?
+        _tc = getattr(claim, "topical_centrality", -1.0) if isinstance(claim, _PC) else -1.0
         calibrated_confidence, calibration_reasons = _calibrate_confidence(
             raw_confidence, pack, cove_trace,
             claim_quality_score=claim_quality,
@@ -363,6 +366,7 @@ class VerdictAgent(BaseAgent):
             is_current_state_claim=is_current_state,
             stale_freshness_threshold=stale_threshold,
             rating=rating,
+            topical_centrality=_tc if isinstance(_tc, (int, float)) else -1.0,
         )
 
         # Unsicherheitssignale aus Rating- + Confidence-Kalibrierung sammeln
@@ -491,6 +495,7 @@ class VerdictAgent(BaseAgent):
         cove_trace: CoVeTrace | None,
         number_audit: NumberAuditResult | None,
         original_context: str = "",
+        topic_model: Any = None,
     ) -> str:
         from datetime import date
 
@@ -512,6 +517,27 @@ class VerdictAgent(BaseAgent):
                 f"\nBeurteile den Claim im Kontext dieses Originaltexts. "
                 f"Evidenz, die sich nicht auf diesen Kontext bezieht, ist weniger relevant.\n"
             )
+
+        # Artikelkontext aus TopicModel (wenn verfügbar)
+        if topic_model:
+            ctx_parts = []
+            if getattr(topic_model, "primary_topic", ""):
+                ctx_parts.append(f"Thema: {topic_model.primary_topic}")
+            if getattr(topic_model, "narrative_arc", ""):
+                ctx_parts.append(f"These: {topic_model.narrative_arc}")
+            if getattr(topic_model, "geographic_scope", ""):
+                ctx_parts.append(f"Geographischer Fokus: {topic_model.geographic_scope}")
+            if getattr(topic_model, "temporal_scope", ""):
+                ctx_parts.append(f"Zeitlicher Bezug: {topic_model.temporal_scope}")
+            if ctx_parts:
+                parts.append(
+                    "\n## Artikelkontext\n\n"
+                    "Dieser Claim stammt aus einem Artikel mit folgendem Kontext:\n"
+                    + "\n".join(f"- {p}" for p in ctx_parts)
+                    + "\n\nBewerte die Evidenz-Relevanz MIT diesem Kontext. "
+                    "Quellen, die thematisch oder geographisch nicht zum Artikelkontext passen, "
+                    "sind weniger aussagekräftig.\n"
+                )
 
         # Warnung bei sehr niedriger Evidenzqualität
         if pack.evidence_quality and pack.evidence_quality.overall_quality < 0.3:
