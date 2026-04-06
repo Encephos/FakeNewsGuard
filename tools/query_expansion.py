@@ -449,20 +449,31 @@ class QueryExpansionEngine:
 
         # ── REGULATORY: Verordnungen, Richtlinien, Strafen ──
         if "regulatory" in domains or "legal" in domains:
+            # Extract dates and numbers from claim for targeted queries
+            dates = merged.get("dates", [])
+            numbers = merged.get("numbers", [])
+            date_term = dates[0] if dates else ""
+            penalty_term = numbers[0] if numbers else ""
+
             templates = []
             if jurisdiction == "eu":
                 templates = [
                     f"EU directive {topic} regulation",
                     f"EU Verordnung {topic} Richtlinie",
+                    f"EU {topic} Inkrafttreten {date_term}".strip(),
+                    f"EU {topic} Strafe Bußgeld {penalty_term}".strip(),
+                    f"EUR-Lex {topic} directive",
                 ]
             elif jurisdiction == "de":
                 templates = [
                     f"Gesetz {topic} Verordnung Deutschland",
                     f"{topic} Regelung Bußgeld Strafe",
+                    f"{topic} Inkrafttreten {date_term} Deutschland".strip(),
                 ]
             else:
                 templates = [
                     f"regulation {topic} enforcement",
+                    f"{topic} regulation penalty fine",
                 ]
 
             for t_text in templates[:MAX_PER_FAMILY]:

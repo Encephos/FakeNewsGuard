@@ -739,11 +739,11 @@ class EvidenceBuilderAgent(BaseAgent):
 
         # ── Filter: Entferne schwache Evidence Items (adaptiver Threshold) ────
         # Niedrig-relevante Items verschlechtern Verdict-Confidence und erzeugen
-        # Rauschen im LLM-Prompt. Mindestens 3 Items behalten.
+        # Rauschen im LLM-Prompt. Mindestens 5 Items behalten.
         # Adaptiv: Threshold = max(0.15, median_relevance * 0.5)
         # Bei schwacher Evidenz (median ~0.35) senkt sich der Threshold auf 0.175,
         # bei guter Evidenz (median ~0.60) steigt er auf 0.30.
-        _MIN_KEEP = 3
+        _MIN_KEEP = 5
         if len(evidence_items) > _MIN_KEEP:
             scores_sorted = sorted(i.relevance_score for i in evidence_items)
             median_rel = scores_sorted[len(scores_sorted) // 2]
@@ -1289,7 +1289,7 @@ class EvidenceBuilderAgent(BaseAgent):
 
             item = EvidenceItem(
                 source=source,
-                excerpt=excerpt,
+                excerpt=excerpt[:800],
                 relevance_score=rel_score,
                 extraction_confidence=extraction_conf,
                 supports_claim=supports_claim_derived,

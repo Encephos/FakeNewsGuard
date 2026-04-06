@@ -686,7 +686,7 @@ class TestEvidenceRetrievalConfigDefaults:
         assert cfg.tavily_primary_queries == 1
         assert cfg.tavily_max_queries_per_claim == 3
         assert cfg.tavily_request_budget == 10
-        assert cfg.weak_evidence_threshold == 0.25
+        assert cfg.weak_evidence_threshold == 0.40
         assert cfg.low_trust_confidence_penalty == 0.20
         assert cfg.pre_scrape_offtopic_penalty == 0.70
 
