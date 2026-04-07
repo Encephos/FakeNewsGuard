@@ -458,6 +458,16 @@ function TabIconAnalytics() {
   );
 }
 
+function TabIconEvaluation() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 3h6l3 7-6 11-6-11z" />
+      <path d="M12 3v18" />
+      <path d="M6 10h12" />
+    </svg>
+  );
+}
+
 // ── Main Page ──────────────────────────────────────────────────────
 
 export default function AdminPage() {
@@ -465,7 +475,7 @@ export default function AdminPage() {
   const { t } = useI18n();
   const router = useRouter();
 
-  type Tab = "users" | "invites" | "system" | "analytics";
+  type Tab = "users" | "invites" | "system" | "analytics" | "evaluation";
   const [activeTab, setActiveTab] = useState<Tab>("users");
 
   // Users tab state
@@ -512,6 +522,65 @@ export default function AdminPage() {
   const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
   const [analyticsDays, setAnalyticsDays] = useState(30);
+
+  // Evaluation tab state
+  interface EvalCaseResult {
+    case_id: string;
+    claim_text: string;
+    category: string;
+    language: string;
+    passed: boolean;
+    metrics: Record<string, number>;
+    violations: Array<{ metric: string; expected: string; actual: string; severity: string }>;
+    snapshot_summary: {
+      queries_used: string[];
+      deduped_queries: string[];
+      num_results: number;
+      num_evidence_items: number;
+      evidence_items: Array<{
+        url: string;
+        domain: string;
+        tier: number;
+        title: string;
+        relevance_score: number;
+        evidence_type: string;
+        source_direction: string;
+        excerpt: string;
+      }>;
+      quality_signals: Record<string, unknown>;
+      debug_notes: string[];
+      backends_used: string[];
+    };
+  }
+  interface EvalResults {
+    eval_id: string;
+    status: string;
+    total: number;
+    completed: number;
+    elapsed_seconds: number;
+    global_metrics: Record<string, number>;
+    per_category: Record<string, Record<string, number>>;
+    cases: EvalCaseResult[];
+  }
+  interface EvalHistoryEntry {
+    eval_id: string;
+    status: string;
+    total: number;
+    completed: number;
+    started_at: number;
+    elapsed_seconds: number;
+    global_metrics_summary: Record<string, number>;
+  }
+  const [evalSampleSize, setEvalSampleSize] = useState(10);
+  const [evalRunning, setEvalRunning] = useState(false);
+  const [evalId, setEvalId] = useState<string | null>(null);
+  const [evalStatus, setEvalStatus] = useState<{ completed: number; total: number; elapsed_seconds: number } | null>(null);
+  const [evalResults, setEvalResults] = useState<EvalResults | null>(null);
+  const [evalHistory, setEvalHistory] = useState<EvalHistoryEntry[]>([]);
+  const [evalDetailCase, setEvalDetailCase] = useState<string | null>(null);
+  const [evalView, setEvalView] = useState<"overview" | "cases">("overview");
+  const [evalFilter, setEvalFilter] = useState<"all" | "passed" | "failed">("all");
+  const [evalSearch, setEvalSearch] = useState("");
 
   const headers = useCallback(
     () => ({
@@ -790,7 +859,7 @@ export default function AdminPage() {
 
         {/* Tab switcher */}
         <div className="flex gap-0.5 glass-inner rounded-xl p-1">
-          {(["users", "invites", "system", "analytics"] as Tab[]).map((tab) => (
+          {(["users", "invites", "system", "analytics", "evaluation"] as Tab[]).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -800,7 +869,7 @@ export default function AdminPage() {
                   : "text-text-tertiary hover:text-text-primary hover:bg-surface-hover/50"
               }`}
             >
-              {tab === "users" ? <TabIconUsers /> : tab === "invites" ? <TabIconInvites /> : tab === "system" ? <TabIconSystem /> : <TabIconAnalytics />}
+              {tab === "users" ? <TabIconUsers /> : tab === "invites" ? <TabIconInvites /> : tab === "system" ? <TabIconSystem /> : tab === "analytics" ? <TabIconAnalytics /> : <TabIconEvaluation />}
               {t(`admin.tab.${tab}`)}
             </button>
           ))}
@@ -1584,6 +1653,650 @@ export default function AdminPage() {
           )}
         </div>
       )}
+
+      {/* ── TAB: EVALUATION ──────────────────────────────────────── */}
+      {activeTab === "evaluation" && (
+        <EvaluationTab
+          token={token}
+          headers={headers}
+          t={t}
+          evalSampleSize={evalSampleSize}
+          setEvalSampleSize={setEvalSampleSize}
+          evalRunning={evalRunning}
+          setEvalRunning={setEvalRunning}
+          evalId={evalId}
+          setEvalId={setEvalId}
+          evalStatus={evalStatus}
+          setEvalStatus={setEvalStatus}
+          evalResults={evalResults}
+          setEvalResults={setEvalResults}
+          evalHistory={evalHistory}
+          setEvalHistory={setEvalHistory}
+          evalDetailCase={evalDetailCase}
+          setEvalDetailCase={setEvalDetailCase}
+          evalView={evalView}
+          setEvalView={setEvalView}
+          evalFilter={evalFilter}
+          setEvalFilter={setEvalFilter}
+          evalSearch={evalSearch}
+          setEvalSearch={setEvalSearch}
+        />
+      )}
     </div>
   );
+}
+
+
+// ── Evaluation Tab Component ──────────────────────────────────────────
+
+const EVAL_METRIC_KEYS = [
+  { key: "preferred_domain_hit_rate", labelKey: "preferredDomainHitRate", higher: true },
+  { key: "low_trust_rate", labelKey: "lowTrustRate", higher: false },
+  { key: "direct_evidence_rate", labelKey: "directEvidenceRate", higher: true },
+  { key: "offtopic_rate", labelKey: "offtopicRate", higher: false },
+  { key: "source_diversity", labelKey: "sourceDiversity", higher: true },
+  { key: "freshness_hit_rate", labelKey: "freshnessHitRate", higher: true },
+] as const;
+
+const TIER_COLORS: Record<number, string> = {
+  1: "text-success",
+  2: "text-success/80",
+  3: "text-warning",
+  4: "text-warning/70",
+  5: "text-text-tertiary",
+};
+
+const DIRECTION_COLORS: Record<string, string> = {
+  supports: "text-success",
+  refutes: "text-error",
+  neutral: "text-text-tertiary",
+  offtopic: "text-warning",
+};
+
+const EVIDENCE_TYPE_STYLES: Record<string, string> = {
+  direct: "bg-success/15 text-success",
+  contextual: "bg-warning/15 text-warning",
+  weak: "bg-text-tertiary/15 text-text-tertiary",
+};
+
+function formatElapsed(s: number): string {
+  const m = Math.floor(s / 60);
+  const sec = Math.round(s % 60);
+  return m > 0 ? `${m}m ${sec}s` : `${sec}s`;
+}
+
+function EvaluationTab({
+  token,
+  headers,
+  t,
+  evalSampleSize, setEvalSampleSize,
+  evalRunning, setEvalRunning,
+  evalId, setEvalId,
+  evalStatus, setEvalStatus,
+  evalResults, setEvalResults,
+  evalHistory, setEvalHistory,
+  evalDetailCase, setEvalDetailCase,
+  evalView, setEvalView,
+  evalFilter, setEvalFilter,
+  evalSearch, setEvalSearch,
+}: {
+  token: string | null;
+  headers: () => Record<string, string>;
+  t: (key: string) => string;
+  evalSampleSize: number;
+  setEvalSampleSize: (v: number) => void;
+  evalRunning: boolean;
+  setEvalRunning: (v: boolean) => void;
+  evalId: string | null;
+  setEvalId: (v: string | null) => void;
+  evalStatus: { completed: number; total: number; elapsed_seconds: number } | null;
+  setEvalStatus: (v: { completed: number; total: number; elapsed_seconds: number } | null) => void;
+  evalResults: {
+    eval_id: string;
+    status: string;
+    total: number;
+    completed: number;
+    elapsed_seconds: number;
+    global_metrics: Record<string, number>;
+    per_category: Record<string, Record<string, number>>;
+    cases: Array<{
+      case_id: string;
+      claim_text: string;
+      category: string;
+      language: string;
+      passed: boolean;
+      metrics: Record<string, number>;
+      violations: Array<{ metric: string; expected: string; actual: string; severity: string }>;
+      snapshot_summary: {
+        queries_used: string[];
+        deduped_queries: string[];
+        num_results: number;
+        num_evidence_items: number;
+        evidence_items: Array<{
+          url: string; domain: string; tier: number; title: string;
+          relevance_score: number; evidence_type: string; source_direction: string; excerpt: string;
+        }>;
+        quality_signals: Record<string, unknown>;
+        debug_notes: string[];
+        backends_used: string[];
+      };
+    }>;
+  } | null;
+  setEvalResults: (v: typeof evalResults) => void;
+  evalHistory: Array<{
+    eval_id: string; status: string; total: number; completed: number;
+    started_at: number; elapsed_seconds: number;
+    global_metrics_summary: Record<string, number>;
+  }>;
+  setEvalHistory: (v: typeof evalHistory) => void;
+  evalDetailCase: string | null;
+  setEvalDetailCase: (v: string | null) => void;
+  evalView: "overview" | "cases";
+  setEvalView: (v: "overview" | "cases") => void;
+  evalFilter: "all" | "passed" | "failed";
+  setEvalFilter: (v: "all" | "passed" | "failed") => void;
+  evalSearch: string;
+  setEvalSearch: (v: string) => void;
+}) {
+  // Load history on mount
+  useEffect(() => {
+    if (!token) return;
+    (async () => {
+      try {
+        const res = await fetch("/api/v1/admin/evaluation/history", { headers: headers() });
+        if (res.ok) {
+          const data = await res.json();
+          setEvalHistory(data.history || []);
+        }
+      } catch { /* ignore */ }
+    })();
+  }, [token, headers, setEvalHistory]);
+
+  // Poll status when running
+  useEffect(() => {
+    if (!evalRunning || !evalId || !token) return;
+    const id = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/v1/admin/evaluation/${evalId}/status`, { headers: headers() });
+        if (!res.ok) return;
+        const data = await res.json();
+        setEvalStatus({ completed: data.completed, total: data.total, elapsed_seconds: data.elapsed_seconds });
+        if (data.status === "done" || data.status === "error") {
+          setEvalRunning(false);
+          if (data.status === "done") {
+            const rRes = await fetch(`/api/v1/admin/evaluation/${evalId}/results`, { headers: headers() });
+            if (rRes.ok) setEvalResults(await rRes.json());
+          }
+        }
+      } catch { /* ignore */ }
+    }, 2000);
+    return () => clearInterval(id);
+  }, [evalRunning, evalId, token, headers, setEvalStatus, setEvalRunning, setEvalResults]);
+
+  const handleStart = async () => {
+    if (!token) return;
+    try {
+      const res = await fetch("/api/v1/admin/evaluation/start", {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify({ sample_size: evalSampleSize }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert(err.detail || "Fehler beim Starten der Evaluation.");
+        return;
+      }
+      const data = await res.json();
+      setEvalId(data.eval_id);
+      setEvalStatus({ completed: 0, total: data.total, elapsed_seconds: 0 });
+      setEvalRunning(true);
+      setEvalResults(null);
+      setEvalView("overview");
+    } catch {
+      alert("Fehler beim Starten der Evaluation.");
+    }
+  };
+
+  const handleViewResults = async (id: string) => {
+    try {
+      const res = await fetch(`/api/v1/admin/evaluation/${id}/results`, { headers: headers() });
+      if (res.ok) {
+        setEvalResults(await res.json());
+        setEvalId(id);
+        setEvalView("overview");
+      }
+    } catch { /* ignore */ }
+  };
+
+  const handleStartNew = () => {
+    setEvalResults(null);
+    setEvalId(null);
+    setEvalStatus(null);
+    setEvalRunning(false);
+    setEvalView("overview");
+  };
+
+  // Filtered cases
+  const filteredCases = useMemo(() => {
+    if (!evalResults) return [];
+    let cases = evalResults.cases;
+    if (evalFilter === "passed") cases = cases.filter((c) => c.passed);
+    if (evalFilter === "failed") cases = cases.filter((c) => !c.passed);
+    if (evalSearch.trim()) {
+      const q = evalSearch.toLowerCase();
+      cases = cases.filter(
+        (c) => c.claim_text.toLowerCase().includes(q) || c.case_id.toLowerCase().includes(q) || c.category.toLowerCase().includes(q),
+      );
+    }
+    return cases;
+  }, [evalResults, evalFilter, evalSearch]);
+
+  // ── STATE A: Start form + history ─────────────────────────────
+  if (!evalRunning && !evalResults) {
+    return (
+      <div className="space-y-6 animate-fade-in">
+        <div className="glass-card rounded-2xl p-6">
+          <h2 className="text-sm font-semibold text-text-primary mb-4">{t("admin.evaluation.title")}</h2>
+          <div className="flex items-end gap-4">
+            <div className="flex-1 max-w-[200px]">
+              <label className="block text-[10px] font-medium uppercase tracking-wider text-text-tertiary mb-1.5">
+                {t("admin.evaluation.sampleSize")}
+              </label>
+              <input
+                type="number"
+                min={1}
+                max={100}
+                value={evalSampleSize}
+                onChange={(e) => setEvalSampleSize(Math.max(1, Math.min(100, parseInt(e.target.value) || 1)))}
+                className="w-full px-3 py-2 rounded-lg glass-inner text-sm text-text-primary bg-transparent border-0 outline-none focus:ring-1 focus:ring-accent/30"
+              />
+            </div>
+            <button
+              onClick={handleStart}
+              className="px-5 py-2 rounded-lg bg-accent text-white text-xs font-medium hover:bg-accent/90 transition-colors"
+            >
+              {t("admin.evaluation.start")}
+            </button>
+          </div>
+        </div>
+
+        {/* History */}
+        <div className="glass-card rounded-2xl p-6">
+          <h3 className="text-sm font-semibold text-text-primary mb-4">{t("admin.evaluation.history")}</h3>
+          {evalHistory.length === 0 ? (
+            <p className="text-xs text-text-tertiary">{t("admin.evaluation.noHistory")}</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-border/30 text-text-tertiary">
+                    <th className="text-left pb-2 font-medium">Datum</th>
+                    <th className="text-left pb-2 font-medium">{t("admin.evaluation.totalCases")}</th>
+                    <th className="text-left pb-2 font-medium">Status</th>
+                    <th className="text-left pb-2 font-medium">Domain-Hit</th>
+                    <th className="text-left pb-2 font-medium">Low-Trust</th>
+                    <th className="text-right pb-2 font-medium"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {evalHistory.map((entry) => (
+                    <tr key={entry.eval_id} className="border-b border-border/10 hover:bg-surface-hover/30">
+                      <td className="py-2.5 text-text-secondary">
+                        {new Date(entry.started_at * 1000).toLocaleDateString("de-DE", {
+                          day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit",
+                        })}
+                      </td>
+                      <td className="py-2.5 text-text-secondary">{entry.total}</td>
+                      <td className="py-2.5">
+                        <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-medium ${
+                          entry.status === "done" ? "bg-success/15 text-success" : entry.status === "error" ? "bg-error/15 text-error" : "bg-warning/15 text-warning"
+                        }`}>
+                          {entry.status}
+                        </span>
+                      </td>
+                      <td className="py-2.5 text-text-secondary">
+                        {entry.global_metrics_summary?.preferred_domain_hit_rate != null
+                          ? `${(entry.global_metrics_summary.preferred_domain_hit_rate * 100).toFixed(0)}%`
+                          : "–"}
+                      </td>
+                      <td className="py-2.5 text-text-secondary">
+                        {entry.global_metrics_summary?.low_trust_rate != null
+                          ? `${(entry.global_metrics_summary.low_trust_rate * 100).toFixed(0)}%`
+                          : "–"}
+                      </td>
+                      <td className="py-2.5 text-right">
+                        {entry.status === "done" && (
+                          <button
+                            onClick={() => handleViewResults(entry.eval_id)}
+                            className="text-accent text-[10px] font-medium hover:underline"
+                          >
+                            {t("admin.evaluation.viewResults")}
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ── STATE B: Running ──────────────────────────────────────────
+  if (evalRunning && evalStatus) {
+    const pct = evalStatus.total > 0 ? (evalStatus.completed / evalStatus.total) * 100 : 0;
+    const avgPerItem = evalStatus.completed > 0 ? evalStatus.elapsed_seconds / evalStatus.completed : 0;
+    const remaining = avgPerItem * (evalStatus.total - evalStatus.completed);
+    return (
+      <div className="space-y-6 animate-fade-in">
+        <div className="glass-card rounded-2xl p-6">
+          <h2 className="text-sm font-semibold text-text-primary mb-4">{t("admin.evaluation.running")}</h2>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between text-xs text-text-secondary">
+              <span>{t("admin.evaluation.progress")}: {evalStatus.completed} / {evalStatus.total}</span>
+              <span>{Math.round(pct)}%</span>
+            </div>
+            <div className="w-full h-2 rounded-full bg-bg-tertiary/40 overflow-hidden">
+              <div
+                className="h-full rounded-full bg-accent transition-all duration-500"
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+            <div className="flex gap-6 text-[10px] text-text-tertiary">
+              <span>{t("admin.evaluation.elapsed")}: {formatElapsed(evalStatus.elapsed_seconds)}</span>
+              {evalStatus.completed > 0 && (
+                <span>{t("admin.evaluation.estimated")}: ~{formatElapsed(remaining)}</span>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── STATE C: Results ──────────────────────────────────────────
+  if (evalResults) {
+    const gm = evalResults.global_metrics;
+    const passedCount = evalResults.cases.filter((c) => c.passed).length;
+    const failedCount = evalResults.cases.length - passedCount;
+    const warningCount = evalResults.cases.reduce((s, c) => s + c.violations.filter((v) => v.severity === "warning").length, 0);
+    const errorCount = evalResults.cases.reduce((s, c) => s + c.violations.filter((v) => v.severity === "error").length, 0);
+
+    const categoryData = Object.entries(evalResults.per_category).map(([cat, metrics]) => ({
+      category: cat,
+      domain_hit: Math.round((metrics.preferred_domain_hit_rate || 0) * 100),
+      low_trust: Math.round((metrics.low_trust_rate || 0) * 100),
+      direct_evidence: Math.round((metrics.direct_evidence_rate || 0) * 100),
+    })).sort((a, b) => a.category.localeCompare(b.category));
+
+    return (
+      <div className="space-y-4 animate-fade-in">
+        {/* Header with sub-nav */}
+        <div className="flex items-center justify-between">
+          <div className="flex gap-0.5 glass-inner rounded-xl p-1">
+            {(["overview", "cases"] as const).map((view) => (
+              <button
+                key={view}
+                onClick={() => setEvalView(view)}
+                className={`px-3.5 py-2 rounded-lg text-xs font-medium transition-all ${
+                  evalView === view
+                    ? "bg-accent text-white shadow-sm"
+                    : "text-text-tertiary hover:text-text-primary hover:bg-surface-hover/50"
+                }`}
+              >
+                {t(`admin.evaluation.${view}`)}
+              </button>
+            ))}
+          </div>
+          <button
+            onClick={handleStartNew}
+            className="px-4 py-2 rounded-lg glass-inner text-xs font-medium text-text-secondary hover:text-text-primary transition-colors"
+          >
+            {t("admin.evaluation.startNew")}
+          </button>
+        </div>
+
+        {/* ── Overview ──────────────────────────────────────────── */}
+        {evalView === "overview" && (
+          <div className="space-y-4">
+            {/* KPI Row */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+              <MetricCard
+                label={t("admin.evaluation.passRate")}
+                value={evalResults.cases.length > 0 ? `${Math.round((passedCount / evalResults.cases.length) * 100)}%` : "–"}
+                sub={`${passedCount}/${evalResults.cases.length}`}
+                accent={passedCount === evalResults.cases.length ? "success" : failedCount > passedCount ? "error" : "warning"}
+              />
+              {EVAL_METRIC_KEYS.map(({ key, labelKey, higher }) => (
+                <MetricCard
+                  key={key}
+                  label={t(`admin.evaluation.${labelKey}`)}
+                  value={gm[key] != null ? `${(gm[key] * 100).toFixed(0)}%` : "–"}
+                  accent={
+                    gm[key] == null ? "default" :
+                    higher ? (gm[key] >= 0.6 ? "success" : gm[key] >= 0.3 ? "warning" : "error") :
+                    (gm[key] <= 0.1 ? "success" : gm[key] <= 0.3 ? "warning" : "error")
+                  }
+                />
+              ))}
+            </div>
+
+            {/* Violations summary */}
+            <div className="glass-card rounded-2xl p-4">
+              <h3 className="text-xs font-semibold text-text-primary mb-3">{t("admin.evaluation.violations")}</h3>
+              <div className="flex gap-6 text-xs">
+                <span className="text-warning">{warningCount} {t("admin.evaluation.warnings")}</span>
+                <span className="text-error">{errorCount} {t("admin.evaluation.errors")}</span>
+              </div>
+            </div>
+
+            {/* Per-category chart */}
+            {categoryData.length > 0 && (
+              <div className="glass-card rounded-2xl p-4">
+                <h3 className="text-xs font-semibold text-text-primary mb-3">{t("admin.evaluation.perCategory")}</h3>
+                <div className="h-[250px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={categoryData} layout="vertical" margin={{ left: 10, right: 10 }}>
+                      <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.1} horizontal={false} />
+                      <XAxis type="number" tick={{ fontSize: 9 }} tickLine={false} axisLine={false} domain={[0, 100]} unit="%" />
+                      <YAxis type="category" dataKey="category" width={120} tick={{ fontSize: 9 }} tickLine={false} axisLine={false} />
+                      <Tooltip contentStyle={{ background: "var(--color-surface, #1a1a2e)", border: "1px solid var(--color-border, #2a2a3e)", borderRadius: "8px", fontSize: "11px" }} />
+                      <Bar dataKey="domain_hit" name="Domain Hit %" fill="#22c55e" radius={[0, 3, 3, 0]} barSize={8} />
+                      <Bar dataKey="direct_evidence" name="Direct Evidence %" fill="#6366f1" radius={[0, 3, 3, 0]} barSize={8} />
+                      <Bar dataKey="low_trust" name="Low Trust %" fill="#ef4444" radius={[0, 3, 3, 0]} barSize={8} />
+                      <Legend wrapperStyle={{ fontSize: "10px" }} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Cases ─────────────────────────────────────────────── */}
+        {evalView === "cases" && (
+          <div className="space-y-3">
+            {/* Filters */}
+            <div className="flex items-center gap-3">
+              <div className="flex gap-0.5 glass-inner rounded-lg p-0.5">
+                {(["all", "passed", "failed"] as const).map((f) => (
+                  <button
+                    key={f}
+                    onClick={() => setEvalFilter(f)}
+                    className={`px-3 py-1.5 rounded-md text-[10px] font-medium transition-all ${
+                      evalFilter === f
+                        ? "bg-accent text-white"
+                        : "text-text-tertiary hover:text-text-primary"
+                    }`}
+                  >
+                    {t(`admin.evaluation.filter${f.charAt(0).toUpperCase() + f.slice(1)}`)}
+                  </button>
+                ))}
+              </div>
+              <input
+                type="text"
+                placeholder={t("admin.evaluation.search")}
+                value={evalSearch}
+                onChange={(e) => setEvalSearch(e.target.value)}
+                className="flex-1 max-w-[250px] px-3 py-1.5 rounded-lg glass-inner text-xs text-text-primary bg-transparent border-0 outline-none focus:ring-1 focus:ring-accent/30"
+              />
+              <span className="text-[10px] text-text-tertiary">{filteredCases.length} {t("admin.evaluation.totalCases")}</span>
+            </div>
+
+            {/* Case list */}
+            {filteredCases.map((c) => {
+              const isOpen = evalDetailCase === c.case_id;
+              return (
+                <div key={c.case_id} className="glass-card rounded-xl overflow-hidden">
+                  {/* Case header */}
+                  <button
+                    onClick={() => setEvalDetailCase(isOpen ? null : c.case_id)}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-surface-hover/30 transition-colors"
+                  >
+                    <span className={`w-2 h-2 rounded-full flex-shrink-0 ${c.passed ? "bg-success" : "bg-error"}`} />
+                    <span className="text-[10px] font-mono text-text-tertiary w-16 flex-shrink-0">{c.case_id}</span>
+                    <span className="text-xs text-text-primary flex-1 truncate">{c.claim_text}</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full glass-inner text-text-tertiary flex-shrink-0">{c.category}</span>
+                    <svg
+                      className={`w-3.5 h-3.5 text-text-tertiary transition-transform flex-shrink-0 ${isOpen ? "rotate-180" : ""}`}
+                      viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                    >
+                      <path d="M6 9l6 6 6-6" />
+                    </svg>
+                  </button>
+
+                  {/* Expanded detail */}
+                  {isOpen && (
+                    <div className="border-t border-border/20 px-4 py-4 space-y-4 animate-fade-in">
+                      {/* Claim text */}
+                      <div>
+                        <div className="text-[10px] font-medium uppercase tracking-wider text-text-tertiary mb-1">{t("admin.evaluation.claimText")}</div>
+                        <p className="text-xs text-text-secondary leading-relaxed">{c.claim_text}</p>
+                      </div>
+
+                      {/* Metrics row */}
+                      <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                        {EVAL_METRIC_KEYS.map(({ key, labelKey }) => (
+                          <div key={key} className="glass-inner rounded-lg px-2.5 py-2">
+                            <div className="text-[9px] text-text-tertiary truncate">{t(`admin.evaluation.${labelKey}`)}</div>
+                            <div className="text-xs font-semibold text-text-primary mt-0.5">
+                              {c.metrics[key] != null ? `${(c.metrics[key] * 100).toFixed(0)}%` : "–"}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Violations */}
+                      {c.violations.length > 0 && (
+                        <div>
+                          <div className="text-[10px] font-medium uppercase tracking-wider text-text-tertiary mb-1.5">{t("admin.evaluation.violations")}</div>
+                          <div className="space-y-1">
+                            {c.violations.map((v, i) => (
+                              <div key={i} className={`text-[10px] px-2.5 py-1.5 rounded-lg glass-inner ${v.severity === "error" ? "text-error" : "text-warning"}`}>
+                                <span className="font-medium">{v.metric}:</span> erwartet {v.expected}, ist {v.actual}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Search queries */}
+                      {c.snapshot_summary?.queries_used?.length > 0 && (
+                        <div>
+                          <div className="text-[10px] font-medium uppercase tracking-wider text-text-tertiary mb-1.5">{t("admin.evaluation.queriesUsed")}</div>
+                          <div className="flex flex-wrap gap-1.5">
+                            {c.snapshot_summary.queries_used.map((q, i) => (
+                              <span key={i} className="inline-flex px-2 py-1 rounded-md glass-inner text-[10px] text-text-secondary">
+                                {q}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Evidence items */}
+                      {c.snapshot_summary?.evidence_items?.length > 0 && (
+                        <div>
+                          <div className="text-[10px] font-medium uppercase tracking-wider text-text-tertiary mb-1.5">
+                            {t("admin.evaluation.evidenceItems")} ({c.snapshot_summary.num_evidence_items})
+                          </div>
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-[10px]">
+                              <thead>
+                                <tr className="border-b border-border/20 text-text-tertiary">
+                                  <th className="text-left pb-1.5 font-medium">{t("admin.evaluation.domain")}</th>
+                                  <th className="text-left pb-1.5 font-medium">{t("admin.evaluation.tierLabel")}</th>
+                                  <th className="text-left pb-1.5 font-medium">{t("admin.evaluation.relevance")}</th>
+                                  <th className="text-left pb-1.5 font-medium">{t("admin.evaluation.evidenceType")}</th>
+                                  <th className="text-left pb-1.5 font-medium">{t("admin.evaluation.direction")}</th>
+                                  <th className="text-left pb-1.5 font-medium">{t("admin.evaluation.excerpt")}</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {c.snapshot_summary.evidence_items.map((item, i) => (
+                                  <tr key={i} className="border-b border-border/10">
+                                    <td className="py-1.5 pr-2">
+                                      <a
+                                        href={item.url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-accent hover:underline truncate block max-w-[140px]"
+                                        title={item.url}
+                                      >
+                                        {item.domain || "–"}
+                                      </a>
+                                    </td>
+                                    <td className={`py-1.5 pr-2 font-semibold ${TIER_COLORS[item.tier] || "text-text-tertiary"}`}>
+                                      T{item.tier}
+                                    </td>
+                                    <td className="py-1.5 pr-2 text-text-secondary">{(item.relevance_score * 100).toFixed(0)}%</td>
+                                    <td className="py-1.5 pr-2">
+                                      <span className={`inline-flex px-1.5 py-0.5 rounded text-[9px] font-medium ${EVIDENCE_TYPE_STYLES[item.evidence_type] || "bg-text-tertiary/10 text-text-tertiary"}`}>
+                                        {item.evidence_type || "–"}
+                                      </span>
+                                    </td>
+                                    <td className={`py-1.5 pr-2 font-medium ${DIRECTION_COLORS[item.source_direction] || "text-text-tertiary"}`}>
+                                      {item.source_direction || "–"}
+                                    </td>
+                                    <td className="py-1.5 text-text-tertiary max-w-[200px] truncate" title={item.excerpt}>
+                                      {item.excerpt || "–"}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Debug notes */}
+                      {c.snapshot_summary?.debug_notes?.length > 0 && (
+                        <div>
+                          <div className="text-[10px] font-medium uppercase tracking-wider text-text-tertiary mb-1.5">{t("admin.evaluation.debugNotes")}</div>
+                          <div className="space-y-0.5">
+                            {c.snapshot_summary.debug_notes.map((note, i) => (
+                              <div key={i} className="text-[10px] text-text-tertiary font-mono leading-relaxed">{note}</div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+
+            {filteredCases.length === 0 && (
+              <p className="text-xs text-text-tertiary text-center py-8">{t("admin.evaluation.noResults")}</p>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return null;
 }

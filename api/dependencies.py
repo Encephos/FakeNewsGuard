@@ -348,3 +348,8 @@ class CreateRegistrationCodeRequest(BaseModel):
     label: str = ""
     max_uses: int = 1
     expires_days: int | None = None
+
+
+class StartEvaluationRequest(BaseModel):
+    sample_size: int = 10
+    backends: str = "searxng"

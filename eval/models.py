@@ -21,6 +21,11 @@ class EvalCategory(str, Enum):
     NOISY_OR_UNDERSPECIFIED = "noisy_or_underspecified"
     OFF_TOPIC_TRAPS = "off_topic_traps"
     MULTILINGUAL = "multilingual"
+    HEALTH = "health"
+    CLIMATE = "climate"
+    MIGRATION = "migration"
+    FINANCIAL = "financial"
+    CONSPIRACY = "conspiracy"
 
 
 # ── Retrieval Expectations ───────────────────────────────────────────────────
