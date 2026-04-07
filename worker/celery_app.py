@@ -41,6 +41,9 @@ celery_app.conf.update(
 # Auto-discover tasks in worker.tasks
 celery_app.autodiscover_tasks(["worker"])
 
+# Explicitly import eval_tasks so the evaluation task is registered
+import worker.eval_tasks  # noqa: F401
+
 
 @task_prerun.connect
 def on_task_prerun(task_id: str, task, **kwargs) -> None:
