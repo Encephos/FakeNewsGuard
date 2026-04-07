@@ -148,6 +148,7 @@ from .share import router as share_router
 from .export import router as export_router
 from .graph import router as graph_router
 from .utils import router as utils_router
+from .evaluation import router as evaluation_router
 from .unversioned import router as unversioned_router
 
 V1_PREFIX = "/api/v1"
@@ -161,6 +162,7 @@ app.include_router(share_router,     prefix=V1_PREFIX)
 app.include_router(export_router,    prefix=V1_PREFIX)
 app.include_router(graph_router,     prefix=V1_PREFIX)
 app.include_router(utils_router,     prefix=V1_PREFIX)
+app.include_router(evaluation_router, prefix=V1_PREFIX)
 
 # Unversioned infrastructure endpoints (health, metrics)
 app.include_router(unversioned_router)
