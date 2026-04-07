@@ -86,6 +86,9 @@ def _extract_profile_fields(claim_text: str, entities: list[str]) -> dict:
         "EU", "EZB", "ECB", "EuGH", "WHO", "NATO", "BASF", "Volkswagen",
         "Destatis", "BKA", "EMA", "Bundesbank", "Bundestag", "Bundesrat",
         "Europäische Kommission", "Europäischer Rat", "Europäisches Parlament",
+        "RKI", "IPCC", "DWD", "UBA", "BAMF", "BaFin", "IWF", "IMF",
+        "Weltbank", "UNHCR", "Frontex", "STIKO", "PEI", "BMG", "BMEL",
+        "Umweltbundesamt", "Bundesverfassungsgericht", "IEA", "WMO",
     }
     institutions: list[str] = []
     for e in entities:
@@ -105,7 +108,11 @@ def _extract_profile_fields(claim_text: str, entities: list[str]) -> dict:
     known_locations = {
         "Deutschland", "Germany", "Österreich", "Austria", "Schweiz",
         "France", "Frankreich", "Europa", "Europe", "EU",
-        "Berlin", "München", "Hamburg", "Hannover",
+        "Berlin", "München", "Hamburg", "Hannover", "Dresden", "Leipzig",
+        "Köln", "Frankfurt", "Stuttgart", "Düsseldorf", "Bremen",
+        "Griechenland", "Italien", "Spanien", "Polen", "Türkei",
+        "Mittelmeer", "Sahel", "Afrika", "Syrien", "Ukraine",
+        "China", "USA", "Russland", "Nordpol", "Arktis",
     }
     locations: list[str] = []
     for loc in known_locations:
@@ -149,6 +156,16 @@ def _extract_profile_fields(claim_text: str, entities: list[str]) -> dict:
         r"BIP", r"Verteidigung", r"Wärmepumpen?",
         r"negative interest rates", r"vols intérieurs",
         r"Bußgeld(?:er)?", r"Wegovy", r"Ivermectin", r"COVID-19",
+        r"Klimawandel", r"CO2-Emissionen?", r"Erderwärmung",
+        r"Treibhausgase?", r"Meeresspiegel", r"Temperaturanstieg",
+        r"Asyl(?:anträge)?", r"Flüchtlinge?", r"Migration",
+        r"Abschiebung(?:en)?", r"Familiennachzug", r"Grenzschutz",
+        r"Rendite", r"Aktien?kurs", r"Staatsverschuldung",
+        r"Handelsbilanz", r"Mindestlohn", r"Bürgergeld",
+        r"Impfstoff", r"Nebenwirkung(?:en)?", r"mRNA",
+        r"Sterblichkeit(?:srate)?", r"Übersterblichkeit",
+        r"Chemtrails?", r"Mikrochip", r"Great Reset",
+        r"Bargeldabschaffung", r"Überwachung(?:sstaat)?",
     ]
     for pat in policy_patterns:
         if re.search(pat, text, re.IGNORECASE):
@@ -163,6 +180,9 @@ def _extract_profile_fields(claim_text: str, entities: list[str]) -> dict:
         r"entschieden", r"verbucht", r"angekündigt", r"abzubauen",
         r"vorschreibt", r"gilt", r"verboten", r"interdit",
         r"gesunken", r"erhöht", r"eingeführt", r"abgeschafft",
+        r"geschmolzen", r"überflutet", r"verdoppelt", r"halbiert",
+        r"bewiesen", r"widerlegt", r"gewarnt", r"empfohlen",
+        r"abgelehnt", r"genehmigt", r"aufgedeckt", r"vertuscht",
     ]
     for pat in action_patterns:
         if re.search(pat, text, re.IGNORECASE):
@@ -194,6 +214,11 @@ def build_processed_claim(case: EvalCase) -> "ProcessedClaim":
         EvalCategory.NOISY_OR_UNDERSPECIFIED: ClaimType.CONTEXTUAL,
         EvalCategory.OFF_TOPIC_TRAPS: ClaimType.OPINION,
         EvalCategory.MULTILINGUAL: ClaimType.FACTUAL,
+        EvalCategory.HEALTH: ClaimType.FACTUAL,
+        EvalCategory.CLIMATE: ClaimType.FACTUAL,
+        EvalCategory.MIGRATION: ClaimType.STATISTICAL,
+        EvalCategory.FINANCIAL: ClaimType.STATISTICAL,
+        EvalCategory.CONSPIRACY: ClaimType.FACTUAL,
     }
 
     claim_type = type_map.get(case.category, ClaimType.FACTUAL)
