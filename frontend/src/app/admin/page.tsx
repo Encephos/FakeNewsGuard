@@ -1681,6 +1681,8 @@ export default function AdminPage() {
           setEvalFilter={setEvalFilter}
           evalSearch={evalSearch}
           setEvalSearch={setEvalSearch}
+          evalArchive={evalArchive}
+          setEvalArchive={setEvalArchive}
         />
       )}
     </div>
@@ -1740,6 +1742,7 @@ function EvaluationTab({
   evalView, setEvalView,
   evalFilter, setEvalFilter,
   evalSearch, setEvalSearch,
+  evalArchive, setEvalArchive,
 }: {
   token: string | null;
   headers: () => Record<string, string>;
@@ -1781,6 +1784,16 @@ function EvaluationTab({
         debug_notes: string[];
         backends_used: string[];
       };
+      analysis_result?: {
+        overall_rating?: string;
+        confidence?: number;
+        summary?: string;
+        claims_count?: number;
+        techniques_count?: number;
+        error?: string;
+      };
+      archived?: boolean;
+      archive_id?: string;
     }>;
   } | null;
   setEvalResults: (v: typeof evalResults) => void;
@@ -1798,6 +1811,8 @@ function EvaluationTab({
   setEvalFilter: (v: "all" | "passed" | "failed") => void;
   evalSearch: string;
   setEvalSearch: (v: string) => void;
+  evalArchive: boolean;
+  setEvalArchive: (v: boolean) => void;
 }) {
   // Load history on mount
   useEffect(() => {
