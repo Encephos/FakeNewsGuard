@@ -18,7 +18,7 @@ PLAN.md
 *.db-wal
 
 # Evaluation snapshots (live-generated; seed snapshots are committed)
-eval/snapshots/live/
+eval/snapshots/
 eval/data/baselines/
 
 # Node / Frontend
