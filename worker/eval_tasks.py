@@ -201,7 +201,12 @@ def run_evaluation(
         from eval.runner_live import LiveRunner
         from orchestrator import Orchestrator
 
+        from config.commander import CommanderConfig
+        # Eval runs on PRO tier without Commander to keep costs low and
+        # avoid the iterative search-refinement loop (retrieval is already
+        # handled by LiveRunner in step 1).
         config = AppConfig()
+        config.commander = CommanderConfig(enabled=False)
         all_cases = load_cases()
         cases = filter_cases(all_cases, ids=case_ids)
 
