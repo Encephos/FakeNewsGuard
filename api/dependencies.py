@@ -353,3 +353,4 @@ class CreateRegistrationCodeRequest(BaseModel):
 class StartEvaluationRequest(BaseModel):
     sample_size: int = 10
     backends: str = "searxng"
+    archive_results: bool = False

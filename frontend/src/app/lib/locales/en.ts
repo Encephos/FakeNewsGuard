@@ -331,6 +331,13 @@ const en = {
       filterPassed: "Passed",
       filterFailed: "Failed",
       search: "Search…",
+      archiveResults: "Archive results (Archive, Analytics, Network)",
+      archiveConfirm: "Full analysis pipeline will run for {count} cases. Results will be written to Archive, Analytics, and Network. This may take a while. Continue?",
+      overallRating: "Overall Rating",
+      confidence: "Confidence",
+      analysisSummary: "Analysis Summary",
+      archived: "Archived",
+      analysisError: "Analysis failed",
     },
   },
 
