@@ -32,7 +32,7 @@ async def start_evaluation(req: StartEvaluationRequest, request: Request) -> dic
     sampled = random.sample(de_cases, sample_size)
     case_ids = [c.id for c in sampled]
 
-    eval_id = create_eval_run(case_ids, req.backends)
+    eval_id = create_eval_run(case_ids, req.backends, req.archive_results)
 
     return {
         "eval_id": eval_id,

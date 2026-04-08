@@ -323,6 +323,13 @@ const de = {
       filterPassed: "Bestanden",
       filterFailed: "Fehlgeschlagen",
       search: "Suchen…",
+      archiveResults: "Ergebnisse archivieren (Archiv, Analytics, Netzwerk)",
+      archiveConfirm: "Die volle Analyse-Pipeline wird für {count} Fälle durchgeführt. Ergebnisse werden in Archiv, Analytics und Netzwerk geschrieben. Das kann eine Weile dauern. Fortfahren?",
+      overallRating: "Gesamtbewertung",
+      confidence: "Konfidenz",
+      analysisSummary: "Analyse-Zusammenfassung",
+      archived: "Archiviert",
+      analysisError: "Analyse fehlgeschlagen",
     },
   },
 

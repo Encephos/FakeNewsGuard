@@ -43,6 +43,7 @@ def _results_key(eval_id: str) -> str:
 def create_eval_run(
     case_ids: list[str],
     backends: str = "searxng",
+    archive_results: bool = False,
 ) -> str:
     """Create eval run metadata in Redis and dispatch the Celery task."""
     eval_id = uuid.uuid4().hex[:12]
@@ -55,11 +56,12 @@ def create_eval_run(
         "started_at": str(time.time()),
         "backends": backends,
         "case_ids": json.dumps(case_ids),
+        "archive_results": "1" if archive_results else "0",
         "error": "",
     })
     r.expire(_hash_key(eval_id), _TTL_SECONDS)
 
-    run_evaluation.delay(eval_id, case_ids, backends)
+    run_evaluation.delay(eval_id, case_ids, backends, archive_results)
     return eval_id
 
 
@@ -169,11 +171,23 @@ def _build_snapshot_summary(snapshot_dict: dict) -> dict[str, Any]:
 @celery_app.task(
     bind=True,
     name="fakenewsguard.run_evaluation",
-    time_limit=7200,
-    soft_time_limit=7000,
+    time_limit=14400,
+    soft_time_limit=14000,
 )
-def run_evaluation(self, eval_id: str, case_ids: list[str], backends: str = "searxng") -> None:
-    """Run retrieval evaluation for the given cases."""
+def run_evaluation(
+    self,
+    eval_id: str,
+    case_ids: list[str],
+    backends: str = "searxng",
+    archive_results: bool = False,
+) -> None:
+    """Run retrieval evaluation + full analysis for the given cases.
+
+    Each case goes through:
+    1. Retrieval evaluation (LiveRunner) → CaseResult + metrics
+    2. Full analysis pipeline (Orchestrator) → SynthesisResult
+    3. Optional archiving (Archive + CrossReferenceGraph)
+    """
     r = _get_redis()
     hk = _hash_key(eval_id)
     rk = _results_key(eval_id)
@@ -185,22 +199,35 @@ def run_evaluation(self, eval_id: str, case_ids: list[str], backends: str = "sea
         from eval.dataset import load_cases, filter_cases
         from eval.metrics import aggregate_by_category, aggregate_global
         from eval.runner_live import LiveRunner
+        from orchestrator import Orchestrator
 
         config = AppConfig()
         all_cases = load_cases()
         cases = filter_cases(all_cases, ids=case_ids)
 
         runner = LiveRunner(config=config)
+        orchestrator = Orchestrator(config)
         backend_tuple = tuple(backends.split(","))
 
+        # Lazy-load archive/graph only if needed
+        archive = None
+        graph = None
+        if archive_results:
+            from api.dependencies import get_archive, get_graph
+            archive = get_archive()
+            graph = get_graph()
+
         results = []
+        archived_count = 0
+
         for case in cases:
+            # --- Step 1: Retrieval evaluation ---
             try:
                 case_result = asyncio.run(
                     runner._evaluate_case(case, backend_tuple, save=False)
                 )
             except Exception as exc:
-                logger.error("Case %s failed: %s", case.id, exc)
+                logger.error("Case %s retrieval failed: %s", case.id, exc)
                 from eval.models import CaseMetrics, CaseResult, Violation
                 case_result = CaseResult(
                     case_id=case.id,
@@ -217,17 +244,64 @@ def run_evaluation(self, eval_id: str, case_ids: list[str], backends: str = "sea
 
             results.append(case_result)
 
-            # Build snapshot summary from saved snapshot if available
+            # Build snapshot summary
             snapshot_summary = {}
             try:
                 from eval.snapshot import load_snapshot
-                snap_dir = runner.snapshots_dir
-                snap = load_snapshot(case.id, snap_dir)
+                snap = load_snapshot(case.id, runner.snapshots_dir)
                 snapshot_summary = _build_snapshot_summary(snap.model_dump())
-            except FileNotFoundError:
+            except (FileNotFoundError, Exception):
                 pass
-            except Exception:
-                pass
+
+            # --- Step 2: Full analysis via Orchestrator ---
+            analysis_summary = {}
+            archive_id = None
+            try:
+                synthesis_result = orchestrator.analyze(case.claim_text)
+
+                # Build claims_map from extraction (run it to get claim texts/types)
+                extraction = orchestrator.claim_extractor.run(case.claim_text)
+                claims_map = {
+                    c.id: {"text": c.text, "type": c.type.value}
+                    for c in extraction.claims
+                }
+
+                from api.dependencies import transform_result
+                transformed = transform_result(synthesis_result, claims_map)
+
+                analysis_summary = {
+                    "overall_rating": transformed.get("overall_rating_key", ""),
+                    "confidence": transformed.get("confidence"),
+                    "summary": transformed.get("summary", ""),
+                    "claims_count": len(transformed.get("claims", [])),
+                    "techniques_count": len(transformed.get("rhetoric", [])),
+                }
+
+                # --- Step 3: Optional archiving ---
+                if archive_results and archive is not None:
+                    try:
+                        archive_id = archive.save(
+                            result=transformed,
+                            input_text=case.claim_text,
+                            platform="eval",
+                            title=f"Eval: {case.id}",
+                        )
+                        archived_count += 1
+
+                        if graph is not None:
+                            graph.populate_from_result(
+                                analysis_id=archive_id,
+                                claims_analysis=transformed.get("claims", []),
+                                original_text=case.claim_text,
+                            )
+                    except Exception as exc:
+                        logger.warning(
+                            "Case %s archive failed: %s", case.id, exc,
+                        )
+
+            except Exception as exc:
+                logger.error("Case %s analysis failed: %s", case.id, exc)
+                analysis_summary = {"error": str(exc)[:300]}
 
             # Store per-case result
             case_data = {
@@ -239,6 +313,9 @@ def run_evaluation(self, eval_id: str, case_ids: list[str], backends: str = "sea
                 "metrics": case_result.metrics.model_dump(),
                 "violations": [v.model_dump() for v in case_result.violations],
                 "snapshot_summary": snapshot_summary,
+                "analysis_result": analysis_summary,
+                "archived": archive_id is not None,
+                "archive_id": archive_id,
             }
             r.rpush(rk, json.dumps(case_data, ensure_ascii=False))
             r.hincrby(hk, "completed", 1)
@@ -257,17 +334,17 @@ def run_evaluation(self, eval_id: str, case_ids: list[str], backends: str = "sea
             "per_category": json.dumps(per_category),
             "elapsed_total": str(elapsed),
             "passed_count": str(passed),
+            "archived_count": str(archived_count),
         })
         r.expire(hk, _TTL_SECONDS)
 
         # Add to history
         r.zadd(_HISTORY_KEY, {eval_id: time.time()})
-        # Trim history to 50 entries
         r.zremrangebyrank(_HISTORY_KEY, 0, -51)
 
         logger.info(
-            "Evaluation %s complete: %d/%d passed in %.1fs",
-            eval_id, passed, len(results), elapsed,
+            "Evaluation %s complete: %d/%d passed, %d archived in %.1fs",
+            eval_id, passed, len(results), archived_count, elapsed,
         )
 
     except SoftTimeLimitExceeded:

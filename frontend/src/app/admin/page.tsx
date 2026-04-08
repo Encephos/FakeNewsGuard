@@ -581,6 +581,7 @@ export default function AdminPage() {
   const [evalView, setEvalView] = useState<"overview" | "cases">("overview");
   const [evalFilter, setEvalFilter] = useState<"all" | "passed" | "failed">("all");
   const [evalSearch, setEvalSearch] = useState("");
+  const [evalArchive, setEvalArchive] = useState(false);
 
   const headers = useCallback(
     () => ({
@@ -1835,11 +1836,15 @@ function EvaluationTab({
 
   const handleStart = async () => {
     if (!token) return;
+    if (evalArchive) {
+      const msg = t("admin.evaluation.archiveConfirm").replace("{count}", String(evalSampleSize));
+      if (!confirm(msg)) return;
+    }
     try {
       const res = await fetch("/api/v1/admin/evaluation/start", {
         method: "POST",
         headers: headers(),
-        body: JSON.stringify({ sample_size: evalSampleSize }),
+        body: JSON.stringify({ sample_size: evalSampleSize, archive_results: evalArchive }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -1918,6 +1923,13 @@ function EvaluationTab({
               {t("admin.evaluation.start")}
             </button>
           </div>
+          <label className="flex items-center gap-2.5 mt-4 text-xs text-text-secondary cursor-pointer select-none group">
+            <span className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${evalArchive ? "bg-accent" : "bg-border/50"}`}>
+              <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform ${evalArchive ? "translate-x-[18px]" : "translate-x-[3px]"}`} />
+              <input type="checkbox" checked={evalArchive} onChange={(e) => setEvalArchive(e.target.checked)} className="sr-only" />
+            </span>
+            <span className="group-hover:text-text-primary transition-colors">{t("admin.evaluation.archiveResults")}</span>
+          </label>
         </div>
 
         {/* History */}
@@ -2200,6 +2212,34 @@ function EvaluationTab({
                               </div>
                             ))}
                           </div>
+                        </div>
+                      )}
+
+                      {/* Analysis result */}
+                      {c.analysis_result && !c.analysis_result.error && (
+                        <div>
+                          <div className="text-[10px] font-medium uppercase tracking-wider text-text-tertiary mb-1.5">{t("admin.evaluation.analysisSummary")}</div>
+                          <div className="glass-inner rounded-lg p-3 space-y-2">
+                            <div className="flex items-center gap-3">
+                              <span className="text-xs font-semibold text-text-primary">{t("admin.evaluation.overallRating")}: {c.analysis_result.overall_rating}</span>
+                              <span className="text-[10px] text-text-secondary">{t("admin.evaluation.confidence")}: {c.analysis_result.confidence != null ? `${c.analysis_result.confidence}%` : "–"}</span>
+                              {c.archived && (
+                                <span className="inline-flex px-2 py-0.5 rounded-full bg-success/15 text-success text-[9px] font-medium">{t("admin.evaluation.archived")}</span>
+                              )}
+                            </div>
+                            {c.analysis_result.summary && (
+                              <p className="text-[11px] text-text-secondary leading-relaxed">{c.analysis_result.summary}</p>
+                            )}
+                            <div className="flex gap-4 text-[10px] text-text-tertiary">
+                              <span>Claims: {c.analysis_result.claims_count ?? 0}</span>
+                              <span>Rhetoric: {c.analysis_result.techniques_count ?? 0}</span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      {c.analysis_result?.error && (
+                        <div className="text-[10px] px-2.5 py-1.5 rounded-lg glass-inner text-error">
+                          {t("admin.evaluation.analysisError")}: {c.analysis_result.error}
                         </div>
                       )}
 
