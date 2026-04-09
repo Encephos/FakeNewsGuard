@@ -391,7 +391,7 @@ class LLMClient:
                 LLM_REQUEST_COUNT.labels(model=self.config.model, agent=agent_name).inc()
                 LLM_DURATION.labels(model=self.config.model, agent=agent_name).observe(duration)
 
-        return self.complete_json(system_prompt, user_message)
+        return self.complete_json(system_prompt, user_message, agent_name=agent_name)
 
     def _complete_structured_anthropic(
         self,
