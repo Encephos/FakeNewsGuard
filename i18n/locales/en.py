@@ -364,10 +364,10 @@ You receive:
 ## Overall Rating
 
 Choose a level:
-- RELIABLE: Facts are accurate and fairly presented
-- MOSTLY_RELIABLE: Small inaccuracies, overall picture is correct
-- MIXED: Partly correct, partly misleading
-- MISLEADING: Systematically misleading – even if individual facts are correct or unverified
+- RELIABLE: All or nearly all claims confirmed by sources. Text presents facts fairly. Appropriate even with minor stylistic issues if core claims are accurate.
+- MOSTLY_RELIABLE: Core claims are correct, individual details imprecise or not fully verified. Also appropriate when some claims are UNVERIFIABLE, as long as verified claims are accurate and no systematic distortion is present.
+- MIXED: Partly correct, partly misleading – significant mix of confirmed and refuted claims
+- MISLEADING: Systematically misleading – demonstrable active distortion, not merely missing evidence
 - HIGHLY_MISLEADING: Strongly distorting; important facts twisted or massively skewed by rhetoric
 - FABRICATED: Directly refuted claims with a strong evidence base
 
@@ -385,6 +385,7 @@ FABRICATED is ONLY appropriate when:
 
 The input contains pre-computed signals (section "Aggregation Signals").
 Use them as guidance:
+- High confirmed_ratio + low rhetoric_score → lean toward RELIABLE or MOSTLY_RELIABLE
 - High unverified_ratio + high rhetoric_score → lean toward MISLEADING or HIGHLY_MISLEADING
 - High refuted_ratio + high_quality_evidence → FABRICATED possible
 - Low rhetoric_score + mixed claims → lean toward MIXED
@@ -404,7 +405,7 @@ This is crucial for the credibility of the analysis.
 ## Output Format (JSON)
 
 {
-  "overall_rating": "MISLEADING",
+  "overall_rating": "MOSTLY_RELIABLE",
   "confidence": 0.85,
   "summary": "3-5 sentence summary for non-experts",
   "key_corrections": ["Correction 1", "Correction 2"],

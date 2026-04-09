@@ -559,3 +559,94 @@ class TestConsensusContradictionOverride:
         # TRUE bei MIXED bleibt TRUE (kein Override)
         rating, reasons = _calibrate_rating(FactRating.TRUE, pack)
         assert rating == FactRating.TRUE
+
+
+# ── Positive Promotion ───────────────────────────────────────────────────────
+
+
+class TestPositivePromotion:
+    """Tests for the new positive promotion rules that correct negative bias."""
+
+    def test_misleading_agreeing_direct_evidence_promoted_to_mostly_true(self):
+        """MISLEADING + AGREEING consensus + direct evidence → MOSTLY_TRUE."""
+        pack = _make_pack(
+            consensus=SourceConsensus.AGREEING,
+            has_direct_refutation=False,
+            has_fc_direct=False,
+            direct_count=2,
+        )
+        rating, reasons = _calibrate_rating(FactRating.MISLEADING, pack)
+        assert rating == FactRating.MOSTLY_TRUE
+        assert any("MOSTLY_TRUE" in r for r in reasons)
+
+    def test_misleading_agreeing_no_direct_evidence_stays_misleading(self):
+        """MISLEADING + AGREEING but no direct evidence → stays MISLEADING."""
+        pack = _make_pack(
+            consensus=SourceConsensus.AGREEING,
+            has_direct_refutation=False,
+            has_fc_direct=False,
+            direct_count=0,
+        )
+        rating, reasons = _calibrate_rating(FactRating.MISLEADING, pack)
+        assert rating == FactRating.MISLEADING
+
+    def test_misleading_agreeing_with_refutation_stays_misleading(self):
+        """MISLEADING + AGREEING but has refutation → stays MISLEADING."""
+        pack = _make_pack(
+            consensus=SourceConsensus.AGREEING,
+            has_direct_refutation=True,
+            has_fc_direct=False,
+            direct_count=2,
+        )
+        rating, reasons = _calibrate_rating(FactRating.MISLEADING, pack)
+        # With direct refutation present, promotion should not fire
+        assert rating == FactRating.MISLEADING
+
+    def test_misleading_mixed_consensus_not_promoted(self):
+        """MISLEADING + MIXED consensus → stays MISLEADING (not promoted)."""
+        pack = _make_pack(
+            consensus=SourceConsensus.MIXED,
+            has_direct_refutation=False,
+            has_fc_direct=False,
+            direct_count=2,
+        )
+        rating, reasons = _calibrate_rating(FactRating.MISLEADING, pack)
+        assert rating == FactRating.MISLEADING
+
+    def test_consensus_contradiction_with_direct_evidence_corrects_to_mostly_true(self):
+        """AGREEING + FALSE + direct evidence → MOSTLY_TRUE (not MISLEADING)."""
+        pack = _make_pack(
+            consensus=SourceConsensus.AGREEING,
+            has_direct_refutation=False,
+            has_fc_direct=False,
+            direct_count=2,
+        )
+        rating, reasons = _calibrate_rating(FactRating.FALSE, pack)
+        assert rating == FactRating.MOSTLY_TRUE
+        assert any("MOSTLY_TRUE" in r for r in reasons)
+
+    def test_consensus_contradiction_without_direct_evidence_corrects_to_misleading(self):
+        """AGREEING + FALSE + no direct evidence → MISLEADING (fallback)."""
+        pack = _make_pack(
+            consensus=SourceConsensus.AGREEING,
+            has_direct_refutation=False,
+            has_fc_direct=False,
+            direct_count=0,
+        )
+        rating, reasons = _calibrate_rating(FactRating.FALSE, pack)
+        assert rating == FactRating.MISLEADING
+
+    def test_negated_claim_not_promoted(self):
+        """Negated claim ("ist kein") should not be promoted even with AGREEING."""
+        pack = _make_pack(
+            consensus=SourceConsensus.AGREEING,
+            has_direct_refutation=False,
+            has_fc_direct=False,
+            direct_count=2,
+        )
+        rating, reasons = _calibrate_rating(
+            FactRating.MISLEADING, pack,
+            claim_text="Das ist kein gültiger Beschluss",
+        )
+        # Negated claims should NOT be promoted
+        assert rating == FactRating.MISLEADING
