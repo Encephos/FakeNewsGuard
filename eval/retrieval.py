@@ -8,11 +8,23 @@ without instantiating the full EvidenceBuilderAgent.
 from __future__ import annotations
 
 import logging
+import re
 from datetime import datetime, timezone
 from typing import Any, Optional
 from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
+
+
+def _extract_claim_year(claim_text: str) -> str | None:
+    """Extract the explicit year referenced in a claim.
+
+    Returns the year string (e.g. "2025") if the claim references a
+    specific year, or None if no year is found.  When multiple years
+    appear, the latest one is returned (most likely the primary datum).
+    """
+    matches = re.findall(r"\b(20[12]\d)\b", claim_text)
+    return max(matches) if matches else None
 
 
 # ---------------------------------------------------------------------------
@@ -71,15 +83,24 @@ def build_production_queries(
         if force_current_state is not None
         else _is_current_state_claim(claim.text)
     )
+    # Determine which year to inject: use the claim's own year if it
+    # explicitly references a past date (e.g. "im Februar 2025"); fall
+    # back to the current year for truly current-state claims.
+    current_year = str(datetime.now(timezone.utc).year)
+    claim_year = _extract_claim_year(claim.text)
+    _references_past_year = claim_year is not None and claim_year != current_year
+
     if is_current_state:
-        current_year = str(datetime.now(timezone.utc).year)
+        target_year = claim_year or current_year
         categories = "general,news"
         queries = [
-            f"{q} {current_year}" if current_year not in q else q
+            f"{q} {target_year}" if target_year not in q else q
             for q in queries
         ]
-        if queries and "aktuell" not in queries[0].lower():
-            queries[0] = f"{queries[0]} aktuell"
+        # Only append "aktuell" if the claim is about the current year
+        if not _references_past_year:
+            if queries and "aktuell" not in queries[0].lower():
+                queries[0] = f"{queries[0]} aktuell"
 
     # --- Phase 4: Deduplication --------------------------------------------
     queries = _dedup_queries(queries)
@@ -98,7 +119,10 @@ def build_production_queries(
             sq.engines = news_engines
         elif is_current_state:
             sq.engines = news_engines
-            sq.time_range = "month"
+            # Only restrict time_range for truly current claims; claims
+            # about past years (e.g. "Februar 2025") need broader results.
+            if not _references_past_year:
+                sq.time_range = "month"
         else:
             sq.engines = web_engines
         searxng_queries.append(sq)

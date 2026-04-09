@@ -46,6 +46,33 @@ def _is_low_trust(url: str, title: str = "", snippet: str = "") -> bool:
 # ── Per-case metric functions ────────────────────────────────────────────────
 
 
+def _item_domain_tier(item: dict[str, Any]) -> int:
+    """Extract domain_tier from evidence item, supporting both nested and flat formats."""
+    tier = item.get("source", {}).get("domain_tier")
+    if tier is not None:
+        return tier
+    # Flat fallback: item.tier or item.domain_tier
+    tier = item.get("domain_tier")
+    if tier is not None:
+        return tier
+    tier = item.get("tier")
+    if tier is not None:
+        return tier
+    # Re-derive from URL as last resort
+    url = item.get("source", {}).get("url") or item.get("url", "")
+    if url:
+        return _get_domain_tier(url)
+    return 5
+
+
+def _item_publication_date(item: dict[str, Any]) -> str:
+    """Extract publication_date from evidence item, supporting both nested and flat formats."""
+    date = item.get("source", {}).get("publication_date")
+    if date:
+        return date
+    return item.get("publication_date", "")
+
+
 def _official_source_recall_at_k(
     evidence_items: list[dict[str, Any]],
     expected_min: int,
@@ -57,7 +84,7 @@ def _official_source_recall_at_k(
         return 0.0
     official = sum(
         1 for item in top_k
-        if item.get("source", {}).get("domain_tier", 5) <= 2
+        if _item_domain_tier(item) <= 2
     )
     if expected_min <= 0:
         return 1.0 if official > 0 else 0.0
@@ -81,6 +108,11 @@ def _preferred_domain_hit_rate(
     return len(found_domains) / len(preferred_domains)
 
 
+def _item_url(item: dict[str, Any]) -> str:
+    """Extract URL from evidence item, supporting both nested and flat formats."""
+    return item.get("source", {}).get("url") or item.get("url", "")
+
+
 def _low_trust_rate(evidence_items: list[dict[str, Any]], k: int = 10) -> float:
     """Fraction of low-trust sources in top-K evidence items."""
     top_k = evidence_items[:k]
@@ -89,8 +121,8 @@ def _low_trust_rate(evidence_items: list[dict[str, Any]], k: int = 10) -> float:
     low = sum(
         1 for item in top_k
         if _is_low_trust(
-            item.get("source", {}).get("url", ""),
-            item.get("source", {}).get("title", ""),
+            _item_url(item),
+            item.get("source", {}).get("title") or item.get("title", ""),
             item.get("excerpt", ""),
         )
     )
@@ -114,7 +146,12 @@ def _freshness_hit_rate(
     requires_recency: bool,
     k: int = 10,
 ) -> float:
-    """For current_state claims: fraction of top-K with freshness > 0.5."""
+    """For current_state claims: fraction of top-K with freshness >= 0.5.
+
+    The threshold is >= 0.5 (not strict >), because the freshness tiers
+    assign 0.5 to items up to 365 days old — those are still relevant for
+    claims about data from the preceding year.
+    """
     if not requires_recency:
         return 1.0  # not applicable
     top_k = evidence_items[:k]
@@ -123,7 +160,7 @@ def _freshness_hit_rate(
     from agents.evidence_scoring import _compute_freshness
     fresh = sum(
         1 for item in top_k
-        if _compute_freshness(item.get("source", {}).get("publication_date", "")) > 0.5
+        if _compute_freshness(_item_publication_date(item)) >= 0.5
     )
     return fresh / len(top_k)
 

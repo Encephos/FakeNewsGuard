@@ -420,20 +420,29 @@ class EvidenceBuilderAgent(BaseAgent):
         is_current_state = _is_current_state_claim(claim.text)
         if is_current_state:
             _current_year = str(datetime.now(timezone.utc).year)
+            # Use the claim's own year if it explicitly references a past date,
+            # so queries target the correct time period.
+            import re as _re_year
+            _claim_years = _re_year.findall(r"\b(20[12]\d)\b", claim.text)
+            _claim_year = max(_claim_years) if _claim_years else None
+            _target_year = _claim_year or _current_year
+            _references_past = _claim_year is not None and _claim_year != _current_year
+
             news_cats = ",".join(retrieval_cfg.searxng_news_categories)
             if categories != news_cats:
                 categories = news_cats
-            # Alle Queries mit aktuellem Jahr anreichern (nicht nur erste 2)
+            # Alle Queries mit Ziel-Jahr anreichern
             queries = [
-                f"{q} {_current_year}" if _current_year not in q else q
+                f"{q} {_target_year}" if _target_year not in q else q
                 for q in queries
             ]
-            # Ersten Query zusätzlich mit "aktuell" versehen (stärkstes Recency-Signal)
-            if queries and "aktuell" not in queries[0].lower() and "current" not in queries[0].lower():
-                queries[0] = f"{queries[0]} aktuell"
+            # "aktuell" nur für wirklich aktuelle Claims (nicht für vergangene Datenpunkte)
+            if not _references_past:
+                if queries and "aktuell" not in queries[0].lower() and "current" not in queries[0].lower():
+                    queries[0] = f"{queries[0]} aktuell"
             notes.append(
                 f"Recency-Override: News-Kategorien ({categories}), "
-                f"Jahr {_current_year} + 'aktuell' ergänzt für Aktuell-Zustand-Claim"
+                f"Jahr {_target_year}{' (Claim-Jahr)' if _references_past else ''} ergänzt"
             )
 
         # Query-Deduplizierung: entferne normalisierte Duplikate
@@ -462,7 +471,9 @@ class EvidenceBuilderAgent(BaseAgent):
                 sq.engines = searxng_engines().get("news", ["duckduckgo", "brave", "tagesschau"])
             elif is_current_state:
                 sq.engines = searxng_engines().get("news", ["duckduckgo", "brave", "tagesschau"])
-                sq.time_range = retrieval_cfg.current_state_time_range
+                # Don't restrict time_range for claims about past years
+                if not _references_past:
+                    sq.time_range = retrieval_cfg.current_state_time_range
             else:
                 sq.engines = searxng_engines().get("web", ["duckduckgo", "brave", "qwant"])
             searxng_queries.append(sq)
