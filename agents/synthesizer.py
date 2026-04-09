@@ -41,6 +41,7 @@ class AggregationSignals:
     """Abgeleitete Signale für die regelbasierte Rating-Kalibrierung."""
 
     n_claims: int = 0
+    confirmed_ratio: float = 0.0      # Anteil TRUE + MOSTLY_TRUE
     refuted_ratio: float = 0.0        # Anteil FALSE + MOSTLY_FALSE
     unverified_ratio: float = 0.0     # Anteil UNVERIFIABLE
     avg_claim_confidence: float = 0.0
@@ -247,6 +248,11 @@ class SynthesizerAgent(BaseAgent):
         signals.n_claims = len(fact_checks)
 
         if fact_checks:
+            confirmed = sum(
+                1 for fc in fact_checks
+                if fc.rating in (FactRating.TRUE, FactRating.MOSTLY_TRUE)
+                and not fc.is_satire
+            )
             refuted = sum(
                 1 for fc in fact_checks
                 if fc.rating in (FactRating.FALSE, FactRating.MOSTLY_FALSE)
@@ -257,6 +263,7 @@ class SynthesizerAgent(BaseAgent):
                 if fc.rating == FactRating.UNVERIFIABLE
                 and not fc.is_satire
             )
+            signals.confirmed_ratio = confirmed / signals.n_claims
             signals.refuted_ratio = refuted / signals.n_claims
             signals.unverified_ratio = unverified / signals.n_claims
 
@@ -337,6 +344,22 @@ class SynthesizerAgent(BaseAgent):
                 if _RATING_ORDER[rating] < _RATING_ORDER[min_allowed]:
                     rating = min_allowed
 
+        # ── Regel 0c: Mehrheit bestätigt + niedrige Rhetorik ─────────
+        # Wenn die Mehrheit der Claims TRUE/MOSTLY_TRUE ist, der
+        # Rhetorik-Score niedrig und kaum Claims widerlegt sind,
+        # soll das Rating mindestens MOSTLY_RELIABLE sein.
+        # Dies verhindert, dass einzelne UNVERIFIABLE-Claims das Rating
+        # unverhältnismäßig nach unten ziehen.
+        if (
+            signals.confirmed_ratio >= cfg.positive_guardrail_min_confirmed
+            and signals.rhetoric_score < cfg.positive_guardrail_max_rhetoric
+            and signals.refuted_ratio < cfg.positive_guardrail_max_refuted
+            and signals.n_claims > 1
+        ):
+            max_allowed = OverallRating.MOSTLY_RELIABLE
+            if _RATING_ORDER[rating] > _RATING_ORDER[max_allowed]:
+                rating = max_allowed
+
         # ── Regel 1: FABRICATED nur bei ausreichend starker Evidenzbasis
         # → braucht: ≥ fabricated_min_refuted_ratio direkt widerlegte Claims UND Primärquellen
         if rating == OverallRating.FABRICATED:
@@ -413,6 +436,7 @@ class SynthesizerAgent(BaseAgent):
         lines = [
             "## Aggregationssignale\n",
             f"- Claims geprüft: {signals.n_claims}",
+            f"- Bestätigte Claims (TRUE/MOSTLY_TRUE): {signals.confirmed_ratio:.0%}",
             f"- Direkt widerlegte Claims (FALSE/MOSTLY_FALSE): {signals.refuted_ratio:.0%}",
             f"- Unbelegte Claims (UNVERIFIABLE): {signals.unverified_ratio:.0%}",
             f"- Ø Claim-Konfidenz: {signals.avg_claim_confidence:.0%}" if signals.avg_claim_confidence > 0 else "- Ø Claim-Konfidenz: nicht verfügbar",
