@@ -50,6 +50,8 @@ class AggregationSignals:
     n_high_rhetoric: int = 0             # Anzahl HIGH-Severity-Techniken
     narrative_detected: bool = False      # Desinformations-Narrativ erkannt
     n_narratives: int = 0                 # Anzahl erkannter Narrative
+    avg_consensus_score: float = 0.0      # Mittelwert des numerischen Konsens-Scores
+    max_disagreement: float = 0.0         # Maximaler Dissens unter allen Claims
 
 
 class SynthesizerAgent(BaseAgent):
@@ -276,6 +278,21 @@ class SynthesizerAgent(BaseAgent):
                 for fc in fact_checks
             )
 
+            # Numerische Konsens-Metriken aus EvidencePacks aggregieren
+            consensus_scores = []
+            disagreements = []
+            for fc in fact_checks:
+                ep = fc.evidence_pack
+                if ep and ep.evidence_quality:
+                    eq = ep.evidence_quality
+                    if eq.consensus_n_signals >= 2:
+                        consensus_scores.append(eq.consensus_score)
+                        disagreements.append(eq.consensus_disagreement)
+            if consensus_scores:
+                signals.avg_consensus_score = sum(consensus_scores) / len(consensus_scores)
+            if disagreements:
+                signals.max_disagreement = max(disagreements)
+
         if rhetoric and rhetoric.techniques:
             weighted_sum = sum(
                 _SEVERITY_WEIGHT.get(tech.severity.value, 1.0)
@@ -452,5 +469,7 @@ class SynthesizerAgent(BaseAgent):
             f"- Rhetorik-Manipulationsscore: {signals.rhetoric_score:.2f} / 1.00 ({signals.n_high_rhetoric} HIGH-Techniken)",
             f"- Desinformations-Narrative erkannt: {signals.n_narratives}" if signals.narrative_detected else "- Desinformations-Narrative erkannt: Keine",
             f"- Primärquellen konsultiert: {'Ja' if signals.high_quality_evidence else 'Nein'}",
+            f"- Quellen-Konsens (Ø): {signals.avg_consensus_score:+.2f} (+1=stützend, -1=widerlegend)" if signals.avg_consensus_score != 0.0 else "- Quellen-Konsens: nicht verfügbar",
+            f"- Max. Quellen-Dissens: {signals.max_disagreement:.2f} / 1.00" if signals.max_disagreement > 0.0 else "",
         ]
-        return "\n".join(lines) + "\n"
+        return "\n".join(line for line in lines if line) + "\n"

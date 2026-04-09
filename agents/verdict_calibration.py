@@ -770,6 +770,28 @@ def _calibrate_confidence(
         reasons.append(f"Quellen widersprechen sich → -{penalty}")
         confidence -= penalty
 
+    # Consensus-Strength-Modifikatoren (numerischer Konsens-Score)
+    if quality and quality.consensus_n_signals >= 3:
+        # Starker Konsens (>= 3 Quellen in gleicher Richtung, wenig Dissens)
+        # verstärkt die Confidence; hoher Dissens deckelt sie.
+        if quality.consensus_disagreement >= 0.60:
+            # Hoher Dissens: Quellen widersprechen sich stark
+            _ceil_dissent = 0.70
+            if confidence > _ceil_dissent:
+                reasons.append(
+                    f"Hoher Quellen-Dissens ({quality.consensus_disagreement:.2f}, "
+                    f"{quality.consensus_n_signals} Signale) → Ceiling {_ceil_dissent}"
+                )
+                confidence = min(confidence, _ceil_dissent)
+        elif quality.consensus_disagreement <= 0.15 and abs(quality.consensus_score) >= 0.70:
+            # Starker Konsens: Bonus
+            bonus = 0.05
+            reasons.append(
+                f"Starker Quellen-Konsens ({quality.consensus_score:+.2f}, "
+                f"{quality.consensus_n_signals} Signale) → +{bonus}"
+            )
+            confidence += bonus
+
     # Penalty: Claim-Qualität unter Schwellwert
     if claim_quality_score < 0.70:
         # Sanfter gradueller Abzug: 0.05 bei 0.5–0.7, 0.10 darunter

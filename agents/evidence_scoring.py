@@ -1444,6 +1444,21 @@ def _compute_quality_signals(
     weighted_refute = sum(_direction_weight(i) for i in items if i.source_direction == SourceDirection.REFUTES)
     total_signal = weighted_support + weighted_refute
 
+    # Numerischer Konsens-Score und Disagreement
+    n_direction_signals = sum(
+        1 for i in items
+        if i.source_direction in (SourceDirection.SUPPORTS, SourceDirection.REFUTES)
+        and _direction_weight(i) > 0.0
+    )
+    if total_signal > 0:
+        consensus_score = (weighted_support - weighted_refute) / total_signal  # [-1.0, 1.0]
+        # Disagreement: 0 wenn alle in eine Richtung, 1.0 bei perfektem 50/50
+        minority_share = min(weighted_support, weighted_refute) / total_signal
+        consensus_disagreement = 2.0 * minority_share if n_direction_signals >= 3 else 0.0
+    else:
+        consensus_score = 0.0
+        consensus_disagreement = 0.0
+
     if total_signal == 0:
         # Thematic agreement floor: wenn genuegend relevante Quellen vorhanden
         # sind, aber keine expliziten SUPPORTS/REFUTES-Muster erkannt wurden,
@@ -1620,6 +1635,9 @@ def _compute_quality_signals(
         has_direct_refutation=has_direct_refutation,
         direct_refutation_count=direct_refutation_count,
         direct_refutation_freshness=direct_refutation_freshness,
+        consensus_score=consensus_score,
+        consensus_disagreement=consensus_disagreement,
+        consensus_n_signals=n_direction_signals,
     )
 
 

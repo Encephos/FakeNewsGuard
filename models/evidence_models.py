@@ -324,6 +324,31 @@ class EvidenceQualitySignals(BaseModel):
         description="Durchschnittliche Freshness der REFUTES+DIRECT Quellen in Top-5.",
     )
 
+    # ── Numerischer Konsens ──────────────────────────────────────────────────
+    consensus_score: float = Field(
+        default=0.0,
+        ge=-1.0,
+        le=1.0,
+        description=(
+            "Gewichteter Konsens-Score: +1.0 = alle Quellen stuetzen den Claim, "
+            "-1.0 = alle Quellen widerlegen ihn. 0.0 = ausgeglichen oder keine Signale."
+        ),
+    )
+    consensus_disagreement: float = Field(
+        default=0.0,
+        ge=0.0,
+        le=1.0,
+        description=(
+            "Mass fuer die Uneinigkeit zwischen Quellen. 0.0 = voller Konsens "
+            "(alle in eine Richtung), 1.0 = maximaler Dissens (50/50). "
+            "Nur aussagekraeftig bei >= 3 gewichteten Signalen."
+        ),
+    )
+    consensus_n_signals: int = Field(
+        default=0,
+        description="Anzahl der Quellen mit Richtungssignal (SUPPORTS oder REFUTES, nicht Low-Trust/WEAK).",
+    )
+
 
 # ── Google Fact Check ──────────────────────────────────────────────────────────
 
