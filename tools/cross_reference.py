@@ -306,12 +306,15 @@ class CrossReferenceGraph:
             # Source-Knoten + Kanten
             sources = claim.get("sources", [])
             for url in sources:
+                source_id = f"src:{url}"
                 domain = _extract_domain(url)
-                source_id = f"src:{domain}"
+                label = url.replace("https://", "").replace("http://", "").replace("www.", "")
+                if len(label) > 60:
+                    label = label[:57] + "..."
 
                 self.add_node(GraphNode(
-                    id=source_id, type="SOURCE", label=domain,
-                    properties={"sample_url": url},
+                    id=source_id, type="SOURCE", label=label,
+                    properties={"url": url, "domain": domain},
                 ))
 
                 relation = "supported_by" if claim_rating in ("TRUE", "MOSTLY_TRUE") else "referenced_by"
