@@ -150,28 +150,36 @@ class SynthesizerConfig:
 
     Env-Vars:
         SYNTH_FABRICATED_MIN_REFUTED_RATIO       – Min. Anteil widerlegter Claims für FABRICATED (Default: 0.5)
-        SYNTH_RHETORIC_FLOOR_MISLEADING          – Rhetorik-Score-Schwelle für MISLEADING-Floor (Default: 0.5)
+        SYNTH_RHETORIC_FLOOR_MISLEADING          – Rhetorik-Score-Schwelle für MISLEADING-Floor (Default: 0.6)
         SYNTH_RHETORIC_FLOOR_HIGHLY              – Rhetorik-Score-Schwelle für HIGHLY_MISLEADING-Floor (Default: 0.7)
-        SYNTH_RHETORIC_NORM_BASE                 – Normalisierungsbasis für Rhetorik-Score (Default: 9.0)
-        SYNTH_MISLEADING_UNVERIFIED_MIN          – Min. unverified_ratio für MISLEADING-Guardrail (Default: 0.4)
+        SYNTH_RHETORIC_NORM_BASE                 – Normalisierungsbasis für Rhetorik-Score (Default: 12.0)
+        SYNTH_MISLEADING_UNVERIFIED_MIN          – Min. unverified_ratio für MISLEADING-Guardrail (Default: 0.5)
         SYNTH_HIGHLY_MISLEADING_UNVERIFIED_MIN   – Min. unverified_ratio für HIGHLY_MISLEADING-Guardrail (Default: 0.5)
         SYNTH_HIGHLY_MISLEADING_REFUTED_MAX      – Max. refuted_ratio für HIGHLY_MISLEADING-Guardrail (Default: 0.3)
         SYNTH_CLAIM_CONFIDENCE_BUFFER            – Puffer auf min_claim_conf bei Multi-Claim (Default: 0.10)
         SYNTH_EXTRAORDINARY_CLAIM_CONF_CEILING   – Confidence-Ceiling bei 1 Claim ohne Primärquellen (Default: 0.80)
+        SYNTH_POSITIVE_GUARDRAIL_MIN_CONFIRMED   – Min. confirmed_ratio für positive Guardrail (Default: 0.6)
+        SYNTH_POSITIVE_GUARDRAIL_MAX_RHETORIC    – Max. rhetoric_score für positive Guardrail (Default: 0.3)
+        SYNTH_POSITIVE_GUARDRAIL_MAX_REFUTED     – Max. refuted_ratio für positive Guardrail (Default: 0.1)
     """
 
     # ── FABRICATED-Guardrail ──────────────────────────────────────────────────
     fabricated_min_refuted_ratio: float = 0.5
 
     # ── Rhetorik-Floors ───────────────────────────────────────────────────────
-    rhetoric_floor_misleading: float = 0.5
+    rhetoric_floor_misleading: float = 0.6
     rhetoric_floor_highly: float = 0.7
-    rhetoric_norm_base: float = 9.0
+    rhetoric_norm_base: float = 12.0
 
     # ── Guardrail-Schwellen für unverified/refuted Ratios ─────────────────────
-    misleading_unverified_min: float = 0.4
+    misleading_unverified_min: float = 0.5
     highly_misleading_unverified_min: float = 0.5
     highly_misleading_refuted_max: float = 0.3
+
+    # ── Positive Guardrail (Regel 0c) ────────────────────────────────────────
+    positive_guardrail_min_confirmed: float = 0.6   # 60% TRUE/MOSTLY_TRUE
+    positive_guardrail_max_rhetoric: float = 0.3     # niedrige Rhetorik
+    positive_guardrail_max_refuted: float = 0.1      # kaum widerlegt
 
     # ── Confidence-Aggregation ────────────────────────────────────────────────
     claim_confidence_buffer: float = 0.25
@@ -199,6 +207,12 @@ class SynthesizerConfig:
             self.claim_confidence_blend_weight = float(v)
         if v := os.getenv("SYNTH_EXTRAORDINARY_CLAIM_CONF_CEILING", ""):
             self.extraordinary_claim_confidence_ceiling = float(v)
+        if v := os.getenv("SYNTH_POSITIVE_GUARDRAIL_MIN_CONFIRMED", ""):
+            self.positive_guardrail_min_confirmed = float(v)
+        if v := os.getenv("SYNTH_POSITIVE_GUARDRAIL_MAX_RHETORIC", ""):
+            self.positive_guardrail_max_rhetoric = float(v)
+        if v := os.getenv("SYNTH_POSITIVE_GUARDRAIL_MAX_REFUTED", ""):
+            self.positive_guardrail_max_refuted = float(v)
 
 
 @dataclass
