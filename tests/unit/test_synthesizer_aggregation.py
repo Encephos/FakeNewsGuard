@@ -134,19 +134,21 @@ class TestComputeAggregationSignals:
         assert signals.high_quality_evidence is False
 
     def test_rhetoric_score_all_high_severities(self):
-        """3 HIGH-Techniken → rhetoric_score = 1.0 (normalisiert gegen 9)."""
+        """3 HIGH-Techniken → rhetoric_score = 9/12 = 0.75 (normalisiert gegen 12)."""
         agent = _make_agent()
         rhetoric = _make_rhetoric([Severity.HIGH, Severity.HIGH, Severity.HIGH])
         signals = agent._compute_aggregation_signals([], rhetoric)
-        assert signals.rhetoric_score == pytest.approx(1.0)
+        norm_base = agent.config.synthesizer.rhetoric_norm_base
+        assert signals.rhetoric_score == pytest.approx(9.0 / norm_base, abs=0.01)
         assert signals.n_high_rhetoric == 3
 
     def test_rhetoric_score_mixed_severities(self):
-        """1 HIGH (3) + 1 MEDIUM (2) + 1 LOW (1) = 6 / 9 ≈ 0.667."""
+        """1 HIGH (3) + 1 MEDIUM (2) + 1 LOW (1) = 6 / norm_base."""
         agent = _make_agent()
         rhetoric = _make_rhetoric([Severity.HIGH, Severity.MEDIUM, Severity.LOW])
         signals = agent._compute_aggregation_signals([], rhetoric)
-        assert signals.rhetoric_score == pytest.approx(6.0 / 9.0, abs=0.01)
+        norm_base = agent.config.synthesizer.rhetoric_norm_base
+        assert signals.rhetoric_score == pytest.approx(6.0 / norm_base, abs=0.01)
         assert signals.n_high_rhetoric == 1
 
     def test_rhetoric_score_capped_at_one(self):
@@ -410,12 +412,14 @@ class TestGuardrailIntegration:
             _make_fc("C2", FactRating.UNVERIFIABLE, confidence=0.35),
             _make_fc("C3", FactRating.MISLEADING, confidence=0.50),
         ]
-        # 3 HIGH-Techniken → rhetoric_score = 1.0
+        # 3 HIGH-Techniken → rhetoric_score = 9/norm_base (>= rhetoric_floor_highly)
         rhetoric = _make_rhetoric([Severity.HIGH, Severity.HIGH, Severity.HIGH])
 
         signals = agent._compute_aggregation_signals(fact_checks, rhetoric)
         assert signals.unverified_ratio == pytest.approx(2 / 3)
-        assert signals.rhetoric_score == pytest.approx(1.0)
+        norm_base = agent.config.synthesizer.rhetoric_norm_base
+        assert signals.rhetoric_score == pytest.approx(9.0 / norm_base, abs=0.01)
+        assert signals.rhetoric_score >= agent.config.synthesizer.rhetoric_floor_highly
 
         # LLM gibt MIXED zurück → Guardrails heben auf HIGHLY_MISLEADING an
         result = agent._apply_rating_guardrails(OverallRating.MIXED, signals)
@@ -541,3 +545,147 @@ class TestSatireExclusion:
         assert signals.n_claims == 1
         assert signals.refuted_ratio == pytest.approx(0.0)
         assert signals.unverified_ratio == pytest.approx(0.0)
+
+
+# ── Tests: confirmed_ratio ────────────────────────────────────────────────────
+
+
+class TestConfirmedRatio:
+
+    def test_confirmed_ratio_computed_correctly(self):
+        """confirmed_ratio zählt TRUE + MOSTLY_TRUE (ohne Satire)."""
+        agent = _make_agent()
+        fact_checks = [
+            _make_fc("C1", FactRating.TRUE, confidence=0.85),
+            _make_fc("C2", FactRating.MOSTLY_TRUE, confidence=0.70),
+            _make_fc("C3", FactRating.UNVERIFIABLE, confidence=0.40),
+            _make_fc("C4", FactRating.FALSE, confidence=0.60),
+        ]
+        signals = agent._compute_aggregation_signals(fact_checks, None)
+        assert signals.confirmed_ratio == pytest.approx(2 / 4)
+
+    def test_confirmed_ratio_excludes_satire(self):
+        """Satire-Claims zählen nicht für confirmed_ratio."""
+        agent = _make_agent()
+        fact_checks = [
+            _make_fc("C1", FactRating.TRUE, confidence=0.85),
+            FactCheckResult(
+                claim_id="C2", rating=FactRating.TRUE,
+                evidence="", is_satire=True, confidence=0.90,
+            ),
+        ]
+        signals = agent._compute_aggregation_signals(fact_checks, None)
+        # Only C1 counts (C2 is satire), so 1/2
+        assert signals.confirmed_ratio == pytest.approx(1 / 2)
+
+    def test_confirmed_ratio_zero_when_no_positive(self):
+        """Keine TRUE/MOSTLY_TRUE → confirmed_ratio = 0.0."""
+        agent = _make_agent()
+        fact_checks = [
+            _make_fc("C1", FactRating.FALSE, confidence=0.70),
+            _make_fc("C2", FactRating.UNVERIFIABLE, confidence=0.40),
+        ]
+        signals = agent._compute_aggregation_signals(fact_checks, None)
+        assert signals.confirmed_ratio == pytest.approx(0.0)
+
+    def test_confirmed_ratio_one_when_all_positive(self):
+        """Alle TRUE/MOSTLY_TRUE → confirmed_ratio = 1.0."""
+        agent = _make_agent()
+        fact_checks = [
+            _make_fc("C1", FactRating.TRUE, confidence=0.85),
+            _make_fc("C2", FactRating.MOSTLY_TRUE, confidence=0.70),
+        ]
+        signals = agent._compute_aggregation_signals(fact_checks, None)
+        assert signals.confirmed_ratio == pytest.approx(1.0)
+
+
+# ── Tests: Rule 0c (Positive Guardrail) ──────────────────────────────────────
+
+
+class TestRule0cPositiveGuardrail:
+
+    def _signals(self, **kwargs) -> AggregationSignals:
+        defaults = dict(
+            n_claims=3,
+            confirmed_ratio=0.0,
+            refuted_ratio=0.0,
+            unverified_ratio=0.0,
+            avg_claim_confidence=0.6,
+            high_quality_evidence=False,
+            rhetoric_score=0.0,
+            n_high_rhetoric=0,
+        )
+        defaults.update(kwargs)
+        return AggregationSignals(**defaults)
+
+    def test_majority_confirmed_low_rhetoric_caps_at_mostly_reliable(self):
+        """60%+ confirmed + low rhetoric + few refuted → cap at MOSTLY_RELIABLE."""
+        agent = _make_agent()
+        signals = self._signals(
+            confirmed_ratio=0.7,
+            rhetoric_score=0.1,
+            refuted_ratio=0.0,
+            n_claims=3,
+        )
+        result = agent._apply_rating_guardrails(OverallRating.MISLEADING, signals)
+        assert result == OverallRating.MOSTLY_RELIABLE
+
+    def test_rule_0c_does_not_fire_with_high_rhetoric(self):
+        """High rhetoric_score blocks Rule 0c."""
+        agent = _make_agent()
+        signals = self._signals(
+            confirmed_ratio=0.7,
+            rhetoric_score=0.5,  # above max_rhetoric threshold
+            refuted_ratio=0.0,
+            n_claims=3,
+        )
+        result = agent._apply_rating_guardrails(OverallRating.MISLEADING, signals)
+        assert result == OverallRating.MISLEADING
+
+    def test_rule_0c_does_not_fire_with_high_refuted(self):
+        """High refuted_ratio blocks Rule 0c."""
+        agent = _make_agent()
+        signals = self._signals(
+            confirmed_ratio=0.6,
+            rhetoric_score=0.1,
+            refuted_ratio=0.2,  # above max_refuted threshold
+            n_claims=3,
+        )
+        result = agent._apply_rating_guardrails(OverallRating.MISLEADING, signals)
+        assert result == OverallRating.MISLEADING
+
+    def test_rule_0c_does_not_fire_with_single_claim(self):
+        """Single claim → Rule 0c does not fire (n_claims must be > 1)."""
+        agent = _make_agent()
+        signals = self._signals(
+            confirmed_ratio=1.0,
+            rhetoric_score=0.0,
+            refuted_ratio=0.0,
+            n_claims=1,
+        )
+        result = agent._apply_rating_guardrails(OverallRating.MISLEADING, signals)
+        assert result == OverallRating.MISLEADING
+
+    def test_rule_0c_does_not_upgrade_already_reliable(self):
+        """RELIABLE stays RELIABLE (Rule 0c doesn't upgrade beyond MOSTLY_RELIABLE)."""
+        agent = _make_agent()
+        signals = self._signals(
+            confirmed_ratio=0.8,
+            rhetoric_score=0.0,
+            refuted_ratio=0.0,
+            n_claims=3,
+        )
+        result = agent._apply_rating_guardrails(OverallRating.RELIABLE, signals)
+        assert result == OverallRating.RELIABLE
+
+    def test_rule_0c_promotes_highly_misleading_to_mostly_reliable(self):
+        """Even HIGHLY_MISLEADING gets corrected when most claims are confirmed."""
+        agent = _make_agent()
+        signals = self._signals(
+            confirmed_ratio=0.8,
+            rhetoric_score=0.1,
+            refuted_ratio=0.0,
+            n_claims=5,
+        )
+        result = agent._apply_rating_guardrails(OverallRating.HIGHLY_MISLEADING, signals)
+        assert result == OverallRating.MOSTLY_RELIABLE
