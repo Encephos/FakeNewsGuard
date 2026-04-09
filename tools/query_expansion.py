@@ -66,6 +66,7 @@ def _trim_query(terms: list[str], max_terms: int = MAX_QUERY_TERMS) -> str:
     """Kombiniert Terms zu einer Query, max max_terms Wörter gesamt.
 
     Priorisiert spezifischere (längere) Terme.
+    Entfernt Terme, deren Wörter vollständig in einem anderen Term enthalten sind.
     """
     # Normalisieren: leere Terme und Duplikate entfernen
     clean: list[str] = []
@@ -78,6 +79,22 @@ def _trim_query(terms: list[str], max_terms: int = MAX_QUERY_TERMS) -> str:
         if t_lower not in seen:
             seen.add(t_lower)
             clean.append(t)
+
+    # Entferne Terme, deren Wörter eine Teilmenge eines anderen Terms sind
+    # (z.B. "Inflationsrate" ist redundant neben "Inflationsrate 2,3 Prozent")
+    filtered: list[str] = []
+    for i, t in enumerate(clean):
+        t_words = set(t.lower().split())
+        is_subset = False
+        for j, other in enumerate(clean):
+            if i != j:
+                other_words = set(other.lower().split())
+                if t_words < other_words:  # echte Teilmenge
+                    is_subset = True
+                    break
+        if not is_subset:
+            filtered.append(t)
+    clean = filtered if filtered else clean
 
     # Gesamtzahl Wörter zählen – terme werden als Wörter gesparsed
     result_terms: list[str] = []
@@ -201,10 +218,10 @@ class QueryExpansionEngine:
         variants.extend(self._strategy_domain_templates(merged, route_result, claim))
 
         # Strategie 6: Fact-Check (Debunking)
-        variants.extend(self._strategy_factcheck(merged))
+        variants.extend(self._strategy_factcheck(merged, route_result))
 
         # Strategie 7: Negation/Debunk (Falschmeldung, Hoax)
-        variants.extend(self._strategy_negation_search(merged))
+        variants.extend(self._strategy_negation_search(merged, route_result))
 
         # Strategie 8: Dekomposition (mehrdimensionale Claims)
         variants.extend(self._strategy_decomposition(claim.text, merged))
@@ -523,13 +540,27 @@ class QueryExpansionEngine:
     def _strategy_factcheck(
         self,
         merged: dict[str, list[str]],
+        route_result: RouteResult,
     ) -> list[QueryVariant]:
         """Kern-Entitäten + Faktencheck-Schlüsselwort.
 
         Ziel: Bestehende Fact-Checks und Debunks finden.
         Beispiel: "E-Scooter Bußgeld Faktencheck"
                   "site:correctiv.org Hannover E-Scooter"
+
+        Wird übersprungen für rein faktisch-statistische Claims (STATISTICAL,
+        ECONOMIC, FINANCIAL, CORPORATE), bei denen Faktencheck-Queries selten
+        relevante Ergebnisse liefern und Suchslots verschwenden.
         """
+        # Skip für rein faktische Domains ohne Desinformations-Signal
+        _FACTUAL_ONLY = {"statistical", "economic", "financial", "corporate"}
+        domains = {
+            d.value if hasattr(d, "value") else str(d)
+            for d in (route_result.domains or [])
+        }
+        if domains and domains <= _FACTUAL_ONLY:
+            return []
+
         variants = []
         locs = merged["locations"]
         misc = merged["misc"]
@@ -575,12 +606,24 @@ class QueryExpansionEngine:
     def _strategy_negation_search(
         self,
         merged: dict[str, list[str]],
+        route_result: RouteResult,
     ) -> list[QueryVariant]:
         """Generiert Debunk-orientierte Queries mit Falschmeldung/Hoax-Termen.
 
         Ziel: Findet Faktenchecks die andere Terminologie verwenden als der Claim.
         Beispiel: "EU Fleisch Falschmeldung", "WhatsApp kostenpflichtig Hoax"
+
+        Wird übersprungen für rein faktisch-statistische Claims.
         """
+        # Skip für rein faktische Domains (gleiche Logik wie _strategy_factcheck)
+        _FACTUAL_ONLY = {"statistical", "economic", "financial", "corporate"}
+        domains = {
+            d.value if hasattr(d, "value") else str(d)
+            for d in (route_result.domains or [])
+        }
+        if domains and domains <= _FACTUAL_ONLY:
+            return []
+
         variants: list[QueryVariant] = []
         locs = merged["locations"]
         orgs = merged["organizations"]

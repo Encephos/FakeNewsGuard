@@ -140,11 +140,27 @@ def build_production_queries(
 
     # --- Phase 6: Site hints from router -----------------------------------
     if route_result and getattr(route_result, "site_hints", None) and queries:
-        for hint in route_result.site_hints[:2]:
-            searxng_queries.append(SearXNGQuery(
-                query=f"{queries[0]} {hint}",
+        # Use the most relevant topic terms (first query minus year/aktuell suffixes)
+        base_query = queries[0] if queries else ""
+        for hint in route_result.site_hints[:3]:
+            # Ensure hint is a proper site: operator
+            site_prefix = hint if hint.startswith("site:") else f"site:{hint}"
+            # Build concise query: site:domain.de + core topic terms
+            # Strip year suffix and "aktuell" from base query for cleaner site-queries
+            topic_part = re.sub(r"\s+(20[12]\d)\s*(?:aktuell)?$", "", base_query).strip()
+            sq = SearXNGQuery(
+                query=f"{site_prefix} {topic_part}",
                 categories=categories,
-            ))
+                engines=["duckduckgo", "google", "bing"],  # site: works best on these
+            )
+            searxng_queries.append(sq)
+        # Also inject site:-hints into plain queries so they appear in snapshot
+        for hint in route_result.site_hints[:2]:
+            site_prefix = hint if hint.startswith("site:") else f"site:{hint}"
+            topic_part = re.sub(r"\s+(20[12]\d)\s*(?:aktuell)?$", "", queries[0]).strip()
+            site_q = f"{site_prefix} {topic_part}"
+            if site_q not in queries:
+                queries.append(site_q)
 
     searxng_queries = _dedup_searxng_queries(searxng_queries)
     return queries, searxng_queries

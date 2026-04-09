@@ -307,6 +307,13 @@ _JURISDICTION_KEYWORDS: dict[str, frozenset[str]] = {
         "berlin", "münchen", "hamburg", "köln", "frankfurt",
         "bgb", "stgb", "hgb",
     }),
+    "at": frozenset({
+        "österreich", "austria", "österreichisch", "austrian",
+        "wien", "vienna", "graz", "salzburg", "innsbruck", "linz",
+        "nationalrat", "parlament.gv.at", "ris.bka.gv.at",
+        "bundeskanzleramt", "öbag",
+        "statistik austria", "statistik.at",
+    }),
 }
 
 # Jurisdiktion-Keyword „us " (mit Leerzeichen) ist ein Sonderfall um False
@@ -323,6 +330,7 @@ _JURISDICTION_BOOST: dict[str, dict[str, float]] = {
     "uk": {"companies_house": 0.15},
     "us": {"openfda": 0.08, "uspto": 0.08},
     "de": {"eurostat": 0.05},  # Deutschland nutzt Eurostat als primäre stat. Quelle
+    "at": {"eurostat": 0.05},  # Österreich nutzt ebenfalls Eurostat
     "global": {},
 }
 
@@ -645,9 +653,38 @@ class ClaimRouter:
             (ClaimDomain.LEGAL, "eu"): [
                 "site:eur-lex.europa.eu",
             ],
+            (ClaimDomain.LEGAL, "at"): [
+                "site:ris.bka.gv.at",
+                "site:parlament.gv.at",
+            ],
             (ClaimDomain.REGULATORY, "de"): [
                 "site:gesetze-im-internet.de",
                 "site:bafin.de",
+            ],
+            (ClaimDomain.REGULATORY, "at"): [
+                "site:ris.bka.gv.at",
+            ],
+            (ClaimDomain.MEDICAL, "de"): [
+                "site:pei.de",
+                "site:rki.de",
+                "site:bfarm.de",
+            ],
+            (ClaimDomain.MEDICAL, "eu"): [
+                "site:ema.europa.eu",
+            ],
+            (ClaimDomain.PHARMACEUTICAL, "de"): [
+                "site:pei.de",
+                "site:bfarm.de",
+            ],
+            (ClaimDomain.PHARMACEUTICAL, "eu"): [
+                "site:ema.europa.eu",
+            ],
+            (ClaimDomain.STATISTICAL, "de"): [
+                "site:destatis.de",
+                "site:bamf.de",
+            ],
+            (ClaimDomain.SCIENTIFIC, "de"): [
+                "site:bfs.de",
             ],
         }
 

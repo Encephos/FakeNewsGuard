@@ -236,10 +236,10 @@ def run_evaluation(
         archived_count = 0
 
         for case in cases:
-            # --- Step 1: Retrieval evaluation ---
+            # --- Step 1: Retrieval evaluation (save=True for consistent summaries) ---
             try:
                 case_result = asyncio.run(
-                    runner._evaluate_case(case, backend_tuple, save=False)
+                    runner._evaluate_case(case, backend_tuple, save=True)
                 )
             except Exception as exc:
                 logger.error("Case %s retrieval failed: %s", case.id, exc)
@@ -259,7 +259,7 @@ def run_evaluation(
 
             results.append(case_result)
 
-            # Build snapshot summary
+            # Build snapshot summary from the just-saved snapshot
             snapshot_summary = {}
             try:
                 from eval.snapshot import load_snapshot
