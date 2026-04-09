@@ -130,20 +130,24 @@ def _check_topic_coherence(
 def _apply_cross_claim_consistency(
     fact_checks: list[FactCheckResult],
     claims: list[Claim],
+    base_penalty: float = 0.20,
+    decay_factor: float = 0.70,
 ) -> tuple[list[FactCheckResult], list[str]]:
     """Prüfe Konsistenz zwischen abhängigen Claims und propagiere Confidence.
 
-    1. Wenn Claim A (Policy) = FALSE/UNVERIFIABLE, aber abhängiger Claim B
-       (Sanktion) = TRUE/MOSTLY_TRUE → logischer Widerspruch.
-    2. Confidence-Propagation: Abhängiger Claim erhält Confidence-Penalty
-       wenn der Parent-Claim schwach bewertet ist.
+    Transitive DAG-basierte Propagation:
+        1. Baue Dependency-Graph (Child → Parents) und topologische Sortierung
+        2. Iteriere von Wurzel-Claims (keine Parents) zu Blättern
+        3. Propagiere Penalty mit exponenziellem Decay über Tiefe:
+           penalty_at_depth = base_penalty * (decay_factor ^ depth)
+        4. Erkennt Widersprüche: Parent negativ, Child positiv
+        5. Markiert Claims mit "disputed_dependency" Flag
 
     Returns:
         (updated_fact_checks, consistency_warnings)
     """
     from models.schemas import ProcessedClaim
 
-    # Claims-Index aufbauen
     claims_by_id = {c.id: c for c in claims}
     fc_by_claim = {fc.claim_id: fc for fc in fact_checks}
 
@@ -153,34 +157,92 @@ def _apply_cross_claim_consistency(
     negative_ratings = {"FALSE", "MOSTLY_FALSE", "UNVERIFIABLE"}
     positive_ratings = {"TRUE", "MOSTLY_TRUE"}
 
+    # Build adjacency: child_id → [parent_ids]
+    children_of: dict[str, list[str]] = {}  # parent_id → [child_ids]
     for claim in claims:
         if not isinstance(claim, ProcessedClaim) or not claim.depends_on:
             continue
+        for parent_id in claim.depends_on:
+            children_of.setdefault(parent_id, []).append(claim.id)
 
-        my_fc = fc_by_claim.get(claim.id)
-        if not my_fc:
+    # Topological sort via Kahn's algorithm (handles cycles gracefully)
+    in_degree: dict[str, int] = {c.id: 0 for c in claims}
+    for claim in claims:
+        if isinstance(claim, ProcessedClaim) and claim.depends_on:
+            for parent_id in claim.depends_on:
+                if parent_id in in_degree:
+                    in_degree[claim.id] = in_degree.get(claim.id, 0) + 1
+
+    # Start with root nodes (no parents)
+    queue = [cid for cid, deg in in_degree.items() if deg == 0]
+    topo_order: list[str] = []
+    while queue:
+        node = queue.pop(0)
+        topo_order.append(node)
+        for child in children_of.get(node, []):
+            in_degree[child] = in_degree.get(child, 1) - 1
+            if in_degree[child] == 0:
+                queue.append(child)
+
+    # Track accumulated penalty per claim (from all ancestors)
+    accumulated_penalty: dict[str, float] = {}
+    depth_of: dict[str, int] = {}
+
+    for claim_id in topo_order:
+        claim = claims_by_id.get(claim_id)
+        if not isinstance(claim, ProcessedClaim) or not claim.depends_on:
+            depth_of[claim_id] = 0
             continue
+
+        my_fc = fc_by_claim.get(claim_id)
+        if not my_fc:
+            depth_of[claim_id] = 0
+            continue
+
+        max_parent_depth = 0
+        total_penalty = 0.0
+        has_disputed = False
 
         for parent_id in claim.depends_on:
             parent_fc = fc_by_claim.get(parent_id)
             if not parent_fc:
                 continue
 
+            parent_depth = depth_of.get(parent_id, 0)
+            max_parent_depth = max(max_parent_depth, parent_depth)
+
             my_rating = my_fc.rating.value if hasattr(my_fc.rating, 'value') else str(my_fc.rating)
             parent_rating = parent_fc.rating.value if hasattr(parent_fc.rating, 'value') else str(parent_fc.rating)
 
             # Widerspruch: Parent negativ, Child positiv
             if parent_rating in negative_ratings and my_rating in positive_ratings:
+                dep_type = getattr(claim, "dependency_type", "unknown")
                 warnings.append(
-                    f"Widerspruch: {claim.id} ({my_rating}) hängt von "
-                    f"{parent_id} ({parent_rating}) ab [{claim.dependency_type}]"
+                    f"Widerspruch: {claim_id} ({my_rating}) hängt von "
+                    f"{parent_id} ({parent_rating}) ab [{dep_type}]"
                 )
+                has_disputed = True
 
-            # Confidence-Propagation: Parent schwach → Child Penalty
+            # Confidence-Propagation with depth decay
             if parent_rating in negative_ratings and my_fc.confidence > 0:
-                penalty = 0.20
-                new_conf = max(0.0, my_fc.confidence - penalty)
-                updates[claim.id] = {"confidence": new_conf}
+                depth = parent_depth + 1
+                direct_penalty = base_penalty * (decay_factor ** parent_depth)
+                # Also propagate accumulated penalty from grandparents (with decay)
+                inherited_penalty = accumulated_penalty.get(parent_id, 0.0) * decay_factor
+                total_penalty = max(total_penalty, direct_penalty + inherited_penalty)
+
+        current_depth = max_parent_depth + 1
+        depth_of[claim_id] = current_depth
+
+        if total_penalty > 0:
+            # Cap total penalty to prevent excessive stacking
+            total_penalty = min(total_penalty, 0.40)
+            accumulated_penalty[claim_id] = total_penalty
+            new_conf = max(0.0, my_fc.confidence - total_penalty)
+            update = {"confidence": new_conf}
+            if has_disputed:
+                update["disputed_dependency"] = True
+            updates[claim_id] = update
 
     if not updates and not warnings:
         return fact_checks, warnings
@@ -519,6 +581,16 @@ class Orchestrator:
                 analysis_errors.append(fc_error)
             elif fc_result is not None:
                 fact_checks.append(fc_result)
+                # Outcome logging for offline analysis
+                try:
+                    from tools.outcome_logger import log_outcome_from_result
+                    log_outcome_from_result(
+                        claim=routed_claim,
+                        fact_check_result=fc_result,
+                        route_result=route_result,
+                    )
+                except Exception:
+                    pass  # best-effort, never block pipeline
 
             if _should_run_number_auditor(routed_claim):
                 self._step("number_audit", f"  ── Number-Audit für {claim.id} ──")
@@ -708,6 +780,17 @@ class Orchestrator:
             if fc_error:
                 self._log(f"  ⚠ Fact-Check fehlgeschlagen: {fc_error}")
                 errors.append(fc_error)
+            elif fc_result is not None:
+                # Outcome logging for offline analysis
+                try:
+                    from tools.outcome_logger import log_outcome_from_result
+                    log_outcome_from_result(
+                        claim=routed_claim,
+                        fact_check_result=fc_result,
+                        route_result=route_result,
+                    )
+                except Exception:
+                    pass  # best-effort, never block pipeline
 
             na_result: NumberAuditResult | None = None
             if _should_run_number_auditor(routed_claim):
