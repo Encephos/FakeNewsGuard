@@ -222,6 +222,14 @@ def _calibrate_rating(
     # FALSE oder MOSTLY_FALSE urteilt, hat das LLM sein Vorwissen über die
     # Evidenz gestellt. Bei current-state-Claims → MOSTLY_TRUE (die Quellen
     # bestätigen den aktuellen Zustand, das LLM nutzt veraltetes Wissen).
+    #
+    # AUSNAHME: Wenn die Evidenz von Low-Trust-Quellen dominiert wird
+    # (z.B. Verschwörungsseiten), ist der AGREEING-Konsens nicht
+    # vertrauenswürdig und das LLM-Rating sollte respektiert werden.
+    _low_trust_rate = getattr(quality, "low_trust_rate", 0.0)
+    if not isinstance(_low_trust_rate, (int, float)):
+        _low_trust_rate = 0.0
+    _low_trust_dominated = _low_trust_rate > 0.5
     _consensus_contradiction_applied = False
     if (
         config.consensus_contradiction_override
@@ -229,6 +237,7 @@ def _calibrate_rating(
         and consensus == SourceConsensus.AGREEING
         and not has_fc_direct
         and not has_direct_refutation
+        and not _low_trust_dominated
     ):
         if is_current_state_claim and not claim_is_negated:
             new_rating = FactRating(config.consensus_contradiction_current_state_downgrade)
@@ -251,6 +260,17 @@ def _calibrate_rating(
             )
             rating = new_rating
             _consensus_contradiction_applied = True
+
+    if (
+        _low_trust_dominated
+        and not _consensus_contradiction_applied
+        and rating in (FactRating.FALSE, FactRating.MOSTLY_FALSE)
+        and consensus == SourceConsensus.AGREEING
+    ):
+        reasons.append(
+            f"Konsens-Widerspruch BLOCKIERT: low_trust_rate={_low_trust_rate:.2f} > 0.5 "
+            f"→ AGREEING-Konsens nicht vertrauenswürdig, LLM-Rating {rating.value} beibehalten"
+        )
 
     # ── Inverse Konsens-Korrektur: CONTRADICTORY + TRUE/MOSTLY_TRUE ─────────
     # Wenn die Quellen den Claim überwiegend WIDERLEGEN (CONTRADICTORY) aber

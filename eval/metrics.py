@@ -406,14 +406,36 @@ _RATING_ORDINAL: dict[str, int] = {
     "UNVERIFIABLE": -1,  # special: only exact match counts
 }
 
+# Ordinal scale for OverallRating (Synthesizer output)
+_OVERALL_RATING_ORDINAL: dict[str, int] = {
+    "RELIABLE": 0,
+    "MOSTLY_RELIABLE": 1,
+    "MIXED": 2,
+    "MISLEADING": 3,
+    "HIGHLY_MISLEADING": 4,
+    "FABRICATED": 5,
+}
+
 
 def _verdict_distance(predicted: str, expected: str) -> int:
-    """Compute ordinal distance between two FactRating values.
+    """Compute ordinal distance between two rating values.
 
+    Supports both FactRating (TRUE..FALSE) and OverallRating (RELIABLE..FABRICATED)
+    scales. Auto-detects which scale to use based on the values.
     UNVERIFIABLE is only exact-matchable — distance to any other rating is 99.
     """
-    p = _RATING_ORDINAL.get(predicted.upper(), -99)
-    e = _RATING_ORDINAL.get(expected.upper(), -99)
+    pred_upper = predicted.upper()
+    exp_upper = expected.upper()
+
+    # Try OverallRating scale first (used by eval pipeline)
+    p_overall = _OVERALL_RATING_ORDINAL.get(pred_upper, -99)
+    e_overall = _OVERALL_RATING_ORDINAL.get(exp_upper, -99)
+    if p_overall != -99 and e_overall != -99:
+        return abs(p_overall - e_overall)
+
+    # Fall back to FactRating scale
+    p = _RATING_ORDINAL.get(pred_upper, -99)
+    e = _RATING_ORDINAL.get(exp_upper, -99)
     if p == -99 or e == -99:
         return 99  # unknown rating
     if p == -1 or e == -1:

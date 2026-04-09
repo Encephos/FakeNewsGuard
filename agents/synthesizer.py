@@ -333,10 +333,19 @@ class SynthesizerAgent(BaseAgent):
             )
 
             if all_positive:
-                # Cap: nie schlechter als MOSTLY_RELIABLE wenn alle Claims bestätigt
-                max_allowed = OverallRating.MOSTLY_RELIABLE
-                if _RATING_ORDER[rating] > _RATING_ORDER[max_allowed]:
-                    rating = max_allowed
+                # Regel 0b: Wenn ein Desinformations-Narrativ erkannt wurde
+                # und keine Primärquellen den Claim stützen, ist die
+                # "Bestätigung" wahrscheinlich von Low-Trust-Quellen getrieben.
+                # In diesem Fall nicht besser als MIXED erlauben.
+                if signals.narrative_detected and not signals.high_quality_evidence:
+                    max_allowed = OverallRating.MIXED
+                    if _RATING_ORDER[rating] > _RATING_ORDER[max_allowed]:
+                        rating = max_allowed
+                else:
+                    # Cap: nie schlechter als MOSTLY_RELIABLE wenn alle Claims bestätigt
+                    max_allowed = OverallRating.MOSTLY_RELIABLE
+                    if _RATING_ORDER[rating] > _RATING_ORDER[max_allowed]:
+                        rating = max_allowed
 
             elif all_negative and signals.n_claims > 0:
                 # Floor: mindestens HIGHLY_MISLEADING wenn alle Claims widerlegt
