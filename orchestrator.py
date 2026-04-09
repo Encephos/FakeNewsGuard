@@ -519,6 +519,16 @@ class Orchestrator:
                 analysis_errors.append(fc_error)
             elif fc_result is not None:
                 fact_checks.append(fc_result)
+                # Outcome logging for offline analysis
+                try:
+                    from tools.outcome_logger import log_outcome_from_result
+                    log_outcome_from_result(
+                        claim=routed_claim,
+                        fact_check_result=fc_result,
+                        route_result=route_result,
+                    )
+                except Exception:
+                    pass  # best-effort, never block pipeline
 
             if _should_run_number_auditor(routed_claim):
                 self._step("number_audit", f"  ── Number-Audit für {claim.id} ──")
@@ -708,6 +718,17 @@ class Orchestrator:
             if fc_error:
                 self._log(f"  ⚠ Fact-Check fehlgeschlagen: {fc_error}")
                 errors.append(fc_error)
+            elif fc_result is not None:
+                # Outcome logging for offline analysis
+                try:
+                    from tools.outcome_logger import log_outcome_from_result
+                    log_outcome_from_result(
+                        claim=routed_claim,
+                        fact_check_result=fc_result,
+                        route_result=route_result,
+                    )
+                except Exception:
+                    pass  # best-effort, never block pipeline
 
             na_result: NumberAuditResult | None = None
             if _should_run_number_auditor(routed_claim):
