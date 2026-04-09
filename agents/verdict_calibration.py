@@ -114,6 +114,9 @@ class VerdictRatingCalibrationConfig:
     consensus_contradiction_override: bool = True
     consensus_contradiction_current_state_downgrade: str = "MOSTLY_TRUE"
     consensus_contradiction_general_downgrade: str = "MISLEADING"
+    # When AGREEING + FALSE/MOSTLY_FALSE + direct evidence exists,
+    # the sources actively support the claim → stronger correction to MOSTLY_TRUE
+    consensus_contradiction_general_with_direct: str = "MOSTLY_TRUE"
 
     # --- Inverse Konsens-Korrektur -----------------------------------------------
     # Wenn SourceConsensus = CONTRADICTORY aber LLM-Rating = TRUE/MOSTLY_TRUE:
@@ -236,10 +239,15 @@ def _calibrate_rating(
             rating = new_rating
             _consensus_contradiction_applied = True
         elif not claim_is_negated:
-            new_rating = FactRating(config.consensus_contradiction_general_downgrade)
+            # With direct evidence supporting the claim, promote to MOSTLY_TRUE;
+            # without direct evidence, fall back to MISLEADING (context only).
+            if direct_count >= 1:
+                new_rating = FactRating(config.consensus_contradiction_general_with_direct)
+            else:
+                new_rating = FactRating(config.consensus_contradiction_general_downgrade)
             reasons.append(
                 f"Konsens-Widerspruch: Evidenz AGREEING aber Rating {rating.value} "
-                f"→ {new_rating.value}"
+                f"(direct_count={direct_count}) → {new_rating.value}"
             )
             rating = new_rating
             _consensus_contradiction_applied = True
@@ -396,6 +404,24 @@ def _calibrate_rating(
             "(LLM-Vorwissen-Override bei current-state vermutet)"
         )
         rating = FactRating.UNVERIFIABLE
+
+    # ── Positive Promotion: MISLEADING bei stützendem Konsens → MOSTLY_TRUE ──
+    # Wenn die Quellen den Claim überwiegend STÜTZEN (AGREEING), direkte Belege
+    # vorliegen und kein Widerlegungssignal existiert, hat das LLM fehlenden
+    # Kontext mit aktiver Irreführung verwechselt.
+    if (
+        rating == FactRating.MISLEADING
+        and consensus == SourceConsensus.AGREEING
+        and not has_direct_refutation
+        and not has_fc_direct
+        and direct_count >= 1
+        and not claim_is_negated
+    ):
+        reasons.append(
+            "MISLEADING bei AGREEING-Konsens + direkten Belegen "
+            f"(direct_count={direct_count}) ohne Widerlegungssignal → MOSTLY_TRUE"
+        )
+        rating = FactRating.MOSTLY_TRUE
 
     return rating, reasons
 
