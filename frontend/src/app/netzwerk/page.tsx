@@ -343,7 +343,7 @@ export default function NetworkPage() {
                 <div className="mb-6 space-y-3">
                   {Object.entries(selectedNode.node.properties).map(([key, value]) => {
                     // special handling for URL and Rating
-                    if (key === "sample_url") {
+                    if (key === "url") {
                       return (
                         <div key={key}>
                           <a href={value} target="_blank" rel="noreferrer" className="text-sm text-blue-500 hover:underline break-all">
