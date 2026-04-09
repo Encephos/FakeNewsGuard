@@ -1162,7 +1162,7 @@ class EvidenceBuilderAgent(BaseAgent):
         try:
             loop = _asyncio.get_event_loop()
             raw = await loop.run_in_executor(
-                None, self.llm.complete, system_prompt, user_msg, "json"
+                None, self.llm.complete, system_prompt, user_msg, "json", self.name
             )
             classifications = _json.loads(raw) if isinstance(raw, str) else raw
         except Exception as e:

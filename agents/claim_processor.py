@@ -197,12 +197,13 @@ class SentenceSplitter:
 class _LLMStageMixin:
     """Mixin für LLM-basierte Pipeline-Stufen."""
 
-    def __init__(self, llm: LLMClient) -> None:
+    def __init__(self, llm: LLMClient, agent_name: str = "unknown") -> None:
         self.llm = llm
+        self._agent_name = agent_name
 
     def _call_llm_json(self, prompt: str, user_msg: str) -> dict:
         try:
-            raw = self.llm.complete(prompt, user_msg, response_format="json")
+            raw = self.llm.complete(prompt, user_msg, response_format="json", agent_name=self._agent_name)
             if isinstance(raw, str):
                 return json.loads(raw)
             return raw
@@ -1375,8 +1376,9 @@ class TopicExtractor:
         "SOCIAL", "HEALTH", "GENERAL",
     })
 
-    def __init__(self, llm: LLMClient) -> None:
+    def __init__(self, llm: LLMClient, agent_name: str = "unknown") -> None:
         self._llm = llm
+        self._agent_name = agent_name
 
     def extract(self, text: str) -> ArticleTopicModel | None:
         """Extrahiere Topic Model aus Artikeltext.
@@ -1389,6 +1391,7 @@ class TopicExtractor:
             raw = self._llm.complete_json(
                 system=_TOPIC_EXTRACTOR_PROMPT,
                 user=user_msg,
+                agent_name=self._agent_name,
             )
         except Exception as e:
             _log(f"TopicExtractor LLM-Fehler: {type(e).__name__}: {e}")
@@ -1445,10 +1448,10 @@ class ClaimProcessingPipeline:
         self.config = config
         _llm_small = llm_small or llm
         self._splitter = SentenceSplitter()
-        self._selector = ClaimSelector(_llm_small)
-        self._topic_extractor = TopicExtractor(_llm_small)
-        self._frame_disambiguator = ClaimFrameAndDisambiguator(_llm_small)  # Stage 2.5+3
-        self._decomposer = ClaimDecomposer(_llm_small)
+        self._selector = ClaimSelector(_llm_small, agent_name="Claim Processor")
+        self._topic_extractor = TopicExtractor(_llm_small, agent_name="Claim Processor")
+        self._frame_disambiguator = ClaimFrameAndDisambiguator(_llm_small, agent_name="Claim Processor")  # Stage 2.5+3
+        self._decomposer = ClaimDecomposer(_llm_small, agent_name="Claim Processor")
         self._validator = ClaimValidator(config.claim_processing.quality_signals)
         self._finalizer = ClaimFinalizerAgent(config, llm, search)
 
