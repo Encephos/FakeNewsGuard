@@ -349,9 +349,16 @@ class SynthesizerAgent(BaseAgent):
         if fact_checks:
             positive_ratings = {FactRating.TRUE, FactRating.MOSTLY_TRUE}
             all_positive = all(fc.rating in positive_ratings for fc in fact_checks)
-            all_negative = all(
-                fc.rating in (FactRating.FALSE, FactRating.MOSTLY_FALSE)
-                for fc in fact_checks
+            hard_negative_ratings = {FactRating.FALSE, FactRating.MOSTLY_FALSE}
+            all_hard_negative = all(
+                fc.rating in hard_negative_ratings for fc in fact_checks
+            )
+            all_soft_negative = (
+                not all_hard_negative
+                and all(
+                    fc.rating in (hard_negative_ratings | {FactRating.MISLEADING})
+                    for fc in fact_checks
+                )
             )
 
             if all_positive:
@@ -369,9 +376,15 @@ class SynthesizerAgent(BaseAgent):
                     if _RATING_ORDER[rating] > _RATING_ORDER[max_allowed]:
                         rating = max_allowed
 
-            elif all_negative and signals.n_claims > 0:
+            elif all_hard_negative and signals.n_claims > 0:
                 # Floor: mindestens HIGHLY_MISLEADING wenn alle Claims widerlegt
                 min_allowed = OverallRating.HIGHLY_MISLEADING
+                if _RATING_ORDER[rating] < _RATING_ORDER[min_allowed]:
+                    rating = min_allowed
+
+            elif all_soft_negative and signals.n_claims > 0:
+                # Floor: mindestens MISLEADING wenn alle Claims MISLEADING
+                min_allowed = OverallRating.MISLEADING
                 if _RATING_ORDER[rating] < _RATING_ORDER[min_allowed]:
                     rating = min_allowed
 

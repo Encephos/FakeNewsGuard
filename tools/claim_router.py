@@ -200,6 +200,14 @@ _DOMAIN_KEYWORDS: dict[ClaimDomain, frozenset[str]] = {
         "bilanz", "balance sheet", "cashflow",
         "kredit", "credit", "schulden", "debt", "anleihe",
         "zinsen", "interest rate", "zinsrate",
+        "geldpolitik", "monetary policy", "monetär",
+        "bargeld", "bargeldlos", "cash", "cashless",
+        "zentralbank", "central bank", "notenbank",
+        "ezb", "ecb", "bundesbank",
+        "leitzins", "basiszinssatz", "einlagenzins",
+        "währung", "currency", "devisen",
+        "digitaler euro", "digital euro", "cbdc",
+        "zahlungsverkehr", "payment system",
     }),
     ClaimDomain.TRADE: frozenset({
         "export", "import", "außenhandel", "foreign trade",
@@ -685,6 +693,14 @@ class ClaimRouter:
             ],
             (ClaimDomain.SCIENTIFIC, "de"): [
                 "site:bfs.de",
+            ],
+            (ClaimDomain.FINANCIAL, "de"): [
+                "site:bundesbank.de",
+                "site:bmf.de",
+                "site:bafin.de",
+            ],
+            (ClaimDomain.FINANCIAL, "eu"): [
+                "site:ecb.europa.eu",
             ],
         }
 
