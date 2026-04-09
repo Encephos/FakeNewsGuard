@@ -61,7 +61,7 @@ class RouteResult:
     Attributes:
         sources:      Priorisierte Quellliste (höchste Priorität zuerst, max. 6).
         domains:      Erkannte thematische Domänen des Claims.
-        jurisdiction: Erkannte Jurisdiktion: 'eu' | 'uk' | 'us' | 'de' | 'global'.
+        jurisdiction: Erkannte Jurisdiktion: 'eu' | 'uk' | 'us' | 'de' | 'at' | 'ch' | 'fr' | 'it' | 'global'.
         site_hints:   site:-Hints für SearXNG (z.B. 'site:eurostat.ec.europa.eu').
         rationale:    Menschenlesbare Begründung der Routing-Entscheidung.
         confidence:   Konfidenz der Routing-Entscheidung [0.0 – 1.0].
@@ -93,6 +93,12 @@ _DOMAIN_KEYWORDS: dict[ClaimDomain, frozenset[str]] = {
         "entwicklungsland", "entwicklungsindikator", "development indicator",
         "gini", "kaufkraft", "purchasing power",
         "makroökonomisch", "wirtschaftsleistung",
+        # Erweiterung: Haushalt, Löhne, Preise
+        "staatsverschuldung", "schuldenbremse", "bundeshaushalt", "haushalt",
+        "sozialprodukt", "mindestlohn", "lohnentwicklung", "reallohn",
+        "preissteigerung", "verbraucherpreisindex", "consumer price index", "cpi",
+        "steuerlast", "abgabenlast",
+        "energiepreise", "gaspreise", "strompreise",
     }),
     ClaimDomain.STATISTICAL: frozenset({
         "statistik", "statistic", "statistisch",
@@ -104,6 +110,10 @@ _DOMAIN_KEYWORDS: dict[ClaimDomain, frozenset[str]] = {
         "durchschnitt", "median", "mittelwert", "average",
         "survey", "umfrage", "stichprobe",
         "statistisches amt", "destatis", "eurostat",
+        # Erweiterung: Spezifische Erhebungen, Institutionen
+        "mikrozensus", "zensus", "sozialerhebung",
+        "kriminalstatistik", "polizeiliche kriminalstatistik",
+        "zew", "ifo", "diw", "sachverständigenrat",
     }),
     ClaimDomain.LEGAL: frozenset({
         "verordnung", "richtlinie", "gesetz", "gesetzbuch", "rechtsnorm",
@@ -117,6 +127,10 @@ _DOMAIN_KEYWORDS: dict[ClaimDomain, frozenset[str]] = {
         "dsgvo", "gdpr", "ai act", "digital markets act", "dma", "dsa",
         "gesetzlich", "rechtlich", "vorschrift", "rechtsvorschrift",
         "neutralität", "neutralitätspflicht", "parteipolitisch",
+        # Erweiterung: Verfahrensrecht, CH
+        "verhältnismäßigkeit", "subsidiarität", "vorabentscheidung",
+        "verfassungsbeschwerde", "einstweilige anordnung", "normenkontrolle",
+        "bundesgesetz", "schweizerisches bundesgericht",
     }),
     ClaimDomain.REGULATORY: frozenset({
         "regulierung", "regulatorisch", "compliance", "aufsicht",
@@ -149,6 +163,10 @@ _DOMAIN_KEYWORDS: dict[ClaimDomain, frozenset[str]] = {
         "impfung", "vaccine", "vakzin", "immunisierung",
         "epidemie", "pandemie", "pandemic", "outbreak",
         "therapeutisch", "diagnostisch",
+        # Erweiterung: Gesundheitssystem, Institutionen
+        "antibiotikaresistenz", "krankenhausreform", "pflegenotstand",
+        "organspende", "sterbehilfe", "gesundheitssystem", "krankenkasse",
+        "stiko", "iqwig",
     }),
     ClaimDomain.PHARMACEUTICAL: frozenset({
         "arzneimittel", "medikament", "drug", "pharmazeutisch",
@@ -208,6 +226,10 @@ _DOMAIN_KEYWORDS: dict[ClaimDomain, frozenset[str]] = {
         "währung", "currency", "devisen",
         "digitaler euro", "digital euro", "cbdc",
         "zahlungsverkehr", "payment system",
+        # Erweiterung: Krypto-Regulierung, ESG
+        "kryptobörse", "kryptoregulierung", "mica",
+        "nachhaltige geldanlage", "esg", "taxonomie-verordnung",
+        "finanzstabilität",
     }),
     ClaimDomain.TRADE: frozenset({
         "export", "import", "außenhandel", "foreign trade",
@@ -216,6 +238,63 @@ _DOMAIN_KEYWORDS: dict[ClaimDomain, frozenset[str]] = {
         "wto", "ceta", "ttip", "rcep",
         "lieferkette", "supply chain",
         "handelsbeschränkung", "trade restriction", "embargo", "sanktion",
+    }),
+
+    # ── Thematische Domänen (Klima, Migration, Technologie) ──
+
+    ClaimDomain.ENVIRONMENT: frozenset({
+        # Klima
+        "klimawandel", "klimaschutz", "climate change", "global warming",
+        "treibhausgas", "treibhausgasemissionen", "greenhouse gas",
+        "co2-ausstoß", "co2-emissionen", "carbon emissions",
+        "erderwärmung", "meeresspiegel", "sea level rise", "temperaturanstieg",
+        "klimaneutral", "carbon neutral", "emissionshandel", "emissions trading",
+        "pariser abkommen", "paris agreement",
+        # Energie
+        "erneuerbare energien", "renewable energy", "energiewende",
+        "photovoltaik", "windenergie", "solarenergie",
+        # Umwelt/Biodiversität
+        "biodiversität", "artensterben", "artenschutz", "nachhaltigkeit",
+        "sustainability", "umweltverschmutzung", "deforestation",
+        "luftqualität", "air quality", "feinstaub", "stickoxid",
+        "waldsterben", "dürre", "hochwasser", "extremwetter", "hitzetote",
+        # Institutionen
+        "ipcc", "unfccc", "wmo", "dwd", "umweltbundesamt", "copernicus",
+    }),
+    ClaimDomain.MIGRATION: frozenset({
+        # Asyl/Flucht
+        "asyl", "asylantrag", "asylanträge", "asylbewerber",
+        "flüchtling", "flüchtlinge", "geflüchtete",
+        "asylum", "refugee",
+        # Migration allgemein
+        "migration", "zuwanderung", "einwanderung", "immigration",
+        "abschiebung", "deportation", "duldung",
+        "aufenthaltserlaubnis", "familiennachzug", "fachkräfteeinwanderung",
+        "integration", "resettlement",
+        # Statistik/Begriffe
+        "ausländeranteil", "migrationshintergrund", "schutzquote",
+        "erstanträge", "ausreisepflichtig", "irreguläre migration",
+        # Institutionen
+        "bamf", "unhcr", "frontex", "iom", "ausländerbehörde",
+    }),
+    ClaimDomain.TECHNOLOGY: frozenset({
+        # KI/Digitalisierung
+        "künstliche intelligenz", "artificial intelligence",
+        "algorithmus", "machine learning", "deep learning",
+        "datenschutz", "digitalisierung",
+        # Cybersicherheit
+        "cybersicherheit", "cybersecurity", "it-sicherheit",
+        # Krypto/Blockchain
+        "kryptowährung", "cryptocurrency", "blockchain",
+        # Mobilität/Hardware
+        "autonomes fahren", "autonomous driving", "robotik",
+        "halbleiter", "semiconductor", "chip", "quantencomputer",
+        "quantum computing",
+        # Netzpolitik
+        "5g", "breitband", "netzausbau", "cloud computing",
+        # Regulierung
+        "ai act", "data act", "digital services act",
+        "netzwerkdurchsetzungsgesetz", "netzdg",
     }),
 
     # ── Wissens- und Nachrichtendomänen (GDELT, Wikidata, Wikipedia) ──
@@ -322,6 +401,26 @@ _JURISDICTION_KEYWORDS: dict[str, frozenset[str]] = {
         "bundeskanzleramt", "öbag",
         "statistik austria", "statistik.at",
     }),
+    "ch": frozenset({
+        "schweiz", "switzerland", "swiss", "schweizerisch",
+        "eidgenossenschaft", "eidgenössisch",
+        "bern", "zürich", "genf", "basel", "lausanne",
+        "ständerat",
+        "bfs.admin.ch", "admin.ch", "fedlex.admin.ch",
+        "chf", "franken",
+        "kanton", "kantonal",
+        "seco", "bag", "bafu",
+    }),
+    "fr": frozenset({
+        "france", "frankreich", "französisch", "french",
+        "paris", "assemblée nationale", "sénat",
+        "insee", "legifrance",
+    }),
+    "it": frozenset({
+        "italien", "italy", "italian", "italienisch",
+        "rom", "rome", "roma",
+        "istat", "gazzetta ufficiale",
+    }),
 }
 
 # Jurisdiktion-Keyword „us " (mit Leerzeichen) ist ein Sonderfall um False
@@ -339,6 +438,9 @@ _JURISDICTION_BOOST: dict[str, dict[str, float]] = {
     "us": {"openfda": 0.08, "uspto": 0.08},
     "de": {"eurostat": 0.05},  # Deutschland nutzt Eurostat als primäre stat. Quelle
     "at": {"eurostat": 0.05},  # Österreich nutzt ebenfalls Eurostat
+    "ch": {"eurostat": 0.03},  # CH nicht EU, aber Eurostat-kompatible Daten via BFS
+    "fr": {"eurostat": 0.08, "eur_lex": 0.08},
+    "it": {"eurostat": 0.08, "eur_lex": 0.08},
     "global": {},
 }
 
@@ -543,6 +645,15 @@ class ClaimRouter:
                 if any(w in inst_lower for w in ["worldbank", "world bank", "imf", "iwf"]):
                     add(ClaimDomain.ECONOMIC, 0.50)
                     add(ClaimDomain.STATISTICAL, 0.30)
+                if any(w in inst_lower for w in [
+                    "ipcc", "unfccc", "wmo", "umweltbundesamt", "copernicus",
+                    "dwd", "eea", "bafu",
+                ]):
+                    add(ClaimDomain.ENVIRONMENT, 0.55)
+                if any(w in inst_lower for w in ["bamf", "unhcr", "frontex", "iom"]):
+                    add(ClaimDomain.MIGRATION, 0.55)
+                if any(w in inst_lower for w in ["bsi", "bfdi", "enisa"]):
+                    add(ClaimDomain.TECHNOLOGY, 0.45)
 
         # 3. Keyword-Matching (moderater Beitrag)
         _kw_match_score = _CRC.get("detection", {}).get("keyword_match_score", 0.15)
@@ -653,6 +764,7 @@ class ClaimRouter:
         fügt fehlende Hints basierend auf Domain + Jurisdiktion hinzu.
         """
         _EXTRA_HINTS: dict[tuple[ClaimDomain, str], list[str]] = {
+            # ── LEGAL ──
             (ClaimDomain.LEGAL, "de"): [
                 "site:gesetze-im-internet.de",
                 "site:dejure.org",
@@ -665,6 +777,11 @@ class ClaimRouter:
                 "site:ris.bka.gv.at",
                 "site:parlament.gv.at",
             ],
+            (ClaimDomain.LEGAL, "ch"): [
+                "site:fedlex.admin.ch",
+                "site:bger.ch",
+            ],
+            # ── REGULATORY ──
             (ClaimDomain.REGULATORY, "de"): [
                 "site:gesetze-im-internet.de",
                 "site:bafin.de",
@@ -672,6 +789,7 @@ class ClaimRouter:
             (ClaimDomain.REGULATORY, "at"): [
                 "site:ris.bka.gv.at",
             ],
+            # ── MEDICAL ──
             (ClaimDomain.MEDICAL, "de"): [
                 "site:pei.de",
                 "site:rki.de",
@@ -680,6 +798,10 @@ class ClaimRouter:
             (ClaimDomain.MEDICAL, "eu"): [
                 "site:ema.europa.eu",
             ],
+            (ClaimDomain.MEDICAL, "ch"): [
+                "site:bag.admin.ch",
+            ],
+            # ── PHARMACEUTICAL ──
             (ClaimDomain.PHARMACEUTICAL, "de"): [
                 "site:pei.de",
                 "site:bfarm.de",
@@ -687,13 +809,28 @@ class ClaimRouter:
             (ClaimDomain.PHARMACEUTICAL, "eu"): [
                 "site:ema.europa.eu",
             ],
+            # ── STATISTICAL ──
             (ClaimDomain.STATISTICAL, "de"): [
                 "site:destatis.de",
                 "site:bamf.de",
             ],
+            (ClaimDomain.STATISTICAL, "at"): [
+                "site:statistik.at",
+            ],
+            (ClaimDomain.STATISTICAL, "ch"): [
+                "site:bfs.admin.ch",
+            ],
+            (ClaimDomain.STATISTICAL, "fr"): [
+                "site:insee.fr",
+            ],
+            (ClaimDomain.STATISTICAL, "it"): [
+                "site:istat.it",
+            ],
+            # ── SCIENTIFIC ──
             (ClaimDomain.SCIENTIFIC, "de"): [
                 "site:bfs.de",
             ],
+            # ── FINANCIAL ──
             (ClaimDomain.FINANCIAL, "de"): [
                 "site:bundesbank.de",
                 "site:bmf.de",
@@ -701,6 +838,48 @@ class ClaimRouter:
             ],
             (ClaimDomain.FINANCIAL, "eu"): [
                 "site:ecb.europa.eu",
+            ],
+            (ClaimDomain.FINANCIAL, "ch"): [
+                "site:snb.ch",
+                "site:finma.ch",
+            ],
+            # ── ENVIRONMENT ──
+            (ClaimDomain.ENVIRONMENT, "de"): [
+                "site:umweltbundesamt.de",
+                "site:dwd.de",
+                "site:bfn.de",
+            ],
+            (ClaimDomain.ENVIRONMENT, "eu"): [
+                "site:eea.europa.eu",
+                "site:copernicus.eu",
+            ],
+            (ClaimDomain.ENVIRONMENT, "ch"): [
+                "site:bafu.admin.ch",
+            ],
+            (ClaimDomain.ENVIRONMENT, "global"): [
+                "site:ipcc.ch",
+                "site:wmo.int",
+                "site:unep.org",
+            ],
+            # ── MIGRATION ──
+            (ClaimDomain.MIGRATION, "de"): [
+                "site:bamf.de",
+                "site:bmi.bund.de",
+            ],
+            (ClaimDomain.MIGRATION, "eu"): [
+                "site:frontex.europa.eu",
+            ],
+            (ClaimDomain.MIGRATION, "global"): [
+                "site:unhcr.org",
+                "site:iom.int",
+            ],
+            # ── TECHNOLOGY ──
+            (ClaimDomain.TECHNOLOGY, "de"): [
+                "site:bsi.bund.de",
+                "site:bfdi.bund.de",
+            ],
+            (ClaimDomain.TECHNOLOGY, "eu"): [
+                "site:digital-strategy.ec.europa.eu",
             ],
         }
 

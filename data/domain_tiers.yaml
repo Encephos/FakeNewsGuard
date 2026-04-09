@@ -17,6 +17,13 @@ tier1_official_statistics:
   - curia.europa.eu
   - eur-lex.europa.eu
   - ris.bka.gv.at
+  - dwd.de
+  - istat.it
+  - insee.fr
+  - ons.gov.uk
+  - bls.gov
+  - census.gov
+  - wmo.int
 
 tier2_government:
   - bamf.de
@@ -30,13 +37,36 @@ tier2_government:
   - ec.europa.eu
   - consilium.europa.eu
   - bundesbank.de
-  - volkswagen-group.com
   - pei.de
   - bfs.de
   - bmvg.bund.de
   - parlament.gv.at
   - arbeitsagentur.de
   - umweltbundesamt.de
+  # DE Bundesbehörden (Erweiterung)
+  - bmg.bund.de
+  - bfarm.de
+  - bafin.de
+  - bafg.de
+  - bmf.bund.de
+  - auswaertiges-amt.de
+  - bsi.bund.de
+  - kba.de
+  - bmwk.bund.de
+  # CH Bundesverwaltung
+  - admin.ch
+  - seco.admin.ch
+  - bag.admin.ch
+  - bafu.admin.ch
+  - fedlex.admin.ch
+  # AT Bundesministerien
+  - bmf.gv.at
+  - sozialministerium.at
+  # International
+  - frontex.europa.eu
+  - unhcr.org
+  - ipcc.ch
+  - iom.int
 
 tier3_quality_journalism:
   - reuters.com
@@ -55,6 +85,18 @@ tier3_quality_journalism:
   - theguardian.com
   - ap.org
   - dw.com
+  # Sync mit Classifier (bisher nur dort gelistet)
+  - derstandard.at
+  - handelsblatt.com
+  - deutschlandfunk.de
+  - nytimes.com
+  - washingtonpost.com
+  - economist.com
+  # Erweiterung
+  - srf.ch
+  - profil.at
+  - ft.com
+  - lemonde.fr
 
 tier4_fact_checkers:
   - correctiv.org
@@ -67,6 +109,13 @@ tier4_fact_checkers:
   - afp.com
   - reuters.com/fact-check
   - volksverpetzer.de
+  # Sync mit Classifier + Erweiterung
+  - fullfact.org
+  - leadstories.com
+  - apnews.com/hub/ap-fact-check
+  - eufactcheck.eu
+  - faktencheck.afp.com
+  - br.de/nachrichten/faktenfuchs
 
 # ── source_classifier.py Tier-Patterns ────────────────────────────────────────
 # Erweiterte Domain-Listen für die Source-Klassifikation (Substring-Matching).
@@ -102,6 +151,33 @@ classifier:
     - bmvg.bund.de
     - arbeitsagentur.de
     - umweltbundesamt.de
+    # Erweiterung: DE/CH/AT/Intl Behörden
+    - bmg.bund.de
+    - bfarm.de
+    - bafin.de
+    - bafg.de
+    - bmf.bund.de
+    - auswaertiges-amt.de
+    - bsi.bund.de
+    - kba.de
+    - bmwk.bund.de
+    - dwd.de
+    - admin.ch
+    - bfs.admin.ch
+    - bag.admin.ch
+    - bafu.admin.ch
+    - fedlex.admin.ch
+    - seco.admin.ch
+    - statistik.at
+    - bmf.gv.at
+    - frontex.europa.eu
+    - unhcr.org
+    - ipcc.ch
+    - iom.int
+    - wmo.int
+    - istat.it
+    - insee.fr
+    - ons.gov.uk
 
   fact_checker:
     - correctiv.org

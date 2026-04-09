@@ -159,6 +159,21 @@ class TestDomainDetection:
         assert "bundesbank.de" in hint_domains
         assert "bmf.de" in hint_domains
 
+    def test_environment_keywords(self, router):
+        claim = _make_claim("Der Klimawandel führt zu steigenden CO2-Emissionen und Erderwärmung.")
+        result = router.route(claim)
+        assert ClaimDomain.ENVIRONMENT in result.domains
+
+    def test_migration_keywords(self, router):
+        claim = _make_claim("Die Zahl der Asylanträge beim BAMF stieg um 20% gegenüber dem Vorjahr.")
+        result = router.route(claim)
+        assert ClaimDomain.MIGRATION in result.domains
+
+    def test_technology_keywords(self, router):
+        claim = _make_claim("Künstliche Intelligenz und der AI Act regulieren die Digitalisierung in der EU.")
+        result = router.route(claim)
+        assert ClaimDomain.TECHNOLOGY in result.domains
+
     def test_no_domain_fallback(self, router):
         claim = _make_claim("Der Himmel ist blau.")
         result = router.route(claim)
@@ -207,10 +222,20 @@ class TestJurisdictionDetection:
         result = router.route(claim)
         assert result.jurisdiction == "de"
 
+    def test_ch_keywords(self, router):
+        claim = _make_claim("Die Schweiz hat über die Eidgenossenschaft abgestimmt.")
+        result = router.route(claim)
+        assert result.jurisdiction == "ch"
+
+    def test_at_keywords(self, router):
+        claim = _make_claim("Österreich meldet steigende Zahlen laut Statistik Austria in Wien.")
+        result = router.route(claim)
+        assert result.jurisdiction == "at"
+
     def test_global_fallback(self, router):
         claim = _make_claim("Experten warnen vor dem Klimawandel.")
         result = router.route(claim)
-        assert result.jurisdiction in ("global", "eu", "de", "us", "uk")  # Keine Fehler
+        assert result.jurisdiction in ("global", "eu", "de", "us", "uk", "at", "ch", "fr", "it")  # Keine Fehler
 
 
 # ── Quellenpriorisierung ──────────────────────────────────────────────────────
@@ -322,6 +347,18 @@ class TestSiteHints:
         )
         result = router.route(claim)
         assert len(result.site_hints) == len(set(result.site_hints))
+
+    def test_environment_de_hints(self, router):
+        claim = _make_claim("Deutschland verfehlt die Klimaziele beim CO2-Ausstoß laut Umweltbundesamt.")
+        result = router.route(claim)
+        hint_str = " ".join(result.site_hints)
+        assert "umweltbundesamt.de" in hint_str or "dwd.de" in hint_str
+
+    def test_migration_de_hints(self, router):
+        claim = _make_claim("Das BAMF verzeichnete 2025 in Deutschland steigende Asylantragszahlen.")
+        result = router.route(claim)
+        hint_str = " ".join(result.site_hints)
+        assert "bamf.de" in hint_str
 
 
 # ── SearchProfile-Augmentierung ───────────────────────────────────────────────
