@@ -133,6 +133,17 @@ class ClaimDomain(str, Enum):
     TRADE = "trade"
     """Handel, Außenwirtschaft, Zölle, Exportkontrollen."""
 
+    # ── Thematische Domänen (Klima, Migration, Technologie) ──
+
+    ENVIRONMENT = "environment"
+    """Klimawandel, Umwelt, Energie, Biodiversität, Emissionen."""
+
+    MIGRATION = "migration"
+    """Asyl, Flucht, Zuwanderung, Aufenthaltsrecht, Integration."""
+
+    TECHNOLOGY = "technology"
+    """Digitalisierung, KI, Cybersicherheit, Datenschutz, Netzpolitik."""
+
     # ── Wissens- und Nachrichtendomänen (GDELT, Wikidata, Wikipedia) ──
 
     BIOGRAPHICAL = "biographical"
