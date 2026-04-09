@@ -15,6 +15,8 @@ tier1_official_statistics:
   - un.org
   - ecb.europa.eu
   - curia.europa.eu
+  - eur-lex.europa.eu
+  - ris.bka.gv.at
 
 tier2_government:
   - bamf.de
@@ -29,6 +31,12 @@ tier2_government:
   - consilium.europa.eu
   - bundesbank.de
   - volkswagen-group.com
+  - pei.de
+  - bfs.de
+  - bmvg.bund.de
+  - parlament.gv.at
+  - arbeitsagentur.de
+  - umweltbundesamt.de
 
 tier3_quality_journalism:
   - reuters.com
@@ -68,6 +76,7 @@ classifier:
     - destatis.de
     - eurostat.ec.europa.eu
     - ec.europa.eu/eurostat
+    - eur-lex.europa.eu
     - bamf.de
     - bka.de
     - bmi.bund.de
@@ -86,6 +95,13 @@ classifier:
     - bpb.de
     - ecb.europa.eu
     - curia.europa.eu
+    - pei.de
+    - bfs.de
+    - ris.bka.gv.at
+    - parlament.gv.at
+    - bmvg.bund.de
+    - arbeitsagentur.de
+    - umweltbundesamt.de
 
   fact_checker:
     - correctiv.org
