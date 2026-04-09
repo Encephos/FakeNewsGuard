@@ -83,6 +83,10 @@ class SynthesizerAgent(BaseAgent):
                     f"  Kalibrierte Konfidenz: {fc.confidence:.0%}\n"
                     if fc.confidence >= 0.0 else ""
                 )
+                dep_hint = (
+                    "  ⚠ ACHTUNG: Baut auf widerlegter Prämisse auf (disputed_dependency)\n"
+                    if fc.disputed_dependency else ""
+                )
                 parts.append(
                     f"- Claim {fc.claim_id}: **{fc.rating.value}**\n"
                     f"  Evidenz: {fc.evidence}\n"
@@ -90,6 +94,7 @@ class SynthesizerAgent(BaseAgent):
                     f"  Fehlender Kontext: {fc.missing_context}\n"
                     f"  Quellen: {', '.join(fc.sources)}\n"
                     + conf_hint
+                    + dep_hint
                 )
 
         if number_audits:

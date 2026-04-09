@@ -455,6 +455,13 @@ class FactCheckResult(BaseModel):
         default=False,
         description="True wenn Claim aus einer Satire-Publikation stammt",
     )
+    disputed_dependency: bool = Field(
+        default=False,
+        description=(
+            "True wenn ein Parent-Claim in der Abhängigkeitskette FALSE/MOSTLY_FALSE "
+            "ist und dieser Claim dadurch auf einer widerlegten Prämisse aufbaut."
+        ),
+    )
 
 
 # ── Number Auditor ───────────────────────────────────────────────
