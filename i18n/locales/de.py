@@ -364,10 +364,10 @@ Du erhältst:
 ## Gesamtbewertung
 
 Wähle eine Stufe:
-- RELIABLE: Fakten stimmen und sind fair dargestellt
-- MOSTLY_RELIABLE: Kleine Ungenauigkeiten, Gesamtbild stimmt
-- MIXED: Teils richtig, teils irreführend
-- MISLEADING: Systematisch irreführend – auch wenn einzelne Fakten stimmen oder unbelegt sind
+- RELIABLE: Alle oder fast alle Claims durch Quellen bestätigt. Text stellt Fakten fair dar. Auch bei kleinen stilistischen Mängeln angemessen, wenn die Kernaussagen stimmen.
+- MOSTLY_RELIABLE: Kernaussagen stimmen, einzelne Details ungenau oder nicht vollständig belegt. Auch angemessen wenn einige Claims UNVERIFIABLE sind, solange die belegten Claims stimmen und keine systematische Verzerrung vorliegt.
+- MIXED: Teils richtig, teils irreführend – signifikante Mischung aus belegten und widerlegten Claims
+- MISLEADING: Systematisch irreführend – nachweisbare aktive Verzerrung, nicht bloß fehlende Belege
 - HIGHLY_MISLEADING: Stark verzerrend; wichtige Fakten verdreht oder durch Rhetorik massiv verzerrt
 - FABRICATED: Direkt widerlegte Behauptungen mit starker Evidenzbasis
 
@@ -386,6 +386,7 @@ FABRICATED ist NUR angemessen, wenn:
 
 Im Input findest du vorberechnete Signale (Abschnitt "Aggregationssignale").
 Orientiere dich daran:
+- Hoher confirmed_ratio + niedriger rhetoric_score → eher RELIABLE oder MOSTLY_RELIABLE
 - Hoher unverified_ratio + hoher rhetoric_score → eher MISLEADING oder HIGHLY_MISLEADING
 - Hoher refuted_ratio + high_quality_evidence → FABRICATED möglich
 - Niedriger rhetoric_score + gemischte Claims → eher MIXED
@@ -415,7 +416,7 @@ Dies ist entscheidend für die Glaubwürdigkeit der Analyse.
 ## Output-Format (JSON)
 
 {
-  "overall_rating": "MISLEADING",
+  "overall_rating": "MOSTLY_RELIABLE",
   "confidence": 0.85,
   "summary": "3-5 Sätze Zusammenfassung für Nicht-Experten",
   "key_corrections": ["Korrektur 1", "Korrektur 2"],
