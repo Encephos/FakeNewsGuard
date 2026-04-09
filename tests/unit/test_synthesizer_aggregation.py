@@ -689,3 +689,71 @@ class TestRule0cPositiveGuardrail:
         )
         result = agent._apply_rating_guardrails(OverallRating.HIGHLY_MISLEADING, signals)
         assert result == OverallRating.MOSTLY_RELIABLE
+
+
+# ── Tests: Regel 0 soft-negative (all MISLEADING) ───────────────────────────
+
+
+class TestRule0SoftNegative:
+
+    def _signals(self, **kwargs) -> AggregationSignals:
+        defaults = dict(
+            n_claims=1,
+            refuted_ratio=0.0,
+            unverified_ratio=0.0,
+            avg_claim_confidence=0.5,
+            high_quality_evidence=False,
+            rhetoric_score=0.0,
+            n_high_rhetoric=0,
+        )
+        defaults.update(kwargs)
+        return AggregationSignals(**defaults)
+
+    def test_all_misleading_floor_at_misleading(self):
+        """Alle Fact-Checks MISLEADING → mindestens MISLEADING."""
+        agent = _make_agent()
+        signals = self._signals(n_claims=1)
+        fcs = [_make_fc("C1", FactRating.MISLEADING, confidence=0.5)]
+        result = agent._apply_rating_guardrails(
+            OverallRating.MOSTLY_RELIABLE, signals, fact_checks=fcs,
+        )
+        assert result == OverallRating.MISLEADING
+
+    def test_all_false_still_floor_at_highly_misleading(self):
+        """Alle Fact-Checks FALSE → Floor bleibt HIGHLY_MISLEADING (Regression)."""
+        agent = _make_agent()
+        signals = self._signals(n_claims=2)
+        fcs = [
+            _make_fc("C1", FactRating.FALSE, confidence=0.7),
+            _make_fc("C2", FactRating.MOSTLY_FALSE, confidence=0.6),
+        ]
+        result = agent._apply_rating_guardrails(
+            OverallRating.MIXED, signals, fact_checks=fcs,
+        )
+        assert result == OverallRating.HIGHLY_MISLEADING
+
+    def test_mixed_false_and_misleading_floor_at_misleading(self):
+        """FALSE + MISLEADING gemischt → Floor MISLEADING (soft-negative)."""
+        agent = _make_agent()
+        signals = self._signals(n_claims=2)
+        fcs = [
+            _make_fc("C1", FactRating.FALSE, confidence=0.7),
+            _make_fc("C2", FactRating.MISLEADING, confidence=0.5),
+        ]
+        result = agent._apply_rating_guardrails(
+            OverallRating.MOSTLY_RELIABLE, signals, fact_checks=fcs,
+        )
+        assert result == OverallRating.MISLEADING
+
+    def test_misleading_plus_true_no_floor(self):
+        """MISLEADING + TRUE gemischt → kein soft-negative Floor."""
+        agent = _make_agent()
+        signals = self._signals(n_claims=2)
+        fcs = [
+            _make_fc("C1", FactRating.MISLEADING, confidence=0.5),
+            _make_fc("C2", FactRating.TRUE, confidence=0.8),
+        ]
+        result = agent._apply_rating_guardrails(
+            OverallRating.MOSTLY_RELIABLE, signals, fact_checks=fcs,
+        )
+        assert result == OverallRating.MOSTLY_RELIABLE

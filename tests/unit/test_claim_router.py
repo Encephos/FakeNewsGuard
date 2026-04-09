@@ -147,6 +147,18 @@ class TestDomainDetection:
         result = router.route(claim)
         assert ClaimDomain.PATENT in result.domains
 
+    def test_financial_monetary_policy_keywords(self, router):
+        claim = _make_claim(
+            "Die Bundesregierung plant die vollständige Abschaffung des Bargelds bis 2030."
+        )
+        result = router.route(claim)
+        assert ClaimDomain.FINANCIAL in result.domains
+        assert result.confidence > 0.10
+        # Site-Hints sollten bundesbank.de und bmf.de enthalten
+        hint_domains = " ".join(result.site_hints)
+        assert "bundesbank.de" in hint_domains
+        assert "bmf.de" in hint_domains
+
     def test_no_domain_fallback(self, router):
         claim = _make_claim("Der Himmel ist blau.")
         result = router.route(claim)
