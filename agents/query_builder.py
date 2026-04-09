@@ -258,6 +258,18 @@ def _bind_number_to_context(number: str, profile: "ClaimSearchProfile") -> str: 
     return ""
 
 
+def _dedup_parts(parts: list[str]) -> list[str]:
+    """Remove duplicate query parts (case-insensitive), preserving order."""
+    seen: set[str] = set()
+    result: list[str] = []
+    for p in parts:
+        key = p.strip().lower()
+        if key and key not in seen:
+            seen.add(key)
+            result.append(p)
+    return result
+
+
 def _build_search_queries_from_profile(claim: "ProcessedClaim") -> list[str]:  # type: ignore[name-defined]
     """Baue Suchqueries aus dem strukturierten ClaimSearchProfile.
 
@@ -346,16 +358,20 @@ def _build_search_queries_from_profile(claim: "ProcessedClaim") -> list[str]:  #
     # ── Query 3b: fact-check ohne site:-Operator ─────────────────────────
     # SearXNG leitet site:-Operatoren nicht zuverlässig an alle Engines weiter.
     # Parallele Query mit expliziten Faktencheck-Keywords statt site:-Prefix.
-    q3b_parts: list[str] = list(profile.core_entities[:2])
-    q3b_parts.extend(profile.policy_terms[:1])
+    # Deduplizierung: core_entities und policy_terms können sich überlappen
+    # (z.B. "Inflationsrate" in beiden) → _dedup_parts entfernt Duplikate.
+    q3b_parts: list[str] = _dedup_parts(
+        list(profile.core_entities[:2]) + list(profile.policy_terms[:1])
+    )
     q3b_parts.append("Faktencheck")
     q3b = " ".join(p for p in q3b_parts if p)
     if q3b.strip() and q3b.strip() not in queries:
         queries.append(q3b.strip())
 
     # ── Query 3c: Falschmeldung-Query für virale Claims ──────────────────
-    q3c_parts = list(profile.core_entities[:2])
-    q3c_parts.extend(profile.policy_terms[:1])
+    q3c_parts = _dedup_parts(
+        list(profile.core_entities[:2]) + list(profile.policy_terms[:1])
+    )
     q3c_parts.append("Falschmeldung")
     q3c = " ".join(p for p in q3c_parts if p)
     if q3c.strip() and q3c.strip() not in queries:
