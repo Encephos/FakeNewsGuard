@@ -24,6 +24,25 @@ known_orgs:
   - NASA
   - OECD
   - IWF
+  # Erweiterung: DE/CH/AT + international
+  - STIKO
+  - IQWiG
+  - DWD
+  - BSI
+  - BfN
+  - DIHK
+  - BDI
+  - ZEW
+  - WBGU
+  - IPCC
+  - WMO
+  - UNHCR
+  - IOM
+  - Frontex
+  - FINMA
+  - SNB
+  - SECO
+  - ENISA
 
 # Institutions-Pattern: (regex, kind)
 # kind = "org" oder "loc"
@@ -62,6 +81,23 @@ institution_patterns:
   - pattern: "\\b(?:WhatsApp|Facebook|Meta|Google|Microsoft|Apple)\\b"
     kind: org
   - pattern: "\\b(?:Ifo[- ]Institut|ifo)\\b"
+    kind: org
+  # Erweiterung: CH/Umwelt/Migration/Technologie
+  - pattern: "\\bBundesamt\\s+für\\s+(?:Umwelt|Gesundheit|Statistik|Energie|Naturschutz)\\w*\\b"
+    kind: org
+  - pattern: "\\b(?:IPCC|WMO|UNFCCC)\\b"
+    kind: org
+  - pattern: "\\b(?:UNHCR|Frontex|IOM)\\b"
+    kind: org
+  - pattern: "\\b(?:FINMA|SNB|SECO)\\b"
+    kind: org
+  - pattern: "\\bSchweiz\\b"
+    kind: loc
+  - pattern: "\\b(?:Zürich|Bern|Genf|Basel|Lausanne)\\b"
+    kind: loc
+  - pattern: "\\b(?:Wien|Graz|Salzburg|Innsbruck)\\b"
+    kind: loc
+  - pattern: "\\bSachverständigenrat\\w*\\b"
     kind: org
 
 # Bekannte Gesetzesabkürzungen (Regex-Pattern)

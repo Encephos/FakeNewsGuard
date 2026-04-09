@@ -47,6 +47,18 @@ qa_sites:
   - praxistipps.chip.de
   - ratgeber.focus.de
 
+conspiracy_adjacent:
+  - epochtimes.de
+  - report24.news
+  - tkp.at
+  - auf1.tv
+
+seo_content_farms:
+  - desired.de
+  - giga.de
+  - netzwelt.de
+  - buzzfeed.de
+
 # Auch in scrape_ranker verwendet (Untermenge)
 scrape_ranker:
   - xe.com
