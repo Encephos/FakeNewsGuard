@@ -100,6 +100,10 @@ def get_eval_results(eval_id: str) -> dict[str, Any] | None:
     global_metrics = json.loads(data.get("global_metrics", "{}"))
     per_category = json.loads(data.get("per_category", "{}"))
 
+    verdict_accuracy_report = json.loads(
+        data.get("verdict_accuracy_report", "{}")
+    )
+
     return {
         "eval_id": eval_id,
         "status": "done",
@@ -110,6 +114,7 @@ def get_eval_results(eval_id: str) -> dict[str, Any] | None:
         "backends": data.get("backends", "searxng"),
         "global_metrics": global_metrics,
         "per_category": per_category,
+        "verdict_accuracy_report": verdict_accuracy_report,
         "cases": cases,
     }
 
@@ -197,7 +202,12 @@ def run_evaluation(
     try:
         from config import AppConfig
         from eval.dataset import load_cases, filter_cases
-        from eval.metrics import aggregate_by_category, aggregate_global
+        from eval.metrics import (
+            aggregate_by_category,
+            aggregate_global,
+            compute_verdict_metrics,
+            compute_verdict_accuracy_report,
+        )
         from eval.runner_live import LiveRunner
         from orchestrator import Orchestrator
 
@@ -282,6 +292,34 @@ def run_evaluation(
                     "techniques_count": len(transformed.get("rhetoric", [])),
                 }
 
+                # --- Step 2b: Verdict accuracy (if expected verdict defined) ---
+                expected_verdict = case.expectations.expected_verdict_class
+                predicted_verdict = analysis_summary.get("overall_rating", "")
+                if expected_verdict and predicted_verdict:
+                    evidence_items = snapshot_summary.get("evidence_items", [])
+                    verdict_metrics = compute_verdict_metrics(
+                        predicted=predicted_verdict,
+                        expected=expected_verdict,
+                        evidence_items=evidence_items,
+                    )
+                    case_result.metrics.verdict_accuracy = verdict_metrics["verdict_accuracy"]
+                    case_result.metrics.verdict_within_one_step = verdict_metrics["verdict_within_one_step"]
+                    case_result.metrics.verdict_distance = verdict_metrics["verdict_distance"]
+                    case_result.metrics.topic_relevance_avg = verdict_metrics["topic_relevance_avg"]
+
+                    # Add violation if verdict is wrong
+                    if verdict_metrics["verdict_accuracy"] == 0.0:
+                        from eval.models import Violation
+                        case_result.violations.append(Violation(
+                            metric="verdict_accuracy",
+                            expected=expected_verdict,
+                            actual=predicted_verdict,
+                            severity="error",
+                        ))
+                        case_result.passed = False
+
+                    analysis_summary["expected_verdict"] = expected_verdict
+
                 # --- Step 3: Optional archiving ---
                 if archive_results and archive is not None:
                     try:
@@ -329,6 +367,7 @@ def run_evaluation(
         # Aggregate metrics
         global_metrics = aggregate_global(results)
         per_category = aggregate_by_category(results)
+        verdict_report = compute_verdict_accuracy_report(results)
 
         elapsed = round(time.time() - float(r.hget(hk, "started_at") or 0), 1)
         passed = sum(1 for res in results if res.passed)
@@ -337,6 +376,7 @@ def run_evaluation(
             "status": "done",
             "global_metrics": json.dumps(global_metrics),
             "per_category": json.dumps(per_category),
+            "verdict_accuracy_report": json.dumps(verdict_report.model_dump()),
             "elapsed_total": str(elapsed),
             "passed_count": str(passed),
             "archived_count": str(archived_count),

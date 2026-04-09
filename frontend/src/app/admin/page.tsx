@@ -1701,6 +1701,11 @@ const EVAL_METRIC_KEYS = [
   { key: "freshness_hit_rate", labelKey: "freshnessHitRate", higher: true },
 ] as const;
 
+const EVAL_VERDICT_KEYS = [
+  { key: "verdict_accuracy", labelKey: "verdictAccuracy", higher: true },
+  { key: "verdict_within_one_step", labelKey: "verdictWithinOneStep", higher: true },
+] as const;
+
 const TIER_COLORS: Record<number, string> = {
   1: "text-success",
   2: "text-success/80",
@@ -2111,6 +2116,27 @@ function EvaluationTab({
               ))}
             </div>
 
+            {/* Verdict Accuracy Row */}
+            {evalResults.verdict_accuracy_report && evalResults.verdict_accuracy_report.cases_with_expected_verdict > 0 && (
+              <div className="glass-card rounded-2xl p-4">
+                <h3 className="text-xs font-semibold text-text-primary mb-3">{t("admin.evaluation.verdictAccuracyReport")}</h3>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <MetricCard
+                    label={t("admin.evaluation.verdictAccuracy")}
+                    value={`${(evalResults.verdict_accuracy_report.exact_match_rate * 100).toFixed(0)}%`}
+                    sub={`${evalResults.verdict_accuracy_report.exact_match_count}/${evalResults.verdict_accuracy_report.cases_with_expected_verdict}`}
+                    accent={evalResults.verdict_accuracy_report.exact_match_rate >= 0.7 ? "success" : evalResults.verdict_accuracy_report.exact_match_rate >= 0.4 ? "warning" : "error"}
+                  />
+                  <MetricCard
+                    label={t("admin.evaluation.verdictWithinOneStep")}
+                    value={`${(evalResults.verdict_accuracy_report.within_one_step_rate * 100).toFixed(0)}%`}
+                    sub={`${evalResults.verdict_accuracy_report.within_one_step_count}/${evalResults.verdict_accuracy_report.cases_with_expected_verdict}`}
+                    accent={evalResults.verdict_accuracy_report.within_one_step_rate >= 0.8 ? "success" : evalResults.verdict_accuracy_report.within_one_step_rate >= 0.5 ? "warning" : "error"}
+                  />
+                </div>
+              </div>
+            )}
+
             {/* Violations summary */}
             <div className="glass-card rounded-2xl p-4">
               <h3 className="text-xs font-semibold text-text-primary mb-3">{t("admin.evaluation.violations")}</h3>
@@ -2235,8 +2261,17 @@ function EvaluationTab({
                         <div>
                           <div className="text-[10px] font-medium uppercase tracking-wider text-text-tertiary mb-1.5">{t("admin.evaluation.analysisSummary")}</div>
                           <div className="glass-inner rounded-lg p-3 space-y-2">
-                            <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-3 flex-wrap">
                               <span className="text-xs font-semibold text-text-primary">{t("admin.evaluation.overallRating")}: {c.analysis_result.overall_rating}</span>
+                              {c.analysis_result.expected_verdict && (
+                                <span className={`inline-flex px-2 py-0.5 rounded-full text-[9px] font-medium ${
+                                  c.analysis_result.overall_rating === c.analysis_result.expected_verdict
+                                    ? "bg-success/15 text-success"
+                                    : "bg-error/15 text-error"
+                                }`}>
+                                  {t("admin.evaluation.expectedVerdict")}: {c.analysis_result.expected_verdict}
+                                </span>
+                              )}
                               <span className="text-[10px] text-text-secondary">{t("admin.evaluation.confidence")}: {c.analysis_result.confidence != null ? `${c.analysis_result.confidence}%` : "–"}</span>
                               {c.archived && (
                                 <span className="inline-flex px-2 py-0.5 rounded-full bg-success/15 text-success text-[9px] font-medium">{t("admin.evaluation.archived")}</span>
